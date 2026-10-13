@@ -211,3 +211,9 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .mask-chip { background: #4a3a6a; border-color: #7a5fb0; color: #fff; font-size: 12px; padding: 2px 8px; margin-left: 6px; }
 .menu .tick { width: 16px; font-style: normal; color: var(--accent); flex: none; }
 .menu button span { flex: 1; }
+
+/* text editing: the textarea sits over the canvas in doc coordinates (its own text is invisible) */
+.text-edit { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; z-index: 4; }
+.text-edit textarea { position: absolute; pointer-events: auto; margin: 0; padding: 0; border: none; resize: none; overflow: hidden;
+  white-space: pre; background: rgba(110, 168, 255, 0.06); color: transparent; caret-color: #3d6fd1;
+  outline: 1px dashed #6ea8ff; user-select: text; box-sizing: content-box; }

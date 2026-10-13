@@ -1,6 +1,8 @@
 // Tool list and per-tool settings (pure, tested). Each tool remembers its own settings, as in other painting programs.
 
 import { SELECT_MODES } from './selection.js';
+import { GRADIENT_COLORS, GRADIENT_SHAPES } from './gradient.js';
+import { FONTS, ALIGNS } from './textlayer.js';
 
 export const TOOLS = [
   { id: 'pen', label: 'Pen', key: 'p', kind: 'paint', icon: 'pen', group: 'draw',
@@ -15,6 +17,10 @@ export const TOOLS = [
     defaults: { size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1 } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
     defaults: { opacity: 1, tolerance: 12, grow: 1, sampleAll: true } },
+  { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
+    defaults: { colors: 'main-sub', shape: 'linear', opacity: 1 } },
+  { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',
+    defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, vertical: false } },
   { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', group: 'draw', defaults: {} },
   { id: 'select', label: 'Rectangle selection', key: 'm', kind: 'select', icon: 'rectSel', group: 'select', defaults: { mode: 'replace' } },
   { id: 'lasso', label: 'Lasso selection', key: 'l', kind: 'select', icon: 'lasso', group: 'select', defaults: { mode: 'replace' } },
@@ -30,6 +36,10 @@ export const TOOL_BY_ID = Object.fromEntries(TOOLS.map(t => [t.id, t]));
 /** The settings each control in the tool panel edits: [key, label, type, min, max, step], or [key, label, 'choice', options]. */
 export const SETTING_FIELDS = [
   ['mode', 'Mode', 'choice', SELECT_MODES],
+  ['colors', 'Colors', 'choice', GRADIENT_COLORS],
+  ['shape', 'Shape', 'choice', GRADIENT_SHAPES],
+  ['font', 'Font', 'choice', FONTS],
+  ['align', 'Align', 'choice', ALIGNS],
   ['size', 'Size', 'range', 1, 1000, 1],
   ['opacity', 'Opacity', 'range', 0.01, 1, 0.01],
   ['flow', 'Density', 'range', 0.01, 1, 0.01],
@@ -38,6 +48,10 @@ export const SETTING_FIELDS = [
   ['minSize', 'Min. size', 'range', 0, 1, 0.01],
   ['smoothing', 'Stabilization', 'range', 0, 20, 1],
   ['gamma', 'Pressure', 'range', 0.3, 3, 0.05],
+  ['leading', 'Line spacing', 'range', 0.5, 4, 0.05],
+  ['bold', 'Bold', 'check'],
+  ['italic', 'Italic', 'check'],
+  ['vertical', 'Vertical', 'check'],
   ['pressureSize', 'Pressure → size', 'check'],
   ['pressureOpacity', 'Pressure → density', 'check'],
   ['tolerance', 'Margin', 'range', 0, 255, 1],
@@ -57,6 +71,11 @@ export const SETTING_HINTS = {
   tolerance: 'How different a colour may be and still count as the same area',
   grow: 'Grows the filled area by this many pixels, so it tucks under line edges',
   sampleAll: 'Find the area from everything you see (on) or from the current layer only (off)',
+  colors: 'Main and sub are the two colour squares in the Color panel',
+  shape: 'Straight: along the line you drag. Circle: outwards from where you start',
+  align: 'Which side lines line up on (for vertical text: top, middle or bottom of the columns)',
+  leading: 'Distance between lines (or columns), as a multiple of the text size',
+  vertical: 'Write top to bottom, with columns from right to left, as in manga',
 };
 
 /** Every tool's settings, starting from its defaults and keeping only valid stored values. */
@@ -76,6 +95,14 @@ export function sanitizeSettings(stored) {
     out[t.id] = s;
   }
   return out;
+}
+
+/** The tool a shortcut key picks: tools sharing a key (G: fill, gradient) take turns on repeated presses. */
+export function toolForKey(key, current) {
+  const matches = TOOLS.filter(t => t.key === key);
+  if (!matches.length) return null;
+  const i = matches.findIndex(t => t.id === current);
+  return matches[(i + 1) % matches.length].id;
 }
 
 /** Brush size steps for the [ and ] keys: finer when small. */

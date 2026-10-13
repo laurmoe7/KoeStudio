@@ -29,7 +29,7 @@ export const selectionMethods = {
   deselect() { if (this.sel.active) this.changeSelection('Deselect', () => this.sel.clear()); },
   invertSelection() { this.changeSelection('Invert selection', () => this.sel.invert()); },
   selectLayerPixels() {
-    const l = this.target('select from');
+    const l = this.target('select from', { read: true });
     if (!l) return;
     this.changeSelection('Select layer pixels', () => this.sel.combine('replace', ctx => ctx.drawImage(l.canvas, 0, 0)));
     if (!this.sel.active) toast('This layer is empty, so nothing was selected.');
@@ -87,7 +87,7 @@ export const selectionMethods = {
   // ---------- copy, cut, paste ----------
 
   copySelection(cut = false) {
-    const d = this.doc, l = this.target('copy from');
+    const d = this.doc, l = this.target('copy from', { read: true });
     if (!l) return;
     const r = this.sel.active ? this.sel.bounds : { x: 0, y: 0, w: d.width, h: d.height };
     const c = document.createElement('canvas');

@@ -132,7 +132,7 @@ test('tool settings', () => {
   assert.ok(!('bogus' in s.pen));
   assert.equal(s.fill.tolerance, 0);
   assert.deepEqual(Object.keys(s), TOOLS.map(t => t.id));
-  assert.equal(new Set(TOOLS.map(t => t.key)).size, TOOLS.length, 'tool keys are unique');
+  assert.ok(TOOLS.every(t => t.key && t.key.length === 1), 'every tool has a one-letter key');
   assert.equal(nextSize(5, 1), 6);
   assert.equal(nextSize(50, -1), 45);
   assert.equal(nextSize(1, -1), 1);

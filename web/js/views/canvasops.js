@@ -15,6 +15,7 @@ export const canvasMethods = {
   /** Gives every layer a new w x h canvas drawn by paint(ctx, oldCanvas), as one undo step. */
   reshapeCanvas(label, w, h, paint) {
     this.finishTransform();
+    this.finishText();
     if (!validSide(w) || !validSide(h)) return toast(`Width and height must be between 1 and ${MAX_SIDE} pixels.`, { error: true });
     const d = this.doc;
     const rasters = d.rasters();
@@ -29,7 +30,8 @@ export const canvasMethods = {
       after.canvases.set(l, c);
     }
     const bytes = rasters.length * (before.w * before.h + w * h) * 4;
-    this.structural(label, () => this.setCanvasState(after), () => this.setCanvasState(before), bytes);
+    const tx = this.textsIn(rasters);  // resized or moved pixels no longer match the text: text layers become pixels
+    this.structural(label, () => { this.setCanvasState(after); tx.drop(); }, () => { this.setCanvasState(before); tx.restore(); }, bytes);
   },
 
   setCanvasState(s) {

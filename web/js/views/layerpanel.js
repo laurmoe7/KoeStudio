@@ -85,6 +85,7 @@ export class LayerPanel {
       if (isFolder(node)) row.setAttribute('aria-expanded', node.open);
       row.style.paddingLeft = 4 + depth * INDENT + 'px';
       const sub = [blendLabel(node.blend), Math.round(node.opacity * 100) + '%'];
+      if (node.text) sub.unshift('Text');
       if (node.alphaLock) sub.push('locked');
       if (node.mask && !node.mask.enabled) sub.push('mask off');
       row.innerHTML = `

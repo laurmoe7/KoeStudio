@@ -3,6 +3,7 @@
 
 import { isFolder, allNodes, allLayers, pathOf, nodeAt, insertNode } from './tree.js';
 import { defaultRulers, sanitizeRulers } from './rulers.js';
+import { sanitizeText } from './textlayer.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -47,6 +48,7 @@ export function sanitizeDoc(raw) {
     } else {
       out.alphaLock = !!l?.alphaLock;
       out.png = isPng(l?.png) ? l.png : null;
+      if (l?.text) out.text = sanitizeText(l.text);  // a text layer (textlayer.js); png holds its last rendering
     }
     return out;
   };
@@ -124,6 +126,7 @@ export class Layer extends Raster {
     this.alphaLock = !!props.alphaLock;
     this.clip = !!props.clip;
     this.mask = null;
+    this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
   }
 }
 
@@ -151,7 +154,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, props);
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -238,6 +241,7 @@ export class Doc {
       } else {
         out.alphaLock = n.alphaLock;
         out.png = await n.toPng();
+        if (n.text) out.text = n.text;
       }
       if (n.mask) out.mask = { enabled: n.mask.enabled, png: await n.mask.toPng() };
       return out;

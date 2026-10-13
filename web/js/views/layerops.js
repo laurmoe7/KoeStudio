@@ -11,12 +11,19 @@ import { toast } from '../ui.js';
 export const layerMethods = {
   // ---------- what tools work on ----------
 
-  /** The raster tools change (layer or mask), or null after telling the user why not. verb: 'draw on', 'fill'... */
-  target(verb = 'draw on') {
+  /**
+   * The raster tools change (layer or mask), or null after telling the user why not. verb: 'draw on', 'fill'...
+   * read: the tool only reads pixels (copy, select), so text layers are fine as they are.
+   */
+  target(verb = 'draw on', { read = false } = {}) {
     const n = this.doc.active;
     if (!n.visible) { toast(`This ${isFolder(n) ? 'folder' : 'layer'} is hidden. Show it to ${verb} it.`); return null; }
     if (this.maskEdit && n.mask) return n.mask;
     if (isFolder(n)) { toast(`A folder has no pixels of its own. Select a layer inside it to ${verb}, or click the folder's mask.`); return null; }
+    if (n.text && !read) {
+      toast('This is a text layer. Use the Text tool to change it, or rasterize it to paint on it.', { action: { label: 'Rasterize', run: () => this.rasterizeText(n) }, ms: 6000 });
+      return null;
+    }
     return n;
   },
 
@@ -161,9 +168,10 @@ export const layerMethods = {
     const after = lower.ctx.getImageData(0, 0, W, H);
     lower.ctx.putImageData(before, 0, 0);
     const put = img => { lower.ctx.putImageData(img, 0, 0); lower.touch(); };
+    const tx = this.textsIn([lower]);  // merged into, a text layer becomes ordinary pixels
     this.structural('Merge down',
-      () => { put(after); removeNode(n); d.active = lower; },
-      () => { put(before); insertNode(parent, i, n); d.active = n; },
+      () => { put(after); removeNode(n); d.active = lower; tx.drop(); },
+      () => { put(before); insertNode(parent, i, n); d.active = n; tx.restore(); },
       W * H * 12);
   },
 
@@ -262,8 +270,23 @@ export const layerMethods = {
   endMove() {
     const g = this.gesture, d = this.doc;
     if (!g.dx && !g.dy) return;
-    for (const p of g.parts) { p.after = p.r.ctx.getImageData(0, 0, d.width, d.height); p.r.touch(); }
-    const put = key => { for (const p of g.parts) { p.r.ctx.putImageData(p[key], 0, 0); p.r.touch(); } this.changed(null); };
+    for (const p of g.parts) {
+      p.after = p.r.ctx.getImageData(0, 0, d.width, d.height);
+      p.r.touch();
+      if (p.r.text) {  // a text layer keeps its text editable: move where it is drawn
+        p.textBefore = p.r.text;
+        p.textAfter = { ...p.r.text, x: p.r.text.x + g.dx, y: p.r.text.y + g.dy };
+        p.r.text = p.textAfter;
+      }
+    }
+    const put = key => {
+      for (const p of g.parts) {
+        p.r.ctx.putImageData(p[key], 0, 0);
+        p.r.touch();
+        if (p.textBefore) p.r.text = key === 'before' ? p.textBefore : p.textAfter;
+      }
+      this.changed(null);
+    };
     this.history.push({ label: 'Move', bytes: g.parts.length * d.width * d.height * 8, undo: () => put('before'), redo: () => put('after') });
     this.changed(null);
   },
@@ -334,6 +357,7 @@ export const layerMethods = {
         l.touch();
       }
     };
-    this.structural(label, flip, flip);
+    const tx = this.textsIn(rasters);  // flipped pixels no longer match the text, so text layers become pixels
+    this.structural(label, () => { flip(); tx.drop(); }, () => { flip(); tx.restore(); });
   },
 };

@@ -61,6 +61,7 @@ export class ColorPanel {
     this.hsv = hsv;
     this.main = rgbToHex(...hsvToRgb(...hsv));
     this.refresh(false);
+    this.onChange?.();
   }
 
   /** Sets the main colour from a hex string (eyedropper, hex box, recent swatch). */
@@ -72,6 +73,7 @@ export class ColorPanel {
     this.hsv = hsv;
     this.refresh();
     this.save();
+    this.onChange?.();
   }
 
   swap() {

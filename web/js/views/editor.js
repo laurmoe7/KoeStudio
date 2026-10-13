@@ -12,7 +12,7 @@ import { comboOf, isTyping } from '../keys.js';
 import { Painter } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { Selection } from '../selection.js';
-import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_HINTS, sanitizeSettings, nextSize } from '../tools.js';
+import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
 import { esc, toast, menu, promptBox, fileToDataUrl, store } from '../ui.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
@@ -21,6 +21,8 @@ import { selectionMethods } from './selecttools.js';
 import { canvasMethods } from './canvasops.js';
 import { layerMethods } from './layerops.js';
 import { rulerMethods } from './rulertools.js';
+import { gradientMethods } from './gradienttool.js';
+import { textMethods } from './texttool.js';
 
 const SAVE_DELAY = 800;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -156,6 +158,7 @@ export class Editor {
     this.octx = this.overlay.getContext('2d');
     this.colors = new ColorPanel($('.color-panel'));
     this.layerPanel = new LayerPanel($('.layer-panel'), this);
+    this.colors.onChange = () => this.textColorChanged();
     this.root.querySelectorAll('[data-tool]').forEach(b => { b.onclick = () => this.selectTool(b.dataset.tool); });
     const acts = {
       home: () => this.goHome(), undo: () => this.undo(), redo: () => this.redo(),
@@ -167,7 +170,12 @@ export class Editor {
     this.root.querySelectorAll('[data-menu]').forEach(b => { b.onclick = () => { this.finishTransform(); menu(b, this.menuItems(b.dataset.menu)); }; });
     // using the side panels or the tool bar while transforming applies the transform first
     for (const el of this.root.querySelectorAll('.ed-side, .ed-tools, .ed-top')) {
-      el.addEventListener('pointerdown', e => { if (!e.target.closest('[data-act="undo"]')) this.finishTransform(); }, true);
+      el.addEventListener('pointerdown', e => {
+        if (e.target.closest('[data-act="undo"]')) return;
+        this.finishTransform();
+        // the tool panel and colour panel change the text being edited, so they leave the edit open
+        if (!e.target.closest('.tool-props, .color-panel, [data-panel="tool"], [data-panel="color"]')) this.finishText();
+      }, true);
     }
     $('.ed-title').onclick = () => this.rename();
     // side panels fold away by clicking their heading; remembered between launches
@@ -253,6 +261,7 @@ export class Editor {
         { label: 'Flip layer horizontally', run: () => this.flipPixels(this.layerRasters(), 'h', 'Flip layer') },
         { label: 'Flip layer vertically', run: () => this.flipPixels(this.layerRasters(), 'v', 'Flip layer') },
         '-',
+        { label: 'Rasterize text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
         { label: 'Rename…', run: async () => { const n = await promptBox('Rename', 'Name', d.active.name); if (n) this.setLayerProp(d.active, 'name', n, 'Rename'); } },
       ],
       view: [
@@ -352,6 +361,8 @@ export class Editor {
     this.drawSelectionOverlay(ctx);
     this.drawCropOverlay(ctx);
     this.drawRulerOverlay(ctx);
+    this.drawGradientOverlay(ctx);
+    this.placeTextEditor();
     const brush = this.updateCursor();
     if (brush) this.drawBrushOutline(ctx, brush);
     this.drawEdgeRulers(ctx);
@@ -368,7 +379,7 @@ export class Editor {
     }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
-    set({ paint: 'none', fill: 'crosshair', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+    set({ paint: 'none', fill: 'crosshair', gradient: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
     return this.pointer && tool.kind === 'paint' ? tool : null;
   }
@@ -412,6 +423,7 @@ export class Editor {
   selectTool(id) {
     if (!TOOL_BY_ID[id]) return;
     if (this.tool === 'crop' && id !== 'crop') this.cancelCrop();
+    if (id !== 'text') this.finishText();
     this.tool = id;
     if (id === 'crop' && !this.crop) this.startCrop();
     store('tool', id);
@@ -463,6 +475,7 @@ export class Editor {
         const out = inp.parentElement.querySelector('output');
         if (out) out.textContent = fmt(k, s[k]);
         store('tools', this.settings);
+        if (t.id === 'text') this.textSettingsChanged();
         this.drawOverlay();
       });
     });
@@ -511,6 +524,8 @@ export class Editor {
       }
       else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId);
       else if (tool.kind === 'fill') this.fillAt(dp);
+      else if (tool.kind === 'gradient') this.beginGradient(dp, e.pointerId);
+      else if (tool.kind === 'text') { e.preventDefault(); this.textClick(dp); }
       else if (tool.kind === 'picker') { this.gesture = { type: 'pick', tool: toolId, id: e.pointerId }; this.pickAt(dp); }
       else if (tool.kind === 'move') this.beginMove(dp, e.pointerId);
       this.drawOverlay();
@@ -542,6 +557,8 @@ export class Editor {
           this.cropDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         } else if (g.type === 'guide' || g.type === 'vp') {
           this.rulerDrag(toDoc(this.view, p.x, p.y));
+        } else if (g.type === 'gradient') {
+          this.gradientDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         }
       }
       const dp = toDoc(this.view, p.x, p.y);
@@ -554,6 +571,7 @@ export class Editor {
       this.pointer = pos(e);
       if (g.type === 'paint') this.endPaint();
       else if (g.type === 'guide' || g.type === 'vp') this.rulerEnd(this.pointer);
+      else if (g.type === 'gradient') this.endGradient();
       else if (g.type === 'move') this.endMove();
       else if (g.type === 'select') this.endSelect();
       this.gesture = null;
@@ -739,6 +757,7 @@ export class Editor {
 
   undo() {
     if (this.gesture) return;
+    this.finishText();  // the undo button while typing undoes the whole text edit
     if (this.xf) return this.cancelTransform();
     if (this.history.undo()) this.layerPanel.render();
   }
@@ -781,7 +800,7 @@ export class Editor {
 
   async save() {
     clearTimeout(this.saveTimer);
-    if (this.xf) { this.saveTimer = setTimeout(() => this.save(), SAVE_DELAY); return; }  // never save a half-done transform
+    if (this.xf || this.textEdit) { this.saveTimer = setTimeout(() => this.save(), SAVE_DELAY); return; }  // never save a half-done edit
     if (this.saving) { this.saveAgain = true; return this.saving; }
     const d = this.doc, v = d.version;
     if (v === this.savedVersion) return;
@@ -809,6 +828,7 @@ export class Editor {
   /** Saves anything pending; used before reloading or leaving the editor. */
   async flush() {
     this.finishTransform();
+    this.finishText();
     if (this.saving) await this.saving.catch(() => {});
     if (this.doc && this.doc.version !== this.savedVersion) await this.save();
   }
@@ -853,8 +873,8 @@ export class Editor {
       if (!this.gesture) c === 'enter' ? this.applyCrop() : this.selectTool('pen');
       return;
     }
-    const t = TOOLS.find(x => x.key === c);
-    if (t) { this.selectTool(t.id); return; }
+    const t = toolForKey(c, this.tool);
+    if (t) { this.selectTool(t); return; }
     const s = this.settings[this.tool];
     const map = {
       '[': () => s.size && this.setSize(nextSize(s.size, -1)),
@@ -913,12 +933,12 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (['opacity', 'flow', 'hardness', 'spacing', 'minSize'].includes(key)) return Math.round(v * 100) + '%';
-  if (key === 'gamma') return v.toFixed(2);
+  if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);
 }
 

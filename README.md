@@ -24,6 +24,8 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
   - Stabilization (smooths shaky lines), hardness, density, spacing. Each tool remembers its own settings.
   - Fill can look at all layers or only the current one, with a colour margin and an expand option that tucks the fill under line edges.
   - The pen's eraser end erases.
+- **Gradient (G, press again to switch between Fill and Gradient):** drag to set the direction (Shift snaps the angle). Colors main → sub, main → transparent (or the other way round), straight or circular, with opacity. It fills the selection if there is one, and works on masks too.
+- **Text (T):** click to type a new text, click a text to edit it again; click elsewhere, switch tools or press Esc to finish. Font (including Japanese fonts), size, bold, italic, alignment, line spacing and **vertical writing** (top to bottom, columns right to left, as in manga). Text stays editable on its own text layer; the Move tool moves it. To paint on it, rasterize it (Layer → Rasterize text, or the button that appears when you try).
 - **Selections:** rectangle, lasso and magic wand; Shift adds, Alt subtracts, Shift+Alt keeps the overlap. Select all, deselect, invert, select layer pixels. Painting, fills, Delete and Alt+Del stay inside the selection.
 - **Transform (Ctrl+T):** scale with the handles (Shift or "Keep aspect" for proportions), rotate by dragging outside the box (Shift snaps to 15°), move by dragging inside or with the arrow keys, flip and turn 90°. Enter applies, Esc cancels. Works on the selection, or the whole layer when nothing is selected. The Move tool moves just the selected pixels when there is a selection.
 - **Canvas and image size (Image menu):** Canvas size adds or removes space around the picture, kept at any of nine anchor points; Image size stretches or shrinks everything (by pixels or percent, smooth or hard-pixel). Rotate the canvas 90° or 180° and flip it.
@@ -55,5 +57,6 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 | Alt+Del | Fill selection or layer | Ctrl+S / Ctrl+Shift+S | Save / export PNG |
 | Shift+M | Mirror view | Enter / Esc | Apply / cancel transform or crop |
 | C | Crop | Ctrl+Alt+C / Ctrl+Alt+I | Canvas size / Image size |
+| T | Text | G (again) | Fill / Gradient |
 | U | Ruler (perspective, guides) | Ctrl+2 / Ctrl+; | Snap to rulers / show guides |
 | F5 / Ctrl+R | Reload screen | Ctrl+0 / Ctrl+1 | Fit / 100% |
