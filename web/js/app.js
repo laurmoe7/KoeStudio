@@ -52,6 +52,15 @@ async function reload() {
 }
 window.koeReload = reload;
 
+/** Called by app.py when the window is closing: save pending work and say when that is done (koeFlushState). */
+window.koeFlushStart = () => {
+  window.koeFlushState = 'pending';
+  (editor ? editor.flush() : Promise.resolve()).catch(() => {}).finally(() => { window.koeFlushState = 'done'; });
+  return 1;
+};
+// leaving the page or hiding the window (the browser flavour, where there is no closing hook) also saves
+document.addEventListener('visibilitychange', () => { if (document.hidden) editor?.flush().catch(() => {}); });
+
 window.addEventListener('keydown', e => {
   if (isReloadKey(e)) {
     e.preventDefault();
