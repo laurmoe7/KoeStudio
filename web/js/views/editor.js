@@ -17,6 +17,7 @@ import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize }
 import { ColorPanel } from './colorpanel.js';
 import { LayerPanel } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
+import { canvasMethods } from './canvasops.js';
 
 const SAVE_DELAY = 800;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -94,6 +95,7 @@ export class Editor {
           <button class="icon-btn" data-act="home" title="Back to the gallery">${icon('back')}</button>
           <button class="menu-btn" data-menu="file">File</button>
           <button class="menu-btn" data-menu="edit">Edit</button>
+          <button class="menu-btn" data-menu="image">Image</button>
           <button class="menu-btn" data-menu="select">Select</button>
           <button class="menu-btn" data-menu="layer">Layer</button>
           <button class="menu-btn" data-menu="view">View</button>
@@ -184,7 +186,16 @@ export class Editor {
         { label: 'Transform…', key: 'Ctrl+T', run: () => this.beginTransform() },
         { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', key: 'Del', run: () => this.clearLayer() },
         { label: this.sel.active ? 'Fill selection with main color' : 'Fill layer with main color', key: 'Alt+Del', run: () => this.fillLayer() },
+      ],
+      image: [
+        { label: 'Canvas size…', key: 'Ctrl+Alt+C', run: () => this.canvasSizeDialog() },
+        { label: 'Image size…', key: 'Ctrl+Alt+I', run: () => this.imageSizeDialog() },
+        { label: 'Crop tool', key: 'C', run: () => this.selectTool('crop') },
+        { label: 'Crop to selection', run: () => this.cropToSelection(), disabled: !this.sel.active },
         '-',
+        { label: 'Rotate canvas 90° right', run: () => this.rotateCanvas(1) },
+        { label: 'Rotate canvas 90° left', run: () => this.rotateCanvas(-1) },
+        { label: 'Rotate canvas 180°', run: () => this.rotateCanvas(2) },
         { label: 'Flip canvas horizontally', run: () => this.flipPixels(d.layers, 'h', 'Flip canvas') },
         { label: 'Flip canvas vertically', run: () => this.flipPixels(d.layers, 'v', 'Flip canvas') },
       ],
@@ -296,12 +307,14 @@ export class Editor {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
     this.drawSelectionOverlay(ctx);
+    this.drawCropOverlay(ctx);
     if (this.xf && !this.xf.moveOnly && !this.held.space && this.gesture?.type !== 'pan') {
       const g = this.gesture;
       if (g?.type !== 'xf') this.overlay.style.cursor = this.pointer ? this.xfCursor(toDoc(this.view, this.pointer.x, this.pointer.y)) : 'default';
       return;
     }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
+    if (tool.kind === 'crop') { this.overlay.style.cursor = this.gesture ? this.overlay.style.cursor : this.cropCursor(); return; }
     this.overlay.style.cursor = { paint: 'none', fill: 'crosshair', picker: 'crosshair', move: 'move', select: 'crosshair',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind];
     if (!this.pointer || tool.kind !== 'paint') return;
@@ -341,7 +354,9 @@ export class Editor {
 
   selectTool(id) {
     if (!TOOL_BY_ID[id]) return;
+    if (this.tool === 'crop' && id !== 'crop') this.cancelCrop();
     this.tool = id;
+    if (id === 'crop' && !this.crop) this.startCrop();
     store('tool', id);
     this.root.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === id));
     this.renderToolProps();
@@ -364,7 +379,8 @@ export class Editor {
     const fields = SETTING_FIELDS.filter(f => f[0] in s);
     if (!fields.length) {
       box.innerHTML = `<p class="muted small">${t.kind === 'picker' ? 'Click the canvas to pick a color. Hold Alt with a brush to pick quickly.'
-        : t.kind === 'move' ? 'Drag to move the current layer, or only the selected pixels when there is a selection.' : 'Drag to move the view. Hold Space with any tool to do the same.'}</p>`;
+        : t.kind === 'move' ? 'Drag to move the current layer, or only the selected pixels when there is a selection.'
+        : t.kind === 'crop' ? 'Drag the edges or corners of the box (Shift keeps proportions), drag inside to move it, or drag outside to draw a new box. Enter crops, Esc leaves.' : 'Drag to move the view. Hold Space with any tool to do the same.'}</p>`;
       return;
     }
     box.innerHTML = fields.map(([key, label, type, min, max, step]) => type === 'check'
@@ -425,6 +441,7 @@ export class Editor {
       const tool = TOOL_BY_ID[toolId];
       if (tool.kind === 'hand') this.beginPan(p, e.pointerId);
       else if (tool.kind === 'select') this.beginSelect(toolId, dp, e.pointerId, e);
+      else if (tool.kind === 'crop') this.beginCrop(dp, e.pointerId);
       else if (tool.kind === 'move' && this.sel.active) {
         // with a selection, the Move tool moves only the selected pixels (a quick transform)
         if (this.beginTransform({ moveOnly: true })) this.gesture = { type: 'xf', tool: 'move', id: e.pointerId, grab: 'move', t0: { ...this.xf.t }, p0: dp };
@@ -458,6 +475,8 @@ export class Editor {
           this.selectDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'xf') {
           this.xfDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
+        } else if (g.type === 'crop') {
+          this.cropDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         }
       }
       const dp = toDoc(this.view, p.x, p.y);
@@ -941,6 +960,11 @@ export class Editor {
       return;
     }
     if (this.xf) return this.onTransformKey(e, c);
+    if (this.crop && (c === 'enter' || c === 'escape')) {
+      e.preventDefault();
+      if (!this.gesture) c === 'enter' ? this.applyCrop() : this.selectTool('pen');
+      return;
+    }
     const t = TOOLS.find(x => x.key === c);
     if (t) { this.selectTool(t.id); return; }
     const s = this.settings[this.tool];
@@ -951,6 +975,7 @@ export class Editor {
       'shift+m': () => this.flipView(),
       'ctrl+a': () => this.selectAll(), 'ctrl+d': () => this.deselect(), 'ctrl+shift+i': () => this.invertSelection(),
       'ctrl+t': () => this.beginTransform(),
+      'ctrl+alt+c': () => this.canvasSizeDialog(), 'ctrl+alt+i': () => this.imageSizeDialog(),
       'ctrl+c': () => this.copySelection(), 'ctrl+x': () => this.copySelection(true),
       '4': () => this.rotate(-15), '6': () => this.rotate(15), '5': () => this.rotate(null),
       'delete': () => this.clearLayer(), 'backspace': () => this.clearLayer(),
@@ -999,7 +1024,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

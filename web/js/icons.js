@@ -14,6 +14,7 @@ const P = {
   lasso: '<path d="M7 17c-3-1.5-4-4-3-6.5C5.5 6 10 4 15 4.5S21 8 20 11s-5 5-9.5 5"/><path d="M7 17c0 2 1.5 3 3 3"/><circle cx="7.5" cy="16" r="1.5"/>',
   wand: '<path d="M4 20L15 9"/><path d="M15 9l2-2"/><path d="M17 2v3M17 9v3M12 4.5l2 1.5M20 4.5l-2 1.5M22 7h-3"/>',
   transform: '<rect x="6" y="6" width="12" height="12"/><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><rect x="17" y="17" width="4" height="4"/>',
+  crop: '<path d="M6 2v14a2 2 0 002 2h14"/><path d="M18 22V8a2 2 0 00-2-2H2"/>',
   eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   eyeOff: '<path d="M3 3l18 18"/><path d="M10.5 6.2A10 10 0 0112 6c6 0 10 6 10 6a17 17 0 01-3 3.5M6.5 7.5C4 9.3 2 12 2 12s4 7 10 7a9 9 0 004-1"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',

@@ -19,13 +19,15 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 ## Features
 
 - **Gallery** of your artwork with thumbnails; new canvas presets (Full HD, A4 and B5 at print resolution, square, icon) or any size up to 10,000 px; open any image as a new artwork.
-- **Tools:** Pen, Pencil, Brush, Airbrush, Eraser, Fill, Rectangle selection, Lasso, Magic wand, Eyedropper, Move, Hand.
+- **Tools:** Pen, Pencil, Brush, Airbrush, Eraser, Fill, Rectangle selection, Lasso, Magic wand, Crop, Eyedropper, Move, Hand.
   - Pen pressure for size and density, with a pressure curve and a minimum size.
   - Stabilization (smooths shaky lines), hardness, density, spacing. Each tool remembers its own settings.
   - Fill can look at all layers or only the current one, with a colour margin and an expand option that tucks the fill under line edges.
   - The pen's eraser end erases.
 - **Selections:** rectangle, lasso and magic wand; Shift adds, Alt subtracts, Shift+Alt keeps the overlap. Select all, deselect, invert, select layer pixels. Painting, fills, Delete and Alt+Del stay inside the selection.
 - **Transform (Ctrl+T):** scale with the handles (Shift or "Keep aspect" for proportions), rotate by dragging outside the box (Shift snaps to 15°), move by dragging inside or with the arrow keys, flip and turn 90°. Enter applies, Esc cancels. Works on the selection, or the whole layer when nothing is selected. The Move tool moves just the selected pixels when there is a selection.
+- **Canvas and image size (Image menu):** Canvas size adds or removes space around the picture, kept at any of nine anchor points; Image size stretches or shrinks everything (by pixels or percent, smooth or hard-pixel). Rotate the canvas 90° or 180° and flip it.
+- **Crop:** the Crop tool (C) shows a box you drag by its edges and corners (Shift keeps proportions) or redraw; Enter crops. Image → Crop to selection crops to the selection in one step.
 - **Copy, cut and paste:** Ctrl+C / Ctrl+X / Ctrl+V paste onto a new layer in the same spot; images copied in other programs paste too.
 - **Layers:** add, duplicate, delete, reorder, merge down, rename (double-click), hide, opacity, 16 blending modes, lock transparent pixels, clip to the layer below. Drop or paste images to add them as layers.
 - **Colour:** HSV square and hue bar, main and sub colour, hex entry, recently used colours.
@@ -47,5 +49,6 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 | H | Hand | Ctrl+Shift+N | New layer |
 | Del | Clear selection or layer | Ctrl+E | Merge down |
 | Alt+Del | Fill selection or layer | Ctrl+S / Ctrl+Shift+S | Save / export PNG |
-| Shift+M | Mirror view | Enter / Esc | Apply / cancel transform |
+| Shift+M | Mirror view | Enter / Esc | Apply / cancel transform or crop |
+| C | Crop | Ctrl+Alt+C / Ctrl+Alt+I | Canvas size / Image size |
 | F5 / Ctrl+R | Reload screen | Ctrl+0 / Ctrl+1 | Fit / 100% |

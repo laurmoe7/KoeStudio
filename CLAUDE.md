@@ -30,7 +30,8 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
   - `js/doc.js`: `Doc`/`Layer` (one canvas per layer), `composite()` (paper, blend modes, opacity, clipping groups, the live stroke), save format and `sanitizeDoc`.
   - `js/views/selecttools.js`: selection tools, selection commands, copy/cut/paste and free transform, as methods mixed into `Editor.prototype`.
   - `js/selection.js`: `Selection`, a doc-sized mask canvas with bounds and an outline for the marching ants; `combine(mode, draw)` adds/subtracts/intersects a shape; `clipCanvas(ctx, rect)` cuts a canvas down to it.
-  - Pure, tested modules: `transform.js` (free-transform maths: handles, scale about the opposite handle, rotate, hit testing), `brush.js` (pressure, smoothing, stamp spacing), `fill.js` (flood fill, grow), `history.js` (undo stack with step and memory limits), `view.js` (zoom/rotate/mirror maths), `tools.js` (tool list and settings), `color.js`, `rect.js`, `keys.js`.
+  - `js/views/canvasops.js`: canvas size, image size, crop (tool and to selection), rotate canvas, as Editor methods. All go through `reshapeCanvas(label, w, h, paint)`, which gives every layer a new canvas and records one undo step that swaps the old canvases back (`setCanvasState` also resizes the composite/stroke canvases, resets the selection and fits the view). Use it for any future change of canvas size.
+  - Pure, tested modules: `canvasmath.js` (anchor offsets, side limits, crop rectangles), `transform.js` (free-transform maths: handles, scale about the opposite handle, rotate, hit testing), `brush.js` (pressure, smoothing, stamp spacing), `fill.js` (flood fill, grow), `history.js` (undo stack with step and memory limits), `view.js` (zoom/rotate/mirror maths), `tools.js` (tool list and settings), `color.js`, `rect.js`, `keys.js`.
   - `js/painter.js`: draws dabs (anti-aliased circles for hard brushes, a pre-rendered gradient tip for soft ones).
 
 ### How painting works (keep to this when adding tools)
@@ -72,7 +73,7 @@ Run `npm test` and `npm run check` before calling a change done, and add tests f
 
 ## Roadmap (not built yet)
 
-Selection extras (ellipse, polygon lasso, feather, grow/shrink, selection painting / quick mask), perspective and mesh transform; canvas resize/crop; layer folders, drag-to-reorder and layer masks; vector/line layers; rulers and perspective guides; text; brush textures and custom brush tips; tone/screentone and gradient tools; filters (blur, levels, hue/saturation); two-finger touch gestures; reference window; PSD import/export; per-layer files for faster saves on huge canvases; animation timeline.
+Selection extras (ellipse, polygon lasso, feather, grow/shrink, selection painting / quick mask), perspective and mesh transform; resolution (dpi) setting; layer folders, drag-to-reorder and layer masks; vector/line layers; rulers and perspective guides; text; brush textures and custom brush tips; tone/screentone and gradient tools; filters (blur, levels, hue/saturation); two-finger touch gestures; reference window; PSD import/export; per-layer files for faster saves on huge canvases; animation timeline.
 
 ## Repo
 

@@ -18,6 +18,7 @@ export const TOOLS = [
   { id: 'select', label: 'Rectangle selection', key: 'm', kind: 'select', icon: 'rectSel', defaults: { mode: 'replace' } },
   { id: 'lasso', label: 'Lasso selection', key: 'l', kind: 'select', icon: 'lasso', defaults: { mode: 'replace' } },
   { id: 'wand', label: 'Magic wand', key: 'w', kind: 'select', icon: 'wand', defaults: { mode: 'replace', tolerance: 12, sampleAll: true } },
+  { id: 'crop', label: 'Crop', key: 'c', kind: 'crop', icon: 'crop', defaults: {} },
   { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', defaults: {} },
   { id: 'move', label: 'Move layer', key: 'v', kind: 'move', icon: 'move', defaults: {} },
   { id: 'hand', label: 'Hand', key: 'h', kind: 'hand', icon: 'hand', defaults: {} },

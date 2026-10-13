@@ -168,3 +168,9 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .xf-bar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 6px;
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; box-shadow: 0 6px 18px rgba(0,0,0,.4); white-space: nowrap; }
 .xf-readout { min-width: 150px; font-variant-numeric: tabular-nums; }
+
+/* canvas size dialog */
+.anchor-grid { display: grid; grid-template-columns: repeat(3, 28px); gap: 3px; }
+.anchor-grid button { width: 28px; height: 28px; padding: 0; border-radius: 4px; }
+.anchor-grid button.on { background: var(--accent-2); border-color: var(--accent-2); }
+.anchor-grid button.on::after { content: ''; width: 8px; height: 8px; border-radius: 2px; background: #fff; margin: auto; }

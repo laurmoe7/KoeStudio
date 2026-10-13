@@ -243,7 +243,11 @@ export const selectionMethods = {
 
   /** Cursor for the transform handle or area under the pointer. */
   xfCursor(dp) {
-    const t = this.xf.t;
+    return this.handleCursor(this.xf.t, dp);
+  },
+
+  /** Cursor over a box with handles (transform or crop): resize arrows, move inside, crosshair outside. */
+  handleCursor(t, dp) {
     const grab = hitTest(t, dp, HANDLE_PX / this.view.zoom);
     if (grab === 'move') return 'move';
     if (grab === 'rotate') return 'crosshair';
@@ -343,16 +347,7 @@ export const selectionMethods = {
         ctx.closePath();
         ctx.stroke();
       }
-      const h = HANDLE_PX * dpr * 0.8;
-      for (const [hx, hy] of Object.values(HANDLES)) {
-        const q = boxPoint(t, hx, hy);
-        const X = sx(q.x, q.y), Y = sy(q.x, q.y);
-        ctx.fillStyle = '#fff';
-        ctx.strokeStyle = '#3d6fd1';
-        ctx.lineWidth = 1.5 * dpr;
-        ctx.fillRect(X - h / 2, Y - h / 2, h, h);
-        ctx.strokeRect(X - h / 2, Y - h / 2, h, h);
-      }
+      this.drawHandles(ctx, t);
       ctx.fillStyle = '#6ea8ff';
       ctx.beginPath();
       ctx.arc(sx(t.cx, t.cy), sy(t.cx, t.cy), 3 * dpr, 0, Math.PI * 2);
@@ -360,6 +355,22 @@ export const selectionMethods = {
     }
   },
 };
+
+/** The eight square handles of a box (transform or crop), on the overlay canvas. */
+selectionMethods.drawHandles = function (ctx, t) {
+  const dpr = this.dpr || 1, h = HANDLE_PX * dpr * 0.8;
+  for (const [hx, hy] of Object.values(HANDLES)) {
+    const q = boxPoint(t, hx, hy), s = toScreen(this.view, q.x, q.y);
+    const X = s.x * dpr, Y = s.y * dpr;
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#3d6fd1';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.fillRect(X - h / 2, Y - h / 2, h, h);
+    ctx.strokeRect(X - h / 2, Y - h / 2, h, h);
+  }
+};
+
+export { HANDLE_PX };
 
 function canvasOf(w, h) {
   const c = document.createElement('canvas');
