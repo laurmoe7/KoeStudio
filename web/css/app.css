@@ -14,6 +14,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }  /* buttons set display, which would otherwise beat the hidden attribute */
 html, body { margin: 0; height: 100%; }
 body {
   background: var(--bg);
@@ -84,29 +85,51 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ed-title { background: transparent; border-color: transparent; font-weight: 600; margin-left: 10px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .save-state { min-width: 110px; text-align: right; padding-right: 6px; }
 .ed-body { flex: 1; display: flex; min-height: 0; }
-.ed-tools { width: 48px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0; }
+.ed-tools { width: 48px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; overflow-y: auto; }
+.tool-sep { width: 26px; height: 1px; background: var(--line); margin: 5px 0; flex: none; }
 .tool-btn { width: 38px; height: 38px; padding: 0; justify-content: center; background: transparent; border-color: transparent; }
 .tool-btn.active { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
 .ed-viewport { --canvas-bg: #34353c; flex: 1; position: relative; overflow: hidden; background: var(--canvas-bg); touch-action: none; }
 .ed-viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ed-side { width: 268px; background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.panel { border-bottom: 1px solid var(--line); padding: 8px 10px 10px; }
-.panel.grow { flex: 1; display: flex; flex-direction: column; min-height: 140px; }
-.panel h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 600; }
-.ed-status { display: flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--panel); border-top: 1px solid var(--line); min-height: 30px; }
-.ed-status .icon-btn { min-width: 26px; height: 24px; padding: 2px 5px; font-size: 12px; }
-.ed-status .sep { width: 1px; height: 16px; background: var(--line); margin: 0 6px; }
-.zoom-label { min-width: 52px; text-align: center; }
-.rot-label { min-width: 40px; text-align: center; }
-.cursor-pos { margin-left: 12px; min-width: 80px; }
+.panel { border-bottom: 1px solid var(--line); padding: 4px 10px 10px; flex: none; }
+.panel.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.panel.grow:not(.folded) { min-height: 220px; }
+.panel h3 { margin: 0 0 4px; }
+.panel-head { width: 100%; justify-content: flex-start; gap: 5px; background: transparent; border: none; padding: 4px 0;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 600; border-radius: 0; }
+.panel-head:hover:not(:disabled) { background: transparent; color: var(--text); }
+.panel-head .icon { transition: transform .12s; }
+.panel.folded { padding-bottom: 4px; }
+.panel.folded .panel-head .icon { transform: rotate(-90deg); }
+.panel.folded > :not(h3) { display: none; }
+.ed-status { display: flex; align-items: center; gap: 10px; padding: 3px 10px; background: var(--panel); border-top: 1px solid var(--line); min-height: 32px; }
+.st-group { display: flex; align-items: center; gap: 1px; padding-right: 10px; border-right: 1px solid var(--line); }
+.ed-status .icon-btn { min-width: 26px; height: 24px; padding: 2px 5px; }
+.zoom-label, .rot-label { background: transparent; border-color: transparent; padding: 2px 4px; justify-content: center; font-variant-numeric: tabular-nums; }
+.zoom-label { min-width: 58px; }
+.rot-label { min-width: 46px; }
+.icon-btn.on { color: var(--accent); background: rgba(110, 168, 255, 0.12); border-color: rgba(110, 168, 255, 0.35); }
+.cursor-pos { min-width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* tool settings */
-.tool-props { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; }
-.slider { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px; }
-.slider span { font-size: 12px; color: var(--muted); }
-.slider output { font-size: 12px; font-variant-numeric: tabular-nums; }
-.slider input { grid-column: 1 / -1; width: 100%; margin: 0; }
+.tool-props { display: flex; flex-direction: column; gap: 3px; max-height: 38vh; overflow: auto; padding-right: 2px; }
+/* one compact row per setting: label | slider | value */
+.slider { display: grid; grid-template-columns: 74px 1fr 48px; align-items: center; column-gap: 6px; min-height: 24px; }
+.slider span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slider output { font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.slider input { width: 100%; margin: 0; min-width: 0; }
+.slider select { grid-column: 2 / -1; padding: 2px 6px; font-size: 12px; }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
 .check { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+.hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; line-height: 1.45; }
+.seg { display: flex; gap: 0; }
+.seg button { border-radius: 0; padding: 4px 9px; font-size: 12px; margin-left: -1px; }
+.seg button:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+.seg button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.seg button.on { background: var(--accent-2); border-color: var(--accent-2); color: #fff; position: relative; }
+.tool-props .field { margin-bottom: 4px; }
+.tool-props .btn-row { margin-top: 4px; }
 
 /* colour panel */
 .cp-row { display: flex; gap: 8px; }
@@ -186,3 +209,5 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .anchor-grid button.on { background: var(--accent-2); border-color: var(--accent-2); }
 .anchor-grid button.on::after { content: ''; width: 8px; height: 8px; border-radius: 2px; background: #fff; margin: auto; }
 .mask-chip { background: #4a3a6a; border-color: #7a5fb0; color: #fff; font-size: 12px; padding: 2px 8px; margin-left: 6px; }
+.menu .tick { width: 16px; font-style: normal; color: var(--accent); flex: none; }
+.menu button span { flex: 1; }

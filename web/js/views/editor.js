@@ -12,7 +12,7 @@ import { comboOf, isTyping } from '../keys.js';
 import { Painter } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { Selection } from '../selection.js';
-import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, sanitizeSettings, nextSize } from '../tools.js';
+import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_HINTS, sanitizeSettings, nextSize } from '../tools.js';
 import { esc, toast, menu, promptBox, fileToDataUrl, store } from '../ui.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
@@ -20,6 +20,7 @@ import { LayerPanel } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
 import { canvasMethods } from './canvasops.js';
 import { layerMethods } from './layerops.js';
+import { rulerMethods } from './rulertools.js';
 
 const SAVE_DELAY = 800;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -39,6 +40,7 @@ export class Editor {
     this.pointer = null;  // last pointer position over the canvas, in screen px
     this.savedVersion = -1;
     this.maskEdit = false;  // tools paint on the selected layer's mask instead of the layer (layerops.js)
+    this.showRulers = store('edgeRulers') !== false;  // pixel rulers along the view edges (rulertools.js)
     this.onKey = this.onKey.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onPaste = this.onPaste.bind(this);
@@ -111,33 +113,39 @@ export class Editor {
         </header>
         <div class="ed-body">
           <nav class="ed-tools" aria-label="Tools">
-            ${TOOLS.map(t => `<button class="tool-btn" data-tool="${t.id}" title="${esc(t.label)} (${t.key.toUpperCase()})">${icon(t.icon, 22)}</button>`).join('')}
+            ${TOOLS.map((t, i) => (i && TOOLS[i - 1].group !== t.group ? '<span class="tool-sep"></span>' : '') +
+              `<button class="tool-btn" data-tool="${t.id}" title="${esc(t.label)} (${t.key.toUpperCase()})" aria-label="${esc(t.label)}">${icon(t.icon, 22)}</button>`).join('')}
           </nav>
           <div class="ed-viewport">
             <canvas class="ed-view"></canvas>
             <canvas class="ed-overlay"></canvas>
           </div>
           <aside class="ed-side">
-            <section class="panel"><h3>Color</h3><div class="color-panel"></div></section>
-            <section class="panel"><h3 class="tool-title">Tool</h3><div class="tool-props"></div></section>
-            <section class="panel grow"><h3>Layers</h3><div class="layer-panel"></div></section>
+            <section class="panel" data-panel="color"><h3><button class="panel-head">${icon('chevron', 12)}<span>Color</span></button></h3><div class="color-panel"></div></section>
+            <section class="panel" data-panel="tool"><h3><button class="panel-head">${icon('chevron', 12)}<span class="tool-title">Tool</span></button></h3><div class="tool-props"></div></section>
+            <section class="panel grow" data-panel="layers"><h3><button class="panel-head">${icon('chevron', 12)}<span>Layers</span></button></h3><div class="layer-panel"></div></section>
           </aside>
         </div>
         <footer class="ed-status">
-          <button class="icon-btn" data-act="zoomOut" title="Zoom out (Ctrl+-)">−</button>
-          <span class="zoom-label" title="Zoom">100%</span>
-          <button class="icon-btn" data-act="zoomIn" title="Zoom in (Ctrl+=)">+</button>
-          <button class="icon-btn" data-act="actual" title="100% (Ctrl+1)">1:1</button>
-          <button class="icon-btn" data-act="fit" title="Fit to window (Ctrl+0)">${icon('fit', 16)}</button>
-          <span class="sep"></span>
-          <button class="icon-btn" data-act="rotL" title="Rotate view left (4)">${icon('rotL', 16)}</button>
-          <span class="rot-label" title="View rotation">0°</span>
-          <button class="icon-btn" data-act="rotR" title="Rotate view right (6)">${icon('rotR', 16)}</button>
-          <button class="icon-btn" data-act="rotReset" title="Reset rotation (5)">0°</button>
-          <button class="icon-btn" data-act="flip" title="Mirror the view (Shift+M)">${icon('flip', 16)}</button>
-          <span class="sep"></span>
-          <span class="muted small doc-size">${doc.width} × ${doc.height} px</span>
+          <div class="st-group" role="group" aria-label="Zoom">
+            <button class="icon-btn" data-act="zoomOut" title="Zoom out (Ctrl+-)">${icon('minus', 14)}</button>
+            <button class="zoom-label" data-act="actual" title="Zoom. Click for 100% (Ctrl+1)">100%</button>
+            <button class="icon-btn" data-act="zoomIn" title="Zoom in (Ctrl+=)">${icon('plus', 14)}</button>
+            <button class="icon-btn" data-act="fit" title="Fit to window (Ctrl+0)">${icon('fit', 15)}</button>
+          </div>
+          <div class="st-group" role="group" aria-label="Rotation">
+            <button class="icon-btn" data-act="rotL" title="Rotate view left (4)">${icon('rotL', 15)}</button>
+            <button class="rot-label" data-act="rotReset" title="View rotation. Click to straighten (5)">0°</button>
+            <button class="icon-btn" data-act="rotR" title="Rotate view right (6)">${icon('rotR', 15)}</button>
+            <button class="icon-btn" data-act="flip" title="Mirror the view (Shift+M)">${icon('flip', 15)}</button>
+          </div>
+          <div class="st-group" role="group" aria-label="Rulers">
+            <button class="icon-btn" data-act="rulers" title="Rulers along the edges">${icon('ruler', 15)}</button>
+            <button class="icon-btn" data-act="snap" title="Snap strokes to rulers (Ctrl+2)">${icon('magnet', 15)}</button>
+          </div>
+          <div class="grow"></div>
           <span class="muted small cursor-pos"></span>
+          <span class="muted small doc-size">${doc.width} × ${doc.height} px</span>
         </footer>
       </div>`;
     const $ = s => this.root.querySelector(s);
@@ -153,6 +161,7 @@ export class Editor {
       home: () => this.goHome(), undo: () => this.undo(), redo: () => this.redo(),
       zoomIn: () => this.zoomStep(1), zoomOut: () => this.zoomStep(-1), actual: () => this.actual(), fit: () => this.fit(),
       rotL: () => this.rotate(-15), rotR: () => this.rotate(15), rotReset: () => this.rotate(null), flip: () => this.flipView(),
+      rulers: () => this.toggleEdgeRulers(), snap: () => this.toggleSnap(),
     };
     this.root.querySelectorAll('[data-act]').forEach(b => { b.onclick = () => acts[b.dataset.act](); });
     this.root.querySelectorAll('[data-menu]').forEach(b => { b.onclick = () => { this.finishTransform(); menu(b, this.menuItems(b.dataset.menu)); }; });
@@ -161,11 +170,24 @@ export class Editor {
       el.addEventListener('pointerdown', e => { if (!e.target.closest('[data-act="undo"]')) this.finishTransform(); }, true);
     }
     $('.ed-title').onclick = () => this.rename();
+    // side panels fold away by clicking their heading; remembered between launches
+    const folded = store('folded') || {};
+    this.root.querySelectorAll('[data-panel]').forEach(sec => {
+      sec.classList.toggle('folded', !!folded[sec.dataset.panel]);
+      sec.querySelector('.panel-head').onclick = () => {
+        sec.classList.toggle('folded');
+        const f = store('folded') || {};
+        f[sec.dataset.panel] = sec.classList.contains('folded');
+        store('folded', f);
+      };
+    });
     $('.mask-chip').onclick = () => this.editMask(false);
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
     this.bindPointer();
     this.updateUndoButtons();
+    this.updateSnapButton();
+    this.root.querySelector('[data-act="rulers"]').classList.toggle('on', this.showRulers);
   }
 
   menuItems(name) {
@@ -244,6 +266,12 @@ export class Editor {
         { label: 'Reset rotation', key: '5', run: () => this.rotate(null) },
         { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         '-',
+        { label: 'Edge rulers', checked: this.showRulers, run: () => this.toggleEdgeRulers() },
+        { label: 'Guides and perspective', key: 'Ctrl+;', checked: d.rulers.visible, run: () => this.toggleRulerVisibility() },
+        { label: 'Snap to rulers', key: 'Ctrl+2', checked: d.rulers.snap, run: () => this.toggleSnap() },
+        { label: 'Perspective ruler…', key: 'U', run: () => this.selectTool('ruler') },
+        { label: 'Clear guides', run: () => this.clearGuides(), disabled: !d.rulers.guides.length },
+        '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
       ],
     }[name];
@@ -315,24 +343,38 @@ export class Editor {
     return this.checkerPattern;
   }
 
-  /** The overlay canvas: selection outline, transform box and the brush outline under the pointer. */
+  /** The overlay canvas: selection, crop box, guides and perspective, brush outline, then the edge rulers. */
   drawOverlay() {
-    const ctx = this.octx, dpr = this.dpr || 1;
+    const ctx = this.octx;
     if (!ctx) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
     this.drawSelectionOverlay(ctx);
     this.drawCropOverlay(ctx);
+    this.drawRulerOverlay(ctx);
+    const brush = this.updateCursor();
+    if (brush) this.drawBrushOutline(ctx, brush);
+    this.drawEdgeRulers(ctx);
+  }
+
+  /** Sets the pointer's cursor; returns the paint tool when the brush outline should be drawn instead. */
+  updateCursor() {
+    const set = c => { if (c && this.overlay.style.cursor !== c) this.overlay.style.cursor = c; };
+    const rc = this.rulerCursor(this.pointer);
+    if (rc) return set(rc);
     if (this.xf && !this.xf.moveOnly && !this.held.space && this.gesture?.type !== 'pan') {
-      const g = this.gesture;
-      if (g?.type !== 'xf') this.overlay.style.cursor = this.pointer ? this.xfCursor(toDoc(this.view, this.pointer.x, this.pointer.y)) : 'default';
-      return;
+      if (this.gesture?.type !== 'xf') set(this.pointer ? this.xfCursor(toDoc(this.view, this.pointer.x, this.pointer.y)) : 'default');
+      return null;
     }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
-    if (tool.kind === 'crop') { this.overlay.style.cursor = this.gesture ? this.overlay.style.cursor : this.cropCursor(); return; }
-    this.overlay.style.cursor = { paint: 'none', fill: 'crosshair', picker: 'crosshair', move: 'move', select: 'crosshair',
-      hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind];
-    if (!this.pointer || tool.kind !== 'paint') return;
+    if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
+    set({ paint: 'none', fill: 'crosshair', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+      hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
+    return this.pointer && tool.kind === 'paint' ? tool : null;
+  }
+
+  drawBrushOutline(ctx, tool) {
+    const dpr = this.dpr || 1;
     const r = Math.max(1, (this.settings[tool.id].size * this.view.zoom) / 2) * dpr;
     const x = this.pointer.x * dpr, y = this.pointer.y * dpr;
     ctx.lineWidth = 1 * dpr;
@@ -392,22 +434,25 @@ export class Editor {
     this.root.querySelector('.tool-title').textContent = t.label;
     const box = this.root.querySelector('.tool-props');
     const fields = SETTING_FIELDS.filter(f => f[0] in s);
+    if (t.kind === 'ruler') return this.renderRulerProps(box);
     if (!fields.length) {
-      box.innerHTML = `<p class="muted small">${t.kind === 'picker' ? 'Click the canvas to pick a color. Hold Alt with a brush to pick quickly.'
+      box.innerHTML = `<p class="hint">${t.kind === 'picker' ? 'Click the canvas to pick a color. Hold Alt with a brush to pick quickly.'
         : t.kind === 'move' ? 'Drag to move the current layer, or only the selected pixels when there is a selection.'
         : t.kind === 'crop' ? 'Drag the edges or corners of the box (Shift keeps proportions), drag inside to move it, or drag outside to draw a new box. Enter crops, Esc leaves.' : 'Drag to move the view. Hold Space with any tool to do the same.'}</p>`;
       return;
     }
-    box.innerHTML = fields.map(([key, label, type, min, max, step]) => type === 'check'
-      ? `<label class="check"><input type="checkbox" data-k="${key}" ${s[key] ? 'checked' : ''}> ${esc(label)}</label>`
-      : type === 'choice'
-      ? `<label class="field"><span>${esc(label)}</span><select data-k="${key}">${min.map(([v, l]) => `<option value="${v}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
-      : `<label class="slider"><span>${esc(label)}</span><input type="range" data-k="${key}" min="${key === 'size' ? 0 : min}" max="${key === 'size' ? 1000 : max}" step="${key === 'size' ? 1 : step}" value="${key === 'size' ? sizeToSlider(s.size) : s[key]}"><output>${fmt(key, s[key])}</output></label>`).join('');
+    const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
+    const row = ([key, label, type, min, max, step]) => type === 'choice'
+      ? `<label class="slider"${tip(key)}><span>${esc(label)}</span><select data-k="${key}">${min.map(([v, l]) => `<option value="${v}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
+      : `<label class="slider"${tip(key)}><span>${esc(label)}</span><input type="range" data-k="${key}" min="${key === 'size' ? 0 : min}" max="${key === 'size' ? 1000 : max}" step="${key === 'size' ? 1 : step}" value="${key === 'size' ? sizeToSlider(s.size) : s[key]}"><output>${fmt(key, s[key])}</output></label>`;
+    const checks = fields.filter(f => f[2] === 'check');
+    box.innerHTML = fields.filter(f => f[2] !== 'check').map(row).join('') + (checks.length ? `<div class="checks">${checks.map(([key, label]) =>
+      `<label class="check"${tip(key)}><input type="checkbox" data-k="${key}" ${s[key] ? 'checked' : ''}> ${esc(label)}</label>`).join('')}</div>` : '');
     if (t.kind === 'select') {
       box.insertAdjacentHTML('beforeend', `<div class="btn-row">
         <button data-sel="all" title="Ctrl+A">All</button><button data-sel="none" title="Ctrl+D">Deselect</button>
         <button data-sel="invert" title="Ctrl+Shift+I">Invert</button><button data-sel="xf" title="Ctrl+T">Transform</button></div>
-        <p class="muted small">Shift adds to the selection, Alt subtracts, Shift+Alt keeps the overlap.</p>`);
+        <p class="hint">Shift adds to the selection, Alt subtracts, Shift+Alt keeps the overlap.</p>`);
       const acts = { all: () => this.selectAll(), none: () => this.deselect(), invert: () => this.invertSelection(), xf: () => this.beginTransform() };
       box.querySelectorAll('[data-sel]').forEach(b => { b.onclick = () => acts[b.dataset.sel](); });
     }
@@ -450,6 +495,8 @@ export class Editor {
       if (e.button === 1) return this.beginPan(p, e.pointerId);
       if (e.button !== 0 && !(e.pointerType === 'pen' && e.button === 5)) return;
       const dp = { ...toDoc(this.view, p.x, p.y), p: pressure(e) };
+      const band = this.xf ? null : this.rulerBand(p);
+      if (band) { if (band !== 'corner') this.beginNewGuide(band, dp, e.pointerId); this.drawOverlay(); return; }
       if (this.xf && !this.held.space) { this.xfPointerDown(dp, e.pointerId); this.drawOverlay(); return; }
       const penEraser = e.pointerType === 'pen' && (e.button === 5 || (e.buttons & 32));
       const toolId = penEraser ? 'eraser' : this.effectiveTool();
@@ -457,6 +504,7 @@ export class Editor {
       if (tool.kind === 'hand') this.beginPan(p, e.pointerId);
       else if (tool.kind === 'select') this.beginSelect(toolId, dp, e.pointerId, e);
       else if (tool.kind === 'crop') this.beginCrop(dp, e.pointerId);
+      else if (tool.kind === 'ruler') this.beginRulerTool(dp, e.pointerId);
       else if (tool.kind === 'move' && this.sel.active) {
         // with a selection, the Move tool moves only the selected pixels (a quick transform)
         if (this.beginTransform({ moveOnly: true })) this.gesture = { type: 'xf', tool: 'move', id: e.pointerId, grab: 'move', t0: { ...this.xf.t }, p0: dp };
@@ -492,6 +540,8 @@ export class Editor {
           this.xfDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         } else if (g.type === 'crop') {
           this.cropDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
+        } else if (g.type === 'guide' || g.type === 'vp') {
+          this.rulerDrag(toDoc(this.view, p.x, p.y));
         }
       }
       const dp = toDoc(this.view, p.x, p.y);
@@ -501,7 +551,9 @@ export class Editor {
     const end = e => {
       const g = this.gesture;
       if (!g || g.id !== e.pointerId) return;
+      this.pointer = pos(e);
       if (g.type === 'paint') this.endPaint();
+      else if (g.type === 'guide' || g.type === 'vp') this.rulerEnd(this.pointer);
       else if (g.type === 'move') this.endMove();
       else if (g.type === 'select') this.endSelect();
       this.gesture = null;
@@ -551,13 +603,21 @@ export class Editor {
       painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.inkFor(layer), hardness: s.hardness }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
+      snap: this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
     };
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase) };
     this.addPoint(pt);
     this.requestRender();
   }
 
+  /** A pen point: through ruler snapping (if any), then smoothing and stamping. */
   addPoint(pt) {
+    const g = this.gesture;
+    if (g.snap) { for (const q of this.snapPoint(g.snap, pt)) this.addStampPoint(q); return; }
+    this.addStampPoint(pt);
+  }
+
+  addStampPoint(pt) {
     const g = this.gesture;
     g.last = pt;
     const stamps = g.path.add(g.smoother.add(pt));
@@ -574,8 +634,10 @@ export class Editor {
 
   endPaint() {
     const g = this.gesture;
+    // a short dab never picked a snap line: paint what was held back as it was
+    if (g.snap && !g.snap.line) for (const q of g.snap.held) this.addStampPoint(q);
     // stabilization lags behind the pen: catch up to where the pen was lifted
-    if (g.s.smoothing) for (let i = 0; i < 12; i++) this.addPoint(g.last);
+    if (g.s.smoothing && g.last) for (let i = 0; i < 12; i++) this.addStampPoint(g.last);
     this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');
     if (!g.erase && g.layer.kind !== 'mask') this.colors.used();
   }
@@ -802,6 +864,7 @@ export class Editor {
       'ctrl+a': () => this.selectAll(), 'ctrl+d': () => this.deselect(), 'ctrl+shift+i': () => this.invertSelection(),
       'ctrl+t': () => this.beginTransform(),
       'ctrl+alt+c': () => this.canvasSizeDialog(), 'ctrl+alt+i': () => this.imageSizeDialog(),
+      'ctrl+2': () => this.toggleSnap(), 'ctrl+;': () => this.toggleRulerVisibility(),
       'ctrl+c': () => this.copySelection(), 'ctrl+x': () => this.copySelection(true),
       '4': () => this.rotate(-15), '6': () => this.rotate(15), '5': () => this.rotate(null),
       'delete': () => this.clearLayer(), 'backspace': () => this.clearLayer(),
@@ -850,7 +913,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

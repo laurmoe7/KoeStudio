@@ -2,6 +2,7 @@
 // each with its own canvas. Saved as JSON (format 'koe'); pixels are PNG data URLs. See sanitizeDoc for the format.
 
 import { isFolder, allNodes, allLayers, pathOf, nodeAt, insertNode } from './tree.js';
+import { defaultRulers, sanitizeRulers } from './rulers.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -22,6 +23,7 @@ const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
  * Cleans a loaded or new document description (pure, tested). Never throws; fills defaults for missing fields.
  * Version 1 files had a flat `layers` list and an `active` index; version 2 nests folders ({type: 'folder',
  * children}) in `layers`, gives any node an optional `mask: {png, enabled}`, and stores `activePath`.
+ * `rulers` (guides, perspective ruler, snapping; see rulers.js) is optional in either version.
  */
 export function sanitizeDoc(raw) {
   const d = raw && typeof raw === 'object' ? raw : {};
@@ -59,6 +61,7 @@ export function sanitizeDoc(raw) {
     height: side(d.height || 1080),
     paper: d.paper === null ? null : (/^#[0-9a-f]{6}$/i.test(d.paper) ? d.paper : '#ffffff'),
     activePath,
+    rulers: sanitizeRulers(d.rulers),
     layers,
   };
 }
@@ -193,6 +196,7 @@ export class Doc {
     this.paper = paper;
     this.root = new Folder({ name: 'root' });
     this.active = null;  // the selected layer or folder
+    this.rulers = defaultRulers();
     this.version = 0;    // raised on any change worth saving
   }
 
@@ -207,6 +211,7 @@ export class Doc {
   static async fromJSON(raw, id = null) {
     const s = sanitizeDoc(raw);
     const d = new Doc({ ...s, id });
+    d.rulers = s.rulers;
     const build = async (src, parent) => {
       const n = src.type === 'folder' ? new Folder(src) : new Layer(d.width, d.height, src);
       if (src.type === 'folder') for (const c of src.children) await build(c, n);
@@ -240,7 +245,7 @@ export class Doc {
     const layers = [];
     for (const n of this.root.children) layers.push(await node(n));
     return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper,
-      activePath: this.active ? pathOf(this.active) : [], layers };
+      activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, layers };
   }
 
   /** All raster layers (not folders), bottom first. */

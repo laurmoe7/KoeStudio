@@ -69,15 +69,18 @@ export async function promptBox(title, label, value = '') {
   });
 }
 
-/** A dropdown menu under button. items: [{label, key, run, disabled}] or '-' for a separator. */
+/** A dropdown menu under button. items: [{label, key, run, disabled, checked}] or '-' for a separator.
+ * Items with `checked` (true or false) are toggles and get a tick column. */
 export function menu(button, items) {
   closeMenus();
   const m = document.createElement('div');
   m.className = 'menu';
+  const ticks = items.some(it => it !== '-' && 'checked' in it);
   for (const it of items) {
-    if (it === '-') { m.append(Object.assign(document.createElement('hr'))); continue; }
+    if (it === '-') { m.append(document.createElement('hr')); continue; }
     const b = document.createElement('button');
-    b.innerHTML = `<span>${esc(it.label)}</span><kbd>${esc(it.key || '')}</kbd>`;
+    if ('checked' in it) b.setAttribute('aria-checked', !!it.checked);
+    b.innerHTML = `${ticks ? `<i class="tick">${it.checked ? '✓' : ''}</i>` : ''}<span>${esc(it.label)}</span><kbd>${esc(it.key || '')}</kbd>`;
     b.disabled = !!it.disabled;
     b.onclick = () => { closeMenus(); it.run(); };
     m.append(b);

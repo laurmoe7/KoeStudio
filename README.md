@@ -34,6 +34,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 - **Layer masks:** add a mask to a layer or folder (with a selection, everything outside it is hidden). Click the mask thumbnail to paint on it: painting hides and erasing shows again, as in Clip Studio Paint. "Painting on mask" shows in the top bar. Turn masks off, apply them or delete them from the Layer menu.
 - **Colour:** HSV square and hue bar, main and sub colour, hex entry, recently used colours.
 - **View:** zoom at the cursor (wheel), rotate (Shift+wheel, 4/5/6), mirror (Shift+M), fit (Ctrl+0), 100% (Ctrl+1); pixel-sharp when zoomed in.
+- **Rulers and perspective:** pixel rulers along the canvas edges (View → Edge rulers). Drag out of them to add horizontal or vertical guides, and drag a guide back to remove it. The Ruler tool (U) adds a 1-, 2- or 3-point perspective ruler and moves its vanishing points and the guides. With snapping on (Ctrl+2, or the magnet in the status bar), each stroke follows the guide it starts on or the perspective line closest to the direction you draw.
 - **Undo/redo** for every change, flip layer or canvas, clear or fill a layer.
 
 ## Shortcuts
@@ -54,4 +55,5 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 | Alt+Del | Fill selection or layer | Ctrl+S / Ctrl+Shift+S | Save / export PNG |
 | Shift+M | Mirror view | Enter / Esc | Apply / cancel transform or crop |
 | C | Crop | Ctrl+Alt+C / Ctrl+Alt+I | Canvas size / Image size |
+| U | Ruler (perspective, guides) | Ctrl+2 / Ctrl+; | Snap to rulers / show guides |
 | F5 / Ctrl+R | Reload screen | Ctrl+0 / Ctrl+1 | Fit / 100% |
