@@ -42,7 +42,7 @@ export function modal({ title, body, buttons = [{ label: 'OK', value: true, prim
     };
     const key = e => {
       if (e.key === 'Escape') { e.stopPropagation(); done(null); }
-      else if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+      else if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {  // a focused button does its own thing
         const b = buttons.find(x => x.primary);
         if (b) { e.preventDefault(); e.stopPropagation(); finish(b); }
       }
