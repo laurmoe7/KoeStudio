@@ -1,5 +1,7 @@
 // Tool list and per-tool settings (pure, tested). Each tool remembers its own settings, as in other painting programs.
 
+import { SELECT_MODES } from './selection.js';
+
 export const TOOLS = [
   { id: 'pen', label: 'Pen', key: 'p', kind: 'paint', icon: 'pen',
     defaults: { size: 6, opacity: 1, flow: 1, hardness: 1, spacing: 0.08, pressureSize: true, pressureOpacity: false, minSize: 0.15, smoothing: 4, gamma: 1 } },
@@ -13,6 +15,9 @@ export const TOOLS = [
     defaults: { size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1 } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill',
     defaults: { opacity: 1, tolerance: 12, grow: 1, sampleAll: true } },
+  { id: 'select', label: 'Rectangle selection', key: 'm', kind: 'select', icon: 'rectSel', defaults: { mode: 'replace' } },
+  { id: 'lasso', label: 'Lasso selection', key: 'l', kind: 'select', icon: 'lasso', defaults: { mode: 'replace' } },
+  { id: 'wand', label: 'Magic wand', key: 'w', kind: 'select', icon: 'wand', defaults: { mode: 'replace', tolerance: 12, sampleAll: true } },
   { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', defaults: {} },
   { id: 'move', label: 'Move layer', key: 'v', kind: 'move', icon: 'move', defaults: {} },
   { id: 'hand', label: 'Hand', key: 'h', kind: 'hand', icon: 'hand', defaults: {} },
@@ -20,8 +25,9 @@ export const TOOLS = [
 
 export const TOOL_BY_ID = Object.fromEntries(TOOLS.map(t => [t.id, t]));
 
-/** The settings each control in the tool panel edits: [key, label, type, min, max, step]. */
+/** The settings each control in the tool panel edits: [key, label, type, min, max, step], or [key, label, 'choice', options]. */
 export const SETTING_FIELDS = [
+  ['mode', 'Selection mode', 'choice', SELECT_MODES],
   ['size', 'Size', 'range', 1, 1000, 1],
   ['opacity', 'Opacity', 'range', 0.01, 1, 0.01],
   ['flow', 'Density', 'range', 0.01, 1, 0.01],
@@ -47,6 +53,7 @@ export function sanitizeSettings(stored) {
       for (const [key, , type, min, max] of SETTING_FIELDS) {
         if (!(key in s) || !(key in from)) continue;
         if (type === 'check') s[key] = !!from[key];
+        else if (type === 'choice') { if (min.some(o => o[0] === from[key])) s[key] = from[key]; }
         else if (Number.isFinite(+from[key])) s[key] = Math.max(min, Math.min(max, +from[key]));
       }
     }

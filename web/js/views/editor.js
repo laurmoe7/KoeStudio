@@ -10,11 +10,13 @@ import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
 import { Painter } from '../painter.js';
 import { union, clip } from '../rect.js';
+import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, sanitizeSettings, nextSize } from '../tools.js';
 import { esc, toast, menu, promptBox, fileToDataUrl, store } from '../ui.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
 import { LayerPanel } from './layerpanel.js';
+import { selectionMethods } from './selecttools.js';
 
 const SAVE_DELAY = 800;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -52,6 +54,14 @@ export class Editor {
     this.stroke.width = doc.width;
     this.stroke.height = doc.height;
     this.strokeCtx = this.stroke.getContext('2d');
+    this.sel = new Selection(doc.width, doc.height);
+    this.xf = null;  // free transform in progress (selecttools.js)
+    this.clipboard = null;
+    this.antsTimer = setInterval(() => {
+      if (!this.sel.active || this.xf) return;
+      this.antsPhase = ((this.antsPhase || 0) + 1) % 8;
+      this.drawOverlay();
+    }, 120);
     this.updateComp(null);
     this.needsFit = true;  // done by resize() once the viewport has a real size
     this.resize();
@@ -72,6 +82,7 @@ export class Editor {
     window.removeEventListener('blur', this.onKeyUp);
     this.resizeObs?.disconnect();
     clearTimeout(this.saveTimer);
+    clearInterval(this.antsTimer);
     this.root.innerHTML = '';
   }
 
@@ -83,6 +94,7 @@ export class Editor {
           <button class="icon-btn" data-act="home" title="Back to the gallery">${icon('back')}</button>
           <button class="menu-btn" data-menu="file">File</button>
           <button class="menu-btn" data-menu="edit">Edit</button>
+          <button class="menu-btn" data-menu="select">Select</button>
           <button class="menu-btn" data-menu="layer">Layer</button>
           <button class="menu-btn" data-menu="view">View</button>
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
@@ -116,7 +128,7 @@ export class Editor {
           <span class="rot-label" title="View rotation">0°</span>
           <button class="icon-btn" data-act="rotR" title="Rotate view right (6)">${icon('rotR', 16)}</button>
           <button class="icon-btn" data-act="rotReset" title="Reset rotation (5)">0°</button>
-          <button class="icon-btn" data-act="flip" title="Mirror the view (M)">${icon('flip', 16)}</button>
+          <button class="icon-btn" data-act="flip" title="Mirror the view (Shift+M)">${icon('flip', 16)}</button>
           <span class="sep"></span>
           <span class="muted small doc-size">${doc.width} × ${doc.height} px</span>
           <span class="muted small cursor-pos"></span>
@@ -137,7 +149,11 @@ export class Editor {
       rotL: () => this.rotate(-15), rotR: () => this.rotate(15), rotReset: () => this.rotate(null), flip: () => this.flipView(),
     };
     this.root.querySelectorAll('[data-act]').forEach(b => { b.onclick = () => acts[b.dataset.act](); });
-    this.root.querySelectorAll('[data-menu]').forEach(b => { b.onclick = () => menu(b, this.menuItems(b.dataset.menu)); });
+    this.root.querySelectorAll('[data-menu]').forEach(b => { b.onclick = () => { this.finishTransform(); menu(b, this.menuItems(b.dataset.menu)); }; });
+    // using the side panels or the tool bar while transforming applies the transform first
+    for (const el of this.root.querySelectorAll('.ed-side, .ed-tools, .ed-top')) {
+      el.addEventListener('pointerdown', e => { if (!e.target.closest('[data-act="undo"]')) this.finishTransform(); }, true);
+    }
     $('.ed-title').onclick = () => this.rename();
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
@@ -161,11 +177,24 @@ export class Editor {
         { label: 'Undo', key: 'Ctrl+Z', run: () => this.undo(), disabled: !this.history.canUndo },
         { label: 'Redo', key: 'Ctrl+Y', run: () => this.redo(), disabled: !this.history.canRedo },
         '-',
-        { label: 'Clear layer', key: 'Del', run: () => this.clearLayer() },
-        { label: 'Fill layer with main color', key: 'Alt+Del', run: () => this.fillLayer() },
+        { label: 'Cut', key: 'Ctrl+X', run: () => this.copySelection(true) },
+        { label: 'Copy', key: 'Ctrl+C', run: () => this.copySelection() },
+        { label: 'Paste', key: 'Ctrl+V', run: () => this.pasteInternal(), disabled: !this.clipboard },
+        '-',
+        { label: 'Transform…', key: 'Ctrl+T', run: () => this.beginTransform() },
+        { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', key: 'Del', run: () => this.clearLayer() },
+        { label: this.sel.active ? 'Fill selection with main color' : 'Fill layer with main color', key: 'Alt+Del', run: () => this.fillLayer() },
         '-',
         { label: 'Flip canvas horizontally', run: () => this.flipPixels(d.layers, 'h', 'Flip canvas') },
         { label: 'Flip canvas vertically', run: () => this.flipPixels(d.layers, 'v', 'Flip canvas') },
+      ],
+      select: [
+        { label: 'Select all', key: 'Ctrl+A', run: () => this.selectAll() },
+        { label: 'Deselect', key: 'Ctrl+D', run: () => this.deselect(), disabled: !this.sel.active },
+        { label: 'Invert selection', key: 'Ctrl+Shift+I', run: () => this.invertSelection() },
+        { label: 'Select layer pixels', run: () => this.selectLayerPixels() },
+        '-',
+        { label: 'Transform selection…', key: 'Ctrl+T', run: () => this.beginTransform() },
       ],
       layer: [
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
@@ -187,7 +216,7 @@ export class Editor {
         { label: 'Rotate left', key: '4', run: () => this.rotate(-15) },
         { label: 'Rotate right', key: '6', run: () => this.rotate(15) },
         { label: 'Reset rotation', key: '5', run: () => this.rotate(null) },
-        { label: 'Mirror view', key: 'M', run: () => this.flipView() },
+        { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
       ],
@@ -210,7 +239,7 @@ export class Editor {
       c.height = Math.max(1, Math.round(r.height * dpr));
     }
     this.render();
-    this.drawCursor();
+    this.drawOverlay();
   }
 
   /** Recomposites a doc region (all of it when r is null) into the composite canvas. */
@@ -260,13 +289,20 @@ export class Editor {
     return this.checkerPattern;
   }
 
-  /** Brush outline (paint tools) under the pointer, drawn on the overlay canvas. */
-  drawCursor() {
+  /** The overlay canvas: selection outline, transform box and the brush outline under the pointer. */
+  drawOverlay() {
     const ctx = this.octx, dpr = this.dpr || 1;
+    if (!ctx) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
-    const tool = TOOL_BY_ID[this.effectiveTool()];
-    this.overlay.style.cursor = { paint: 'none', fill: 'crosshair', picker: 'crosshair', move: 'move',
+    this.drawSelectionOverlay(ctx);
+    if (this.xf && !this.xf.moveOnly && !this.held.space && this.gesture?.type !== 'pan') {
+      const g = this.gesture;
+      if (g?.type !== 'xf') this.overlay.style.cursor = this.pointer ? this.xfCursor(toDoc(this.view, this.pointer.x, this.pointer.y)) : 'default';
+      return;
+    }
+    const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
+    this.overlay.style.cursor = { paint: 'none', fill: 'crosshair', picker: 'crosshair', move: 'move', select: 'crosshair',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind];
     if (!this.pointer || tool.kind !== 'paint') return;
     const r = Math.max(1, (this.settings[tool.id].size * this.view.zoom) / 2) * dpr;
@@ -287,7 +323,7 @@ export class Editor {
 
   // ---------- view ----------
 
-  setView(v) { this.view = v; this.render(); this.drawCursor(); }
+  setView(v) { this.view = v; this.render(); this.drawOverlay(); }
   fit() { this.setView(fitView(this.doc.width, this.doc.height, this.vw, this.vh)); }
   actual() { this.setView(actualSize(this.view, this.vw, this.vh)); }
   zoomStep(dir) {
@@ -309,7 +345,7 @@ export class Editor {
     store('tool', id);
     this.root.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === id));
     this.renderToolProps();
-    this.drawCursor();
+    this.drawOverlay();
   }
 
   /** The tool in use right now, counting held keys (Space = hand, Alt = eyedropper) and the pen's eraser end. */
@@ -328,20 +364,30 @@ export class Editor {
     const fields = SETTING_FIELDS.filter(f => f[0] in s);
     if (!fields.length) {
       box.innerHTML = `<p class="muted small">${t.kind === 'picker' ? 'Click the canvas to pick a color. Hold Alt with a brush to pick quickly.'
-        : t.kind === 'move' ? 'Drag to move the selected layer.' : 'Drag to move the view. Hold Space with any tool to do the same.'}</p>`;
+        : t.kind === 'move' ? 'Drag to move the current layer, or only the selected pixels when there is a selection.' : 'Drag to move the view. Hold Space with any tool to do the same.'}</p>`;
       return;
     }
     box.innerHTML = fields.map(([key, label, type, min, max, step]) => type === 'check'
       ? `<label class="check"><input type="checkbox" data-k="${key}" ${s[key] ? 'checked' : ''}> ${esc(label)}</label>`
+      : type === 'choice'
+      ? `<label class="field"><span>${esc(label)}</span><select data-k="${key}">${min.map(([v, l]) => `<option value="${v}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
       : `<label class="slider"><span>${esc(label)}</span><input type="range" data-k="${key}" min="${key === 'size' ? 0 : min}" max="${key === 'size' ? 1000 : max}" step="${key === 'size' ? 1 : step}" value="${key === 'size' ? sizeToSlider(s.size) : s[key]}"><output>${fmt(key, s[key])}</output></label>`).join('');
-    box.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('input', () => {
+    if (t.kind === 'select') {
+      box.insertAdjacentHTML('beforeend', `<div class="btn-row">
+        <button data-sel="all" title="Ctrl+A">All</button><button data-sel="none" title="Ctrl+D">Deselect</button>
+        <button data-sel="invert" title="Ctrl+Shift+I">Invert</button><button data-sel="xf" title="Ctrl+T">Transform</button></div>
+        <p class="muted small">Shift adds to the selection, Alt subtracts, Shift+Alt keeps the overlap.</p>`);
+      const acts = { all: () => this.selectAll(), none: () => this.deselect(), invert: () => this.invertSelection(), xf: () => this.beginTransform() };
+      box.querySelectorAll('[data-sel]').forEach(b => { b.onclick = () => acts[b.dataset.sel](); });
+    }
+    box.querySelectorAll('input, select').forEach(inp => {
+      inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
         const k = inp.dataset.k;
-        s[k] = inp.type === 'checkbox' ? inp.checked : k === 'size' ? sliderToSize(+inp.value) : +inp.value;
+        s[k] = inp.type === 'checkbox' ? inp.checked : inp.tagName === 'SELECT' ? inp.value : k === 'size' ? sliderToSize(+inp.value) : +inp.value;
         const out = inp.parentElement.querySelector('output');
         if (out) out.textContent = fmt(k, s[k]);
         store('tools', this.settings);
-        this.drawCursor();
+        this.drawOverlay();
       });
     });
   }
@@ -352,7 +398,7 @@ export class Editor {
     s.size = size;
     store('tools', this.settings);
     this.renderToolProps();
-    this.drawCursor();
+    this.drawOverlay();
   }
 
   // ---------- pointer input ----------
@@ -372,16 +418,22 @@ export class Editor {
       this.pointer = p;
       if (e.button === 1) return this.beginPan(p, e.pointerId);
       if (e.button !== 0 && !(e.pointerType === 'pen' && e.button === 5)) return;
+      const dp = { ...toDoc(this.view, p.x, p.y), p: pressure(e) };
+      if (this.xf && !this.held.space) { this.xfPointerDown(dp, e.pointerId); this.drawOverlay(); return; }
       const penEraser = e.pointerType === 'pen' && (e.button === 5 || (e.buttons & 32));
       const toolId = penEraser ? 'eraser' : this.effectiveTool();
       const tool = TOOL_BY_ID[toolId];
-      const dp = { ...toDoc(this.view, p.x, p.y), p: pressure(e) };
       if (tool.kind === 'hand') this.beginPan(p, e.pointerId);
+      else if (tool.kind === 'select') this.beginSelect(toolId, dp, e.pointerId, e);
+      else if (tool.kind === 'move' && this.sel.active) {
+        // with a selection, the Move tool moves only the selected pixels (a quick transform)
+        if (this.beginTransform({ moveOnly: true })) this.gesture = { type: 'xf', tool: 'move', id: e.pointerId, grab: 'move', t0: { ...this.xf.t }, p0: dp };
+      }
       else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId);
       else if (tool.kind === 'fill') this.fillAt(dp);
       else if (tool.kind === 'picker') { this.gesture = { type: 'pick', tool: toolId, id: e.pointerId }; this.pickAt(dp); }
       else if (tool.kind === 'move') this.beginMove(dp, e.pointerId);
-      this.drawCursor();
+      this.drawOverlay();
     });
     el.addEventListener('pointermove', e => {
       const p = pos(e);
@@ -402,23 +454,29 @@ export class Editor {
           this.pickAt(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'move') {
           this.moveTo(toDoc(this.view, p.x, p.y));
+        } else if (g.type === 'select') {
+          this.selectDrag(toDoc(this.view, p.x, p.y));
+        } else if (g.type === 'xf') {
+          this.xfDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         }
       }
       const dp = toDoc(this.view, p.x, p.y);
       this.root.querySelector('.cursor-pos').textContent = `${Math.floor(dp.x)}, ${Math.floor(dp.y)}`;
-      this.drawCursor();
+      this.drawOverlay();
     });
     const end = e => {
       const g = this.gesture;
       if (!g || g.id !== e.pointerId) return;
       if (g.type === 'paint') this.endPaint();
       else if (g.type === 'move') this.endMove();
+      else if (g.type === 'select') this.endSelect();
       this.gesture = null;
-      this.drawCursor();
+      if (g.type === 'xf') this.xfEnd();
+      this.drawOverlay();
     };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
-    el.addEventListener('pointerleave', () => { if (!this.gesture) { this.pointer = null; this.drawCursor(); } });
+    el.addEventListener('pointerleave', () => { if (!this.gesture) { this.pointer = null; this.drawOverlay(); } });
     el.addEventListener('wheel', e => {
       e.preventDefault();
       const p = pos(e);
@@ -439,13 +497,19 @@ export class Editor {
 
   // ---------- painting ----------
 
+  /** Empties the stroke canvas and resets its drawing state. */
+  resetStroke() {
+    const c = this.strokeCtx;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+    c.clearRect(0, 0, this.doc.width, this.doc.height);
+  }
+
   beginPaint(toolId, pt, id) {
     const layer = this.doc.layer, tool = TOOL_BY_ID[toolId], s = this.settings[toolId];
     if (!layer.visible) return toast('This layer is hidden. Show it to draw on it.');
-    this.strokeCtx.setTransform(1, 0, 0, 1, 0, 0);
-    this.strokeCtx.globalAlpha = 1;
-    this.strokeCtx.globalCompositeOperation = 'source-over';
-    this.strokeCtx.clearRect(0, 0, this.doc.width, this.doc.height);
+    this.resetStroke();
     const sizeAt = p => stampFor(s, pressureCurve(p, s.gamma)).size;
     this.gesture = {
       type: 'paint', tool: toolId, id, s, sizeAt, layer, bounds: null, last: pt, erase: !!tool.erase,
@@ -468,6 +532,7 @@ export class Editor {
       g.painter.dab(st.x, st.y, size, flow);
     }
     const r = stampBounds(stamps, g.sizeAt);
+    this.sel.clipCanvas(this.strokeCtx, r);  // paint only inside the selection
     g.bounds = union(g.bounds, r);
     this.updateComp(r);
   }
@@ -522,9 +587,9 @@ export class Editor {
         img.data[i] = cr; img.data[i + 1] = cg; img.data[i + 2] = cb; img.data[i + 3] = 255;
       }
     }
-    this.strokeCtx.setTransform(1, 0, 0, 1, 0, 0);
-    this.strokeCtx.clearRect(0, 0, d.width, d.height);
+    this.resetStroke();
     this.strokeCtx.putImageData(img, b.x, b.y);
+    this.sel.clipCanvas(this.strokeCtx, b);
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: layer.alphaLock ? 'source-atop' : 'source-over' };
     this.commitStroke(layer, b, 'Fill');
     this.colors.used();
@@ -669,17 +734,34 @@ export class Editor {
     this.layersChanged();
   }
 
-  clearLayer() {
+  /** Clears the selected pixels, or the whole layer when nothing is selected. */
+  clearLayer(label = 'Delete') {
     const d = this.doc, l = d.layer;
+    if (this.sel.active) {
+      this.resetStroke();
+      this.strokeCtx.drawImage(this.sel.canvas, 0, 0);
+      this.live = { layer: l, canvas: this.stroke, alpha: 1, mode: 'destination-out' };
+      return this.commitStroke(l, this.sel.bounds, label);
+    }
     const before = l.ctx.getImageData(0, 0, d.width, d.height);
     l.ctx.clearRect(0, 0, d.width, d.height);
-    this.pushPatch(l, { x: 0, y: 0, w: d.width, h: d.height }, before, l.ctx.getImageData(0, 0, d.width, d.height), 'Clear layer');
+    this.pushPatch(l, { x: 0, y: 0, w: d.width, h: d.height }, before, l.ctx.getImageData(0, 0, d.width, d.height), label === 'Delete' ? 'Clear layer' : label);
     l.touch();
     this.changed(null);
   }
 
+  /** Fills the selection, or the whole layer when nothing is selected, with the main colour. */
   fillLayer() {
     const d = this.doc, l = d.layer;
+    if (this.sel.active) {
+      const b = this.sel.bounds;
+      this.resetStroke();
+      this.strokeCtx.fillStyle = this.colors.main;
+      this.strokeCtx.fillRect(b.x, b.y, b.w, b.h);
+      this.sel.clipCanvas(this.strokeCtx, b);
+      this.live = { layer: l, canvas: this.stroke, alpha: 1, mode: l.alphaLock ? 'source-atop' : 'source-over' };
+      return this.commitStroke(l, b, 'Fill selection');
+    }
     const before = l.ctx.getImageData(0, 0, d.width, d.height);
     l.ctx.save();
     l.ctx.fillStyle = this.colors.main;
@@ -748,8 +830,17 @@ export class Editor {
 
   // ---------- undo ----------
 
-  undo() { if (!this.gesture && this.history.undo()) this.layers.render(); }
-  redo() { if (!this.gesture && this.history.redo()) this.layers.render(); }
+  undo() {
+    if (this.gesture) return;
+    if (this.xf) return this.cancelTransform();
+    if (this.history.undo()) this.layers.render();
+  }
+  redo() { if (!this.gesture && !this.xf && this.history.redo()) this.layers.render(); }
+
+  /** Applies a transform in progress (before anything else changes the document). */
+  finishTransform() {
+    if (this.xf && !this.gesture) this.applyTransform();
+  }
 
   updateUndoButtons() {
     const u = this.root.querySelector('[data-act="undo"]'), r = this.root.querySelector('[data-act="redo"]');
@@ -783,6 +874,7 @@ export class Editor {
 
   async save() {
     clearTimeout(this.saveTimer);
+    if (this.xf) { this.saveTimer = setTimeout(() => this.save(), SAVE_DELAY); return; }  // never save a half-done transform
     if (this.saving) { this.saveAgain = true; return this.saving; }
     const d = this.doc, v = d.version;
     if (v === this.savedVersion) return;
@@ -809,6 +901,7 @@ export class Editor {
 
   /** Saves anything pending; used before reloading or leaving the editor. */
   async flush() {
+    this.finishTransform();
     if (this.saving) await this.saving.catch(() => {});
     if (this.doc && this.doc.version !== this.savedVersion) await this.save();
   }
@@ -844,9 +937,10 @@ export class Editor {
     const c = e.key === 'Alt' ? 'alt' : comboOf(e);
     if (c === 'space' || c === 'alt') {
       e.preventDefault();
-      if (!this.held[c]) { this.held[c] = true; this.drawCursor(); }
+      if (!this.held[c]) { this.held[c] = true; this.drawOverlay(); }
       return;
     }
+    if (this.xf) return this.onTransformKey(e, c);
     const t = TOOLS.find(x => x.key === c);
     if (t) { this.selectTool(t.id); return; }
     const s = this.settings[this.tool];
@@ -854,7 +948,10 @@ export class Editor {
       '[': () => s.size && this.setSize(nextSize(s.size, -1)),
       ']': () => s.size && this.setSize(nextSize(s.size, 1)),
       'x': () => this.colors.swap(),
-      'm': () => this.flipView(),
+      'shift+m': () => this.flipView(),
+      'ctrl+a': () => this.selectAll(), 'ctrl+d': () => this.deselect(), 'ctrl+shift+i': () => this.invertSelection(),
+      'ctrl+t': () => this.beginTransform(),
+      'ctrl+c': () => this.copySelection(), 'ctrl+x': () => this.copySelection(true),
       '4': () => this.rotate(-15), '6': () => this.rotate(15), '5': () => this.rotate(null),
       'delete': () => this.clearLayer(), 'backspace': () => this.clearLayer(),
       'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
@@ -864,16 +961,36 @@ export class Editor {
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
       'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
     };
+    // Ctrl+V pastes what was copied in KoeStudio (in place), unless the user has been in another program since;
+    // then the browser's paste event brings in the image from the system clipboard instead (onPaste)
+    if (c === 'ctrl+v' && this.clipboard?.fresh) { e.preventDefault(); if (!this.gesture) this.pasteInternal(); return; }
     const fn = map[c];
+    if (fn) { e.preventDefault(); if (!this.gesture) fn(); }
+  }
+
+  /** While transforming, only Enter, Esc, the arrows, undo and view keys work. */
+  onTransformKey(e, c) {
+    const step = e.shiftKey ? 10 : 1;
+    const arrows = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] };
+    const arrow = arrows[c.replace('shift+', '')];
+    const map = {
+      'enter': () => this.applyTransform(), 'escape': () => this.cancelTransform(), 'ctrl+z': () => this.cancelTransform(),
+      'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(), 'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
+      '4': () => this.rotate(-15), '6': () => this.rotate(15), '5': () => this.rotate(null), 'shift+m': () => this.flipView(),
+    };
+    const fn = arrow ? () => this.xfNudge(...arrow) : map[c];
     if (fn) { e.preventDefault(); if (!this.gesture) fn(); }
   }
 
   onKeyUp(e) {
     const key = e?.key === ' ' ? 'space' : e?.key === 'Alt' ? 'alt' : null;
-    if (e?.type === 'blur') { this.held.space = this.held.alt = false; }
+    if (e?.type === 'blur') {
+      this.held.space = this.held.alt = false;
+      if (this.clipboard) this.clipboard.fresh = false;  // the user may copy something in another program
+    }
     else if (key) { this.held[key] = false; if (key === 'alt') e.preventDefault(); }
     else return;
-    this.drawCursor();
+    this.drawOverlay();
   }
 }
 
@@ -881,6 +998,8 @@ export class Editor {
 const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
+
+Object.assign(Editor.prototype, selectionMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

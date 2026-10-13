@@ -13,7 +13,7 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
   - **Sound is muted.** Always start test runs with `KOE_MUTE=1` (or `--muted`). `js/mute.js` then silences every audio entry point (media elements, Web Audio, speech), so it also covers sound code added later. Any new sound must still play through the normal browser APIs so the mute catches it.
   - **Scratch data only.** Point test runs at a scratch folder, never the real `Pictures\KoeStudio`:
     `KOE_ART_DIR=<scratch>/art KOE_APP_DIR=<scratch>/app KOE_MUTE=1 KOE_PORT=8790 python app.py --browser`
-  - When the browser pane is hidden it may not paint or fire ResizeObserver; drive it with `javascript_tool` (dispatch `PointerEvent`/`KeyboardEvent`) and check results through the saved files (`.thumbs/<id>.png`).
+  - When the browser pane is hidden it may not paint or fire ResizeObserver, and its viewport can be 0×0. Give the tab a size with `resize_window` (e.g. 1400×900, reset to `desktop` afterwards), reload, drive it with `javascript_tool` (dispatch `PointerEvent`/`KeyboardEvent`; after Ctrl+0 the view is `zoom = min((vw-80)/W, (vh-80)/H)`, centred) and check results through the saved files (`.thumbs/<id>.png`).
 - If the folder or Python moves, recreate the shortcuts with `powershell -ExecutionPolicy Bypass -File tools\make_shortcut.ps1` (`-LocalOnly` makes only the one in the project folder).
 
 ## Architecture
@@ -28,13 +28,17 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
   - `js/views/editor.js`: the drawing screen. Viewport (`render`, `updateComp`), pointer input, tools, layer operations, undo, autosave, menus and shortcuts (`onKey`).
   - `js/views/colorpanel.js`, `js/views/layerpanel.js`: side panels. They change the document only through editor methods.
   - `js/doc.js`: `Doc`/`Layer` (one canvas per layer), `composite()` (paper, blend modes, opacity, clipping groups, the live stroke), save format and `sanitizeDoc`.
-  - Pure, tested modules: `brush.js` (pressure, smoothing, stamp spacing), `fill.js` (flood fill, grow), `history.js` (undo stack with step and memory limits), `view.js` (zoom/rotate/mirror maths), `tools.js` (tool list and settings), `color.js`, `rect.js`, `keys.js`.
+  - `js/views/selecttools.js`: selection tools, selection commands, copy/cut/paste and free transform, as methods mixed into `Editor.prototype`.
+  - `js/selection.js`: `Selection`, a doc-sized mask canvas with bounds and an outline for the marching ants; `combine(mode, draw)` adds/subtracts/intersects a shape; `clipCanvas(ctx, rect)` cuts a canvas down to it.
+  - Pure, tested modules: `transform.js` (free-transform maths: handles, scale about the opposite handle, rotate, hit testing), `brush.js` (pressure, smoothing, stamp spacing), `fill.js` (flood fill, grow), `history.js` (undo stack with step and memory limits), `view.js` (zoom/rotate/mirror maths), `tools.js` (tool list and settings), `color.js`, `rect.js`, `keys.js`.
   - `js/painter.js`: draws dabs (anti-aliased circles for hard brushes, a pre-rendered gradient tip for soft ones).
 
 ### How painting works (keep to this when adding tools)
 
 - A stroke is drawn into the shared **stroke canvas** at full strength; `this.live = {layer, canvas, alpha, mode}` makes `composite()` show it on its layer with the tool's opacity while drawing. On pen-up `commitStroke()` merges it into the layer (`source-over`, `destination-out` for erasing, `source-atop` when the layer's alpha is locked) and records an undo patch of just the changed rectangle. Opacity therefore never builds up within one stroke; density (`flow`) does.
-- New paint-like tools should fill the stroke canvas and call `commitStroke()`; fills do the same.
+- New paint-like tools should fill the stroke canvas, call `this.sel.clipCanvas(this.strokeCtx, rect)` so the selection is respected, then `commitStroke()`; fills, Delete and Alt+Del with a selection all work this way.
+- **Selections** are undo steps (`changeSelection(label, fn)` stores before/after mask snapshots). They are not saved with the artwork.
+- **Transform** (`this.xf`): `beginTransform()` lifts the selected pixels (or the whole layer) into `xf.src`, keeps the rest in `xf.base`, and redraws the layer live on every change (`renderTransform`). `applyTransform()` records one undo step for the layer and the selection; `cancelTransform()` puts the pixels back. While it is active, clicks on the panels/menus apply it first (`finishTransform`), saving waits, and only `onTransformKey` keys work.
 - Every change goes through the history: pixel changes with `pushPatch(layer, rect, before, after)`, structural changes with `structural(label, do, undo)`. Layer visibility is deliberately not an undo step.
 - After any change call `changed(rect)` (or `changed(null)` for everything): it recomposites, redraws, refreshes layer thumbnails and schedules the autosave (800 ms after the last change).
 - Saving re-encodes only layers whose `version` changed (`Layer.toPng`). Raise `layer.touch()` after changing its pixels.
@@ -44,7 +48,7 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
 - **Save format:** add new fields with a default in `sanitizeDoc` so old `.koe` files keep loading. Never break old files; bump `FORMAT_VERSION` and convert if a field changes shape.
 - **Escaping:** use `esc()` for anything user-supplied that goes into HTML.
 - **Storage:** `store(key, value)` in `ui.js` wraps `localStorage` (`koe.` prefix) and never throws.
-- **Shortcuts:** follow Clip Studio Paint where it has a convention (P pen, B brush, E eraser, G fill, I eyedropper, H hand, Space pan, Alt eyedropper, [ ] size, X swap colours). Tool keys live in `TOOLS`; the rest in `onKey`.
+- **Shortcuts:** follow Clip Studio Paint where it has a convention (P pen, B brush, E eraser, G fill, M selection, W magic wand, I eyedropper, H hand, Space pan, Alt eyedropper, [ ] size, X swap colours, Ctrl+T transform). Tool keys live in `TOOLS`; the rest in `onKey`.
 - **Icons:** add SVG paths to `icons.js`; `tools/make_icon.py` makes the app icon.
 
 ## Commands
@@ -68,7 +72,7 @@ Run `npm test` and `npm run check` before calling a change done, and add tests f
 
 ## Roadmap (not built yet)
 
-Selections (lasso, rectangle, magic wand) and transforms (scale, rotate, free transform); canvas resize/crop; layer folders, drag-to-reorder and layer masks; vector/line layers; rulers and perspective guides; text; brush textures and custom brush tips; tone/screentone and gradient tools; filters (blur, levels, hue/saturation); two-finger touch gestures; reference window; PSD import/export; per-layer files for faster saves on huge canvases; animation timeline.
+Selection extras (ellipse, polygon lasso, feather, grow/shrink, selection painting / quick mask), perspective and mesh transform; canvas resize/crop; layer folders, drag-to-reorder and layer masks; vector/line layers; rulers and perspective guides; text; brush textures and custom brush tips; tone/screentone and gradient tools; filters (blur, levels, hue/saturation); two-finger touch gestures; reference window; PSD import/export; per-layer files for faster saves on huge canvases; animation timeline.
 
 ## Repo
 
