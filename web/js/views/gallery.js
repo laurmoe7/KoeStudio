@@ -130,9 +130,10 @@ function importImage(onOpen) {
       const s = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
       const w = Math.round(img.width * s), h = Math.round(img.height * s);
       const doc = Doc.blank({ width: w, height: h, title: f.name.replace(/\.[^.]+$/, ''), paper: '#ffffff' });
-      doc.layers[0].name = 'Image';
-      doc.layers[0].ctx.drawImage(img, 0, 0, w, h);
-      doc.layers[0].touch();
+      const layer = doc.active;
+      layer.name = 'Image';
+      layer.ctx.drawImage(img, 0, 0, w, h);
+      layer.touch();
       onOpen({ newDoc: doc });
     } catch (e) {
       toast(e.message, { error: true });

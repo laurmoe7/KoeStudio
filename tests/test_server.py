@@ -42,6 +42,12 @@ class Storage(unittest.TestCase):
         self.assertEqual(app.list_art(), [])
         self.assertEqual(len(os.listdir(os.path.join(self.tmp.name, '.deleted'))), 2, 'file and thumbnail kept in .deleted')
 
+    def test_layer_count_includes_folders(self):
+        d = doc()
+        d['layers'] = [{'type': 'layer'}, {'type': 'folder', 'children': [{'type': 'layer'}, {'type': 'folder', 'children': [{}]}]}]
+        app.save_art('', d)
+        self.assertEqual(app.list_art()[0]['layers'], 3, 'one at the top, one in the folder, one in the inner folder')
+
     def test_rejects_bad_input(self):
         with self.assertRaises(ValueError):
             app.load_art('../../secret')

@@ -147,7 +147,8 @@ test('document format sanitizing', () => {
   assert.equal(d.layers[0].blend, 'source-over');
   assert.equal(d.layers[0].name, 'Layer 1');
   assert.equal(d.layers[1].visible, false);
-  assert.equal(d.active, 1);
+  assert.deepEqual(d.activePath, [1], 'a version 1 `active` index becomes a path');
+  assert.equal(d.layers[0].type, 'layer');
   assert.equal(sanitizeDoc({ paper: null }).paper, null, 'transparent paper is kept');
   assert.equal(sanitizeDoc(null).format, 'koe');
 });

@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { Smoother, StampPath, pressureCurve, stampFor, stampBounds } from '../brush.js';
 import { hexToRgb, rgbToHex } from '../color.js';
 import { Doc, Layer, composite, canvasToDataUrl, loadImage } from '../doc.js';
+import { isFolder } from '../tree.js';
 import { floodMask, growMask } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
@@ -18,6 +19,7 @@ import { ColorPanel } from './colorpanel.js';
 import { LayerPanel } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
 import { canvasMethods } from './canvasops.js';
+import { layerMethods } from './layerops.js';
 
 const SAVE_DELAY = 800;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -36,6 +38,7 @@ export class Editor {
     this.held = { space: false, alt: false };
     this.pointer = null;  // last pointer position over the canvas, in screen px
     this.savedVersion = -1;
+    this.maskEdit = false;  // tools paint on the selected layer's mask instead of the layer (layerops.js)
     this.onKey = this.onKey.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onPaste = this.onPaste.bind(this);
@@ -66,7 +69,7 @@ export class Editor {
     this.updateComp(null);
     this.needsFit = true;  // done by resize() once the viewport has a real size
     this.resize();
-    this.layers.render();
+    this.layerPanel.render();
     this.selectTool(this.tool);
     window.addEventListener('keydown', this.onKey);
     window.addEventListener('keyup', this.onKeyUp);
@@ -100,6 +103,7 @@ export class Editor {
           <button class="menu-btn" data-menu="layer">Layer</button>
           <button class="menu-btn" data-menu="view">View</button>
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
+          <button class="mask-chip" hidden title="Tools paint on the layer mask: painting hides, erasing shows. Click to paint on the layer again.">${icon('mask', 14)} Painting on mask</button>
           <div class="grow"></div>
           <button class="icon-btn" data-act="undo" title="Undo (Ctrl+Z)">${icon('undo')}</button>
           <button class="icon-btn" data-act="redo" title="Redo (Ctrl+Y)">${icon('redo')}</button>
@@ -143,7 +147,7 @@ export class Editor {
     this.vctx = this.viewCanvas.getContext('2d');
     this.octx = this.overlay.getContext('2d');
     this.colors = new ColorPanel($('.color-panel'));
-    this.layers = new LayerPanel($('.layer-panel'), this);
+    this.layerPanel = new LayerPanel($('.layer-panel'), this);
     this.root.querySelectorAll('[data-tool]').forEach(b => { b.onclick = () => this.selectTool(b.dataset.tool); });
     const acts = {
       home: () => this.goHome(), undo: () => this.undo(), redo: () => this.redo(),
@@ -157,6 +161,7 @@ export class Editor {
       el.addEventListener('pointerdown', e => { if (!e.target.closest('[data-act="undo"]')) this.finishTransform(); }, true);
     }
     $('.ed-title').onclick = () => this.rename();
+    $('.mask-chip').onclick = () => this.editMask(false);
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
     this.bindPointer();
@@ -196,8 +201,8 @@ export class Editor {
         { label: 'Rotate canvas 90° right', run: () => this.rotateCanvas(1) },
         { label: 'Rotate canvas 90° left', run: () => this.rotateCanvas(-1) },
         { label: 'Rotate canvas 180°', run: () => this.rotateCanvas(2) },
-        { label: 'Flip canvas horizontally', run: () => this.flipPixels(d.layers, 'h', 'Flip canvas') },
-        { label: 'Flip canvas vertically', run: () => this.flipPixels(d.layers, 'v', 'Flip canvas') },
+        { label: 'Flip canvas horizontally', run: () => this.flipPixels(d.rasters(), 'h', 'Flip canvas') },
+        { label: 'Flip canvas vertically', run: () => this.flipPixels(d.rasters(), 'v', 'Flip canvas') },
       ],
       select: [
         { label: 'Select all', key: 'Ctrl+A', run: () => this.selectAll() },
@@ -211,12 +216,22 @@ export class Editor {
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
         { label: 'Duplicate layer', run: () => this.layerDuplicate() },
         { label: 'Delete layer', run: () => this.layerDelete() },
-        { label: 'Merge with layer below', key: 'Ctrl+E', run: () => this.mergeDown(), disabled: d.active === 0 },
+        { label: 'New folder', run: () => this.folderAdd() },
+        { label: 'Put in new folder', key: 'Ctrl+G', run: () => this.groupIntoFolder() },
+        isFolder(d.active)
+          ? { label: 'Merge folder', key: 'Ctrl+E', run: () => this.mergeFolder(d.active) }
+          : { label: 'Merge with layer below', key: 'Ctrl+E', run: () => this.mergeDown() },
         '-',
-        { label: 'Flip layer horizontally', run: () => this.flipPixels([d.layer], 'h', 'Flip layer') },
-        { label: 'Flip layer vertically', run: () => this.flipPixels([d.layer], 'v', 'Flip layer') },
+        d.active.mask
+          ? { label: d.active.mask.enabled ? 'Turn mask off' : 'Turn mask on', run: () => this.toggleMask() }
+          : { label: this.sel.active ? 'Add mask (hide outside selection)' : 'Add mask', run: () => this.addMask() },
+        { label: 'Apply mask to layer', run: () => this.applyMask(), disabled: !d.active.mask || isFolder(d.active) },
+        { label: 'Delete mask', run: () => this.deleteMask(), disabled: !d.active.mask },
         '-',
-        { label: 'Rename layer…', run: async () => { const n = await promptBox('Rename layer', 'Layer name', d.layer.name); if (n) this.setLayerProp(d.layer, 'name', n, 'Rename layer'); } },
+        { label: 'Flip layer horizontally', run: () => this.flipPixels(this.layerRasters(), 'h', 'Flip layer') },
+        { label: 'Flip layer vertically', run: () => this.flipPixels(this.layerRasters(), 'v', 'Flip layer') },
+        '-',
+        { label: 'Rename…', run: async () => { const n = await promptBox('Rename', 'Name', d.active.name); if (n) this.setLayerProp(d.active, 'name', n, 'Rename'); } },
       ],
       view: [
         { label: 'Zoom in', key: 'Ctrl+=', run: () => this.zoomStep(1) },
@@ -526,17 +541,18 @@ export class Editor {
   }
 
   beginPaint(toolId, pt, id) {
-    const layer = this.doc.layer, tool = TOOL_BY_ID[toolId], s = this.settings[toolId];
-    if (!layer.visible) return toast('This layer is hidden. Show it to draw on it.');
+    const tool = TOOL_BY_ID[toolId], s = this.settings[toolId];
+    const layer = this.target(tool.erase ? 'erase' : 'draw on');
+    if (!layer) return;
     this.resetStroke();
     const sizeAt = p => stampFor(s, pressureCurve(p, s.gamma)).size;
     this.gesture = {
       type: 'paint', tool: toolId, id, s, sizeAt, layer, bounds: null, last: pt, erase: !!tool.erase,
-      painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.colors.main, hardness: s.hardness }),
+      painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.inkFor(layer), hardness: s.hardness }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
     };
-    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: tool.erase ? 'destination-out' : layer.alphaLock ? 'source-atop' : 'source-over' };
+    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase) };
     this.addPoint(pt);
     this.requestRender();
   }
@@ -561,7 +577,7 @@ export class Editor {
     // stabilization lags behind the pen: catch up to where the pen was lifted
     if (g.s.smoothing) for (let i = 0; i < 12; i++) this.addPoint(g.last);
     this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');
-    if (!g.erase) this.colors.used();
+    if (!g.erase && g.layer.kind !== 'mask') this.colors.used();
   }
 
   /** Applies the stroke canvas (this.live) to its layer inside rect r, recording it for undo. */
@@ -589,15 +605,15 @@ export class Editor {
   }
 
   fillAt(pt) {
-    const layer = this.doc.layer, s = this.settings.fill, d = this.doc;
-    if (!layer.visible) return toast('This layer is hidden. Show it to fill on it.');
+    const s = this.settings.fill, d = this.doc, layer = this.target('fill');
+    if (!layer) return;
     const src = s.sampleAll ? this.compCtx : layer.ctx;
     const data = src.getImageData(0, 0, d.width, d.height).data;
     let res = floodMask(data, d.width, d.height, pt.x, pt.y, s.tolerance);
     if (!res) return;
     res = growMask(res.mask, d.width, d.height, s.grow, res.bounds);
     const b = res.bounds;
-    const [cr, cg, cb] = hexToRgb(this.colors.main);
+    const [cr, cg, cb] = hexToRgb(this.inkFor(layer));
     const img = new ImageData(b.w, b.h);
     for (let y = 0; y < b.h; y++) {
       for (let x = 0; x < b.w; x++) {
@@ -609,9 +625,9 @@ export class Editor {
     this.resetStroke();
     this.strokeCtx.putImageData(img, b.x, b.y);
     this.sel.clipCanvas(this.strokeCtx, b);
-    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: layer.alphaLock ? 'source-atop' : 'source-over' };
+    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, false) };
     this.commitStroke(layer, b, 'Fill');
-    this.colors.used();
+    if (layer.kind !== 'mask') this.colors.used();
   }
 
   pickAt(pt) {
@@ -622,197 +638,7 @@ export class Editor {
     this.colors.set(rgbToHex(p[0], p[1], p[2]));
   }
 
-  // ---------- move layer ----------
-
-  beginMove(pt, id) {
-    const layer = this.doc.layer, d = this.doc;
-    if (!layer.visible) return toast('This layer is hidden. Show it to move it.');
-    const copy = document.createElement('canvas');
-    copy.width = d.width; copy.height = d.height;
-    copy.getContext('2d').drawImage(layer.canvas, 0, 0);
-    this.gesture = { type: 'move', tool: 'move', id, layer, start: pt, copy, dx: 0, dy: 0,
-      before: layer.ctx.getImageData(0, 0, d.width, d.height) };
-  }
-
-  moveTo(pt) {
-    const g = this.gesture, d = this.doc;
-    g.dx = Math.round(pt.x - g.start.x);
-    g.dy = Math.round(pt.y - g.start.y);
-    g.layer.ctx.clearRect(0, 0, d.width, d.height);
-    g.layer.ctx.drawImage(g.copy, g.dx, g.dy);
-    this.updateComp(null);
-    this.requestRender();
-  }
-
-  endMove() {
-    const g = this.gesture, d = this.doc;
-    if (!g.dx && !g.dy) return;
-    const r = { x: 0, y: 0, w: d.width, h: d.height };
-    this.pushPatch(g.layer, r, g.before, g.layer.ctx.getImageData(0, 0, d.width, d.height), 'Move layer');
-    g.layer.touch();
-    this.changed(null);
-  }
-
-  // ---------- layers ----------
-
-  selectLayer(i) {
-    this.doc.active = Math.max(0, Math.min(this.doc.layers.length - 1, i));
-    this.layers.render();
-    this.doc.version++;
-    this.scheduleSave();
-  }
-
-  /** Records and applies a structural change; do() and undo() must leave doc.active sensible. */
-  structural(label, doIt, undoIt, bytes = 0) {
-    doIt();
-    this.history.push({ label, bytes, undo: () => { undoIt(); this.layersChanged(); }, redo: () => { doIt(); this.layersChanged(); } });
-    this.layersChanged();
-  }
-
-  layersChanged() {
-    this.layers.render();
-    this.changed(null);
-  }
-
-  insertLayer(layer, index, label) {
-    const d = this.doc, prev = d.active;
-    this.structural(label,
-      () => { d.layers.splice(index, 0, layer); d.active = index; },
-      () => { d.layers.splice(d.layers.indexOf(layer), 1); d.active = Math.min(prev, d.layers.length - 1); },
-      d.width * d.height * 4);
-  }
-
-  layerAdd() {
-    const d = this.doc;
-    this.insertLayer(new Layer(d.width, d.height, { name: d.newLayerName() }), d.active + 1, 'New layer');
-  }
-
-  layerDuplicate() {
-    const d = this.doc, l = d.layer;
-    const copy = new Layer(d.width, d.height, { name: l.name + ' copy', visible: l.visible, opacity: l.opacity, blend: l.blend, alphaLock: l.alphaLock, clip: l.clip });
-    copy.ctx.drawImage(l.canvas, 0, 0);
-    this.insertLayer(copy, d.active + 1, 'Duplicate layer');
-  }
-
-  layerDelete() {
-    const d = this.doc;
-    if (d.layers.length === 1) return toast('An artwork needs at least one layer. Use Edit → Clear layer instead.');
-    const i = d.active, l = d.layer;
-    this.structural('Delete layer',
-      () => { d.layers.splice(i, 1); d.active = Math.max(0, i - 1); },
-      () => { d.layers.splice(i, 0, l); d.active = i; },
-      d.width * d.height * 4);
-  }
-
-  layerMove(dir) {
-    const d = this.doc, i = d.active, j = i + dir;
-    if (j < 0 || j >= d.layers.length) return;
-    const swap = (a, b) => { [d.layers[a], d.layers[b]] = [d.layers[b], d.layers[a]]; };
-    this.structural('Move layer', () => { swap(i, j); d.active = j; }, () => { swap(i, j); d.active = i; });
-  }
-
-  mergeDown() {
-    const d = this.doc, i = d.active;
-    if (i === 0) return toast('There is no layer below to merge into.');
-    const upper = d.layers[i], lower = d.layers[i - 1];
-    if (!upper.visible || !lower.visible) return toast('Show both layers before merging them.');
-    const full = { x: 0, y: 0, w: d.width, h: d.height };
-    const before = lower.ctx.getImageData(0, 0, d.width, d.height);
-    let src = upper.canvas;
-    if (upper.clip) {  // keep only what shows through the layer below
-      src = document.createElement('canvas');
-      src.width = d.width; src.height = d.height;
-      const c = src.getContext('2d');
-      c.drawImage(upper.canvas, 0, 0);
-      c.globalCompositeOperation = 'destination-in';
-      c.drawImage(lower.canvas, 0, 0);
-    }
-    lower.ctx.save();
-    lower.ctx.globalAlpha = upper.opacity;
-    lower.ctx.globalCompositeOperation = lower.alphaLock ? 'source-atop' : upper.blend;
-    lower.ctx.drawImage(src, 0, 0);
-    lower.ctx.restore();
-    const after = lower.ctx.getImageData(0, 0, d.width, d.height);
-    lower.ctx.putImageData(before, 0, 0);
-    const put = img => { lower.ctx.putImageData(img, full.x, full.y); lower.touch(); };
-    this.structural('Merge down',
-      () => { put(after); d.layers.splice(i, 1); d.active = i - 1; },
-      () => { put(before); d.layers.splice(i, 0, upper); d.active = i; },
-      d.width * d.height * 12);
-  }
-
-  setLayerProp(layer, key, value, label) {
-    const old = layer[key];
-    if (old === value) return this.layers.render();
-    this.structural(label, () => { layer[key] = value; }, () => { layer[key] = old; });
-  }
-
-  /** Visibility is not an undo step (as in other painting programs), but it is saved. */
-  toggleVisible(layer) {
-    layer.visible = !layer.visible;
-    this.layersChanged();
-  }
-
-  /** Clears the selected pixels, or the whole layer when nothing is selected. */
-  clearLayer(label = 'Delete') {
-    const d = this.doc, l = d.layer;
-    if (this.sel.active) {
-      this.resetStroke();
-      this.strokeCtx.drawImage(this.sel.canvas, 0, 0);
-      this.live = { layer: l, canvas: this.stroke, alpha: 1, mode: 'destination-out' };
-      return this.commitStroke(l, this.sel.bounds, label);
-    }
-    const before = l.ctx.getImageData(0, 0, d.width, d.height);
-    l.ctx.clearRect(0, 0, d.width, d.height);
-    this.pushPatch(l, { x: 0, y: 0, w: d.width, h: d.height }, before, l.ctx.getImageData(0, 0, d.width, d.height), label === 'Delete' ? 'Clear layer' : label);
-    l.touch();
-    this.changed(null);
-  }
-
-  /** Fills the selection, or the whole layer when nothing is selected, with the main colour. */
-  fillLayer() {
-    const d = this.doc, l = d.layer;
-    if (this.sel.active) {
-      const b = this.sel.bounds;
-      this.resetStroke();
-      this.strokeCtx.fillStyle = this.colors.main;
-      this.strokeCtx.fillRect(b.x, b.y, b.w, b.h);
-      this.sel.clipCanvas(this.strokeCtx, b);
-      this.live = { layer: l, canvas: this.stroke, alpha: 1, mode: l.alphaLock ? 'source-atop' : 'source-over' };
-      return this.commitStroke(l, b, 'Fill selection');
-    }
-    const before = l.ctx.getImageData(0, 0, d.width, d.height);
-    l.ctx.save();
-    l.ctx.fillStyle = this.colors.main;
-    if (l.alphaLock) l.ctx.globalCompositeOperation = 'source-atop';
-    l.ctx.fillRect(0, 0, d.width, d.height);
-    l.ctx.restore();
-    this.pushPatch(l, { x: 0, y: 0, w: d.width, h: d.height }, before, l.ctx.getImageData(0, 0, d.width, d.height), 'Fill layer');
-    l.touch();
-    this.changed(null);
-  }
-
-  /** Mirrors layers' pixels. Mirroring twice gives the original back, so undo is the same operation. */
-  flipPixels(layers, axis, label) {
-    const d = this.doc;
-    const flip = () => {
-      const tmp = document.createElement('canvas');
-      tmp.width = d.width; tmp.height = d.height;
-      const t = tmp.getContext('2d');
-      for (const l of layers) {
-        t.clearRect(0, 0, d.width, d.height);
-        t.drawImage(l.canvas, 0, 0);
-        l.ctx.save();
-        l.ctx.clearRect(0, 0, d.width, d.height);
-        if (axis === 'h') l.ctx.setTransform(-1, 0, 0, 1, d.width, 0);
-        else l.ctx.setTransform(1, 0, 0, -1, 0, d.height);
-        l.ctx.drawImage(tmp, 0, 0);
-        l.ctx.restore();
-        l.touch();
-      }
-    };
-    this.structural(label, flip, flip);
-  }
+  // ---------- importing images ----------
 
   async addImageLayer(src, name = 'Image') {
     const d = this.doc;
@@ -822,7 +648,7 @@ export class Editor {
     const s = Math.min(1, d.width / img.width, d.height / img.height);
     const w = img.width * s, h = img.height * s;
     layer.ctx.drawImage(img, Math.round((d.width - w) / 2), Math.round((d.height - h) / 2), w, h);
-    this.insertLayer(layer, d.active + 1, 'Import image');
+    this.insertNode(layer, 'Import image');
   }
 
   pickImage() {
@@ -852,9 +678,9 @@ export class Editor {
   undo() {
     if (this.gesture) return;
     if (this.xf) return this.cancelTransform();
-    if (this.history.undo()) this.layers.render();
+    if (this.history.undo()) this.layerPanel.render();
   }
-  redo() { if (!this.gesture && !this.xf && this.history.redo()) this.layers.render(); }
+  redo() { if (!this.gesture && !this.xf && this.history.redo()) this.layerPanel.render(); }
 
   /** Applies a transform in progress (before anything else changes the document). */
   finishTransform() {
@@ -873,7 +699,7 @@ export class Editor {
   changed(r, { save = true } = {}) {
     this.updateComp(r);
     this.requestRender();
-    if (!this.thumbRaf) this.thumbRaf = requestAnimationFrame(() => { this.thumbRaf = 0; this.layers.thumbs(); });
+    if (!this.thumbRaf) this.thumbRaf = requestAnimationFrame(() => { this.thumbRaf = 0; this.layerPanel.thumbs(); });
     if (save) {
       this.doc.version++;
       this.scheduleSave();
@@ -982,7 +808,7 @@ export class Editor {
       'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
       'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
       'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportPng(),
-      'ctrl+e': () => this.mergeDown(), 'ctrl+shift+n': () => this.layerAdd(),
+      'ctrl+e': () => this.mergeDown(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
       'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
     };
@@ -1024,7 +850,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

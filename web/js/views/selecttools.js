@@ -29,7 +29,8 @@ export const selectionMethods = {
   deselect() { if (this.sel.active) this.changeSelection('Deselect', () => this.sel.clear()); },
   invertSelection() { this.changeSelection('Invert selection', () => this.sel.invert()); },
   selectLayerPixels() {
-    const l = this.doc.layer;
+    const l = this.target('select from');
+    if (!l) return;
     this.changeSelection('Select layer pixels', () => this.sel.combine('replace', ctx => ctx.drawImage(l.canvas, 0, 0)));
     if (!this.sel.active) toast('This layer is empty, so nothing was selected.');
   },
@@ -76,7 +77,8 @@ export const selectionMethods = {
 
   magicWand(dp, mode) {
     const d = this.doc, s = this.settings.wand;
-    const src = s.sampleAll ? this.compCtx : this.doc.layer.ctx;
+    const a = this.doc.active, t = this.maskEdit && a.mask ? a.mask : a;
+    const src = s.sampleAll || !t.ctx ? this.compCtx : t.ctx;
     const res = floodMask(src.getImageData(0, 0, d.width, d.height).data, d.width, d.height, dp.x, dp.y, s.tolerance);
     if (!res) return;
     this.changeSelection('Magic wand', () => this.sel.combineMask(mode, res.mask, res.bounds));
@@ -85,7 +87,8 @@ export const selectionMethods = {
   // ---------- copy, cut, paste ----------
 
   copySelection(cut = false) {
-    const d = this.doc, l = d.layer;
+    const d = this.doc, l = this.target('copy from');
+    if (!l) return;
     const r = this.sel.active ? this.sel.bounds : { x: 0, y: 0, w: d.width, h: d.height };
     const c = document.createElement('canvas');
     c.width = r.w; c.height = r.h;
@@ -109,7 +112,7 @@ export const selectionMethods = {
     const clip = this.clipboard, d = this.doc;
     const layer = new Layer(d.width, d.height, { name: 'Pasted' });
     layer.ctx.drawImage(clip.canvas, clip.x, clip.y);
-    this.insertLayer(layer, d.active + 1, 'Paste');
+    this.insertNode(layer, 'Paste');
   },
 
   // ---------- free transform ----------
@@ -120,8 +123,8 @@ export const selectionMethods = {
    */
   beginTransform({ moveOnly = false } = {}) {
     if (this.xf) return true;
-    const d = this.doc, layer = d.layer;
-    if (!layer.visible) { toast('This layer is hidden. Show it to transform it.'); return false; }
+    const d = this.doc, layer = this.target('transform');
+    if (!layer) return false;
     const full = layer.ctx.getImageData(0, 0, d.width, d.height);
     let r = this.sel.active ? this.sel.bounds : null;
     if (!r) {

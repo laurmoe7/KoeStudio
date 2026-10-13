@@ -121,11 +121,19 @@ def list_art():
             'title': head.get('title') or 'Untitled',
             'width': head.get('width'),
             'height': head.get('height'),
-            'layers': len(head.get('layers') or []),
+            'layers': _count_layers(head.get('layers')),
             'modified': os.path.getmtime(path),
         })
     out.sort(key=lambda a: -a['modified'])
     return out
+
+
+def _count_layers(nodes, depth=0):
+    """Raster layers in a saved layer tree (folders hold `children`)."""
+    if not isinstance(nodes, list) or depth > 20:
+        return 0
+    return sum(_count_layers(n.get('children'), depth + 1) if isinstance(n, dict) and n.get('type') == 'folder' else 1
+               for n in nodes)
 
 
 def load_art(art_id):

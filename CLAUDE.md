@@ -25,13 +25,14 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
 - **`web/`**: vanilla ES modules, no framework, no build step. Edit and reload.
   - `js/app.js`: start-up (mute, reload key) and switching between gallery and editor.
   - `js/views/gallery.js`: artwork cards, New canvas dialog (`PRESETS`), Open image.
-  - `js/views/editor.js`: the drawing screen. Viewport (`render`, `updateComp`), pointer input, tools, layer operations, undo, autosave, menus and shortcuts (`onKey`).
-  - `js/views/colorpanel.js`, `js/views/layerpanel.js`: side panels. They change the document only through editor methods.
-  - `js/doc.js`: `Doc`/`Layer` (one canvas per layer), `composite()` (paper, blend modes, opacity, clipping groups, the live stroke), save format and `sanitizeDoc`.
+  - `js/views/editor.js`: the drawing screen. Viewport (`render`, `updateComp`), pointer input, painting, undo, autosave, menus and shortcuts (`onKey`). Feature groups live in mixins assigned to `Editor.prototype`: `layerops.js`, `selecttools.js`, `canvasops.js`.
+  - `js/views/colorpanel.js`, `js/views/layerpanel.js`: side panels. They change the document only through editor methods. The layer panel draws `panelRows()` (top first, indented), handles click-to-select (the mask thumbnail selects mask editing) and drag-and-drop (`moveNodeTo`).
+  - `js/doc.js`: `Doc` with a layer **tree** (`doc.root`, a `Folder`; `doc.active` is the selected node), `Layer` and `Mask` (both rasters: canvas, `version`, cached PNG), `Folder`, `cloneNode`, `nodeRasters`, `composite()` (paper, folders, "Through" pass-through, blend modes, opacity, clipping groups, masks, the live stroke), save format and `sanitizeDoc`.
+  - `js/views/layerops.js`: everything that changes the tree (add, folder, Put in new folder, duplicate, delete, move/step, merge down, merge folder, properties), masks (add/apply/delete/toggle, mask editing), and the current-layer pixel operations (Move tool, clear, fill, flip).
   - `js/views/selecttools.js`: selection tools, selection commands, copy/cut/paste and free transform, as methods mixed into `Editor.prototype`.
   - `js/selection.js`: `Selection`, a doc-sized mask canvas with bounds and an outline for the marching ants; `combine(mode, draw)` adds/subtracts/intersects a shape; `clipCanvas(ctx, rect)` cuts a canvas down to it.
   - `js/views/canvasops.js`: canvas size, image size, crop (tool and to selection), rotate canvas, as Editor methods. All go through `reshapeCanvas(label, w, h, paint)`, which gives every layer a new canvas and records one undo step that swaps the old canvases back (`setCanvasState` also resizes the composite/stroke canvases, resets the selection and fits the view). Use it for any future change of canvas size.
-  - Pure, tested modules: `canvasmath.js` (anchor offsets, side limits, crop rectangles), `transform.js` (free-transform maths: handles, scale about the opposite handle, rotate, hit testing), `brush.js` (pressure, smoothing, stamp spacing), `fill.js` (flood fill, grow), `history.js` (undo stack with step and memory limits), `view.js` (zoom/rotate/mirror maths), `tools.js` (tool list and settings), `color.js`, `rect.js`, `keys.js`.
+  - Pure, tested modules: `tree.js` (layer tree: listing, paths, `destination`/`moveNode` for above/below/top-of/bottom-of, `stepTarget` for the up/down buttons), `canvasmath.js` (anchor offsets, side limits, crop rectangles), `transform.js` (free-transform maths: handles, scale about the opposite handle, rotate, hit testing), `brush.js` (pressure, smoothing, stamp spacing), `fill.js` (flood fill, grow), `history.js` (undo stack with step and memory limits), `view.js` (zoom/rotate/mirror maths), `tools.js` (tool list and settings), `color.js`, `rect.js`, `keys.js`.
   - `js/painter.js`: draws dabs (anti-aliased circles for hard brushes, a pre-rendered gradient tip for soft ones).
 
 ### How painting works (keep to this when adding tools)
@@ -40,13 +41,14 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
 - New paint-like tools should fill the stroke canvas, call `this.sel.clipCanvas(this.strokeCtx, rect)` so the selection is respected, then `commitStroke()`; fills, Delete and Alt+Del with a selection all work this way.
 - **Selections** are undo steps (`changeSelection(label, fn)` stores before/after mask snapshots). They are not saved with the artwork.
 - **Transform** (`this.xf`): `beginTransform()` lifts the selected pixels (or the whole layer) into `xf.src`, keeps the rest in `xf.base`, and redraws the layer live on every change (`renderTransform`). `applyTransform()` records one undo step for the layer and the selection; `cancelTransform()` puts the pixels back. While it is active, clicks on the panels/menus apply it first (`finishTransform`), saving waits, and only `onTransformKey` keys work.
+- **Layers, folders and masks:** tools never touch `doc.active` directly; they ask `this.target(verb)` for the raster to change. It returns the layer, or its mask while `this.maskEdit` is on, and refuses (with a toast) hidden layers and folders without mask editing. Paint on a target with `this.inkFor(t)` (masks always get black) and `this.strokeMode(t, erase)`. A mask's alpha is how much is **hidden** (Clip Studio Paint style: painting hides, erasing reveals); `composite()` applies it with `destination-out`. Anything that touches every canvas (canvas size, flip canvas) uses `doc.rasters()`, which includes masks; per-node operations use `nodeRasters(node)` (a layer with its mask, or everything in a folder). Known limit: Transform works on one raster (the layer or its mask), not both together; the Move tool moves a layer with its mask.
 - Every change goes through the history: pixel changes with `pushPatch(layer, rect, before, after)`, structural changes with `structural(label, do, undo)`. Layer visibility is deliberately not an undo step.
 - After any change call `changed(rect)` (or `changed(null)` for everything): it recomposites, redraws, refreshes layer thumbnails and schedules the autosave (800 ms after the last change).
 - Saving re-encodes only layers whose `version` changed (`Layer.toPng`). Raise `layer.touch()` after changing its pixels.
 
 ### Conventions
 
-- **Save format:** add new fields with a default in `sanitizeDoc` so old `.koe` files keep loading. Never break old files; bump `FORMAT_VERSION` and convert if a field changes shape.
+- **Save format:** add new fields with a default in `sanitizeDoc` so old `.koe` files keep loading. Never break old files; bump `FORMAT_VERSION` and convert if a field changes shape. Version 2 (folders, masks, `activePath`) reads version 1 files (flat `layers`, `active` index) unchanged.
 - **Escaping:** use `esc()` for anything user-supplied that goes into HTML.
 - **Storage:** `store(key, value)` in `ui.js` wraps `localStorage` (`koe.` prefix) and never throws.
 - **Shortcuts:** follow Clip Studio Paint where it has a convention (P pen, B brush, E eraser, G fill, M selection, W magic wand, I eyedropper, H hand, Space pan, Alt eyedropper, [ ] size, X swap colours, Ctrl+T transform). Tool keys live in `TOOLS`; the rest in `onKey`.
@@ -73,7 +75,7 @@ Run `npm test` and `npm run check` before calling a change done, and add tests f
 
 ## Roadmap (not built yet)
 
-Selection extras (ellipse, polygon lasso, feather, grow/shrink, selection painting / quick mask), perspective and mesh transform; resolution (dpi) setting; layer folders, drag-to-reorder and layer masks; vector/line layers; rulers and perspective guides; text; brush textures and custom brush tips; tone/screentone and gradient tools; filters (blur, levels, hue/saturation); two-finger touch gestures; reference window; PSD import/export; per-layer files for faster saves on huge canvases; animation timeline.
+Selection extras (ellipse, polygon lasso, feather, grow/shrink, selection painting / quick mask), perspective and mesh transform; resolution (dpi) setting; mask view overlay, linked transform of layer + mask, layer colour labels and multi-select; vector/line layers; rulers and perspective guides; text; brush textures and custom brush tips; tone/screentone and gradient tools; filters (blur, levels, hue/saturation); two-finger touch gestures; reference window; PSD import/export; per-layer files for faster saves on huge canvases; animation timeline.
 
 ## Repo
 

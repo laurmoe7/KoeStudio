@@ -29,7 +29,9 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 - **Canvas and image size (Image menu):** Canvas size adds or removes space around the picture, kept at any of nine anchor points; Image size stretches or shrinks everything (by pixels or percent, smooth or hard-pixel). Rotate the canvas 90° or 180° and flip it.
 - **Crop:** the Crop tool (C) shows a box you drag by its edges and corners (Shift keeps proportions) or redraw; Enter crops. Image → Crop to selection crops to the selection in one step.
 - **Copy, cut and paste:** Ctrl+C / Ctrl+X / Ctrl+V paste onto a new layer in the same spot; images copied in other programs paste too.
-- **Layers:** add, duplicate, delete, reorder, merge down, rename (double-click), hide, opacity, 16 blending modes, lock transparent pixels, clip to the layer below. Drop or paste images to add them as layers.
+- **Layers:** add, duplicate, delete, merge down, rename (double-click), hide, opacity, 16 blending modes, lock transparent pixels, clip to the layer below. Drag layers in the list to reorder them, or onto a folder to put them in it. Drop or paste images to add them as layers.
+- **Folders:** new folder, Put in new folder (Ctrl+G), open/close, opacity and blending ("Through" by default, so the layers inside blend as if there were no folder), hide, duplicate, Merge folder (into one layer). The Move tool moves everything in a folder.
+- **Layer masks:** add a mask to a layer or folder (with a selection, everything outside it is hidden). Click the mask thumbnail to paint on it: painting hides and erasing shows again, as in Clip Studio Paint. "Painting on mask" shows in the top bar. Turn masks off, apply them or delete them from the Layer menu.
 - **Colour:** HSV square and hue bar, main and sub colour, hex entry, recently used colours.
 - **View:** zoom at the cursor (wheel), rotate (Shift+wheel, 4/5/6), mirror (Shift+M), fit (Ctrl+0), 100% (Ctrl+1); pixel-sharp when zoomed in.
 - **Undo/redo** for every change, flip layer or canvas, clear or fill a layer.
@@ -47,7 +49,8 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 | I | Eyedropper | X | Swap main and sub colour |
 | V | Move layer (or selection) | Ctrl+Z / Ctrl+Y | Undo / redo |
 | H | Hand | Ctrl+Shift+N | New layer |
-| Del | Clear selection or layer | Ctrl+E | Merge down |
+| Ctrl+G | Put in new folder | Ctrl+E | Merge down / merge folder |
+| Del | Clear selection or layer | | |
 | Alt+Del | Fill selection or layer | Ctrl+S / Ctrl+Shift+S | Save / export PNG |
 | Shift+M | Mirror view | Enter / Esc | Apply / cancel transform or crop |
 | C | Crop | Ctrl+Alt+C / Ctrl+Alt+I | Canvas size / Image size |

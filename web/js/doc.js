@@ -1,5 +1,7 @@
-// The artwork: size, paper colour and a stack of raster layers, each with its own canvas.
-// Saved as JSON (format 'koe'); each layer's pixels are a PNG data URL. See sanitizeDoc for the format.
+// The artwork: size, paper colour and a tree of layers and folders (tree.js). Layers and masks are rasters,
+// each with its own canvas. Saved as JSON (format 'koe'); pixels are PNG data URLs. See sanitizeDoc for the format.
+
+import { isFolder, allNodes, allLayers, pathOf, nodeAt, insertNode } from './tree.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -7,23 +9,48 @@ export const BLEND_MODES = [
   ['hard-light', 'Hard light'], ['soft-light', 'Soft light'], ['difference', 'Difference'], ['exclusion', 'Exclusion'],
   ['hue', 'Hue'], ['saturation', 'Saturation'], ['color', 'Color'], ['luminosity', 'Luminosity'],
 ];
+/** Folders also have "Through": their layers blend straight onto what is below, as if there were no folder. */
+export const PASS_THROUGH = ['pass-through', 'Through'];
 const BLEND_IDS = new Set(BLEND_MODES.map(m => m[0]));
 export const MAX_SIDE = 10000;
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
+const MAX_DEPTH = 20;
 
-/** Cleans a loaded or new document description (pure, tested). Never throws; fills defaults for missing fields. */
+const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
+
+/**
+ * Cleans a loaded or new document description (pure, tested). Never throws; fills defaults for missing fields.
+ * Version 1 files had a flat `layers` list and an `active` index; version 2 nests folders ({type: 'folder',
+ * children}) in `layers`, gives any node an optional `mask: {png, enabled}`, and stores `activePath`.
+ */
 export function sanitizeDoc(raw) {
   const d = raw && typeof raw === 'object' ? raw : {};
   const side = n => Math.max(1, Math.min(MAX_SIDE, Math.round(Number(n) || 0))) || 1;
-  const layers = (Array.isArray(d.layers) ? d.layers : []).map((l, i) => ({
-    name: String(l?.name ?? `Layer ${i + 1}`).slice(0, 100),
-    visible: l?.visible !== false,
-    opacity: Math.max(0, Math.min(1, Number.isFinite(+l?.opacity) ? +l.opacity : 1)),
-    blend: BLEND_IDS.has(l?.blend) ? l.blend : 'source-over',
-    alphaLock: !!l?.alphaLock,
-    clip: !!l?.clip,
-    png: typeof l?.png === 'string' && l.png.startsWith('data:image/png') ? l.png : null,
-  }));
+  let count = 0;
+  const node = (l, depth) => {
+    const folder = l?.type === 'folder' && depth < MAX_DEPTH;
+    count += folder ? 0 : 1;
+    const out = {
+      type: folder ? 'folder' : 'layer',
+      name: String(l?.name ?? (folder ? 'Folder' : `Layer ${count}`)).slice(0, 100),
+      visible: l?.visible !== false,
+      opacity: Math.max(0, Math.min(1, Number.isFinite(+l?.opacity) ? +l.opacity : 1)),
+      blend: BLEND_IDS.has(l?.blend) || (folder && l?.blend === PASS_THROUGH[0]) ? l.blend : folder ? PASS_THROUGH[0] : 'source-over',
+      clip: !!l?.clip,
+      mask: l?.mask && typeof l.mask === 'object' ? { png: isPng(l.mask.png) ? l.mask.png : null, enabled: l.mask.enabled !== false } : null,
+    };
+    if (folder) {
+      out.open = l.open !== false;
+      out.children = (Array.isArray(l.children) ? l.children : []).map(c => node(c, depth + 1));
+    } else {
+      out.alphaLock = !!l?.alphaLock;
+      out.png = isPng(l?.png) ? l.png : null;
+    }
+    return out;
+  };
+  const layers = (Array.isArray(d.layers) ? d.layers : []).map(l => node(l, 0));
+  const activePath = Array.isArray(d.activePath) ? d.activePath.map(n => Math.max(0, Math.round(Number(n) || 0)))
+    : [Math.max(0, Math.min(layers.length - 1, Math.round(Number(d.active) || 0)))];
   return {
     format: 'koe',
     version: FORMAT_VERSION,
@@ -31,26 +58,20 @@ export function sanitizeDoc(raw) {
     width: side(d.width || 1920),
     height: side(d.height || 1080),
     paper: d.paper === null ? null : (/^#[0-9a-f]{6}$/i.test(d.paper) ? d.paper : '#ffffff'),
-    active: Math.max(0, Math.min(layers.length - 1, Math.round(Number(d.active) || 0))),
+    activePath,
     layers,
   };
 }
 
-let nextLayerId = 1;
+let nextId = 1;
 
-export class Layer {
-  constructor(w, h, props = {}) {
-    this.id = nextLayerId++;
-    this.name = props.name || 'Layer';
-    this.visible = props.visible !== false;
-    this.opacity = props.opacity ?? 1;
-    this.blend = props.blend || 'source-over';
-    this.alphaLock = !!props.alphaLock;
-    this.clip = !!props.clip;
+/** Pixels with a canvas, a change counter and a cached PNG: a layer or a mask. */
+class Raster {
+  constructor(w, h) {
     this.canvas = document.createElement('canvas');
     this.canvas.width = w;
     this.canvas.height = h;
-    this.ctx = this.canvas.getContext('2d', { willReadFrequently: false });
+    this.ctx = this.canvas.getContext('2d');
     this.version = 0;      // raised on every pixel change
     this.pngVersion = -1;  // version of the cached PNG below
     this.png = null;
@@ -64,6 +85,86 @@ export class Layer {
     }
     return this.png;
   }
+  async loadPng(png) {
+    if (!png) return;
+    this.ctx.drawImage(await loadImage(png), 0, 0);
+    this.png = png;
+    this.pngVersion = this.version;
+  }
+  copyFrom(other) {
+    this.ctx.drawImage(other.canvas, 0, 0);
+  }
+}
+
+/**
+ * A layer mask (as in Clip Studio Paint): its alpha is how much of the layer or folder is hidden. Painting on it
+ * hides, erasing reveals. A new mask hides nothing.
+ */
+export class Mask extends Raster {
+  constructor(w, h, enabled = true) {
+    super(w, h);
+    this.kind = 'mask';
+    this.enabled = enabled;
+  }
+}
+
+export class Layer extends Raster {
+  constructor(w, h, props = {}) {
+    super(w, h);
+    this.kind = 'layer';
+    this.id = nextId++;
+    this.parent = null;
+    this.name = props.name || 'Layer';
+    this.visible = props.visible !== false;
+    this.opacity = props.opacity ?? 1;
+    this.blend = props.blend || 'source-over';
+    this.alphaLock = !!props.alphaLock;
+    this.clip = !!props.clip;
+    this.mask = null;
+  }
+}
+
+export class Folder {
+  constructor(props = {}) {
+    this.kind = 'folder';
+    this.id = nextId++;
+    this.parent = null;
+    this.name = props.name || 'Folder';
+    this.visible = props.visible !== false;
+    this.opacity = props.opacity ?? 1;
+    this.blend = props.blend || PASS_THROUGH[0];
+    this.clip = !!props.clip;
+    this.open = props.open !== false;
+    this.children = [];  // bottom first
+    this.mask = null;
+  }
+}
+
+/** A deep copy of a layer or folder (with masks), for Duplicate. */
+export function cloneNode(n, w, h) {
+  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open };
+  let c;
+  if (isFolder(n)) {
+    c = new Folder(props);
+    for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
+  } else {
+    c = new Layer(w, h, props);
+    c.copyFrom(n);
+  }
+  if (n.mask) {
+    c.mask = new Mask(w, h, n.mask.enabled);
+    c.mask.copyFrom(n.mask);
+  }
+  return c;
+}
+
+/** Every raster belonging to a node: its pixels, its mask, and for a folder everything inside it. */
+export function nodeRasters(n) {
+  const out = [];
+  const add = x => { if (!isFolder(x)) out.push(x); if (x.mask) out.push(x.mask); };
+  add(n);
+  if (isFolder(n)) allNodes(n).forEach(add);
+  return out;
 }
 
 export function canvasToDataUrl(canvas) {
@@ -90,49 +191,69 @@ export class Doc {
     this.width = width;
     this.height = height;
     this.paper = paper;
-    this.layers = [];  // bottom first
-    this.active = 0;
-    this.version = 0;  // raised on any change worth saving
+    this.root = new Folder({ name: 'root' });
+    this.active = null;  // the selected layer or folder
+    this.version = 0;    // raised on any change worth saving
   }
 
   static blank(opts) {
     const d = new Doc(opts);
-    d.layers.push(new Layer(d.width, d.height, { name: 'Layer 1' }));
+    const l = new Layer(d.width, d.height, { name: 'Layer 1' });
+    insertNode(d.root, 0, l);
+    d.active = l;
     return d;
   }
 
   static async fromJSON(raw, id = null) {
     const s = sanitizeDoc(raw);
     const d = new Doc({ ...s, id });
-    for (const l of s.layers) {
-      const layer = new Layer(d.width, d.height, l);
-      if (l.png) {
-        layer.ctx.drawImage(await loadImage(l.png), 0, 0);
-        layer.png = l.png;
-        layer.pngVersion = layer.version;
+    const build = async (src, parent) => {
+      const n = src.type === 'folder' ? new Folder(src) : new Layer(d.width, d.height, src);
+      if (src.type === 'folder') for (const c of src.children) await build(c, n);
+      else await n.loadPng(src.png);
+      if (src.mask) {
+        n.mask = new Mask(d.width, d.height, src.mask.enabled);
+        await n.mask.loadPng(src.mask.png);
       }
-      d.layers.push(layer);
-    }
-    if (!d.layers.length) d.layers.push(new Layer(d.width, d.height, { name: 'Layer 1' }));
-    d.active = Math.min(s.active, d.layers.length - 1);
+      insertNode(parent, parent.children.length, n);
+    };
+    for (const l of s.layers) await build(l, d.root);
+    if (!allLayers(d.root).length) insertNode(d.root, d.root.children.length, new Layer(d.width, d.height, { name: 'Layer 1' }));
+    d.active = nodeAt(d.root, s.activePath) || d.root.children[d.root.children.length - 1];
     return d;
   }
 
   async toJSON() {
+    const node = async n => {
+      const out = { type: n.kind, name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip };
+      if (isFolder(n)) {
+        out.open = n.open;
+        out.children = [];
+        for (const c of n.children) out.children.push(await node(c));
+      } else {
+        out.alphaLock = n.alphaLock;
+        out.png = await n.toPng();
+      }
+      if (n.mask) out.mask = { enabled: n.mask.enabled, png: await n.mask.toPng() };
+      return out;
+    };
     const layers = [];
-    for (const l of this.layers) {
-      layers.push({ name: l.name, visible: l.visible, opacity: l.opacity, blend: l.blend, alphaLock: l.alphaLock, clip: l.clip, png: await l.toPng() });
-    }
-    return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper, active: this.active, layers };
+    for (const n of this.root.children) layers.push(await node(n));
+    return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper,
+      activePath: this.active ? pathOf(this.active) : [], layers };
   }
 
-  get layer() { return this.layers[this.active]; }
+  /** All raster layers (not folders), bottom first. */
+  get layers() { return allLayers(this.root); }
 
-  newLayerName() {
-    const used = new Set(this.layers.map(l => l.name));
-    let n = this.layers.length + 1;
-    while (used.has(`Layer ${n}`)) n++;
-    return `Layer ${n}`;
+  /** Every canvas in the document: layers and masks. */
+  rasters() { return nodeRasters(this.root).filter(r => r !== this.root); }
+
+  newName(base) {
+    const used = new Set(allNodes(this.root).map(n => n.name));
+    let n = allNodes(this.root).filter(x => (base === 'Folder') === isFolder(x)).length + 1;
+    while (used.has(`${base} ${n}`)) n++;
+    return `${base} ${n}`;
   }
 
   /** Flattened image (paper included) as a new canvas, optionally scaled to fit maxSide. */
@@ -148,24 +269,29 @@ export class Doc {
   }
 }
 
-// Scratch canvases reused by composite() (one for a layer with its live stroke, one for a clipping group).
+// ---------- compositing ----------
+
+// Scratch canvases reused by composite(), by role and nesting depth, so nested folders never share one.
 const scratch = {};
-function scratchCanvas(key, w, h) {
+function scratchCanvas(key, r) {
   let c = scratch[key];
   if (!c) c = scratch[key] = document.createElement('canvas');
-  if (c.width < w || c.height < h) { c.width = Math.max(c.width, w); c.height = Math.max(c.height, h); }
+  if (c.width < r.w || c.height < r.h) { c.width = Math.max(c.width, r.w); c.height = Math.max(c.height, r.h); }
   const ctx = c.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(0, 0, r.w, r.h);
   return [c, ctx];
 }
 
+const maskOn = n => !!(n.mask && n.mask.enabled);
+const blendOf = n => (n.blend === PASS_THROUGH[0] ? 'source-over' : n.blend);
+
 /**
  * Draws the doc's region r (doc pixels) into ctx at the same coordinates (ctx's transform applies on top).
- * live = { layer, canvas, alpha, mode } is a stroke in progress, drawn onto that layer as if already applied.
- * Layers with clip=true are clipped to the nearest non-clipping layer below them, as in other painting programs.
+ * live = { layer, canvas, alpha, mode } is a stroke in progress on a layer or mask, drawn as if already applied.
+ * Nodes with clip=true are clipped to the nearest non-clipping sibling below them.
  */
 export function composite(ctx, doc, r, live = null) {
   ctx.save();
@@ -177,55 +303,95 @@ export function composite(ctx, doc, r, live = null) {
     ctx.fillStyle = doc.paper;
     ctx.fillRect(r.x, r.y, r.w, r.h);
   }
-  const layers = doc.layers;
-  for (let i = 0; i < layers.length; i++) {
-    const base = layers[i];
+  drawChildren(ctx, doc.root.children, r, live, 0);
+  ctx.restore();
+}
+
+/** A folder's contents on their own (transparent background), as for Merge folder. */
+export function renderFolder(ctx, folder, r) {
+  drawChildren(ctx, folder.children, r, null, 0);
+}
+
+function drawChildren(ctx, nodes, r, live, depth) {
+  for (let i = 0; i < nodes.length; i++) {
+    const base = nodes[i];
     if (base.clip && i > 0) continue;  // drawn with its base below
-    // the base layer and any clipping layers right above it
     let j = i + 1;
-    while (j < layers.length && layers[j].clip) j++;
+    while (j < nodes.length && nodes[j].clip) j++;
     if (!base.visible) { i = j - 1; continue; }
     if (j === i + 1) {
-      drawLayer(ctx, base, r, live, base.opacity, base.blend);
+      if (isFolder(base) && base.blend === PASS_THROUGH[0] && base.opacity === 1 && !maskOn(base)) {
+        drawChildren(ctx, base.children, r, live, depth + 1);  // "Through": as if the folder were not there
+      } else {
+        drawNode(ctx, base, r, live, base.opacity, blendOf(base), depth);
+      }
     } else {
-      // group: base at full strength, each clipping layer cut to the base's pixels and blended onto it,
+      // clipping group: base at full strength, each clipping node cut to the base's pixels and blended onto it,
       // then the whole group at the base's opacity and blend mode
-      const [gc, gctx] = scratchCanvas('group', r.w, r.h);
+      const [gc, gctx] = scratchCanvas(`group${depth}`, r);
       gctx.translate(-r.x, -r.y);
-      drawLayer(gctx, base, r, live, 1, 'source-over');
+      drawNode(gctx, base, r, live, 1, 'source-over', depth + 1);
       for (let k = i + 1; k < j; k++) {
-        const l = layers[k];
-        if (!l.visible) continue;
-        const [cc, cctx] = scratchCanvas('clip', r.w, r.h);
+        const n = nodes[k];
+        if (!n.visible) continue;
+        const [cc, cctx] = scratchCanvas(`clip${depth}`, r);
         cctx.translate(-r.x, -r.y);
-        drawLayer(cctx, l, r, live, 1, 'source-over');
-        drawLayer(cctx, base, r, live, 1, 'destination-in');
+        drawNode(cctx, n, r, live, 1, 'source-over', depth + 1);
+        drawNode(cctx, base, r, live, 1, 'destination-in', depth + 1);
         gctx.setTransform(1, 0, 0, 1, 0, 0);
-        gctx.globalAlpha = l.opacity;
-        gctx.globalCompositeOperation = l.blend;
+        gctx.globalAlpha = n.opacity;
+        gctx.globalCompositeOperation = blendOf(n);
         gctx.drawImage(cc, 0, 0, r.w, r.h, 0, 0, r.w, r.h);
         gctx.translate(-r.x, -r.y);
       }
       ctx.globalAlpha = base.opacity;
-      ctx.globalCompositeOperation = base.blend;
+      ctx.globalCompositeOperation = blendOf(base);
       ctx.drawImage(gc, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
       i = j - 1;
     }
   }
-  ctx.restore();
 }
 
-function drawLayer(ctx, layer, r, live, alpha, blend) {
-  let src = layer.canvas, sx = r.x, sy = r.y;
-  if (live && live.layer === layer) {
-    const [c, lctx] = scratchCanvas('live', r.w, r.h);
-    lctx.drawImage(layer.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-    lctx.globalAlpha = live.alpha;
-    lctx.globalCompositeOperation = live.mode;
-    lctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+/** Draws one node (with its mask and any live stroke) into ctx with the given alpha and blend. */
+function drawNode(ctx, node, r, live, alpha, blend, depth) {
+  let src = node.canvas, sx = r.x, sy = r.y;
+  if (isFolder(node)) {
+    const [c, cctx] = scratchCanvas(`folder${depth}`, r);
+    cctx.translate(-r.x, -r.y);
+    drawChildren(cctx, node.children, r, live, depth + 1);
+    if (maskOn(node)) applyMask(cctx, node, r, live, depth);
+    src = c; sx = 0; sy = 0;
+  } else if ((live && live.layer === node) || maskOn(node)) {
+    const [c, cctx] = scratchCanvas(`node${depth}`, r);
+    cctx.drawImage(node.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    if (live && live.layer === node) {
+      cctx.globalAlpha = live.alpha;
+      cctx.globalCompositeOperation = live.mode;
+      cctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    }
+    if (maskOn(node)) applyMask(cctx, node, r, live, depth);
     src = c; sx = 0; sy = 0;
   }
   ctx.globalAlpha = alpha;
   ctx.globalCompositeOperation = blend;
   ctx.drawImage(src, sx, sy, r.w, r.h, r.x, r.y, r.w, r.h);
+}
+
+/** Hides what the mask covers, in a scratch canvas whose (0, 0) is r's corner. */
+function applyMask(cctx, node, r, live, depth) {
+  let src = node.mask.canvas, sx = r.x, sy = r.y;
+  if (live && live.layer === node.mask) {
+    const [mc, mctx] = scratchCanvas(`mask${depth}`, r);
+    mctx.drawImage(node.mask.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    mctx.globalAlpha = live.alpha;
+    mctx.globalCompositeOperation = live.mode;
+    mctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    src = mc; sx = 0; sy = 0;
+  }
+  cctx.save();
+  cctx.setTransform(1, 0, 0, 1, 0, 0);
+  cctx.globalAlpha = 1;
+  cctx.globalCompositeOperation = 'destination-out';
+  cctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);
+  cctx.restore();
 }

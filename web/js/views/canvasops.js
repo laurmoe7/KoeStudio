@@ -17,9 +17,10 @@ export const canvasMethods = {
     this.finishTransform();
     if (!validSide(w) || !validSide(h)) return toast(`Width and height must be between 1 and ${MAX_SIDE} pixels.`, { error: true });
     const d = this.doc;
-    const before = { w: d.width, h: d.height, canvases: new Map(d.layers.map(l => [l, l.canvas])) };
+    const rasters = d.rasters();
+    const before = { w: d.width, h: d.height, canvases: new Map(rasters.map(l => [l, l.canvas])) };
     const after = { w, h, canvases: new Map() };
-    for (const l of d.layers) {
+    for (const l of rasters) {
       const c = document.createElement('canvas');
       c.width = w; c.height = h;
       const ctx = c.getContext('2d');
@@ -27,7 +28,7 @@ export const canvasMethods = {
       paint(ctx, l.canvas);
       after.canvases.set(l, c);
     }
-    const bytes = d.layers.length * (before.w * before.h + w * h) * 4;
+    const bytes = rasters.length * (before.w * before.h + w * h) * 4;
     this.structural(label, () => this.setCanvasState(after), () => this.setCanvasState(before), bytes);
   },
 
