@@ -752,7 +752,7 @@ export class Editor {
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
     };
-    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s) };
+    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), sel: this.sel.active ? this.sel : null };
     if (line) {
       this.addStampPoint({ ...line, p: pt.p });
       for (const q of linePoints({ ...line, p: pt.p }, pt, 3)) this.addStampPoint(q);
@@ -777,7 +777,6 @@ export class Editor {
       g.painter.dab(st.x, st.y, size, flow);
     }
     const r = stampBounds(stamps, g.sizeAt);
-    this.sel.clipCanvas(this.strokeCtx, r);  // paint only inside the selection
     g.bounds = union(g.bounds, r);
     this.strokeVersion = (this.strokeVersion || 0) + 1;
     this.updateComp(r);
@@ -788,7 +787,7 @@ export class Editor {
     // a short dab never picked a snap line: paint what was held back as it was
     if (g.snap && !g.snap.line) for (const q of g.snap.held) this.addStampPoint(q);
     // stabilization lags behind the pen: catch up to where the pen was lifted
-    if (g.s.smoothing && g.last) for (let i = 0; i < 12; i++) this.addStampPoint(g.last);
+    if (g.s.smoothing && g.last) for (let i = 0; i < 400 && g.smoother.distanceTo(g.last) > 0.5; i++) this.addStampPoint(g.last);
     this.lastStroke = { layer: g.layer, pt: g.last };
     this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');
     if (!g.erase && g.layer.kind !== 'mask') this.colors.used();

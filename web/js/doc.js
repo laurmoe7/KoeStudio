@@ -442,16 +442,25 @@ export function tonedCanvas(layer) {
  * Where to read region r of a live stroke from: [canvas, sx, sy]. A stroke with a brush texture
  * (live.texture = {tile, scale}, tile being a canvas whose alpha is what the grain removes) is copied to a scratch
  * canvas and the grain cut out of it there; the texture is anchored to the doc, so it never shifts between updates.
+ * A stroke inside a selection (live.sel) is cut down to it the same way, once per read: clipping the stroke canvas
+ * itself after every dab would apply a feathered selection's partial alpha again and again.
  */
 export function liveSource(live, r) {
-  if (!live.texture) return [live.canvas, r.x, r.y];
+  if (!live.texture && !live.sel) return [live.canvas, r.x, r.y];
   const [c, ctx] = scratchCanvas('live', r);
   ctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-  const { tile, scale } = live.texture;
-  if (!tile.pattern) tile.pattern = ctx.createPattern(tile, 'repeat');
-  tile.pattern.setTransform(new DOMMatrix().translateSelf(-r.x, -r.y).scaleSelf(scale));
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.fillStyle = tile.pattern;
-  ctx.fillRect(0, 0, r.w, r.h);
+  if (live.texture) {
+    const { tile, scale } = live.texture;
+    if (!tile.pattern) tile.pattern = ctx.createPattern(tile, 'repeat');
+    tile.pattern.setTransform(new DOMMatrix().translateSelf(-r.x, -r.y).scaleSelf(scale));
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = tile.pattern;
+    ctx.fillRect(0, 0, r.w, r.h);
+  }
+  if (live.sel) {
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(live.sel.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  }
+  ctx.globalCompositeOperation = 'source-over';
   return [c, 0, 0];
 }

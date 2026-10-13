@@ -28,6 +28,10 @@ export class Smoother {
     const l = this.last, k = this.k;
     return (this.last = { x: l.x + (pt.x - l.x) * k, y: l.y + (pt.y - l.y) * k, p: l.p + (pt.p - l.p) * k });
   }
+  /** How far the smoothed point still is from pt (Infinity before the first point); the stroke is finished when it is ~0. */
+  distanceTo(pt) {
+    return this.last ? Math.hypot(pt.x - this.last.x, pt.y - this.last.y) : Infinity;
+  }
 }
 
 /**

@@ -154,3 +154,16 @@ test('document format sanitizing', () => {
   const labels = sanitizeDoc({ layers: [{ label: 'blue' }, { label: 'pink' }, { type: 'folder', label: 'red' }, {}] }).layers.map(l => l.label);
   assert.deepEqual(labels, ['blue', null, 'red', null], 'colour labels: only known ones are kept');
 });
+
+test('Smoother.distanceTo shrinks to the pen: a strength-20 stroke catches up in 67 steps, not 12', () => {
+  const sm = new Smoother(20);  // k = 1/13: each step closes 1/13 of the gap
+  assert.equal(sm.distanceTo({ x: 0, y: 0 }), Infinity);
+  sm.add({ x: 0, y: 0, p: 1 });
+  sm.add({ x: 100, y: 0, p: 1 });
+  near(sm.distanceTo({ x: 100, y: 0 }), 100 * 12 / 13, 1e-9);  // 92.31 px still behind
+  let steps = 1;
+  while (sm.distanceTo({ x: 100, y: 0 }) > 0.5) { sm.add({ x: 100, y: 0, p: 1 }); steps++; }
+  // 100 * (12/13)^n <= 0.5  first holds at n = ceil(ln 200 / ln(13/12)) = 67
+  assert.equal(steps, 67);
+  near(new Smoother(0).add({ x: 5, y: 5, p: 1 }).x, 5);
+});
