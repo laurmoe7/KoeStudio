@@ -102,6 +102,39 @@ def _decode_data_url(url):
     return base64.b64decode(m.group(1))
 
 
+def _meta_path(art_id):
+    return os.path.join(art_dir(), '.thumbs', art_id + '.json')
+
+
+def _meta_of(doc):
+    return {
+        'title': doc.get('title') or 'Untitled',
+        'width': doc.get('width'),
+        'height': doc.get('height'),
+        'layers': _count_layers(doc.get('layers')),
+    }
+
+
+def _read_meta(art_id, path):
+    """What the gallery shows about an artwork. It comes from a small file saved beside the thumbnail, so listing
+    never has to parse the (possibly huge) .koe files; artwork without one, or changed since, is read once and
+    the file written."""
+    meta_path = _meta_path(art_id)
+    try:
+        if os.path.getmtime(meta_path) >= os.path.getmtime(path):
+            with open(meta_path, encoding='utf-8') as f:
+                return json.load(f)
+    except (OSError, ValueError):
+        pass
+    with open(path, encoding='utf-8') as f:
+        meta = _meta_of(json.load(f))
+    try:
+        _write_atomic(meta_path, json.dumps(meta).encode('utf-8'))
+    except OSError:
+        pass
+    return meta
+
+
 def list_art():
     d = art_dir()
     out = []
@@ -112,18 +145,11 @@ def list_art():
             continue
         path = os.path.join(d, name)
         try:
-            with open(path, encoding='utf-8') as f:
-                head = json.load(f)
+            meta = _read_meta(name[:-4], path)
+            modified = os.path.getmtime(path)
         except (OSError, ValueError):
             continue
-        out.append({
-            'id': name[:-4],
-            'title': head.get('title') or 'Untitled',
-            'width': head.get('width'),
-            'height': head.get('height'),
-            'layers': _count_layers(head.get('layers')),
-            'modified': os.path.getmtime(path),
-        })
+        out.append({'id': name[:-4], **meta, 'modified': modified})
     out.sort(key=lambda a: -a['modified'])
     return out
 
@@ -150,6 +176,7 @@ def save_art(art_id, doc):
     path, thumb = _paths(art_id)
     thumb_url = doc.pop('thumb', None)
     _write_atomic(path, json.dumps(doc, separators=(',', ':')).encode('utf-8'))
+    _write_atomic(_meta_path(art_id), json.dumps(_meta_of(doc)).encode('utf-8'))
     if thumb_url:
         _write_atomic(thumb, _decode_data_url(thumb_url))
     return {'id': art_id, 'modified': os.path.getmtime(path)}
@@ -164,6 +191,10 @@ def delete_art(art_id):
         os.replace(path, os.path.join(trash, f'{art_id}-{stamp}.koe'))
     if os.path.exists(thumb):
         os.replace(thumb, os.path.join(trash, f'{art_id}-{stamp}.png'))
+    try:
+        os.remove(_meta_path(art_id))
+    except OSError:
+        pass
     return {'ok': True}
 
 
@@ -310,6 +341,20 @@ def _wait_forever():
         pass
 
 
+def close_after_flush(window, timeout=20):
+    """Lets the page save pending work before the window goes (artwork saves 0.8 s after the last change, and a big
+    canvas takes seconds to encode). Runs off the GUI thread, since the page can only be asked from there."""
+    try:
+        window.evaluate_js('window.koeFlushStart ? window.koeFlushStart() : 0')
+        end = time.time() + timeout
+        while time.time() < end and window.evaluate_js('window.koeFlushState') == 'pending':
+            time.sleep(0.1)
+    except Exception:
+        log_error('Saving before closing failed:\n' + traceback.format_exc())
+    finally:
+        window.destroy()
+
+
 def main():
     port = int(os.environ.get('KOE_PORT') or 8770)
     for p in range(port, port + 20):
@@ -334,8 +379,18 @@ def main():
             pass
     storage = os.path.join(app_dir(), 'webview')  # keeps localStorage (tool settings, last artwork) between launches
     try:
-        webview.create_window(APP_NAME, url, width=1500, height=950, min_size=(1000, 650),
-                              hidden='--hidden' in sys.argv, background_color='#1e1f24')
+        win = webview.create_window(APP_NAME, url, width=1500, height=950, min_size=(1000, 650),
+                                    hidden='--hidden' in sys.argv, background_color='#1e1f24')
+        closing = []
+
+        def on_closing():
+            # the first close request waits for the page to save; the one from destroy() goes through
+            if closing:
+                return None
+            closing.append(True)
+            threading.Thread(target=close_after_flush, args=(win,), daemon=True).start()
+            return False
+        win.events.closing += on_closing
         webview.start(icon=os.path.join(WEB, 'icon.ico'), private_mode=False, storage_path=storage)
     except Exception:
         # No usable WebView2 runtime: use the default browser instead, so the app still works.

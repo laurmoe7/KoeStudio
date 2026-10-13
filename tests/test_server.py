@@ -41,6 +41,30 @@ class Storage(unittest.TestCase):
         app.delete_art(aid)
         self.assertEqual(app.list_art(), [])
         self.assertEqual(len(os.listdir(os.path.join(self.tmp.name, '.deleted'))), 2, 'file and thumbnail kept in .deleted')
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, '.thumbs', aid + '.json')))
+
+    def test_listing_uses_saved_metadata_instead_of_parsing_artwork(self):
+        aid = app.save_art('', doc('Quick'))['id']
+        path = os.path.join(self.tmp.name, aid + '.koe')
+        stamp = os.stat(path)
+        with open(path, 'w') as f:  # unreadable as JSON, but with the old modification time
+            f.write('not json at all')
+        os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        self.assertEqual([(a['title'], a['width'], a['layers']) for a in app.list_art()], [('Quick', 10, 1)])
+
+    def test_metadata_is_made_for_old_artwork_and_refreshed_when_the_file_changes(self):
+        aid = app.save_art('', doc('Old'))['id']
+        meta = os.path.join(self.tmp.name, '.thumbs', aid + '.json')
+        os.remove(meta)  # artwork saved by an earlier version has none
+        self.assertEqual(app.list_art()[0]['title'], 'Old')
+        self.assertTrue(os.path.exists(meta), 'listing made it')
+        path = os.path.join(self.tmp.name, aid + '.koe')
+        d = doc('Changed'); d.pop('thumb')
+        with open(path, 'w') as f:
+            json.dump(d, f)
+        later = os.path.getmtime(meta) + 5
+        os.utime(path, (later, later))  # the artwork is newer than its metadata
+        self.assertEqual(app.list_art()[0]['title'], 'Changed')
 
     def test_layer_count_includes_folders(self):
         d = doc()
