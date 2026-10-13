@@ -3,13 +3,13 @@
 import { api } from '../api.js';
 import { Smoother, StampPath, pressureCurve, stampFor, stampBounds } from '../brush.js';
 import { hexToRgb, rgbToHex } from '../color.js';
-import { Doc, Layer, composite, canvasToDataUrl, loadImage } from '../doc.js';
+import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource } from '../doc.js';
 import { isFolder } from '../tree.js';
 import { floodMask, growMask } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
-import { Painter } from '../painter.js';
+import { Painter, textureFor } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
@@ -23,6 +23,7 @@ import { layerMethods } from './layerops.js';
 import { rulerMethods } from './rulertools.js';
 import { gradientMethods } from './gradienttool.js';
 import { textMethods } from './texttool.js';
+import { toneMethods } from './tonetools.js';
 
 const SAVE_DELAY = 800;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -258,6 +259,10 @@ export class Editor {
         { label: 'Apply mask to layer', run: () => this.applyMask(), disabled: !d.active.mask || isFolder(d.active) },
         { label: 'Delete mask', run: () => this.deleteMask(), disabled: !d.active.mask },
         '-',
+        { label: this.sel.active ? 'New screentone (in selection)…' : 'New screentone…', run: () => this.newToneLayer() },
+        { label: 'Screentone settings…', run: () => this.toneDialog(), disabled: isFolder(d.active) },
+        { label: 'Rasterize screentone', run: () => this.rasterizeTone(d.active), disabled: !d.active.tone },
+        '-',
         { label: 'Flip layer horizontally', run: () => this.flipPixels(this.layerRasters(), 'h', 'Flip layer') },
         { label: 'Flip layer vertically', run: () => this.flipPixels(this.layerRasters(), 'v', 'Flip layer') },
         '-',
@@ -445,7 +450,8 @@ export class Editor {
     const t = TOOL_BY_ID[this.tool], s = this.settings[t.id];
     this.root.querySelector('.tool-title').textContent = t.label;
     const box = this.root.querySelector('.tool-props');
-    const fields = SETTING_FIELDS.filter(f => f[0] in s);
+    // the grain settings only matter with a texture chosen
+    const fields = SETTING_FIELDS.filter(f => f[0] in s && !(s.texture === 'none' && (f[0] === 'textureAmount' || f[0] === 'textureScale')));
     if (t.kind === 'ruler') return this.renderRulerProps(box);
     if (!fields.length) {
       box.innerHTML = `<p class="hint">${t.kind === 'picker' ? 'Click the canvas to pick a color. Hold Alt with a brush to pick quickly.'
@@ -476,6 +482,7 @@ export class Editor {
         if (out) out.textContent = fmt(k, s[k]);
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged();
+        if (k === 'texture') this.renderToolProps();
         this.drawOverlay();
       });
     });
@@ -623,7 +630,7 @@ export class Editor {
       path: new StampPath(sizeAt, s.spacing),
       snap: this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
     };
-    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase) };
+    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s) };
     this.addPoint(pt);
     this.requestRender();
   }
@@ -671,7 +678,7 @@ export class Editor {
     ctx.save();
     ctx.globalAlpha = live.alpha;
     ctx.globalCompositeOperation = live.mode;
-    ctx.drawImage(this.stroke, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h);
+    ctx.drawImage(...liveSource(live, r), r.w, r.h, r.x, r.y, r.w, r.h);
     ctx.restore();
     const after = layer.ctx.getImageData(r.x, r.y, r.w, r.h);
     this.pushPatch(layer, r, before, after, label);
@@ -933,11 +940,11 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
-  if (['opacity', 'flow', 'hardness', 'spacing', 'minSize'].includes(key)) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'hardness', 'spacing', 'minSize', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);
 }

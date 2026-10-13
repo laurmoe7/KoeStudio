@@ -4,6 +4,7 @@
 import { isFolder, allNodes, allLayers, pathOf, nodeAt, insertNode } from './tree.js';
 import { defaultRulers, sanitizeRulers } from './rulers.js';
 import { sanitizeText } from './textlayer.js';
+import { sanitizeTone, applyTone } from './tone.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -24,7 +25,8 @@ const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
  * Cleans a loaded or new document description (pure, tested). Never throws; fills defaults for missing fields.
  * Version 1 files had a flat `layers` list and an `active` index; version 2 nests folders ({type: 'folder',
  * children}) in `layers`, gives any node an optional `mask: {png, enabled}`, and stores `activePath`.
- * `rulers` (guides, perspective ruler, snapping; see rulers.js) is optional in either version.
+ * `rulers` (guides, perspective ruler, snapping; see rulers.js) is optional in either version, as is a layer's
+ * `tone` (shown as screentone; see tone.js).
  */
 export function sanitizeDoc(raw) {
   const d = raw && typeof raw === 'object' ? raw : {};
@@ -49,6 +51,7 @@ export function sanitizeDoc(raw) {
       out.alphaLock = !!l?.alphaLock;
       out.png = isPng(l?.png) ? l.png : null;
       if (l?.text) out.text = sanitizeText(l.text);  // a text layer (textlayer.js); png holds its last rendering
+      out.tone = sanitizeTone(l?.tone);
     }
     return out;
   };
@@ -127,6 +130,7 @@ export class Layer extends Raster {
     this.clip = !!props.clip;
     this.mask = null;
     this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
+    this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
   }
 }
 
@@ -154,7 +158,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null });
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, tone: n.tone ? { ...n.tone } : null });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -242,6 +246,7 @@ export class Doc {
         out.alphaLock = n.alphaLock;
         out.png = await n.toPng();
         if (n.text) out.text = n.text;
+        if (n.tone) out.tone = n.tone;
       }
       if (n.mask) out.mask = { enabled: n.mask.enabled, png: await n.mask.toPng() };
       return out;
@@ -282,11 +287,11 @@ export class Doc {
 
 // Scratch canvases reused by composite(), by role and nesting depth, so nested folders never share one.
 const scratch = {};
-function scratchCanvas(key, r) {
+function scratchCanvas(key, r, opts) {
   let c = scratch[key];
   if (!c) c = scratch[key] = document.createElement('canvas');
   if (c.width < r.w || c.height < r.h) { c.width = Math.max(c.width, r.w); c.height = Math.max(c.height, r.h); }
-  const ctx = c.getContext('2d');
+  const ctx = c.getContext('2d', opts);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
@@ -299,7 +304,8 @@ const blendOf = n => (n.blend === PASS_THROUGH[0] ? 'source-over' : n.blend);
 
 /**
  * Draws the doc's region r (doc pixels) into ctx at the same coordinates (ctx's transform applies on top).
- * live = { layer, canvas, alpha, mode } is a stroke in progress on a layer or mask, drawn as if already applied.
+ * live = { layer, canvas, alpha, mode, texture } is a stroke in progress on a layer or mask, drawn as if already
+ * applied (see liveSource). Layers with a tone are drawn as screentone dots.
  * Nodes with clip=true are clipped to the nearest non-clipping sibling below them.
  */
 export function composite(ctx, doc, r, live = null) {
@@ -370,14 +376,15 @@ function drawNode(ctx, node, r, live, alpha, blend, depth) {
     drawChildren(cctx, node.children, r, live, depth + 1);
     if (maskOn(node)) applyMask(cctx, node, r, live, depth);
     src = c; sx = 0; sy = 0;
-  } else if ((live && live.layer === node) || maskOn(node)) {
-    const [c, cctx] = scratchCanvas(`node${depth}`, r);
+  } else if ((live && live.layer === node) || maskOn(node) || node.tone) {
+    const [c, cctx] = node.tone ? scratchCanvas(`tone${depth}`, r, { willReadFrequently: true }) : scratchCanvas(`node${depth}`, r);
     cctx.drawImage(node.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
     if (live && live.layer === node) {
       cctx.globalAlpha = live.alpha;
       cctx.globalCompositeOperation = live.mode;
-      cctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+      cctx.drawImage(...liveSource(live, r), r.w, r.h, 0, 0, r.w, r.h);
     }
+    if (node.tone) toneRegion(cctx, node.tone, r);
     if (maskOn(node)) applyMask(cctx, node, r, live, depth);
     src = c; sx = 0; sy = 0;
   }
@@ -394,7 +401,7 @@ function applyMask(cctx, node, r, live, depth) {
     mctx.drawImage(node.mask.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
     mctx.globalAlpha = live.alpha;
     mctx.globalCompositeOperation = live.mode;
-    mctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    mctx.drawImage(...liveSource(live, r), r.w, r.h, 0, 0, r.w, r.h);
     src = mc; sx = 0; sy = 0;
   }
   cctx.save();
@@ -403,4 +410,42 @@ function applyMask(cctx, node, r, live, depth) {
   cctx.globalCompositeOperation = 'destination-out';
   cctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);
   cctx.restore();
+}
+
+/** Turns the scratch canvas cctx (region r of the doc, at 0, 0) into screentone dots. */
+function toneRegion(cctx, tone, r) {
+  cctx.save();
+  cctx.setTransform(1, 0, 0, 1, 0, 0);
+  const img = cctx.getImageData(0, 0, r.w, r.h);
+  applyTone(img.data, r.w, r.h, r.x, r.y, tone);
+  cctx.putImageData(img, 0, 0);
+  cctx.restore();
+}
+
+/** A layer's pixels as screentone dots (for merging and rasterizing), as a new canvas. */
+export function tonedCanvas(layer) {
+  const c = document.createElement('canvas');
+  c.width = layer.canvas.width; c.height = layer.canvas.height;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(layer.canvas, 0, 0);
+  if (layer.tone) toneRegion(ctx, layer.tone, { x: 0, y: 0, w: c.width, h: c.height });
+  return c;
+}
+
+/**
+ * Where to read region r of a live stroke from: [canvas, sx, sy]. A stroke with a brush texture
+ * (live.texture = {tile, scale}, tile being a canvas whose alpha is what the grain removes) is copied to a scratch
+ * canvas and the grain cut out of it there; the texture is anchored to the doc, so it never shifts between updates.
+ */
+export function liveSource(live, r) {
+  if (!live.texture) return [live.canvas, r.x, r.y];
+  const [c, ctx] = scratchCanvas('live', r);
+  ctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  const { tile, scale } = live.texture;
+  if (!tile.pattern) tile.pattern = ctx.createPattern(tile, 'repeat');
+  tile.pattern.setTransform(new DOMMatrix().translateSelf(-r.x, -r.y).scaleSelf(scale));
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = tile.pattern;
+  ctx.fillRect(0, 0, r.w, r.h);
+  return [c, 0, 0];
 }

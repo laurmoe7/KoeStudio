@@ -4,7 +4,7 @@
 // What tools paint on is this.target(): the selected layer, or its mask while mask editing is on (this.maskEdit,
 // set by clicking the mask thumbnail). Folders have no pixels of their own, only an optional mask.
 
-import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, PASS_THROUGH } from '../doc.js';
+import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, PASS_THROUGH } from '../doc.js';
 import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget } from '../tree.js';
 import { toast } from '../ui.js';
 
@@ -156,7 +156,7 @@ export const layerMethods = {
     const src = document.createElement('canvas');
     src.width = W; src.height = H;
     const c = src.getContext('2d');
-    c.drawImage(n.canvas, 0, 0);
+    c.drawImage(n.tone ? tonedCanvas(n) : n.canvas, 0, 0);  // a tone layer merges as the dots it shows
     if (n.mask?.enabled) { c.globalCompositeOperation = 'destination-out'; c.drawImage(n.mask.canvas, 0, 0); }
     if (n.clip) { c.globalCompositeOperation = 'destination-in'; c.drawImage(lower.canvas, 0, 0); }
     const before = lower.ctx.getImageData(0, 0, W, H);

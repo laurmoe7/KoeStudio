@@ -1,5 +1,8 @@
 // Draws brush dabs onto a stroke canvas. Soft brushes use a pre-rendered round tip (a radial gradient in the
-// brush colour) scaled to each dab; fully hard brushes draw anti-aliased circles.
+// brush colour) scaled to each dab; fully hard brushes draw anti-aliased circles. Also makes the texture tiles
+// that give a whole stroke a paper grain (textures.js; applied in doc.js liveSource).
+
+import { textureTile, grooveAlpha, TILE } from './textures.js';
 
 const TIP = 128;
 
@@ -47,4 +50,23 @@ function makeTip(color, hardness) {
 function withAlpha(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a.toFixed(3)})`;
+}
+
+const tiles = {};
+
+/** The live.texture for a paint tool's settings, or null: a tile canvas whose alpha is what the grain removes. */
+export function textureFor(s) {
+  if (!s.texture || s.texture === 'none' || !(s.textureAmount > 0)) return null;
+  const key = `${s.texture}:${s.textureAmount}`;
+  if (!tiles[key]) {
+    const gray = textureTile(s.texture);
+    if (!gray) return null;
+    const c = document.createElement('canvas');
+    c.width = c.height = TILE;
+    const img = new ImageData(TILE, TILE);
+    for (let i = 0; i < gray.length; i++) img.data[i * 4 + 3] = grooveAlpha(gray[i], s.textureAmount);
+    c.getContext('2d').putImageData(img, 0, 0);
+    tiles[key] = c;
+  }
+  return { tile: tiles[key], scale: s.textureScale || 1 };
 }

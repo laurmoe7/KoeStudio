@@ -3,18 +3,22 @@
 import { SELECT_MODES } from './selection.js';
 import { GRADIENT_COLORS, GRADIENT_SHAPES } from './gradient.js';
 import { FONTS, ALIGNS } from './textlayer.js';
+import { TEXTURES } from './textures.js';
+
+/** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
+function tex(texture = 'none', textureAmount = 0.5) { return { texture, textureAmount, textureScale: 1 }; }
 
 export const TOOLS = [
   { id: 'pen', label: 'Pen', key: 'p', kind: 'paint', icon: 'pen', group: 'draw',
-    defaults: { size: 6, opacity: 1, flow: 1, hardness: 1, spacing: 0.08, pressureSize: true, pressureOpacity: false, minSize: 0.15, smoothing: 4, gamma: 1 } },
+    defaults: { size: 6, opacity: 1, flow: 1, hardness: 1, spacing: 0.08, pressureSize: true, pressureOpacity: false, minSize: 0.15, smoothing: 4, gamma: 1, ...tex() } },
   { id: 'pencil', label: 'Pencil', key: 'n', kind: 'paint', icon: 'pencil', group: 'draw',
-    defaults: { size: 4, opacity: 0.85, flow: 0.7, hardness: 0.7, spacing: 0.12, pressureSize: true, pressureOpacity: true, minSize: 0.4, smoothing: 1, gamma: 1 } },
+    defaults: { size: 4, opacity: 0.85, flow: 0.7, hardness: 0.7, spacing: 0.12, pressureSize: true, pressureOpacity: true, minSize: 0.4, smoothing: 1, gamma: 1, ...tex('paper', 0.6) } },
   { id: 'brush', label: 'Brush', key: 'b', kind: 'paint', icon: 'brush', group: 'draw',
-    defaults: { size: 30, opacity: 1, flow: 0.35, hardness: 0.5, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
+    defaults: { size: 30, opacity: 1, flow: 0.35, hardness: 0.5, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1, ...tex() } },
   { id: 'airbrush', label: 'Airbrush', key: 'a', kind: 'paint', icon: 'air', group: 'draw',
-    defaults: { size: 120, opacity: 1, flow: 0.06, hardness: 0, spacing: 0.06, pressureSize: false, pressureOpacity: true, minSize: 0.5, smoothing: 0, gamma: 1 } },
+    defaults: { size: 120, opacity: 1, flow: 0.06, hardness: 0, spacing: 0.06, pressureSize: false, pressureOpacity: true, minSize: 0.5, smoothing: 0, gamma: 1, ...tex() } },
   { id: 'eraser', label: 'Eraser', key: 'e', kind: 'paint', icon: 'eraser', erase: true, group: 'draw',
-    defaults: { size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1 } },
+    defaults: { size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1, ...tex() } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
     defaults: { opacity: 1, tolerance: 12, grow: 1, sampleAll: true } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
@@ -48,6 +52,9 @@ export const SETTING_FIELDS = [
   ['minSize', 'Min. size', 'range', 0, 1, 0.01],
   ['smoothing', 'Stabilization', 'range', 0, 20, 1],
   ['gamma', 'Pressure', 'range', 0.3, 3, 0.05],
+  ['texture', 'Texture', 'choice', TEXTURES],
+  ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
+  ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
   ['leading', 'Line spacing', 'range', 0.5, 4, 0.05],
   ['bold', 'Bold', 'check'],
   ['italic', 'Italic', 'check'],
@@ -76,6 +83,9 @@ export const SETTING_HINTS = {
   align: 'Which side lines line up on (for vertical text: top, middle or bottom of the columns)',
   leading: 'Distance between lines (or columns), as a multiple of the text size',
   vertical: 'Write top to bottom, with columns from right to left, as in manga',
+  texture: 'Paper grain for the whole stroke; it stays fixed to the canvas, so strokes share one grain',
+  textureAmount: 'How much paint the grooves of the texture leave out',
+  textureScale: 'Size of the texture (100% = as made)',
 };
 
 /** Every tool's settings, starting from its defaults and keeping only valid stored values. */
