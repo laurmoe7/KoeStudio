@@ -1,0 +1,12 @@
+# Build output (only when asked for)
+dist/
+build/
+*.spec
+__pycache__/
+*.pyc
+
+# Machine-specific shortcuts (recreate with tools/make_shortcut.ps1)
+*.lnk
+
+node_modules/
+*.zip
