@@ -3,6 +3,7 @@
 
 import { BLEND_MODES, PASS_THROUGH, LABELS } from '../doc.js';
 import { icon } from '../icons.js';
+import { isDoubleTap } from '../taps.js';
 import { isFolder, panelRows } from '../tree.js';
 import { esc, promptBox } from '../ui.js';
 
@@ -107,10 +108,6 @@ export class LayerPanel {
       row.querySelector('.lp-eye').onclick = () => ed.toggleVisible(node);
       const tw = row.querySelector('.lp-twisty');
       if (tw) tw.onclick = () => ed.toggleOpen(node);
-      row.querySelector('.lp-name').ondblclick = async () => {
-        const name = await promptBox(isFolder(node) ? 'Rename folder' : 'Rename layer', 'Name', node.name);
-        if (name) ed.setLayerProp(node, 'name', name, 'Rename');
-      };
       row._node = node;
       this.list.append(row);
     }
@@ -141,7 +138,12 @@ export class LayerPanel {
     }
   }
 
-  /** Click a row to select it (its mask thumbnail to paint on the mask); drag it to move it. */
+  async rename(node) {
+    const name = await promptBox(isFolder(node) ? 'Rename folder' : 'Rename layer', 'Name', node.name);
+    if (name) this.ed.setLayerProp(node, 'name', name, 'Rename');
+  }
+
+  /** Click a row to select it (its mask thumbnail to paint on the mask), tap it again to rename it; drag it to move it. */
   bindDrag() {
     const list = this.list;
     let drag = null;
@@ -174,7 +176,13 @@ export class LayerPanel {
       drag = null;
       list.classList.remove('dragging');
       clearMarks();
-      if (!d.moving) this.ed.selectNode(d.node, { mask: d.mask });
+      if (!d.moving) {
+        // a second tap on the same row renames it (a dblclick event never arrives: selecting rebuilds the rows)
+        const rename = !d.mask && isDoubleTap(this.lastTap, d.node, performance.now());
+        this.lastTap = rename ? null : { key: d.node, time: performance.now() };
+        this.ed.selectNode(d.node, { mask: d.mask });
+        if (rename) this.rename(d.node);
+      }
       else if (d.drop && e.type === 'pointerup') this.ed.moveNodeTo(d.node, d.drop.target, d.drop.where);
     };
     list.addEventListener('pointerup', end);
