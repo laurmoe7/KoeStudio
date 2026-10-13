@@ -19,7 +19,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 ## Features
 
 - **Gallery** of your artwork with thumbnails; new canvas presets (Full HD, A4 and B5 at print resolution, square, icon) or any size up to 10,000 px; open any image as a new artwork.
-- **Tools:** Pen, Pencil, Brush, Airbrush, Eraser, Fill, Rectangle selection, Lasso, Magic wand, Crop, Eyedropper, Move, Hand.
+- **Tools:** Pen, Pencil, Brush, Airbrush, Eraser, Fill, Rectangle and Ellipse selection, Lasso, Polygon, Magic wand, Crop, Eyedropper, Move, Hand.
   - Pen pressure for size and density, with a pressure curve and a minimum size.
   - Stabilization (smooths shaky lines), hardness, density, spacing. Each tool remembers its own settings.
   - **Brush textures:** paper, watercolor paper, canvas, chalk and noise grain, with strength and size. The grain is fixed to the canvas, so overlapping strokes share it like real paper. The Pencil has a paper grain by default.
@@ -27,15 +27,17 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
   - The pen's eraser end erases.
 - **Gradient (G, press again to switch between Fill and Gradient):** drag to set the direction (Shift snaps the angle). Colors main → sub, main → transparent (or the other way round), straight or circular, with opacity. It fills the selection if there is one, and works on masks too.
 - **Text (T):** click to type a new text, click a text to edit it again; click elsewhere, switch tools or press Esc to finish. Font (including Japanese fonts), size, bold, italic, alignment, line spacing and **vertical writing** (top to bottom, columns right to left, as in manga). Text stays editable on its own text layer; the Move tool moves it. To paint on it, rasterize it (Layer → Rasterize text, or the button that appears when you try).
-- **Selections:** rectangle, lasso and magic wand; Shift adds, Alt subtracts, Shift+Alt keeps the overlap. Select all, deselect, invert, select layer pixels. Painting, fills, Delete and Alt+Del stay inside the selection.
+- **Selections:** rectangle, ellipse (M again), lasso, polygon (L again: click the corners, double-click or Enter closes) and magic wand; Shift adds, Alt subtracts, Shift+Alt keeps the overlap. Select all, deselect, invert, select layer pixels; **expand, shrink and feather** the selection by a number of pixels (Select menu). Painting, fills, filters, Delete and Alt+Del stay inside the selection, softly where it is feathered.
 - **Transform (Ctrl+T):** scale with the handles (Shift or "Keep aspect" for proportions), rotate by dragging outside the box (Shift snaps to 15°), move by dragging inside or with the arrow keys, flip and turn 90°. Enter applies, Esc cancels. Works on the selection, or the whole layer when nothing is selected. The Move tool moves just the selected pixels when there is a selection.
 - **Canvas and image size (Image menu):** Canvas size adds or removes space around the picture, kept at any of nine anchor points; Image size stretches or shrinks everything (by pixels or percent, smooth or hard-pixel). Rotate the canvas 90° or 180° and flip it.
 - **Crop:** the Crop tool (C) shows a box you drag by its edges and corners (Shift keeps proportions) or redraw; Enter crops. Image → Crop to selection crops to the selection in one step.
 - **Copy, cut and paste:** Ctrl+C / Ctrl+X / Ctrl+V paste onto a new layer in the same spot; images copied in other programs paste too.
 - **Layers:** add, duplicate, delete, merge down, rename (double-click), hide, opacity, 16 blending modes, lock transparent pixels, clip to the layer below. Drag layers in the list to reorder them, or onto a folder to put them in it. Drop or paste images to add them as layers.
 - **Folders:** new folder, Put in new folder (Ctrl+G), open/close, opacity and blending ("Through" by default, so the layers inside blend as if there were no folder), hide, duplicate, Merge folder (into one layer). The Move tool moves everything in a folder.
-- **Layer masks:** add a mask to a layer or folder (with a selection, everything outside it is hidden). Click the mask thumbnail to paint on it: painting hides and erasing shows again, as in Clip Studio Paint. "Painting on mask" shows in the top bar. Turn masks off, apply them or delete them from the Layer menu.
+- **Layer masks:** add a mask to a layer or folder (with a selection, everything outside it is hidden). Click the mask thumbnail to paint on it: painting hides and erasing shows again, as in Clip Studio Paint. "Painting on mask" shows in the top bar. Turn masks off, apply them or delete them from the Layer menu. View → Show mask area tints what the mask hides in red while you paint on it.
 - **Screentone:** Layer → New screentone makes a tone layer (in the selection, if there is one) with a density, dot spacing, angle, shape (dots, lines, squares, diamonds, noise) and dot colour, previewed in the dialog. Paint on a tone layer in gray: darker gives denser dots, white or erasing removes them. Layer → Screentone settings turns any layer into tone (or back) and changes its dots; Rasterize screentone turns the dots into ordinary pixels. Merging a tone layer down keeps its dots.
+- **Filters (Filter menu):** Gaussian blur, Sharpen, Mosaic, Brightness/Contrast, Hue/Saturation/Lightness, Levels, Posterize, Threshold (black and white) and Invert colors. The canvas shows the result live while you drag the sliders; OK keeps it as one undo step. Filters work on the current layer inside the selection, and on a layer mask while you are painting on it (blur a mask to soften its edge).
+- **Layer colour labels:** mark layers and folders with a colour in the Layers panel, shown as a dot next to the name.
 - **Colour:** HSV square and hue bar, main and sub colour, hex entry, recently used colours.
 - **View:** zoom at the cursor (wheel), rotate (Shift+wheel, 4/5/6), mirror (Shift+M), fit (Ctrl+0), 100% (Ctrl+1); pixel-sharp when zoomed in.
 - **Rulers and perspective:** pixel rulers along the canvas edges (View → Edge rulers). Drag out of them to add horizontal or vertical guides, and drag a guide back to remove it. The Ruler tool (U) adds a 1-, 2- or 3-point perspective ruler and moves its vanishing points and the guides. With snapping on (Ctrl+2, or the magnet in the status bar), each stroke follows the guide it starts on or the perspective line closest to the direction you draw.
@@ -47,6 +49,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 | --- | --- | --- | --- |
 | P / N / B / A | Pen / Pencil / Brush / Airbrush | Space (hold) | Pan |
 | M / L / W | Rectangle selection / Lasso / Magic wand | Ctrl+T | Transform |
+| M (again) / L (again) | Ellipse selection / Polygon selection | Enter / Esc | Close / drop the polygon |
 | Ctrl+A / Ctrl+D | Select all / Deselect | Ctrl+Shift+I | Invert selection |
 | Ctrl+C / Ctrl+X | Copy / cut | Ctrl+V | Paste |
 | E | Eraser | Alt (hold) | Eyedropper |

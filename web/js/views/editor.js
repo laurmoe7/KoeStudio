@@ -24,6 +24,7 @@ import { rulerMethods } from './rulertools.js';
 import { gradientMethods } from './gradienttool.js';
 import { textMethods } from './texttool.js';
 import { toneMethods } from './tonetools.js';
+import { filterMethods } from './filtertools.js';
 
 const SAVE_DELAY = 800;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -44,6 +45,8 @@ export class Editor {
     this.savedVersion = -1;
     this.maskEdit = false;  // tools paint on the selected layer's mask instead of the layer (layerops.js)
     this.showRulers = store('edgeRulers') !== false;  // pixel rulers along the view edges (rulertools.js)
+    this.maskOverlay = store('maskOverlay') === true;  // tint what a mask hides while painting on it
+    this.poly = null;  // polygon selection being drawn (selecttools.js)
     this.onKey = this.onKey.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onPaste = this.onPaste.bind(this);
@@ -106,6 +109,7 @@ export class Editor {
           <button class="menu-btn" data-menu="image">Image</button>
           <button class="menu-btn" data-menu="select">Select</button>
           <button class="menu-btn" data-menu="layer">Layer</button>
+          <button class="menu-btn" data-menu="filter">Filter</button>
           <button class="menu-btn" data-menu="view">View</button>
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
           <button class="mask-chip" hidden title="Tools paint on the layer mask: painting hides, erasing shows. Click to paint on the layer again.">${icon('mask', 14)} Painting on mask</button>
@@ -241,8 +245,13 @@ export class Editor {
         { label: 'Invert selection', key: 'Ctrl+Shift+I', run: () => this.invertSelection() },
         { label: 'Select layer pixels', run: () => this.selectLayerPixels() },
         '-',
+        { label: 'Expand selection…', run: () => this.morphSelection('expand'), disabled: !this.sel.active },
+        { label: 'Shrink selection…', run: () => this.morphSelection('shrink'), disabled: !this.sel.active },
+        { label: 'Feather selection…', run: () => this.morphSelection('feather'), disabled: !this.sel.active },
+        '-',
         { label: 'Transform selection…', key: 'Ctrl+T', run: () => this.beginTransform() },
       ],
+      filter: this.filterMenuItems(),
       layer: [
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
         { label: 'Duplicate layer', run: () => this.layerDuplicate() },
@@ -281,6 +290,7 @@ export class Editor {
         { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         '-',
         { label: 'Edge rulers', checked: this.showRulers, run: () => this.toggleEdgeRulers() },
+        { label: 'Show mask area (while painting on a mask)', checked: this.maskOverlay, run: () => this.toggleMaskOverlay() },
         { label: 'Guides and perspective', key: 'Ctrl+;', checked: d.rulers.visible, run: () => this.toggleRulerVisibility() },
         { label: 'Snap to rulers', key: 'Ctrl+2', checked: d.rulers.snap, run: () => this.toggleSnap() },
         { label: 'Perspective ruler…', key: 'U', run: () => this.selectTool('ruler') },
@@ -340,9 +350,45 @@ export class Editor {
     ctx.imageSmoothingEnabled = this.view.zoom < 2;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(this.comp, 0, 0);
+    const tint = this.maskTint();
+    if (tint) { ctx.globalAlpha = 0.45; ctx.drawImage(tint, 0, 0); ctx.globalAlpha = 1; }
     this.root.querySelector('.zoom-label').textContent = Math.round(this.view.zoom * 1000) / 10 + '%';
     const deg = Math.round(((this.view.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
     this.root.querySelector('.rot-label').textContent = deg + '°' + (this.view.flip ? ' ⇋' : '');
+  }
+
+  /** The hidden part of the mask being painted on, in red (View → Show mask area), or null. */
+  maskTint() {
+    const n = this.doc.active, m = n.mask;
+    if (!this.maskOverlay || !this.maskEdit || !m) return null;
+    const d = this.doc, live = this.live && this.live.layer === m ? this.live : null;
+    const key = `${m.version}/${live ? this.strokeVersion : 0}/${d.width}x${d.height}`;
+    if (this.tintKey === key && this.tintCanvas) return this.tintCanvas;
+    const c = this.tintCanvas || (this.tintCanvas = document.createElement('canvas'));
+    if (c.width !== d.width || c.height !== d.height) { c.width = d.width; c.height = d.height; }
+    const ctx = c.getContext('2d');
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, d.width, d.height);
+    ctx.drawImage(m.canvas, 0, 0);
+    if (live) {  // the stroke in progress counts too
+      ctx.globalAlpha = live.alpha;
+      ctx.globalCompositeOperation = live.mode;
+      const r = { x: 0, y: 0, w: d.width, h: d.height };
+      ctx.drawImage(...liveSource(live, r), r.w, r.h, 0, 0, r.w, r.h);
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = '#ff2a2a';
+    ctx.fillRect(0, 0, d.width, d.height);
+    this.tintKey = key;
+    return c;
+  }
+
+  toggleMaskOverlay() {
+    this.maskOverlay = !this.maskOverlay;
+    store('maskOverlay', this.maskOverlay);
+    this.render();
   }
 
   checker(ctx) {
@@ -429,6 +475,7 @@ export class Editor {
     if (!TOOL_BY_ID[id]) return;
     if (this.tool === 'crop' && id !== 'crop') this.cancelCrop();
     if (id !== 'text') this.finishText();
+    this.cancelPolygon();
     this.tool = id;
     if (id === 'crop' && !this.crop) this.startCrop();
     store('tool', id);
@@ -470,7 +517,7 @@ export class Editor {
       box.insertAdjacentHTML('beforeend', `<div class="btn-row">
         <button data-sel="all" title="Ctrl+A">All</button><button data-sel="none" title="Ctrl+D">Deselect</button>
         <button data-sel="invert" title="Ctrl+Shift+I">Invert</button><button data-sel="xf" title="Ctrl+T">Transform</button></div>
-        <p class="hint">Shift adds to the selection, Alt subtracts, Shift+Alt keeps the overlap.</p>`);
+        <p class="hint">${t.id === 'polygon' ? 'Click each corner; double-click, Enter or a click on the first corner closes the shape. Backspace removes the last corner, Esc drops it. ' : ''}Shift adds to the selection, Alt subtracts, Shift+Alt keeps the overlap.</p>`);
       const acts = { all: () => this.selectAll(), none: () => this.deselect(), invert: () => this.invertSelection(), xf: () => this.beginTransform() };
       box.querySelectorAll('[data-sel]').forEach(b => { b.onclick = () => acts[b.dataset.sel](); });
     }
@@ -654,6 +701,7 @@ export class Editor {
     const r = stampBounds(stamps, g.sizeAt);
     this.sel.clipCanvas(this.strokeCtx, r);  // paint only inside the selection
     g.bounds = union(g.bounds, r);
+    this.strokeVersion = (this.strokeVersion || 0) + 1;
     this.updateComp(r);
   }
 
@@ -875,6 +923,7 @@ export class Editor {
       return;
     }
     if (this.xf) return this.onTransformKey(e, c);
+    if (this.poly && !this.gesture && this.onPolygonKey(c)) { e.preventDefault(); return; }
     if (this.crop && (c === 'enter' || c === 'escape')) {
       e.preventDefault();
       if (!this.gesture) c === 'enter' ? this.applyCrop() : this.selectTool('pen');
@@ -940,7 +989,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

@@ -11,6 +11,8 @@ const P = {
   move: '<path d="M12 3v18M3 12h18"/><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
   hand: '<path d="M8 13V6a1.5 1.5 0 013 0v5V4.5a1.5 1.5 0 013 0V11V6a1.5 1.5 0 013 0v8c0 4-2.5 7-6 7-3 0-4.5-1.5-6-4l-2-3.5a1.5 1.5 0 012.5-1.5z"/>',
   rectSel: '<path d="M4 7V4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4"/>',
+  ellipseSel: '<ellipse cx="12" cy="12" rx="9" ry="6.5" stroke-dasharray="3 2.6"/>',
+  polySel: '<path d="M4 10l8-6 8 5-2 10H6z" stroke-dasharray="3 2.6"/>',
   lasso: '<path d="M7 17c-3-1.5-4-4-3-6.5C5.5 6 10 4 15 4.5S21 8 20 11s-5 5-9.5 5"/><path d="M7 17c0 2 1.5 3 3 3"/><circle cx="7.5" cy="16" r="1.5"/>',
   wand: '<path d="M4 20L15 9"/><path d="M15 9l2-2"/><path d="M17 2v3M17 9v3M12 4.5l2 1.5M20 4.5l-2 1.5M22 7h-3"/>',
   transform: '<rect x="6" y="6" width="12" height="12"/><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><rect x="17" y="17" width="4" height="4"/>',

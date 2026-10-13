@@ -1,7 +1,7 @@
 // Layer panel: properties of the selected layer or folder, the layer list (top first, folders indented,
 // drag a row to reorder or drop it on a folder) and the layer buttons. Changes go through the editor (undo).
 
-import { BLEND_MODES, PASS_THROUGH } from '../doc.js';
+import { BLEND_MODES, PASS_THROUGH, LABELS } from '../doc.js';
 import { icon } from '../icons.js';
 import { isFolder, panelRows } from '../tree.js';
 import { esc, promptBox } from '../ui.js';
@@ -20,6 +20,12 @@ export class LayerPanel {
       <div class="lp-props">
         <label class="check" title="Lock transparent pixels: paint only where the layer already has paint"><input type="checkbox" class="lp-lock">${icon('lock', 15)} Lock alpha</label>
         <label class="check" title="Clip to the layer below: show only where it has paint"><input type="checkbox" class="lp-clip">${icon('clip', 15)} Clip below</label>
+      </div>
+      <div class="lp-props">
+        <span class="lp-labels" role="radiogroup" aria-label="Color label" title="Color label: marks the layer in this list"><span>Label</span>
+          <button class="lp-label-btn none" data-label="" title="No label"></button>
+          ${LABELS.map(([id, color]) => `<button class="lp-label-btn" data-label="${id}" style="background:${color}" title="${id[0].toUpperCase() + id.slice(1)} label"></button>`).join('')}
+        </span>
       </div>
       <div class="lp-list" role="tree" aria-label="Layers"></div>
       <div class="lp-buttons">
@@ -58,6 +64,7 @@ export class LayerPanel {
     });
     root.querySelector('.lp-lock').onchange = e => editor.setLayerProp(editor.doc.active, 'alphaLock', e.target.checked, 'Lock alpha');
     root.querySelector('.lp-clip').onchange = e => editor.setLayerProp(editor.doc.active, 'clip', e.target.checked, 'Clip to layer below');
+    root.querySelectorAll('.lp-label-btn').forEach(b => { b.onclick = () => editor.setLayerProp(editor.doc.active, 'label', b.dataset.label || null, 'Color label'); });
     this.bindDrag();
   }
 
@@ -72,6 +79,7 @@ export class LayerPanel {
     lock.checked = !!n.alphaLock;
     lock.disabled = folder;
     this.root.querySelector('.lp-clip').checked = n.clip;
+    this.root.querySelectorAll('.lp-label-btn').forEach(b => { b.classList.toggle('on', (n.label || '') === b.dataset.label); b.setAttribute('aria-checked', (n.label || '') === b.dataset.label); });
     this.root.querySelector('[data-op="mask"]').title = n.mask ? 'Paint on the mask' : 'Add a mask (hides outside the selection, if there is one)';
     const chip = ed.root.querySelector('.mask-chip');
     if (chip) chip.hidden = !ed.maskEdit;
@@ -95,7 +103,7 @@ export class LayerPanel {
           ? `<button class="icon-btn lp-twisty" title="${node.open ? 'Close' : 'Open'} folder">${node.open ? '▾' : '▸'}</button><span class="lp-foldericon">${icon('folder', 22)}</span>`
           : `<canvas class="lp-thumb${active && !ed.maskEdit ? ' target' : ''}" width="${TW}" height="${TH}" title="Layer pixels"></canvas>`}
         ${node.mask ? `<canvas class="lp-mask${active && ed.maskEdit ? ' target' : ''}${node.mask.enabled ? '' : ' off'}" width="${TW}" height="${TH}" title="Mask: click to paint on it (painting hides, erasing shows)"></canvas>` : ''}
-        <div class="lp-name"><span>${esc(node.name)}</span><small>${esc(sub.join(' · '))}</small></div>`;
+        <div class="lp-name"><span>${node.label ? `<i class="lp-dot" style="background:${labelColor(node.label)}"></i>` : ''}${esc(node.name)}</span><small>${esc(sub.join(' · '))}</small></div>`;
       row.querySelector('.lp-eye').onclick = () => ed.toggleVisible(node);
       const tw = row.querySelector('.lp-twisty');
       if (tw) tw.onclick = () => ed.toggleOpen(node);
@@ -172,6 +180,10 @@ export class LayerPanel {
     list.addEventListener('pointerup', end);
     list.addEventListener('pointercancel', end);
   }
+}
+
+function labelColor(id) {
+  return LABELS.find(l => l[0] === id)?.[1] || 'transparent';
 }
 
 function blendLabel(v) {

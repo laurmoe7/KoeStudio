@@ -1,6 +1,8 @@
 // The selection: a doc-sized mask canvas (alpha = how selected a pixel is), its bounds and its outline.
 // Painting, filling, clearing, copying and transforming all respect it. Pure helpers at the bottom are tested.
 
+import { expandMask, shrinkMask, featherMask } from './maskops.js';
+
 export const SELECT_MODES = [['replace', 'New selection'], ['add', 'Add (Shift)'], ['subtract', 'Subtract (Alt)'], ['intersect', 'Intersect (Shift+Alt)']];
 
 export class Selection {
@@ -77,6 +79,35 @@ export class Selection {
       }
       ctx.putImageData(img, b.x, b.y);
     });
+  }
+
+  /** The mask as an alpha plane (0-255 per pixel). */
+  alphaPlane() {
+    const data = this.ctx.getImageData(0, 0, this.w, this.h).data;
+    const alpha = new Uint8Array(this.w * this.h);
+    for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+    return alpha;
+  }
+
+  /** Replaces the mask by an alpha plane. */
+  setAlphaPlane(alpha) {
+    const img = new ImageData(this.w, this.h);
+    for (let i = 0; i < alpha.length; i++) img.data[i * 4 + 3] = alpha[i];
+    this.ctx.putImageData(img, 0, 0);
+    this.refresh();
+  }
+
+  /** Grows ('expand') or shrinks ('shrink') the selection by n pixels (maskops.js). */
+  morph(kind, n) {
+    if (!this.bounds || !(n > 0)) return;
+    const fn = kind === 'shrink' ? shrinkMask : expandMask;
+    this.setAlphaPlane(fn(this.alphaPlane(), this.w, this.h, n));
+  }
+
+  /** Softens the selection's edges over about r pixels. */
+  feather(r) {
+    if (!this.bounds || !(r > 0)) return;
+    this.setAlphaPlane(featherMask(this.alphaPlane(), this.w, this.h, r));
   }
 
   /** Recomputes bounds and outline after the mask changed. */

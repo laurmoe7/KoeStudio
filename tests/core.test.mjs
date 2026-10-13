@@ -151,4 +151,6 @@ test('document format sanitizing', () => {
   assert.equal(d.layers[0].type, 'layer');
   assert.equal(sanitizeDoc({ paper: null }).paper, null, 'transparent paper is kept');
   assert.equal(sanitizeDoc(null).format, 'koe');
+  const labels = sanitizeDoc({ layers: [{ label: 'blue' }, { label: 'pink' }, { type: 'folder', label: 'red' }, {}] }).layers.map(l => l.label);
+  assert.deepEqual(labels, ['blue', null, 'red', null], 'colour labels: only known ones are kept');
 });

@@ -1,4 +1,4 @@
-// Selection tools (rectangle, lasso, magic wand), selection commands, copy/cut/paste and free transform.
+// Selection tools (rectangle, ellipse, lasso, polygon, magic wand), selection commands, copy/cut/paste and free transform.
 // These are Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
 import { floodMask } from '../fill.js';
@@ -6,10 +6,11 @@ import { Layer } from '../doc.js';
 import { icon } from '../icons.js';
 import { maskBounds, modeFor, rectBetween } from '../selection.js';
 import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES } from '../transform.js';
-import { toast } from '../ui.js';
-import { matrix, toScreen } from '../view.js';
+import { esc, modal, toast } from '../ui.js';
+import { matrix, toDoc, toScreen } from '../view.js';
 
 const HANDLE_PX = 9;  // grab distance and drawn size of transform handles, in screen pixels
+const CLOSE_PX = 8;   // clicking this close (screen px) to a polygon's first point closes it
 
 export const selectionMethods = {
   // ---------- selection commands ----------
@@ -17,6 +18,7 @@ export const selectionMethods = {
   /** Changes the selection through fn() as one undo step. */
   changeSelection(label, fn) {
     if (this.xf) return;
+    this.poly = null;  // a polygon being drawn is dropped by any other selection change
     const before = this.sel.snapshot();
     fn();
     const after = this.sel.snapshot();
@@ -35,11 +37,31 @@ export const selectionMethods = {
     if (!this.sel.active) toast('This layer is empty, so nothing was selected.');
   },
 
+  /** Select → Expand / Shrink / Feather: asks for a number of pixels, then changes the selection. */
+  async morphSelection(kind) {
+    if (!this.sel.active) return toast('There is no selection to change.');
+    const titles = { expand: ['Expand selection', 'Grow the selection outwards by', 'Expand'], shrink: ['Shrink selection', 'Shrink the selection inwards by', 'Shrink'],
+      feather: ['Feather selection', 'Soften the edges over', 'Feather'] };
+    const [title, label, ok] = titles[kind];
+    const last = (this.lastMorph ||= {})[kind] ?? (kind === 'feather' ? 10 : 2);
+    const n = await modal({
+      title,
+      body: `<label class="field"><span>${esc(label)}</span><div class="field-row"><input type="number" name="n" min="1" max="500" step="1" value="${last}"><span class="muted small">px</span></div></label>`,
+      buttons: [{ label: 'Cancel', value: null }, { label: ok, primary: true }],
+      onOpen: root => root.querySelector('input').select(),
+      collect: root => { const v = Math.round(+root.querySelector('input').value); return v >= 1 && v <= 500 ? v : undefined; },
+    });
+    if (!n) return;
+    this.lastMorph[kind] = n;
+    this.changeSelection(title, () => (kind === 'feather' ? this.sel.feather(n) : this.sel.morph(kind, n)));
+  },
+
   // ---------- selection tools ----------
 
   beginSelect(toolId, dp, id, e) {
     const mode = modeFor(this.settings[toolId].mode, e.shiftKey, e.altKey);
     if (toolId === 'wand') return this.magicWand(dp, mode);
+    if (toolId === 'polygon') return this.polygonClick(dp, mode, e.detail >= 2);
     this.gesture = { type: 'select', tool: toolId, id, mode, start: dp, cur: dp, points: [dp] };
   },
 
@@ -52,10 +74,15 @@ export const selectionMethods = {
 
   endSelect() {
     const g = this.gesture;
-    if (g.tool === 'select') {
+    if (g.tool === 'select' || g.tool === 'ellipse') {
       const r = rectBetween(g.start, g.cur);
       if (r.w < 1 || r.h < 1) return this.clickedWithoutShape(g.mode);
-      this.changeSelection('Rectangle selection', () => this.sel.combine(g.mode, ctx => ctx.fillRect(r.x, r.y, r.w, r.h)));
+      if (g.tool === 'select') this.changeSelection('Rectangle selection', () => this.sel.combine(g.mode, ctx => ctx.fillRect(r.x, r.y, r.w, r.h)));
+      else this.changeSelection('Ellipse selection', () => this.sel.combine(g.mode, ctx => {
+        ctx.beginPath();
+        ctx.ellipse(r.x + r.w / 2, r.y + r.h / 2, r.w / 2, r.h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }));
     } else {
       const pts = g.points;
       const b = maskBoundsOfPoints(pts);
@@ -73,6 +100,53 @@ export const selectionMethods = {
   /** A click with a selection tool (no real shape) clears the selection, as in other painting programs. */
   clickedWithoutShape(mode) {
     if (mode === 'replace') this.deselect();
+  },
+
+  // ---------- polygon selection ----------
+
+  /**
+   * The Polygon tool: each click adds a corner (this.poly holds them between clicks); a double click, Enter or a
+   * click on the first corner closes the shape, Backspace removes the last corner and Esc drops the shape.
+   */
+  polygonClick(dp, mode, dbl) {
+    const p = this.poly;
+    if (!p) { this.poly = { mode, points: [dp] }; return; }
+    const first = toScreen(this.view, p.points[0].x, p.points[0].y), here = toScreen(this.view, dp.x, dp.y);
+    const onFirst = p.points.length >= 3 && Math.hypot(first.x - here.x, first.y - here.y) <= CLOSE_PX;
+    if (dbl || onFirst) return this.closePolygon();
+    p.points.push(dp);
+  },
+
+  closePolygon() {
+    const p = this.poly;
+    if (!p) return;
+    this.poly = null;
+    const pts = p.points, b = maskBoundsOfPoints(pts);
+    if (pts.length < 3 || b.w * this.view.zoom < 3 || b.h * this.view.zoom < 3) return this.clickedWithoutShape(p.mode);
+    this.changeSelection('Polygon selection', () => this.sel.combine(p.mode, ctx => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
+      ctx.closePath();
+      ctx.fill();
+    }));
+  },
+
+  cancelPolygon() {
+    if (!this.poly) return;
+    this.poly = null;
+    this.drawOverlay();
+  },
+
+  /** Keys while a polygon is being drawn; true when the key was used. */
+  onPolygonKey(c) {
+    if (!this.poly) return false;
+    if (c === 'enter') this.closePolygon();
+    else if (c === 'escape') this.cancelPolygon();
+    else if (c === 'backspace' || c === 'delete') { this.poly.points.pop(); if (!this.poly.points.length) this.poly = null; }
+    else return false;
+    this.drawOverlay();
+    return true;
   },
 
   magicWand(dp, mode) {
@@ -328,15 +402,23 @@ export const selectionMethods = {
       });
     }
     const g = this.gesture;
+    const outline = pts => ants(() => {
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(sx(x, y), sy(x, y)) : ctx.moveTo(sx(x, y), sy(x, y))));
+      ctx.closePath();
+    });
     if (g?.type === 'select') {
-      const pts = g.tool === 'select'
-        ? (r => [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]])(rectBetween(g.start, g.cur))
-        : [...g.points, g.cur].map(p => [p.x, p.y]);
-      ants(() => {
-        ctx.beginPath();
-        pts.forEach(([x, y], i) => (i ? ctx.lineTo(sx(x, y), sy(x, y)) : ctx.moveTo(sx(x, y), sy(x, y))));
-        ctx.closePath();
-      });
+      const r = rectBetween(g.start, g.cur);
+      outline(g.tool === 'select' ? [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]]
+        : g.tool === 'ellipse' ? ellipsePoints(r) : [...g.points, g.cur].map(p => [p.x, p.y]));
+    }
+    if (this.poly) {
+      const pts = this.poly.points.map(p => [p.x, p.y]);
+      if (this.pointer && !this.gesture) { const q = toDoc(this.view, this.pointer.x, this.pointer.y); pts.push([q.x, q.y]); }
+      outline(pts);
+      const f = this.poly.points[0];
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = dpr;
+      ctx.beginPath(); ctx.arc(sx(f.x, f.y), sy(f.x, f.y), 3 * dpr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
     if (this.xf && !this.xf.moveOnly) {
       const t = this.xf.t;
@@ -379,6 +461,13 @@ function canvasOf(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   return c;
+}
+
+/** Points around an ellipse inscribed in r (doc coordinates), for drawing it through the view's transform. */
+function ellipsePoints(r, n = 72) {
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2, out = [];
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; out.push([cx + Math.cos(a) * r.w / 2, cy + Math.sin(a) * r.h / 2]); }
+  return out;
 }
 
 function maskBoundsOfPoints(pts) {

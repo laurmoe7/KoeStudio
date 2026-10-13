@@ -15,6 +15,9 @@ export const BLEND_MODES = [
 /** Folders also have "Through": their layers blend straight onto what is below, as if there were no folder. */
 export const PASS_THROUGH = ['pass-through', 'Through'];
 const BLEND_IDS = new Set(BLEND_MODES.map(m => m[0]));
+/** Colour labels a layer or folder can carry in the layer list (as in Clip Studio Paint's palette colours). */
+export const LABELS = [['red', '#e5484d'], ['orange', '#f08c2e'], ['yellow', '#e6c84a'], ['green', '#46a758'], ['blue', '#3e8fe0'], ['purple', '#9b6fe0'], ['gray', '#8b8d98']];
+const LABEL_IDS = new Set(LABELS.map(l => l[0]));
 export const MAX_SIDE = 10000;
 export const FORMAT_VERSION = 2;
 const MAX_DEPTH = 20;
@@ -26,7 +29,7 @@ const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
  * Version 1 files had a flat `layers` list and an `active` index; version 2 nests folders ({type: 'folder',
  * children}) in `layers`, gives any node an optional `mask: {png, enabled}`, and stores `activePath`.
  * `rulers` (guides, perspective ruler, snapping; see rulers.js) is optional in either version, as is a layer's
- * `tone` (shown as screentone; see tone.js).
+ * `tone` (shown as screentone; see tone.js), and any node's `label` (a colour label from LABELS).
  */
 export function sanitizeDoc(raw) {
   const d = raw && typeof raw === 'object' ? raw : {};
@@ -43,6 +46,7 @@ export function sanitizeDoc(raw) {
       blend: BLEND_IDS.has(l?.blend) || (folder && l?.blend === PASS_THROUGH[0]) ? l.blend : folder ? PASS_THROUGH[0] : 'source-over',
       clip: !!l?.clip,
       mask: l?.mask && typeof l.mask === 'object' ? { png: isPng(l.mask.png) ? l.mask.png : null, enabled: l.mask.enabled !== false } : null,
+      label: LABEL_IDS.has(l?.label) ? l.label : null,
     };
     if (folder) {
       out.open = l.open !== false;
@@ -129,6 +133,7 @@ export class Layer extends Raster {
     this.alphaLock = !!props.alphaLock;
     this.clip = !!props.clip;
     this.mask = null;
+    this.label = props.label || null;  // colour label in the layer list (LABELS)
     this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
   }
@@ -147,12 +152,13 @@ export class Folder {
     this.open = props.open !== false;
     this.children = [];  // bottom first
     this.mask = null;
+    this.label = props.label || null;
   }
 }
 
 /** A deep copy of a layer or folder (with masks), for Duplicate. */
 export function cloneNode(n, w, h) {
-  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open };
+  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open, label: n.label };
   let c;
   if (isFolder(n)) {
     c = new Folder(props);
@@ -237,7 +243,7 @@ export class Doc {
 
   async toJSON() {
     const node = async n => {
-      const out = { type: n.kind, name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip };
+      const out = { type: n.kind, name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };
       if (isFolder(n)) {
         out.open = n.open;
         out.children = [];
