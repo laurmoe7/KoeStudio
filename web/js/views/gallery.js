@@ -61,7 +61,8 @@ async function fillGrid(root, onOpen) {
   grid.querySelectorAll('.card').forEach(card => {
     const open = () => onOpen({ id: card.dataset.id });
     card.onclick = e => { if (!e.target.closest('.card-del')) open(); };
-    card.onkeydown = e => { if (e.key === 'Enter') open(); };
+    // only keys pressed on the card itself: Enter on its delete button must not also open it
+    card.onkeydown = e => { if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } };
     card.querySelector('.card-del').onclick = async () => {
       const title = card.querySelector('.card-title').textContent;
       if (!await confirmBox('Delete artwork', `Delete "${title}"? It is moved to the .deleted folder inside the artwork folder, so you can get it back from there.`, 'Delete')) return;
