@@ -4,15 +4,27 @@
 
 import { FILTERS, FILTER_BY_ID, defaultParams, sanitizeParams, mixByMask } from '../filters.js';
 import { clip } from '../rect.js';
-import { esc, modal, store } from '../ui.js';
+import { esc, modal, store, toast } from '../ui.js';
 
 export const filterMethods = {
   /** Menu items for the Filter menu. */
   filterMenuItems() {
-    return FILTERS.map(f => (f === '-' ? '-' : { label: f.label, run: () => this.runFilter(f.id) }));
+    const last = this.lastFilter && FILTER_BY_ID[this.lastFilter.id];
+    return [
+      { label: last ? `Repeat ${last.label.replace(/…$/, '')}` : 'Repeat last filter', key: 'Ctrl+F', disabled: !last, run: () => this.repeatFilter() },
+      '-',
+      ...FILTERS.map(f => (f === '-' ? '-' : { label: f.label, run: () => this.runFilter(f.id) })),
+    ];
   },
 
-  async runFilter(id) {
+  /** Ctrl+F: the last filter again with the same settings, without the dialog. */
+  repeatFilter() {
+    if (!this.lastFilter) return toast('No filter has been used yet.');
+    return this.runFilter(this.lastFilter.id, this.lastFilter.params);
+  },
+
+  /** Runs a filter on the current layer or mask; with `fixed` params there is no dialog. */
+  async runFilter(id, fixed = null) {
     const filter = FILTER_BY_ID[id];
     if (!filter || this.filtering) return;
     this.finishTransform();
@@ -26,7 +38,10 @@ export const filterMethods = {
     const job = { filter, t, orig, selData, area, params: sanitizeParams(filter, defaultParams(filter)) };
     this.filtering = job;
     let params;
-    if (filter.fields.length) {
+    if (fixed) {
+      params = job.params = sanitizeParams(filter, fixed);
+      this.previewFilter(job);
+    } else if (filter.fields.length) {
       job.params = sanitizeParams(filter, (store('filters') || {})[id]);
       this.previewFilter(job);
       // one preview per frame, however fast the slider moves
@@ -49,6 +64,7 @@ export const filterMethods = {
       return;
     }
     if (filter.fields.length) store('filters', { ...(store('filters') || {}), [id]: params });
+    this.lastFilter = { id, params };
     const a = area;
     const before = new ImageData(new Uint8ClampedArray(a.w * a.h * 4), a.w, a.h);
     for (let y = 0; y < a.h; y++) before.data.set(orig.data.subarray(((a.y + y) * W + a.x) * 4, ((a.y + y) * W + a.x + a.w) * 4), y * a.w * 4);

@@ -25,6 +25,7 @@ const P = {
   chevron: '<path d="M6 9l6 6 6-6"/>',
   minus: '<path d="M5 12h14"/>',
   gradient: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M4 6h5v12H4z" fill="currentColor" stroke="none"/><path d="M9 6h4v12H9z" fill="currentColor" stroke="none" opacity=".55"/><path d="M13 6h4v12h-4z" fill="currentColor" stroke="none" opacity=".22"/>',
+  figure: '<path d="M3 21L11 5"/><rect x="13" y="13" width="8" height="8"/><circle cx="17" cy="7" r="3.5"/>',
   text: '<path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/>',
   eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   eyeOff: '<path d="M3 3l18 18"/><path d="M10.5 6.2A10 10 0 0112 6c6 0 10 6 10 6a17 17 0 01-3 3.5M6.5 7.5C4 9.3 2 12 2 12s4 7 10 7a9 9 0 004-1"/>',

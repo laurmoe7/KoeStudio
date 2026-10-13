@@ -4,6 +4,7 @@ import { SELECT_MODES } from './selection.js';
 import { GRADIENT_COLORS, GRADIENT_SHAPES } from './gradient.js';
 import { FONTS, ALIGNS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
+import { FIGURE_SHAPES } from './figure.js';
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) { return { texture, textureAmount, textureScale: 1 }; }
@@ -23,6 +24,8 @@ export const TOOLS = [
     defaults: { opacity: 1, tolerance: 12, grow: 1, sampleAll: true } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
     defaults: { colors: 'main-sub', shape: 'linear', opacity: 1 } },
+  { id: 'figure', label: 'Figure', key: 'u', kind: 'figure', icon: 'figure', group: 'draw',
+    defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, fill: false } },
   { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',
     defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, vertical: false } },
   { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', group: 'draw', defaults: {} },
@@ -42,6 +45,7 @@ export const TOOL_BY_ID = Object.fromEntries(TOOLS.map(t => [t.id, t]));
 /** The settings each control in the tool panel edits: [key, label, type, min, max, step], or [key, label, 'choice', options]. */
 export const SETTING_FIELDS = [
   ['mode', 'Mode', 'choice', SELECT_MODES],
+  ['figure', 'Shape', 'choice', FIGURE_SHAPES],
   ['colors', 'Colors', 'choice', GRADIENT_COLORS],
   ['shape', 'Shape', 'choice', GRADIENT_SHAPES],
   ['font', 'Font', 'choice', FONTS],
@@ -61,11 +65,20 @@ export const SETTING_FIELDS = [
   ['bold', 'Bold', 'check'],
   ['italic', 'Italic', 'check'],
   ['vertical', 'Vertical', 'check'],
+  ['fill', 'Fill the shape', 'check'],
   ['pressureSize', 'Pressure → size', 'check'],
   ['pressureOpacity', 'Pressure → density', 'check'],
   ['tolerance', 'Margin', 'range', 0, 255, 1],
   ['grow', 'Expand', 'range', 0, 6, 1],
   ['sampleAll', 'Look at all layers', 'check'],
+];
+
+/** Which group of the tool panel a paint setting belongs to (paint tools only; other tools show one flat list). */
+export const SETTING_GROUPS = [
+  ['Brush', ['size', 'opacity', 'flow', 'hardness']],
+  ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'gamma']],
+  ['Stroke', ['spacing', 'smoothing']],
+  ['Texture', ['texture', 'textureAmount', 'textureScale']],
 ];
 
 /** Tooltips for the tool settings whose short label needs explaining. */
@@ -88,6 +101,8 @@ export const SETTING_HINTS = {
   texture: 'Paper grain for the whole stroke; it stays fixed to the canvas, so strokes share one grain',
   textureAmount: 'How much paint the grooves of the texture leave out',
   textureScale: 'Size of the texture (100% = as made)',
+  figure: 'Drag to draw it; hold Shift for a 45° line, a square or a circle',
+  fill: 'Fill the rectangle or ellipse, not only its outline',
 };
 
 /** Every tool's settings, starting from its defaults and keeping only valid stored values. */

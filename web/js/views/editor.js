@@ -12,7 +12,7 @@ import { comboOf, isTyping } from '../keys.js';
 import { Painter, textureFor } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { Selection } from '../selection.js';
-import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
+import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_GROUPS, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
 import { esc, toast, menu, promptBox, fileToDataUrl, store } from '../ui.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
@@ -25,6 +25,8 @@ import { gradientMethods } from './gradienttool.js';
 import { textMethods } from './texttool.js';
 import { toneMethods } from './tonetools.js';
 import { filterMethods } from './filtertools.js';
+import { figureMethods } from './figuretool.js';
+import { linePoints } from '../figure.js';
 
 const SAVE_DELAY = 800;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -61,7 +63,7 @@ export class Editor {
     this.comp = document.createElement('canvas');
     this.comp.width = doc.width;
     this.comp.height = doc.height;
-    this.compCtx = this.comp.getContext('2d', { willReadFrequently: true });
+    this.compCtx = this.comp.getContext('2d');  // stays on the GPU: it is drawn every frame and read only by the eyedropper, wand and fill
     this.stroke = document.createElement('canvas');
     this.stroke.width = doc.width;
     this.stroke.height = doc.height;
@@ -94,6 +96,7 @@ export class Editor {
     window.removeEventListener('blur', this.onKeyUp);
     this.resizeObs?.disconnect();
     clearTimeout(this.saveTimer);
+    clearTimeout(this.thumbTimer);
     clearInterval(this.antsTimer);
     this.root.innerHTML = '';
   }
@@ -123,13 +126,15 @@ export class Editor {
             ${TOOLS.map((t, i) => (i && TOOLS[i - 1].group !== t.group ? '<span class="tool-sep"></span>' : '') +
               `<button class="tool-btn" data-tool="${t.id}" title="${esc(t.label)} (${t.key.toUpperCase()})" aria-label="${esc(t.label)}">${icon(t.icon, 22)}</button>`).join('')}
           </nav>
+          <aside class="ed-left">
+            <section class="panel grow" data-panel="tool"><h3><button class="panel-head" title="Tool property: the settings of the current tool">${icon('chevron', 12)}<span class="tool-title">Tool</span></button></h3><div class="tool-props"></div></section>
+          </aside>
           <div class="ed-viewport">
             <canvas class="ed-view"></canvas>
             <canvas class="ed-overlay"></canvas>
           </div>
           <aside class="ed-side">
             <section class="panel" data-panel="color"><h3><button class="panel-head">${icon('chevron', 12)}<span>Color</span></button></h3><div class="color-panel"></div></section>
-            <section class="panel" data-panel="tool"><h3><button class="panel-head">${icon('chevron', 12)}<span class="tool-title">Tool</span></button></h3><div class="tool-props"></div></section>
             <section class="panel grow" data-panel="layers"><h3><button class="panel-head">${icon('chevron', 12)}<span>Layers</span></button></h3><div class="layer-panel"></div></section>
           </aside>
         </div>
@@ -161,6 +166,9 @@ export class Editor {
     this.overlay = $('.ed-overlay');
     this.vctx = this.viewCanvas.getContext('2d');
     this.octx = this.overlay.getContext('2d');
+    this.cursorPos = $('.cursor-pos');
+    this.zoomLabel = $('.zoom-label');
+    this.rotLabel = $('.rot-label');
     this.colors = new ColorPanel($('.color-panel'));
     this.layerPanel = new LayerPanel($('.layer-panel'), this);
     this.colors.onChange = () => this.textColorChanged();
@@ -174,7 +182,7 @@ export class Editor {
     this.root.querySelectorAll('[data-act]').forEach(b => { b.onclick = () => acts[b.dataset.act](); });
     this.root.querySelectorAll('[data-menu]').forEach(b => { b.onclick = () => { this.finishTransform(); menu(b, this.menuItems(b.dataset.menu)); }; });
     // using the side panels or the tool bar while transforming applies the transform first
-    for (const el of this.root.querySelectorAll('.ed-side, .ed-tools, .ed-top')) {
+    for (const el of this.root.querySelectorAll('.ed-side, .ed-left, .ed-tools, .ed-top')) {
       el.addEventListener('pointerdown', e => {
         if (e.target.closest('[data-act="undo"]')) return;
         this.finishTransform();
@@ -317,44 +325,92 @@ export class Editor {
       c.height = Math.max(1, Math.round(r.height * dpr));
     }
     this.render();
-    this.drawOverlay();
+    this.paintOverlay();
   }
 
-  /** Recomposites a doc region (all of it when r is null) into the composite canvas. */
+  /**
+   * Recomposites a doc region (all of it when r is null) into the composite canvas and remembers it as the part
+   * of the screen that needs redrawing (this.dirty: a rect, or 'all').
+   */
   updateComp(r) {
     const d = this.doc;
     const area = clip(r || { x: 0, y: 0, w: d.width, h: d.height }, d.width, d.height);
     if (area) composite(this.compCtx, d, area, this.live);
+    this.dirty = !r || this.dirty === 'all' ? 'all' : union(this.dirty, area);
   }
 
+  /** Redraws the screen on the next frame, only the dirty region when nothing else changed. */
   requestRender() {
-    if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(); });
+    if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(this.dirty || 'all'); });
   }
 
-  render() {
+  /**
+   * Draws the composite through the view transform. With a doc rect, only the whole screen pixels it covers are
+   * repainted (a stroke redraws just what it touched); 'all' repaints everything. The background, paper shadow,
+   * white paper and checker depend only on the view, so they are kept in this.paperLayer (redrawn on full
+   * renders) and copied exactly for partial ones; clipping to whole pixels keeps the edges free of blending.
+   */
+  render(region = 'all') {
     const ctx = this.vctx, d = this.doc, dpr = this.dpr || 1;
+    const r = region !== 'all' && region ? clip(region, d.width, d.height) : null;
+    this.dirty = null;
+    if (region !== 'all' && !r) return;
+    const [a, b, c, dd, e, f] = matrix(this.view);
+    const m = [a * dpr, b * dpr, c * dpr, dd * dpr, e * dpr, f * dpr];
+    let box = { x: 0, y: 0, w: d.width, h: d.height };
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (!r) {
+      this.drawPaperLayer(m);
+    } else {
+      // the screen pixels the doc rect covers, then the doc pixels those screen pixels cover
+      const sx = (x, y) => m[0] * x + m[2] * y + m[4], sy = (x, y) => m[1] * x + m[3] * y + m[5];
+      const cs = [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]];
+      const x0 = Math.floor(Math.min(...cs.map(([x, y]) => sx(x, y)))) - 1, y0 = Math.floor(Math.min(...cs.map(([x, y]) => sy(x, y)))) - 1;
+      const x1 = Math.ceil(Math.max(...cs.map(([x, y]) => sx(x, y)))) + 1, y1 = Math.ceil(Math.max(...cs.map(([x, y]) => sy(x, y)))) + 1;
+      ctx.beginPath();
+      ctx.rect(x0, y0, x1 - x0, y1 - y0);
+      ctx.clip();
+      const ds = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([x, y]) => toDoc(this.view, x / dpr, y / dpr));
+      const bx0 = Math.floor(Math.min(...ds.map(p => p.x))) - 2, by0 = Math.floor(Math.min(...ds.map(p => p.y))) - 2;
+      const bx1 = Math.ceil(Math.max(...ds.map(p => p.x))) + 2, by1 = Math.ceil(Math.max(...ds.map(p => p.y))) + 2;
+      box = clip({ x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0 }, d.width, d.height);
+      if (!box) { ctx.restore(); return; }
+    }
+    ctx.drawImage(this.paperLayer, 0, 0);
+    ctx.setTransform(...m);
+    ctx.imageSmoothingEnabled = this.view.zoom < 2;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(this.comp, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h);
+    const tint = this.maskTint();
+    if (tint) { ctx.globalAlpha = 0.45; ctx.drawImage(tint, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); ctx.globalAlpha = 1; }
+    ctx.restore();
+    if (r) return;
+    this.zoomLabel.textContent = Math.round(this.view.zoom * 1000) / 10 + '%';
+    const deg = Math.round(((this.view.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
+    this.rotLabel.textContent = deg + '°' + (this.view.flip ? ' ⇋' : '');
+  }
+
+  /** Background, paper shadow, white paper and (for transparent paper) the checker, for the current view. */
+  drawPaperLayer(m) {
+    const d = this.doc, dpr = this.dpr || 1, W = this.viewCanvas.width, H = this.viewCanvas.height;
+    const c = this.paperLayer || (this.paperLayer = document.createElement('canvas'));
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+    const ctx = c.getContext('2d');
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = this.bg;
-    ctx.fillRect(0, 0, this.viewCanvas.width, this.viewCanvas.height);
-    const [a, b, c, dd, e, f] = matrix(this.view);
-    ctx.setTransform(a * dpr, b * dpr, c * dpr, dd * dpr, e * dpr, f * dpr);
+    ctx.fillRect(0, 0, W, H);
+    ctx.setTransform(...m);
     ctx.shadowColor = 'rgba(0,0,0,0.45)';
     ctx.shadowBlur = 18 * dpr;
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, d.width, d.height);
     ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
     if (!d.paper) {
       ctx.fillStyle = this.checker(ctx);
       ctx.fillRect(0, 0, d.width, d.height);
     }
-    ctx.imageSmoothingEnabled = this.view.zoom < 2;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(this.comp, 0, 0);
-    const tint = this.maskTint();
-    if (tint) { ctx.globalAlpha = 0.45; ctx.drawImage(tint, 0, 0); ctx.globalAlpha = 1; }
-    this.root.querySelector('.zoom-label').textContent = Math.round(this.view.zoom * 1000) / 10 + '%';
-    const deg = Math.round(((this.view.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
-    this.root.querySelector('.rot-label').textContent = deg + '°' + (this.view.flip ? ' ⇋' : '');
   }
 
   /** The hidden part of the mask being painted on, in red (View → Show mask area), or null. */
@@ -403,8 +459,13 @@ export class Editor {
     return this.checkerPattern;
   }
 
-  /** The overlay canvas: selection, crop box, guides and perspective, brush outline, then the edge rulers. */
+  /** Redraws the overlay on the next frame (many pointer moves per frame cost one redraw). */
   drawOverlay() {
+    if (!this.overlayRaf) this.overlayRaf = requestAnimationFrame(() => { this.overlayRaf = 0; this.paintOverlay(); });
+  }
+
+  /** The overlay canvas: selection, crop box, guides and perspective, brush outline, then the edge rulers. */
+  paintOverlay() {
     const ctx = this.octx;
     if (!ctx) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -430,7 +491,7 @@ export class Editor {
     }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
-    set({ paint: 'none', fill: 'crosshair', gradient: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+    set({ paint: 'none', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
     return this.pointer && tool.kind === 'paint' ? tool : null;
   }
@@ -510,9 +571,17 @@ export class Editor {
     const row = ([key, label, type, min, max, step]) => type === 'choice'
       ? `<label class="slider"${tip(key)}><span>${esc(label)}</span><select data-k="${key}">${min.map(([v, l]) => `<option value="${v}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
       : `<label class="slider"${tip(key)}><span>${esc(label)}</span><input type="range" data-k="${key}" min="${key === 'size' ? 0 : min}" max="${key === 'size' ? 1000 : max}" step="${key === 'size' ? 1 : step}" value="${key === 'size' ? sizeToSlider(s.size) : s[key]}"><output>${fmt(key, s[key])}</output></label>`;
-    const checks = fields.filter(f => f[2] === 'check');
-    box.innerHTML = fields.filter(f => f[2] !== 'check').map(row).join('') + (checks.length ? `<div class="checks">${checks.map(([key, label]) =>
-      `<label class="check"${tip(key)}><input type="checkbox" data-k="${key}" ${s[key] ? 'checked' : ''}> ${esc(label)}</label>`).join('')}</div>` : '');
+    const check = ([key, label]) => `<label class="check"${tip(key)}><input type="checkbox" data-k="${key}" ${s[key] ? 'checked' : ''}> ${esc(label)}</label>`;
+    const block = fs => {  // sliders and choices first, the check boxes together under them
+      const checks = fs.filter(f => f[2] === 'check');
+      return fs.filter(f => f[2] !== 'check').map(row).join('') + (checks.length ? `<div class="checks">${checks.map(check).join('')}</div>` : '');
+    };
+    if (t.kind === 'paint') {  // paint tools have many settings: in named groups
+      box.innerHTML = SETTING_GROUPS.map(([name, keys]) => {
+        const fs = keys.map(k => fields.find(f => f[0] === k)).filter(Boolean);
+        return fs.length ? `<div class="prop-group">${esc(name)}</div>${block(fs)}` : '';
+      }).join('');
+    } else box.innerHTML = block(fields);
     if (t.kind === 'select') {
       box.insertAdjacentHTML('beforeend', `<div class="btn-row">
         <button data-sel="all" title="Ctrl+A">All</button><button data-sel="none" title="Ctrl+D">Deselect</button>
@@ -576,7 +645,8 @@ export class Editor {
         // with a selection, the Move tool moves only the selected pixels (a quick transform)
         if (this.beginTransform({ moveOnly: true })) this.gesture = { type: 'xf', tool: 'move', id: e.pointerId, grab: 'move', t0: { ...this.xf.t }, p0: dp };
       }
-      else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId);
+      else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId, e.shiftKey);
+      else if (tool.kind === 'figure') this.beginFigure(dp, e.pointerId, e.shiftKey);
       else if (tool.kind === 'fill') this.fillAt(dp);
       else if (tool.kind === 'gradient') this.beginGradient(dp, e.pointerId);
       else if (tool.kind === 'text') { e.preventDefault(); this.textClick(dp); }
@@ -613,10 +683,12 @@ export class Editor {
           this.rulerDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'gradient') {
           this.gradientDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
+        } else if (g.type === 'figure') {
+          this.figureDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         }
       }
       const dp = toDoc(this.view, p.x, p.y);
-      this.root.querySelector('.cursor-pos').textContent = `${Math.floor(dp.x)}, ${Math.floor(dp.y)}`;
+      this.cursorPos.textContent = `${Math.floor(dp.x)}, ${Math.floor(dp.y)}`;
       this.drawOverlay();
     });
     const end = e => {
@@ -626,6 +698,7 @@ export class Editor {
       if (g.type === 'paint') this.endPaint();
       else if (g.type === 'guide' || g.type === 'vp') this.rulerEnd(this.pointer);
       else if (g.type === 'gradient') this.endGradient();
+      else if (g.type === 'figure') this.endFigure();
       else if (g.type === 'move') this.endMove();
       else if (g.type === 'select') this.endSelect();
       this.gesture = null;
@@ -664,21 +737,26 @@ export class Editor {
     c.clearRect(0, 0, this.doc.width, this.doc.height);
   }
 
-  beginPaint(toolId, pt, id) {
+  /** Pen down. With Shift, the stroke starts as a straight line from where the last stroke on this layer ended. */
+  beginPaint(toolId, pt, id, shift = false) {
     const tool = TOOL_BY_ID[toolId], s = this.settings[toolId];
     const layer = this.target(tool.erase ? 'erase' : 'draw on');
     if (!layer) return;
     this.resetStroke();
     const sizeAt = p => stampFor(s, pressureCurve(p, s.gamma)).size;
+    const line = shift && this.lastStroke && this.lastStroke.layer === layer ? this.lastStroke.pt : null;
     this.gesture = {
       type: 'paint', tool: toolId, id, s, sizeAt, layer, bounds: null, last: pt, erase: !!tool.erase,
       painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.inkFor(layer), hardness: s.hardness }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
-      snap: this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
+      snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
     };
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s) };
-    this.addPoint(pt);
+    if (line) {
+      this.addStampPoint({ ...line, p: pt.p });
+      for (const q of linePoints({ ...line, p: pt.p }, pt, 3)) this.addStampPoint(q);
+    } else this.addPoint(pt);
     this.requestRender();
   }
 
@@ -711,6 +789,7 @@ export class Editor {
     if (g.snap && !g.snap.line) for (const q of g.snap.held) this.addStampPoint(q);
     // stabilization lags behind the pen: catch up to where the pen was lifted
     if (g.s.smoothing && g.last) for (let i = 0; i < 12; i++) this.addStampPoint(g.last);
+    this.lastStroke = { layer: g.layer, pt: g.last };
     this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');
     if (!g.erase && g.layer.kind !== 'mask') this.colors.used();
   }
@@ -835,7 +914,7 @@ export class Editor {
   changed(r, { save = true } = {}) {
     this.updateComp(r);
     this.requestRender();
-    if (!this.thumbRaf) this.thumbRaf = requestAnimationFrame(() => { this.thumbRaf = 0; this.layerPanel.thumbs(); });
+    if (!this.thumbTimer) this.thumbTimer = setTimeout(() => { this.thumbTimer = 0; this.layerPanel.thumbs(); }, 150);
     if (save) {
       this.doc.version++;
       this.scheduleSave();
@@ -948,6 +1027,7 @@ export class Editor {
       'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
       'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportPng(),
       'ctrl+e': () => this.mergeDown(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
+      'ctrl+f': () => this.repeatFilter(),
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
       'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
     };
@@ -989,7 +1069,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
