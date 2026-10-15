@@ -22,7 +22,7 @@ export async function showGallery(root, { onOpen }) {
         <img src="icon.png" alt="" class="logo"><h1>KoeStudio</h1>
         <div class="grow"></div>
         <button class="primary" data-act="new">${icon('plus', 18)} New canvas</button>
-        <button data-act="import">Open image…</button>
+        <button data-act="import">Open image or project…</button>
         <button data-act="folder" title="Open the folder where artwork is saved">Artwork folder</button>
       </header>
       <div class="gal-grid" aria-live="polite"><p class="muted">Loading…</p></div>
@@ -122,11 +122,17 @@ export function newCanvasDialog() {
 function importImage(onOpen) {
   const inp = document.createElement('input');
   inp.type = 'file';
-  inp.accept = 'image/*';
+  inp.accept = 'image/*,.koe';
   inp.onchange = async () => {
     const f = inp.files[0];
     if (!f) return;
     try {
+      if (/\.koe$/i.test(f.name)) {  // a project file: becomes a new artwork in the gallery
+        const doc = await Doc.fromJSON(JSON.parse(await f.text()));
+        if (!doc.title || doc.title === 'Untitled') doc.title = f.name.replace(/\.koe$/i, '');
+        onOpen({ newDoc: doc });
+        return;
+      }
       const img = await loadImage(await fileToDataUrl(f));
       const s = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
       const w = Math.round(img.width * s), h = Math.round(img.height * s);

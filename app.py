@@ -215,6 +215,7 @@ EXPORT_TYPES = {
     'webp': lambda d: d[:4] == b'RIFF' and d[8:12] == b'WEBP',
     'gif': lambda d: d[:4] == b'GIF8',
     'bmp': lambda d: d[:2] == b'BM',
+    'koe': lambda d: d.lstrip()[:1] == b'{' and b'"format":"koe"' in d[:2000].replace(b' ', b''),
     'tga': lambda d: d.endswith(b'TRUEVISION-XFILE.\x00'),
 }
 

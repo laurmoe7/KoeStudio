@@ -86,6 +86,13 @@ class Storage(unittest.TestCase):
         with self.assertRaises(ValueError):
             app.export_png('x', b'not a png')
 
+    def test_export_project_file(self):
+        data = json.dumps(doc('Proj')).encode()
+        path = app.export_image('Proj', data, 'koe')['path']
+        self.assertEqual(os.path.basename(path), 'Proj.koe')
+        with self.assertRaises(ValueError):
+            app.export_image('x', b'{"a": 1}', 'koe')
+
     def test_export_other_formats(self):
         samples = {'gif': b'GIF89a....', 'bmp': b'BM....', 'jpg': b'\xff\xd8\xff....',
                    'webp': b'RIFF\x00\x00\x00\x00WEBPVP8 ', 'tga': b'\x00' * 18 + b'TRUEVISION-XFILE.\x00'}

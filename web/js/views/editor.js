@@ -219,6 +219,7 @@ export class Editor {
         { label: 'Save now', key: 'Ctrl+S', run: () => this.save() },
         { label: 'Export as PNG…', key: 'Ctrl+Shift+S', run: () => this.exportAs('png') },
         { label: 'Export as other format…', run: () => this.exportAs() },
+        { label: 'Save project file (.koe)…', run: () => this.saveProjectFile() },
         '-',
         { label: 'Import image as layer…', run: () => this.pickImage() },
         { label: 'Open artwork folder', run: () => api.openFolder() },
@@ -1026,6 +1027,18 @@ export class Editor {
       toast('Exported to ' + res.path, { action: { label: 'Show folder', run: () => api.openFolder('Exports') }, ms: 6000 });
     } catch (e) {
       toast('Export failed: ' + e.message, { error: true });
+    }
+  }
+
+  /** Writes a self-contained .koe project (layers, masks, text, rulers…) to the Exports folder; reopen it with "Open image or project…" in the gallery. */
+  async saveProjectFile() {
+    if (this.xf || this.textEdit) { toast('Finish the current edit first.'); return; }
+    try {
+      const json = await this.doc.toJSON();
+      const res = await api.exportImage(this.doc.title, 'koe', new Blob([JSON.stringify(json)]));
+      toast('Project saved to ' + res.path, { action: { label: 'Show folder', run: () => api.openFolder('Exports') }, ms: 6000 });
+    } catch (e) {
+      toast('Could not save project: ' + e.message, { error: true });
     }
   }
 
