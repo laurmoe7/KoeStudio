@@ -7,7 +7,7 @@ $root = Split-Path $PSScriptRoot -Parent
 $classes = 'HKCU:\Software\Classes'
 
 if ($Remove) {
-    Remove-Item "$classes\.koe", "$classes\KoeStudio.Project" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$classes\Applications\KoeStudio.exe", "$classes\.koe", "$classes\KoeStudio.Project" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item 'HKCU:\Software\KoeStudio' -Recurse -Force -ErrorAction SilentlyContinue
     Remove-ItemProperty 'HKCU:\Software\RegisteredApplications' -Name 'KoeStudio' -ErrorAction SilentlyContinue
     Write-Host 'Removed the .koe association'
@@ -26,8 +26,12 @@ if ($Remove) {
     Set-ItemProperty "$classes\KoeStudio.Project" -Name '(default)' -Value 'KoeStudio project'
     New-Item "$classes\KoeStudio.Project\DefaultIcon" -Force | Out-Null
     Set-ItemProperty "$classes\KoeStudio.Project\DefaultIcon" -Name '(default)' -Value ((Join-Path $root 'web\icon.ico') + ',0')
-    Set-ItemProperty "$classes\KoeStudio.Project\shell\open\command" -Name '(default)' `
-        -Value ('"{0}" "{1}" "%1"' -f $pyw.Source, (Join-Path $root 'app.py'))
+    # Run the launcher (see make_launcher.ps1) when it exists, so Windows shows a program called KoeStudio;
+    # otherwise start pythonw directly.
+    $exe = Join-Path $root 'KoeStudio.exe'
+    if (Test-Path $exe) { $cmd = '"{0}" "%1"' -f $exe }
+    else { $cmd = '"{0}" "{1}" "%1"' -f $pyw.Source, (Join-Path $root 'app.py') }
+    Set-ItemProperty "$classes\KoeStudio.Project\shell\open\command" -Name '(default)' -Value $cmd
     # Make "KoeStudio" a named choice in Open with and Settings > Default apps, so nobody has to browse to pythonw.exe
     # (picking that runs the .koe file as a script, which fails).
     New-Item "$classes\.koe\OpenWithProgids" -Force | Out-Null
@@ -40,6 +44,15 @@ if ($Remove) {
     Set-ItemProperty 'HKCU:\Software\KoeStudio\Capabilities\FileAssociations' -Name '.koe' -Value 'KoeStudio.Project'
     New-Item 'HKCU:\Software\RegisteredApplications' -Force | Out-Null
     Set-ItemProperty 'HKCU:\Software\RegisteredApplications' -Name 'KoeStudio' -Value 'Software\KoeStudio\Capabilities'
+    if (Test-Path $exe) {  # a named app in the Open with list
+        $app = "$classes\Applications\KoeStudio.exe"
+        New-Item "$app\shell\open\command" -Force | Out-Null
+        Set-ItemProperty $app -Name 'FriendlyAppName' -Value 'KoeStudio'
+        Set-ItemProperty "$app\shell\open\command" -Name '(default)' -Value $cmd
+        New-Item "$app\SupportedTypes" -Force | Out-Null
+        New-ItemProperty "$app\SupportedTypes" -Name '.koe' -Value '' -PropertyType String -Force | Out-Null
+        New-Item "$classes\.koe\OpenWithList\KoeStudio.exe" -Force | Out-Null
+    }
     Write-Host 'Registered .koe files to open with KoeStudio'
 }
 # tell Explorer the associations changed
