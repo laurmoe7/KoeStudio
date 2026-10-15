@@ -85,3 +85,22 @@ test('brush settings: tips, curves and saved brushes', () => {
   assert.ok(!('tip' in sanitizeSettings(null).smudge), 'Smudge has no tip');
   assert.ok(BRUSH_KEYS.includes('tip') && BRUSH_KEYS.includes('size') && !BRUSH_KEYS.includes('preset'));
 });
+
+test('dab variation and the starting taper', async () => {
+  const { dabJitter, taperIn } = await import('../web/js/brush.js');
+  const seq = list => () => list.shift();
+  // angle 0.25 turn (straight down), radius sqrt(0.25) * 1 * 10 = 5; size 1 - 0.5 * 0.5, density 1 - 0.2 * 0.5
+  const j = dabJitter({ scatter: 1, sizeJitter: 0.5, flowJitter: 0.2 }, 10, seq([0.25, 0.25, 0.5, 0.5]));
+  near(j.dx, 0, 'dx');
+  near(j.dy, 5, 'dy');
+  near(j.sizeK, 0.75, 'size');
+  near(j.flowK, 0.9, 'density');
+  assert.deepEqual(dabJitter({}, 10, () => { throw new Error('no randomness needed'); }), { dx: 0, dy: 0, sizeK: 1, flowK: 1 });
+  near(taperIn(0, 100), 0.1, 'starts at 10%');
+  near(taperIn(50, 100), 0.775, 'halfway: 0.1 + 0.9 * 0.5 * 1.5');
+  near(taperIn(100, 100), 1, 'full size at the end of the taper');
+  near(taperIn(10, 0), 1, 'off');
+  const pen = sanitizeSettings({ pen: { scatter: 5, taperIn: -3 } }).pen;
+  assert.equal(pen.scatter, 2, 'clamped');
+  assert.equal(pen.taperIn, 0);
+});

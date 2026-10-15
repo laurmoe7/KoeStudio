@@ -1,7 +1,7 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, stampAt, stampBounds } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds, dabJitter, taperIn } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex } from '../color.js';
 import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource } from '../doc.js';
@@ -291,9 +291,11 @@ export class Editor {
       filter: this.filterMenuItems(),
       layer: [
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
-        { label: 'Duplicate layer', run: () => this.layerDuplicate() },
-        { label: 'Delete layer', run: () => this.layerDelete() },
         { label: 'New folder', run: () => this.folderAdd() },
+        { label: 'Duplicate layer', run: () => this.layerDuplicate() },
+        { label: 'Rename…', key: 'F2', run: () => this.renameLayer() },
+        { label: 'Delete layer', run: () => this.layerDelete() },
+        '-',
         { label: 'Put in new folder', key: 'Ctrl+G', run: () => this.groupIntoFolder() },
         isFolder(d.active)
           ? { label: 'Merge folder', key: 'Ctrl+E', run: () => this.mergeFolder(d.active) }
@@ -314,7 +316,6 @@ export class Editor {
         { label: 'Flip layer vertically', run: () => this.flipPixels(this.layerRasters(), 'v', 'Flip layer') },
         '-',
         { label: 'Rasterize text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
-        { label: 'Rename…', run: async () => { const n = await promptBox('Rename', 'Name', d.active.name); if (n) this.setLayerProp(d.active, 'name', n, 'Rename'); } },
       ],
       view: [
         { label: 'Zoom in', key: 'Ctrl+=', run: () => this.zoomStep(1) },
@@ -327,16 +328,19 @@ export class Editor {
         { label: 'Reset rotation', key: '5', run: () => this.rotate(null) },
         { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         '-',
-        { label: 'Symmetry ruler', checked: d.rulers.symmetry.kind !== 'off', run: () => this.toggleSymmetry() },
-        { label: 'Symmetry settings…', run: () => this.symmetryDialog() },
         { label: 'Grid', key: "Ctrl+'", checked: d.rulers.grid.show, run: () => this.toggleGrid() },
         { label: 'Grid settings…', run: () => this.gridDialog() },
         { label: 'Edge rulers', checked: this.showRulers, run: () => this.toggleEdgeRulers() },
-        { label: 'Show mask area (while painting on a mask)', checked: this.maskOverlay, run: () => this.toggleMaskOverlay() },
+        '-',
         { label: 'Guides and perspective', key: 'Ctrl+;', checked: d.rulers.visible, run: () => this.toggleRulerVisibility() },
         { label: 'Snap to rulers', key: 'Ctrl+2', checked: d.rulers.snap, run: () => this.toggleSnap() },
         { label: 'Perspective ruler…', key: 'U', run: () => this.selectTool('ruler') },
         { label: 'Clear guides', run: () => this.clearGuides(), disabled: !d.rulers.guides.length },
+        '-',
+        { label: 'Symmetry ruler', checked: d.rulers.symmetry.kind !== 'off', run: () => this.toggleSymmetry() },
+        { label: 'Symmetry settings…', run: () => this.symmetryDialog() },
+        '-',
+        { label: 'Show mask area (while painting on a mask)', checked: this.maskOverlay, run: () => this.toggleMaskOverlay() },
         '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
       ],
@@ -794,7 +798,7 @@ export class Editor {
     const reach = tipReach(hasTipImage(s.tip)) * 2;
     const line = shift && this.lastStroke && this.lastStroke.layer === layer ? this.lastStroke.pt : null;
     this.gesture = {
-      type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, bounds: null, last: pt, erase: !!tool.erase,
+      type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, bounds: null, last: pt, erase: !!tool.erase,
       painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.inkFor(layer), hardness: s.hardness,
         tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow }),
       smoother: new Smoother(s.smoothing),
@@ -821,11 +825,19 @@ export class Editor {
     g.last = pt;
     const stamps = g.path.add(g.smoother.add(pt));
     if (!stamps.length) return;
+    for (const st of stamps) {  // distance along the stroke (for the taper) and random variation; symmetric copies share it
+      if (g.prevStamp) g.dist += Math.hypot(st.x - g.prevStamp.x, st.y - g.prevStamp.y);
+      g.prevStamp = { x: st.x, y: st.y };
+      const j = dabJitter(g.s, stampAt(g.s, st.p).size);
+      st.x += j.dx; st.y += j.dy;
+      st.k = j.sizeK * taperIn(g.dist, g.s.taperIn);
+      st.f = j.flowK;
+    }
     const all = symmetryStamps(this.doc.rulers.symmetry, stamps, this.doc.width, this.doc.height);
     const per = all.length / stamps.length;  // copies of each stamp, in order
     all.forEach((st, i) => {
       const { size, flow } = stampAt(g.s, st.p);
-      g.painter.dab(st.x, st.y, size, flow, i % per);
+      g.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per);
     });
     const r = stampBounds(all, g.reachAt);
     g.bounds = union(g.bounds, r);
@@ -1095,6 +1107,7 @@ export class Editor {
       'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'), 'ctrl+alt+shift+s': () => this.exportAs(),
       'ctrl+e': () => this.mergeDown(), 'ctrl+alt+shift+e': () => this.mergeVisible(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
       'ctrl+f': () => this.repeatFilter(),
+      'f2': () => this.renameLayer(),
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
       'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
     };
@@ -1104,6 +1117,8 @@ export class Editor {
     const fn = map[c];
     if (fn) { e.preventDefault(); if (!this.gesture) fn(); }
   }
+
+  renameLayer() { this.layerPanel.rename(this.doc.active); }
 
   /** While transforming, only Enter, Esc, the arrows, undo and view keys work. */
   onTransformKey(e, c) {
@@ -1141,8 +1156,9 @@ Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, l
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (key === 'corner') return Math.round(v) + ' px';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
+  if (key === 'taperIn') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);
 }

@@ -56,6 +56,29 @@ export function stampAt(s, p) {
   return { size: Math.max(0.5, size), flow };
 }
 
+/**
+ * Random variation of one dab: an offset of up to scatter x its size in any direction, and size and density
+ * lowered by up to sizeJitter / flowJitter. rnd() gives numbers in [0, 1) (Math.random, or a fixed list in tests).
+ */
+export function dabJitter(s, size, rnd = Math.random) {
+  const out = { dx: 0, dy: 0, sizeK: 1, flowK: 1 };
+  if (s.scatter > 0) {
+    const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * s.scatter * size;  // even spread over the disc
+    out.dx = Math.cos(a) * r;
+    out.dy = Math.sin(a) * r;
+  }
+  if (s.sizeJitter > 0) out.sizeK = 1 - s.sizeJitter * rnd();
+  if (s.flowJitter > 0) out.flowK = 1 - s.flowJitter * rnd();
+  return out;
+}
+
+/** Size factor of the starting taper: grows from 10% to full over the first `length` pixels of the stroke. */
+export function taperIn(dist, length) {
+  if (!(length > 0) || dist >= length) return 1;
+  const t = Math.max(0, dist) / length;
+  return 0.1 + 0.9 * t * (2 - t);  // eases out: quick at first, then settles
+}
+
 /** Size and opacity of one stamp for a tool's settings at pressure p (already curved). */
 export function stampFor(settings, p) {
   const minSize = settings.minSize ?? 0.1;

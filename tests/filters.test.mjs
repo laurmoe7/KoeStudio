@@ -250,3 +250,18 @@ test('colour balance moves the midtones and leaves black and white', () => {
   assert.equal(balanceLut(0)[77], 77);
   assert.deepEqual(px(colorBalance(pixels(1, 1, [128, 128, 128, 255]), 100, 0, -100), 0), [192, 128, 64, 255]);
 });
+
+test('curves', async () => {
+  const { curvesLut, curves, sanitizeParams, defaultParams, FILTER_BY_ID } = await import('../web/js/filters.js');
+  const id = curvesLut([[0, 0], [1, 1]]);
+  assert.deepEqual([id[0], id[51], id[200], id[255]], [0, 51, 200, 255], 'the diagonal changes nothing');
+  const inv = curvesLut([[0, 1], [1, 0]]);
+  assert.deepEqual([inv[0], inv[51], inv[255]], [255, 204, 0], 'inverted: 1 - 0.2 = 0.8 of 255');
+  // red inverted first, then everything halved by the RGB curve: 0 -> 255 -> 127.5 (rounds to 128); 128 -> 64; 255 -> 128
+  const px = Uint8ClampedArray.from([0, 128, 255, 77]);
+  curves(px, { rgb: [[0, 0], [1, 0.5]], r: [[0, 1], [1, 0]], g: [[0, 0], [1, 1]], b: [[0, 0], [1, 1]] });
+  assert.deepEqual([...px], [128, 64, 128, 77], 'alpha untouched');
+  const f = FILTER_BY_ID.curves;
+  assert.deepEqual(sanitizeParams(f, { r: 'nope', g: [[0, 0.2], [1, 0.9]] }),
+    { ...defaultParams(f), g: [[0, 0.2], [1, 0.9]] }, 'a broken curve becomes the diagonal');
+});

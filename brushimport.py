@@ -345,11 +345,11 @@ def _abr_brushes(samples, patterns, desc, filename):
 
 
 def _dyn(d, key):
-    """A dynamics entry: (control index, jitter 0-1, minimum 0-1)."""
+    """A dynamics entry: (control index, jitter (1 = 100%; scatter goes past it), minimum 0-1)."""
     v = d.get(key)
     if not isinstance(v, dict):
         return 0, 0, 0
-    return _num(v.get('bVTy'), 0), _clamp(_num(v.get('jitter'), 0) / 100, 0, 1), _clamp(_num(v.get('Mnm '), 0) / 100, 0, 1)
+    return _num(v.get('bVTy'), 0), max(0, _num(v.get('jitter'), 0) / 100), _clamp(_num(v.get('Mnm '), 0) / 100, 0, 1)
 
 
 def _abr_settings(b):
@@ -381,10 +381,9 @@ def _abr_settings(b):
             s['minSize'] = round(_clamp(_num(b.get('minimumDiameter'), 0) / 100, 0, 1), 2)
         else:
             s['pressureSize'] = False
-        if jitter:
-            notes.append('Size jitter')
+        s['sizeJitter'] = round(_clamp(jitter, 0, 1), 2)
         control, jitter, _ = _dyn(b, 'angleDynamics')
-        s['tipRandom'] = round(jitter, 2)
+        s['tipRandom'] = round(_clamp(jitter, 0, 1), 2)
         s['tipFollow'] = control in (DIRECTION, INITIAL_DIRECTION)
         if _dyn(b, 'roundnessDynamics')[1]:
             notes.append('Roundness jitter')
@@ -395,12 +394,13 @@ def _abr_settings(b):
         oc, oj, omin = _dyn(b, 'opVr')
         s['pressureOpacity'] = PEN_PRESSURE in (fc, oc)
         s['minFlow'] = round(fmin if fc == PEN_PRESSURE else omin, 2)
-        if fj or oj:
-            notes.append('Opacity or flow jitter')
+        s['flowJitter'] = round(_clamp(max(fj, oj), 0, 1), 2)
     else:
         s['pressureOpacity'] = False
     if b.get('useScatter'):
-        notes.append('Scatter')
+        s['scatter'] = round(_clamp(_dyn(b, 'scatterDynamics')[1], 0, 2), 2)  # Photoshop: a share of the diameter
+        if (_num(b.get('Cnt '), 1) or 1) > 1:
+            notes.append('Several dabs per step (count)')
     tex = None
     t = b.get('Txtr')
     if b.get('useTexture') and isinstance(t, dict):
@@ -545,8 +545,13 @@ def _procreate_settings(b):
         s['textureScale'] = round(_clamp(scale, 0.25, 4), 2)
     if isinstance(b.get('grainInverted'), bool):
         s['textureInvert'] = b['grainInverted']
-    if (_pnum(b, 'plotJitter') or 0) > 0:
-        notes.append('Jitter')
+    jit = _pnum(b, 'plotJitter', 0, 2)
+    if jit is not None:
+        s['scatter'] = round(jit, 2)
+    for key, setting in (('dynamicsJitterSize', 'sizeJitter'), ('dynamicsJitterOpacity', 'flowJitter')):
+        v = _pnum(b, key)
+        if v is not None:
+            s[setting] = round(v, 2)
     if b.get('dynamicsSpeedSize') or b.get('dynamicsSpeedOpacity'):
         notes.append('Speed effects')
     if b.get('dynamicsWetEdges') or b.get('dynamicsMix'):

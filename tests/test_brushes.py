@@ -113,7 +113,7 @@ def make_abr():
          'angleDynamics': {'bVTy': 6, 'jitter': ('#Prc', 40.0)},
          'usePaintDynamics': True, 'prVr': {'bVTy': 2, 'Mnm ': ('#Prc', 20.0)},
          'useTexture': True, 'Txtr': {'_class': 'Ptrn', 'Nm  ': 'Paper', 'Idnt': '$p'}, 'textureDepth': ('#Prc', 60.0),
-         'textureScale': ('#Prc', 200.0), 'InvT': True, 'useScatter': True,
+         'textureScale': ('#Prc', 200.0), 'InvT': True, 'useScatter': True, 'scatterDynamics': {'bVTy': 0, 'jitter': ('#Prc', 150.0)},
          'toolOptions': {'Opct': ('#Prc', 80.0), 'flow': ('#Prc', 50.0)}},
         {'Nm  ': 'Round', 'Brsh': {'_class': 'computedBrush', 'Dmtr': ('#Pxl', 9.0), 'Hrdn': ('#Prc', 50.0), 'Spcn': ('#Prc', 25.0)}},
         {'Nm  ': 'Wide', 'Brsh': {'_class': 'sampledBrush', 'Dmtr': ('#Pxl', 2.0), 'sampledData': '$b'}},
@@ -166,10 +166,10 @@ class AbrReader(unittest.TestCase):
         pencil = res['brushes'][0]
         self.assertEqual(pencil['settings'], {
             'size': 30, 'spacing': 0.15, 'tipAngle': 330, 'thickness': 0.5, 'hardness': 1,  # 30° counter-clockwise
-            'pressureSize': True, 'minSize': 0.25, 'tipRandom': 0.4, 'tipFollow': True,
-            'pressureOpacity': True, 'minFlow': 0.2, 'textureAmount': 0.6, 'textureScale': 2, 'textureInvert': True,
-            'opacity': 0.8, 'flow': 0.5, 'gamma': 1})
-        self.assertEqual(pencil['notes'], ['Size jitter', 'Scatter'])
+            'pressureSize': True, 'minSize': 0.25, 'sizeJitter': 0.1, 'tipRandom': 0.4, 'tipFollow': True,
+            'pressureOpacity': True, 'minFlow': 0.2, 'flowJitter': 0, 'scatter': 1.5,  # scatter 150% of the diameter
+            'textureAmount': 0.6, 'textureScale': 2, 'textureInvert': True, 'opacity': 0.8, 'flow': 0.5, 'gamma': 1})
+        self.assertEqual(pencil['notes'], [])
         self.assertEqual(res['brushes'][1]['settings']['tip'], 'round')
         self.assertEqual(res['brushes'][1]['settings']['hardness'], 0.5)
         self.assertEqual(res['brushes'][3]['tip'], pencil['tip'], 'the same tip is shared')
@@ -201,14 +201,15 @@ class AbrReader(unittest.TestCase):
 class ProcreateReader(unittest.TestCase):
     def test_single_brush(self):
         data = make_zip({'Brush.archive': keyed_archive({'name': 'Charcoal', 'paintSize': 0.5, 'plotSpacing': 0.08, 'shapeScatter': 0.3,
-                                                         'dynamicsPressureSize': 0.6, 'shapeInverted': True, 'grainDepth': 0.7}),
+                                                         'dynamicsPressureSize': 0.6, 'shapeInverted': True, 'grainDepth': 0.7,
+                                                         'plotJitter': 0.25, 'dynamicsJitterSize': 0.5}),
                          'Shape.png': PNG, 'Grain.png': PNG, 'QuickLook/Thumbnail.png': PNG})
         res = bi.import_brushes('Charcoal.brush', data)
         b = res['brushes'][0]
         self.assertEqual(b['name'], 'Charcoal')
         # size 3 + 297 * 0.5² = 77.25
         self.assertEqual(b['settings'], {'hardness': 1, 'gamma': 1, 'size': 77, 'spacing': 0.08, 'tipRandom': 0.3,
-                                         'pressureSize': True, 'minSize': 0.4, 'textureAmount': 0.7})
+                                         'pressureSize': True, 'minSize': 0.4, 'textureAmount': 0.7, 'scatter': 0.25, 'sizeJitter': 0.5})
         tip, grain = res['images'][b['tip']], res['images'][b['texture']]
         self.assertEqual((tip['kind'], tip['white'], tip['invert']), ('tip', True, True))
         self.assertEqual((grain['kind'], grain['name']), ('texture', 'Charcoal grain'))

@@ -66,12 +66,16 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .gal-top .logo { width: 32px; height: 32px; }
 .gal-grid { flex: 1; overflow: auto; padding: 22px; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px; align-content: start; }
 .gal-grid > p, .gal-grid .empty { grid-column: 1 / -1; }
-.empty { text-align: center; margin-top: 12vh; font-size: 15px; }
+.empty { text-align: center; margin-top: 12vh; font-size: 15px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.empty p { margin: 4px 0; }
+.empty .empty-art { color: var(--accent); opacity: .8; margin-bottom: 6px; }
+.empty button { margin-top: 12px; }
 .card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; transition: border-color .12s, transform .12s; }
 .card:hover, .card:focus-visible { border-color: var(--accent); transform: translateY(-2px); outline: none; }
 .card .thumb { aspect-ratio: 4 / 3; background: repeating-conic-gradient(#2c2d33 0 25%, #26272c 0 50%) 0 0 / 16px 16px; display: grid; place-items: center; }
 .card .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
 .card-info { padding: 8px 10px 10px; }
+.card-info .muted { line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-more { position: absolute; top: 6px; right: 6px; background: rgba(20,20,24,.75); opacity: 0; }
 .card:hover .card-more, .card-more:focus-visible { opacity: 1; }
@@ -156,6 +160,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .cp-hex { width: 84px; font-family: Consolas, monospace; }
 .cp-recent { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; min-height: 18px; }
 .cp-recent button { width: 18px; height: 18px; padding: 0; border-radius: 3px; border: 1px solid #111; }
+.cp-recent:not(:empty)::before { content: 'Recent'; width: 100%; font-size: 11px; color: var(--muted); }
 
 /* layer panel */
 .layer-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 6px; }
@@ -266,7 +271,8 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .fb-name { display: flex; align-items: center; gap: 4px; }
 .fb-name input { flex: 1; }
 .fb-dest { display: flex; gap: 6px; align-items: center; }
-.fb-dest code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; direction: rtl; text-align: left; }
+.fb-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-size: 12px;
+  padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--text); }
 
 /* saved brushes, pressure curves, brush import */
 .preset-row { display: flex; align-items: center; gap: 2px; margin-bottom: 4px; }
@@ -283,3 +289,7 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 .import-list .pick-row img { background: #fff; }
 .import-list .pick-row img.white-tip { background: #000; }
 .round-tip { width: 64px; height: 48px; flex: none; border-radius: 4px; background: radial-gradient(circle, #111 0 14px, #fff 15px); }
+
+/* Curves */
+.curves { display: flex; flex-direction: column; gap: 8px; }
+.curve-box { width: 256px; height: 256px; align-self: center; background: #17181c; border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }

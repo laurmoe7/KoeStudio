@@ -3,6 +3,8 @@
 // area being filtered (margin, so a blur at a selection's edge sees what is around it), and apply(data, w, h,
 // params, x0, y0), x0/y0 being where the data sits in the document (for filters with a grid).
 
+import { curveAt, sanitizeCurve } from './brush.js';
+
 /** A filter dialog's slider: {key, label, min, max, step, value (default), unit}. */
 const f = (key, label, min, max, step, value, unit = '') => ({ key, label, min, max, step, value, unit });
 
@@ -24,6 +26,7 @@ export const FILTERS = [
     margin: () => 0, apply: (d, w, h, p) => brightnessContrast(d, p.brightness, p.contrast) },
   { id: 'hsl', label: 'Hue/Saturation/Lightness…', fields: [f('hue', 'Hue', -180, 180, 1, 0, '°'), f('saturation', 'Saturation', -100, 100, 1, 0), f('lightness', 'Lightness', -100, 100, 1, 0)],
     margin: () => 0, apply: (d, w, h, p) => hueSaturation(d, p.hue, p.saturation, p.lightness) },
+  { id: 'curves', label: 'Curves…', fields: [], curves: true, margin: () => 0, apply: (d, w, h, p) => curves(d, p) },
   { id: 'levels', label: 'Levels…', fields: [f('inLow', 'Input black', 0, 254, 1, 0), f('inHigh', 'Input white', 1, 255, 1, 255), f('gamma', 'Gamma', 0.1, 10, 0.01, 1),
     f('outLow', 'Output black', 0, 255, 1, 0), f('outHigh', 'Output white', 0, 255, 1, 255)],
     margin: () => 0, apply: (d, w, h, p) => levels(d, p) },
@@ -36,11 +39,13 @@ export const FILTER_BY_ID = Object.fromEntries(FILTERS.filter(x => x !== '-').ma
 
 /** A filter's default parameters. */
 export function defaultParams(filter) {
+  if (filter.curves) return Object.fromEntries(CURVE_CHANNELS.map(([k]) => [k, [[0, 0], [1, 1]]]));
   return Object.fromEntries(filter.fields.map(x => [x.key, x.value]));
 }
 
 /** Keeps each parameter a number within its slider's range (anything else becomes the default). */
 export function sanitizeParams(filter, raw) {
+  if (filter.curves) return Object.fromEntries(CURVE_CHANNELS.map(([k]) => [k, sanitizeCurve(raw?.[k]) || [[0, 0], [1, 1]]]));
   const out = {};
   for (const x of filter.fields) {
     const v = Number(raw?.[x.key]);
@@ -240,6 +245,29 @@ export function balanceLut(shift) {
 /** Colour balance: cyan–red, magenta–green and yellow–blue, each -100..100. */
 export function colorBalance(data, red, green, blue) {
   const luts = [balanceLut(red), balanceLut(green), balanceLut(blue)];
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = luts[0][data[i]]; data[i + 1] = luts[1][data[i + 1]]; data[i + 2] = luts[2][data[i + 2]];
+  }
+  return data;
+}
+
+/** The channels Curves can change: the RGB curve applies to all three, after each one's own curve. */
+export const CURVE_CHANNELS = [['rgb', 'RGB'], ['r', 'Red'], ['g', 'Green'], ['b', 'Blue']];
+
+/** A 256-entry table from a curve of [x, y] points in 0-1 (see curveAt: smooth, never overshooting). */
+export function curvesLut(points) {
+  const lut = new Uint8ClampedArray(256);
+  for (let v = 0; v < 256; v++) lut[v] = Math.round(curveAt(points, v / 255) * 255);
+  return lut;
+}
+
+/** Curves: each channel through its own curve, then all three through the RGB curve. */
+export function curves(data, p) {
+  const all = curvesLut(p.rgb), luts = [p.r, p.g, p.b].map(c => {
+    const own = curvesLut(c), out = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) out[v] = all[own[v]];
+    return out;
+  });
   for (let i = 0; i < data.length; i += 4) {
     data[i] = luts[0][data[i]]; data[i + 1] = luts[1][data[i + 1]]; data[i + 2] = luts[2][data[i + 2]];
   }

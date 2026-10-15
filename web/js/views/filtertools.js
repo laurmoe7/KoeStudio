@@ -2,7 +2,8 @@
 // dialog whose sliders change the layer live; OK records one undo step, Cancel puts the pixels back.
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
-import { FILTERS, FILTER_BY_ID, defaultParams, sanitizeParams, mixByMask } from '../filters.js';
+import { FILTERS, FILTER_BY_ID, CURVE_CHANNELS, defaultParams, sanitizeParams, mixByMask } from '../filters.js';
+import { curveAt } from '../brush.js';
 import { clip } from '../rect.js';
 import { esc, modal, store, toast } from '../ui.js';
 
@@ -41,11 +42,12 @@ export const filterMethods = {
     if (fixed) {
       params = job.params = sanitizeParams(filter, fixed);
       this.previewFilter(job);
-    } else if (filter.fields.length) {
+    } else if (filter.fields.length || filter.curves) {
       job.params = sanitizeParams(filter, (store('filters') || {})[id]);
       this.previewFilter(job);
       // one preview per frame, however fast the slider moves
-      params = await filterDialog(filter, job.params, p => {
+      const dialog = filter.curves ? (f, p, cb) => curvesDialog(f, p, cb, histogram(orig, selData)) : filterDialog;
+      params = await dialog(filter, job.params, p => {
         job.params = p;
         cancelAnimationFrame(job.raf);
         job.raf = requestAnimationFrame(() => this.previewFilter(job));
@@ -63,7 +65,7 @@ export const filterMethods = {
       this.changed(null, { save: false });
       return;
     }
-    if (filter.fields.length) store('filters', { ...(store('filters') || {}), [id]: params });
+    if (filter.fields.length || filter.curves) store('filters', { ...(store('filters') || {}), [id]: params });
     this.lastFilter = { id, params };
     const a = area;
     const before = new ImageData(new Uint8ClampedArray(a.w * a.h * 4), a.w, a.h);
@@ -147,5 +149,132 @@ function filterDialog(filter, params, onChange) {
       root.querySelectorAll('input[data-k]').forEach(inp => { raw[inp.dataset.k] = inp.value; });
       return sanitizeParams(filter, raw);
     },
+  });
+}
+
+/** How many pixels of each brightness (0-255) there are, counting only painted pixels inside the selection. */
+function histogram(img, selData) {
+  const h = new Uint32Array(256), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (!d[i + 3] || (selData && !selData[i + 3])) continue;
+    h[(d[i] * 77 + d[i + 1] * 151 + d[i + 2] * 28) >> 8]++;
+  }
+  return h;
+}
+
+const CURVE_PX = 256;  // drawing size of the curve box, CSS px
+const GRAB_PX = 9;     // how close a click must be to grab a point
+const DROP_PX = 24;    // a point dragged this far out of the box is removed
+
+/**
+ * Curves: drag the points of each channel's curve; click to add one, drag one out of the box (or double-click
+ * it) to remove it. Resolves to the params ({rgb, r, g, b}: point lists), or null when cancelled.
+ */
+function curvesDialog(filter, params, onChange, hist) {
+  let p = JSON.parse(JSON.stringify(params)), ch = 'rgb';
+  const colors = { rgb: '#e8e8ea', r: '#ff6b6b', g: '#5fd47f', b: '#6ea8ff' };
+  const copy = () => JSON.parse(JSON.stringify(p));
+  return modal({
+    title: 'Curves',
+    body: `<div class="curves">
+        <label class="slider"><span>Channel</span><select data-ch>${CURVE_CHANNELS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+        <canvas class="curve-box"></canvas>
+        <p class="muted small">Click to add a point and drag to bend the curve. Drag a point out of the box, or double-click it, to remove it.</p>
+      </div>
+      <div class="btn-row"><button type="button" data-reset-ch>Reset channel</button><button type="button" data-reset>Reset all</button></div>`,
+    buttons: [{ label: 'Cancel', value: null }, { label: 'OK', primary: true }],
+    live: true,
+    onOpen: root => {
+      const cv = root.querySelector('canvas'), dpr = window.devicePixelRatio || 1;
+      cv.width = cv.height = CURVE_PX * dpr;
+      const ctx = cv.getContext('2d');
+      const max = Math.max(1, ...hist);
+      const toPx = ([x, y]) => [x * CURVE_PX, (1 - y) * CURVE_PX];
+      const drawCurve = (k, alpha) => {
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = colors[k];
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i <= 128; i++) {
+          const x = i / 128, [px, py] = toPx([x, curveAt(p[k], x)]);
+          if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      };
+      const draw = (drop = -1) => {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, CURVE_PX, CURVE_PX);
+        ctx.fillStyle = 'rgba(255,255,255,.08)';
+        for (let v = 0; v < 256; v++) {  // histogram, square-root scaled so small counts still show
+          const hh = Math.sqrt(hist[v] / max) * CURVE_PX;
+          ctx.fillRect(v * CURVE_PX / 256, CURVE_PX - hh, CURVE_PX / 256 + 0.5, hh);
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,.12)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 1; i < 4; i++) {
+          const q = Math.round(i * CURVE_PX / 4) + 0.5;
+          ctx.moveTo(q, 0); ctx.lineTo(q, CURVE_PX); ctx.moveTo(0, q); ctx.lineTo(CURVE_PX, q);
+        }
+        ctx.moveTo(0, CURVE_PX); ctx.lineTo(CURVE_PX, 0);
+        ctx.stroke();
+        for (const [k] of CURVE_CHANNELS) if (k !== ch) drawCurve(k, 0.25);  // the other channels faintly
+        drawCurve(ch, 1);
+        p[ch].forEach((pt, i) => {
+          const [x, y] = toPx(pt);
+          ctx.fillStyle = i === drop ? '#ff6b6b' : '#fff';
+          ctx.strokeStyle = '#111';
+          ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        });
+      };
+      const changed = () => { draw(); onChange(copy()); };
+      const at = e => {
+        const r = cv.getBoundingClientRect();
+        return [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height, r];
+      };
+      const pointAt = (x, y) => p[ch].findIndex(q => Math.hypot((q[0] - x) * CURVE_PX, (q[1] - y) * CURVE_PX) <= GRAB_PX);
+      let drag = null;
+      cv.addEventListener('pointerdown', e => {
+        const [x, y] = at(e), pts = p[ch];
+        let i = pointAt(x, y);
+        if (i < 0) {  // a new point where clicked
+          if (pts.some(q => Math.abs(q[0] - x) < 0.02)) return;
+          i = pts.findIndex(q => q[0] > x);
+          if (i < 0) i = pts.length;
+          pts.splice(i, 0, [Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y))]);
+        }
+        drag = { i, drop: false };
+        try { cv.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+        changed();
+      });
+      cv.addEventListener('pointermove', e => {
+        if (!drag) return;
+        const [x, y, r] = at(e), pts = p[ch], i = drag.i;
+        const lo = i > 0 ? pts[i - 1][0] + 0.01 : 0, hi = i < pts.length - 1 ? pts[i + 1][0] - 0.01 : 1;
+        pts[i] = [Math.max(lo, Math.min(hi, x)), Math.max(0, Math.min(1, y))];
+        const out = e.clientX < r.left - DROP_PX || e.clientX > r.right + DROP_PX || e.clientY < r.top - DROP_PX || e.clientY > r.bottom + DROP_PX;
+        drag.drop = out && i > 0 && i < pts.length - 1;
+        draw(drag.drop ? i : -1);
+        onChange(copy());
+      });
+      const up = () => {
+        if (!drag) return;
+        if (drag.drop) p[ch].splice(drag.i, 1);
+        drag = null;
+        changed();
+      };
+      cv.addEventListener('pointerup', up);
+      cv.addEventListener('pointercancel', up);
+      cv.addEventListener('dblclick', e => {
+        const [x, y] = at(e), i = pointAt(x, y);
+        if (i > 0 && i < p[ch].length - 1) { p[ch].splice(i, 1); changed(); }
+      });
+      root.querySelector('[data-ch]').onchange = e => { ch = e.target.value; draw(); };
+      root.querySelector('[data-reset-ch]').onclick = () => { p[ch] = [[0, 0], [1, 1]]; changed(); };
+      root.querySelector('[data-reset]').onclick = () => { p = defaultParams(filter); changed(); };
+      draw();
+    },
+    collect: () => sanitizeParams(filter, p),
   });
 }

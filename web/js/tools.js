@@ -14,7 +14,7 @@ export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['re
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false,
-    minFlow: 0, sizeCurve: null, flowCurve: null, preset: '' };
+    minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, taperIn: 0, preset: '' };
 }
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
@@ -79,6 +79,10 @@ export const SETTING_FIELDS = [
   ['tipRandom', 'Random turn', 'range', 0, 1, 0.01],
   ['tipFollow', 'Turn with the stroke', 'check'],
   ['minFlow', 'Min. density', 'range', 0, 1, 0.01],
+  ['scatter', 'Scatter', 'range', 0, 2, 0.01],
+  ['sizeJitter', 'Size jitter', 'range', 0, 1, 0.01],
+  ['flowJitter', 'Density jitter', 'range', 0, 1, 0.01],
+  ['taperIn', 'Start taper', 'range', 0, 500, 1],
   ['sizeCurve', 'Size curve', 'curve'],
   ['flowCurve', 'Density curve', 'curve'],
   ['texture', 'Texture', 'choice', TEXTURES],
@@ -102,10 +106,11 @@ export const SETTING_FIELDS = [
 
 /** Which group of the tool panel a paint setting belongs to (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
-  ['Brush', ['size', 'opacity', 'flow', 'hardness']],
+  ['Paint', ['size', 'opacity', 'flow', 'hardness']],
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
-  ['Stroke', ['spacing', 'smoothing']],
+  ['Stroke', ['spacing', 'smoothing', 'taperIn']],
+  ['Variation', ['scatter', 'sizeJitter', 'flowJitter']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert']],
 ];
 
@@ -143,6 +148,10 @@ export const SETTING_HINTS = {
   sizeCurve: 'How pen pressure maps to size (from an imported brush); it replaces the Pressure setting for size',
   flowCurve: 'How pen pressure maps to density (from an imported brush); it replaces the Pressure setting for density',
   textureInvert: 'Swaps the texture: paint goes into the dark parts instead of the light ones',
+  scatter: 'Moves each dab a random distance from the stroke, up to this many times the brush size',
+  sizeJitter: 'Makes each dab smaller by a random amount, up to this share of its size',
+  flowJitter: 'Makes each dab lighter by a random amount, up to this share of its density',
+  taperIn: 'Starts each stroke thin and grows to full size over this many pixels (0 = off)',
 };
 
 /** Every tool's settings, starting from its defaults and keeping only valid stored values. */
