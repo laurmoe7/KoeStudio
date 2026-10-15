@@ -1,7 +1,7 @@
 // Guides, perspective rulers and stroke snapping. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeRulers, newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, MAX_GUIDES } from '../web/js/rulers.js';
+import { sanitizeRulers, sanitizeGrid, gridStep, newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, MAX_GUIDES } from '../web/js/rulers.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, msg || `${a} ≈ ${b}`);
@@ -14,7 +14,8 @@ test('sanitizing', () => {
   assert.equal(r.visible, true);
   assert.equal(sanitizeRulers({ guides: Array.from({ length: 150 }, () => ({ axis: 'h', pos: 1 })) }).guides.length, MAX_GUIDES);
   assert.equal(sanitizeRulers(null).perspective, null);
-  assert.deepEqual(sanitizeDoc({}).rulers, { guides: [], perspective: null, visible: true, snap: true }, 'old files get empty rulers');
+  assert.deepEqual(sanitizeDoc({}).rulers, { guides: [], perspective: null, visible: true, snap: true,
+    grid: { show: false, size: 100, div: 4, snap: false } }, 'old files get empty rulers and a hidden grid');
 });
 
 test('new perspective rulers', () => {
@@ -57,4 +58,22 @@ test('snapping to guides', () => {
   assert.equal(guideAt(r.guides, { x: 302, y: 0 }, 4), 1);
   assert.equal(guideAt(r.guides, { x: 0, y: 47 }, 4), 0);
   assert.equal(guideAt(r.guides, { x: 0, y: 0 }, 4), -1);
+});
+
+test('grid settings', () => {
+  assert.deepEqual(sanitizeGrid({ show: true, size: 64.4, div: 0, snap: 'yes' }), { show: true, size: 64, div: 1, snap: false });
+  assert.deepEqual(sanitizeGrid({ size: 99999, div: 50 }), { show: false, size: 5000, div: 20, snap: false });
+  assert.deepEqual(sanitizeGrid({ size: 'x', div: null }), { show: false, size: 100, div: 4, snap: false });
+  assert.equal(gridStep({ size: 100, div: 4 }), 25);
+});
+
+test('strokes snap to the nearest grid line only when grid snapping is on', () => {
+  const grid = { show: true, size: 100, div: 4, snap: true };  // a line every 25 px
+  const r = { guides: [], perspective: null, visible: true, snap: true, grid };
+  const c = snapCandidates(r, { x: 48, y: 74 }, 3);  // 2 px from x = 50, 1 px from y = 75
+  assert.deepEqual(c.map(x => [x.kind, x.p.x, x.p.y, x.d.x, x.d.y]), [['grid', 48, 75, 1, 0], ['grid', 50, 74, 0, 1]]);
+  assert.equal(snapCandidates(r, { x: 40, y: 10 }, 3).length, 0, 'between lines');
+  assert.equal(snapCandidates({ ...r, grid: { ...grid, snap: false } }, { x: 48, y: 74 }, 3).length, 0);
+  assert.equal(snapCandidates({ ...r, grid: { ...grid, show: false } }, { x: 48, y: 74 }, 3).length, 0, 'a hidden grid does not snap');
+  assert.equal(snapCandidates({ ...r, visible: false }, { x: 48, y: 74 }, 3).length, 2, 'hiding guides leaves the grid');
 });

@@ -5,8 +5,8 @@
 // the artwork (doc.rulers); the edge rulers themselves are a view setting.
 
 import { icon } from '../icons.js';
-import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, MAX_GUIDES } from '../rulers.js';
-import { store, toast } from '../ui.js';
+import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, sanitizeGrid, MAX_GUIDES } from '../rulers.js';
+import { modal, store, toast } from '../ui.js';
 import { matrix, toScreen, toDoc } from '../view.js';
 
 export const RULER_PX = 20;   // thickness of the edge rulers, in screen pixels
@@ -16,6 +16,9 @@ const SNAP_PX = 6;            // how far the pen moves before a stroke picks its
 const LINE_COLOR = 'rgba(64, 200, 255, 0.85)';
 const PERSPECTIVE_COLOR = 'rgba(190, 120, 255, 0.35)';
 const HORIZON_COLOR = 'rgba(190, 120, 255, 0.9)';
+const GRID_COLOR = 'rgba(80, 140, 255, 0.55)';
+const GRID_SUB_COLOR = 'rgba(80, 140, 255, 0.22)';
+const GRID_MIN_PX = 5;        // grid lines closer than this on screen are left out
 
 const clone = r => JSON.parse(JSON.stringify(r));
 
@@ -58,6 +61,42 @@ export const rulerMethods = {
     this.rulersChanged();
   },
 
+  /** View → Grid (Ctrl+'): a setting saved with the artwork, not an undo step. */
+  toggleGrid() {
+    const g = this.doc.rulers.grid;
+    g.show = !g.show;
+    this.rulersChanged();
+  },
+
+  /** View → Grid settings…: spacing, divisions and snapping. Shows the grid while the dialog is open. */
+  async gridDialog() {
+    const r = this.doc.rulers, before = { ...r.grid };
+    const read = root => sanitizeGrid({
+      show: true, size: root.querySelector('[name="size"]').value, div: root.querySelector('[name="div"]').value,
+      snap: root.querySelector('[name="snap"]').checked,
+    });
+    const res = await modal({
+      title: 'Grid',
+      body: `
+        <div class="field-row">
+          <label class="field"><span>Spacing (px)</span><input type="number" name="size" min="2" max="5000" value="${before.size}"></label>
+          <label class="field"><span>Divisions</span><input type="number" name="div" min="1" max="20" value="${before.div}"></label>
+        </div>
+        <label class="check"><input type="checkbox" name="snap"${before.snap ? ' checked' : ''}> Strokes started on a grid line follow it (with Snap to rulers on)</label>
+        <p class="muted small">A strong line every spacing, divided into thinner ones. View → Grid (Ctrl+') shows or hides it.</p>`,
+      buttons: [{ label: 'Cancel', value: null }, { label: 'OK', primary: true }],
+      live: true,
+      onOpen: root => {
+        const show = () => { r.grid = read(root); this.drawOverlay(); };
+        root.querySelectorAll('input').forEach(el => el.addEventListener('input', show));
+        show();
+      },
+      collect: root => read(root),
+    });
+    r.grid = res || before;
+    this.rulersChanged();
+  },
+
   toggleSnap() {
     const r = this.doc.rulers;
     r.snap = !r.snap;
@@ -76,7 +115,8 @@ export const rulerMethods = {
   updateSnapButton() {
     const b = this.root.querySelector('[data-act="snap"]');
     if (!b) return;
-    const on = this.doc.rulers.snap && this.doc.rulers.visible && (this.doc.rulers.guides.length || this.doc.rulers.perspective);
+    const r = this.doc.rulers;
+    const on = r.snap && ((r.visible && (r.guides.length || r.perspective)) || (r.grid.show && r.grid.snap));
     b.classList.toggle('on', !!this.doc.rulers.snap);
     b.title = `Snap strokes to rulers: ${this.doc.rulers.snap ? 'on' : 'off'} (Ctrl+2)${on ? '' : ' — add a guide or perspective ruler to use it'}`;
   },
@@ -185,6 +225,7 @@ export const rulerMethods = {
     const sp = (x, y) => [(a * x + c * y + e) * dpr, (b * x + dd * y + f) * dpr];
     const FAR = 1e5;
     ctx.save();
+    if (r.grid.show) this.drawGrid(ctx, sp, dpr);
     if (r.visible && r.perspective) {
       const pts = r.perspective.points;
       // radiating lines, kept inside the canvas
@@ -237,6 +278,31 @@ export const rulerMethods = {
       else { ctx.moveTo(...sp(gd.pos, -FAR)); ctx.lineTo(...sp(gd.pos, FAR)); }
     }
     ctx.stroke();
+    ctx.restore();
+  },
+
+  /** The grid over the canvas: main lines every grid.size, thinner ones between; too dense lines are left out. */
+  drawGrid(ctx, sp, dpr) {
+    const d = this.doc, g = this.doc.rulers.grid, zoom = this.view.zoom, step = gridStep(g);
+    const subs = step * zoom >= GRID_MIN_PX, mains = g.size * zoom >= GRID_MIN_PX;
+    if (!mains) return;
+    const lines = (main) => {
+      ctx.beginPath();
+      for (let i = 0, x = 0; x <= d.width + 1e-6; x = ++i * step) {
+        if ((i % g.div === 0) !== main) continue;
+        ctx.moveTo(...sp(x, 0)); ctx.lineTo(...sp(x, d.height));
+      }
+      for (let i = 0, y = 0; y <= d.height + 1e-6; y = ++i * step) {
+        if ((i % g.div === 0) !== main) continue;
+        ctx.moveTo(...sp(0, y)); ctx.lineTo(...sp(d.width, y));
+      }
+      ctx.stroke();
+    };
+    ctx.save();
+    ctx.lineWidth = dpr;
+    if (subs && g.div > 1) { ctx.strokeStyle = GRID_SUB_COLOR; lines(false); }
+    ctx.strokeStyle = GRID_COLOR;
+    lines(true);
     ctx.restore();
   },
 

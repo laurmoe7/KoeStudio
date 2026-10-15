@@ -1,7 +1,9 @@
 // Guides, perspective rulers and snapping (pure, tested).
 //
 // doc.rulers = { guides: [{axis: 'h'|'v', pos}], perspective: {points: [{x, y}] (1-3 vanishing points)} | null,
-//                visible, snap }. A horizontal guide ('h') is the line y = pos; a vertical one ('v') is x = pos.
+//                visible, snap, grid: {show, size, div, snap} }. A horizontal guide ('h') is the line y = pos; a
+//                vertical one ('v') is x = pos. The grid has a line every `size` px, split into `div` parts, from
+//                the top-left corner; with grid.snap a stroke starting near a grid line can follow it.
 // While snapping is on, a stroke follows one line: once the pen has moved a little, the candidate line closest
 // to the stroke's direction is picked (towards a vanishing point, the perspective's horizontal/vertical, or a
 // guide the stroke started on), and every point is projected onto it.
@@ -10,8 +12,19 @@ export const MAX_GUIDES = 100;
 const FAR = 200000;  // vanishing points may sit far outside the canvas (20 x the largest canvas side)
 
 export function defaultRulers() {
-  return { guides: [], perspective: null, visible: true, snap: true };
+  return { guides: [], perspective: null, visible: true, snap: true, grid: defaultGrid() };
 }
+
+export const defaultGrid = () => ({ show: false, size: 100, div: 4, snap: false });
+
+export function sanitizeGrid(raw) {
+  const g = raw && typeof raw === 'object' ? raw : {};
+  const int = (v, lo, hi, def) => (Number.isFinite(+v) && v !== null && v !== '' ? Math.min(hi, Math.max(lo, Math.round(+v))) : def);
+  return { show: g.show === true, size: int(g.size, 2, 5000, 100), div: int(g.div, 1, 20, 4), snap: g.snap === true };
+}
+
+/** Spacing between neighbouring grid lines (subdivisions included). */
+export const gridStep = g => g.size / g.div;
 
 export function sanitizeRulers(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
@@ -23,7 +36,7 @@ export function sanitizeRulers(raw) {
   let perspective = null;
   const pts = Array.isArray(r.perspective?.points) ? r.perspective.points.filter(p => num(p?.x) !== null && num(p?.y) !== null) : [];
   if (pts.length) perspective = { points: pts.slice(0, 3).map(p => ({ x: num(p.x), y: num(p.y) })) };
-  return { guides, perspective, visible: r.visible !== false, snap: r.snap !== false };
+  return { guides, perspective, visible: r.visible !== false, snap: r.snap !== false, grid: sanitizeGrid(r.grid) };
 }
 
 /** Vanishing points for a new 1-, 2- or 3-point perspective ruler on a w x h canvas (horizon at 40% height). */
@@ -52,8 +65,14 @@ const unit = (x, y) => { const l = Math.hypot(x, y); return l ? { x: x / l, y: y
 
 /** Lines a stroke starting at `start` may snap to: [{p: point on the line, d: unit direction, kind}]. */
 export function snapCandidates(rulers, start, guideTol) {
-  if (!rulers?.visible) return [];
   const out = [];
+  const g = rulers?.grid;
+  if (g?.show && g.snap) {  // the nearest grid line each way, like a guide
+    const step = gridStep(g), gy = Math.round(start.y / step) * step, gx = Math.round(start.x / step) * step;
+    if (Math.abs(start.y - gy) <= guideTol) out.push({ p: { x: start.x, y: gy }, d: { x: 1, y: 0 }, kind: 'grid' });
+    if (Math.abs(start.x - gx) <= guideTol) out.push({ p: { x: gx, y: start.y }, d: { x: 0, y: 1 }, kind: 'grid' });
+  }
+  if (!rulers?.visible) return out;
   const pts = rulers.perspective?.points || [];
   for (const vp of pts) {
     const d = unit(vp.x - start.x, vp.y - start.y);
