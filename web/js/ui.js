@@ -22,7 +22,7 @@ export function toast(text, { error = false, action = null, ms = 3500 } = {}) {
 
 /**
  * Shows a modal. body is HTML; buttons are [{label, value, primary}]. Resolves with the clicked button's value
- * (or null on Escape / backdrop). onOpen(root) runs after it is in the page; collect(root) runs before resolving
+ * (or null on Escape / backdrop). onOpen(root, close) runs after it is in the page (close(value) ends the dialog); collect(root) runs before resolving
  * the primary button and its result is returned instead of the value (return undefined to keep the dialog open).
  * live: the dialog previews its effect on the canvas, so it sits at the bottom and does not dim the screen.
  */
@@ -51,7 +51,7 @@ export function modal({ title, body, buttons = [{ label: 'OK', value: true, prim
     back.querySelectorAll('.modal-buttons button').forEach(el => { el.onclick = () => finish(buttons[+el.dataset.i]); });
     document.addEventListener('keydown', key, true);
     document.body.append(back);
-    onOpen?.(back);
+    onOpen?.(back, done);
     (back.querySelector('input, select') || back.querySelector('button.primary'))?.focus();
   });
 }
@@ -90,6 +90,10 @@ export function menu(button, items) {
   m.style.left = r.left + 'px';
   m.style.top = r.bottom + 2 + 'px';
   document.body.append(m);
+  // keep it on screen: open leftwards / upwards when there is no room
+  const mr = m.getBoundingClientRect();
+  if (mr.right > innerWidth - 4) m.style.left = Math.max(4, r.right - mr.width) + 'px';
+  if (mr.bottom > innerHeight - 4) m.style.top = Math.max(4, Math.min(r.top - 2 - mr.height, innerHeight - 4 - mr.height)) + 'px';
   setTimeout(() => document.addEventListener('pointerdown', outside, true));
   function outside(e) {
     if (!m.contains(e.target)) { closeMenus(); document.removeEventListener('pointerdown', outside, true); }

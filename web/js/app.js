@@ -28,9 +28,14 @@ async function gallery() {
 
 async function open({ id, newDoc }) {
   closeMenus();
+  if (editor) {  // opening another artwork from the editor (File → Earlier versions…)
+    await editor.flush().catch(() => {});
+    editor.destroy();
+    editor = null;
+  }
   root.innerHTML = '<div class="loading muted">Opening…</div>';
   try {
-    editor = await openEditor(root, { id, newDoc, onHome: gallery });
+    editor = await openEditor(root, { id, newDoc, onHome: gallery, onOpen: open });
     remember({ view: 'editor', id: editor.doc.id });
     // a new artwork gets its id from the first save
     if (!editor.doc.id) editor.save().then(() => editor && remember({ view: 'editor', id: editor.doc.id }));

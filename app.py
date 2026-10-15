@@ -73,7 +73,8 @@ def log_error(text):
 
 # ---------- artwork storage ----------
 # Each artwork is <id>.koe (JSON: size, paper, layers as PNG data URLs) plus .thumbs/<id>.png.
-# Delete moves both into .deleted/ so nothing is lost by a mis-click.
+# Delete moves both into .deleted/ so nothing is lost by a mis-click, and the gallery can put them back.
+# Saving keeps the file it replaces in .backups/ every BACKUP_EVERY seconds, the newest BACKUP_KEEP per artwork.
 
 def _check_id(art_id):
     if not ID_RE.match(art_id or ''):
@@ -168,6 +169,64 @@ def load_art(art_id):
         return json.load(f)
 
 
+BACKUP_EVERY = 10 * 60  # seconds between kept versions of one artwork
+BACKUP_KEEP = 5         # earlier versions kept per artwork
+STAMPED_RE = re.compile(r'^([0-9a-f]{8,32})-(\d+)\.koe$')  # <id>-<unix time>.koe in .backups/ and .deleted/
+
+
+def _backup_dir():
+    return os.path.join(art_dir(), '.backups')
+
+
+def list_backups(art_id):
+    """Earlier versions of an artwork, newest first: [{name, kept, modified, size}]. `kept` is when the backup was
+    taken (from its name), `modified` when that version was saved."""
+    _check_id(art_id)
+    d = _backup_dir()
+    out = []
+    if os.path.isdir(d):
+        for name in os.listdir(d):
+            m = STAMPED_RE.match(name)
+            if m and m.group(1) == art_id:
+                st = os.stat(os.path.join(d, name))
+                out.append({'name': name, 'kept': int(m.group(2)), 'modified': st.st_mtime, 'size': st.st_size})
+    out.sort(key=lambda b: -b['kept'])
+    return out
+
+
+def _keep_backup(art_id, path, now=None):
+    """Before an artwork is overwritten, keeps the file being replaced in .backups/ when the newest kept version is
+    older than BACKUP_EVERY, and drops versions past BACKUP_KEEP. A hard link costs nothing (the old file is
+    replaced, never changed in place); where links are not possible it is copied."""
+    if not os.path.exists(path):
+        return
+    now = time.time() if now is None else now
+    old = list_backups(art_id)
+    if old and now - old[0]['kept'] < BACKUP_EVERY:
+        return
+    os.makedirs(_backup_dir(), exist_ok=True)
+    target = os.path.join(_backup_dir(), f'{art_id}-{int(now)}.koe')
+    if not os.path.exists(target):
+        try:
+            os.link(path, target)
+        except OSError:
+            import shutil
+            shutil.copy2(path, target)
+    for b in list_backups(art_id)[BACKUP_KEEP:]:
+        try:
+            os.remove(os.path.join(_backup_dir(), b['name']))
+        except OSError:
+            pass
+
+
+def load_backup(art_id, name):
+    m = STAMPED_RE.match(name or '')
+    if not m or m.group(1) != _check_id(art_id):
+        raise ValueError('Bad backup name')
+    with open(os.path.join(_backup_dir(), name), encoding='utf-8') as f:
+        return json.load(f)
+
+
 def save_art(art_id, doc):
     """Writes the artwork; a missing id makes a new one. The thumbnail travels in doc['thumb'] and is stored apart."""
     if not isinstance(doc, dict) or doc.get('format') != 'koe':
@@ -175,6 +234,7 @@ def save_art(art_id, doc):
     art_id = _check_id(art_id) if art_id else uuid.uuid4().hex[:16]
     path, thumb = _paths(art_id)
     thumb_url = doc.pop('thumb', None)
+    _keep_backup(art_id, path)
     _write_atomic(path, json.dumps(doc, separators=(',', ':')).encode('utf-8'))
     _write_atomic(_meta_path(art_id), json.dumps(_meta_of(doc)).encode('utf-8'))
     if thumb_url:
@@ -191,11 +251,107 @@ def delete_art(art_id):
         os.replace(path, os.path.join(trash, f'{art_id}-{stamp}.koe'))
     if os.path.exists(thumb):
         os.replace(thumb, os.path.join(trash, f'{art_id}-{stamp}.png'))
-    try:
-        os.remove(_meta_path(art_id))
+    try:  # the gallery details go along, so the Deleted list can show them without reading the artwork
+        os.replace(_meta_path(art_id), os.path.join(trash, f'{art_id}-{stamp}.json'))
     except OSError:
         pass
     return {'ok': True}
+
+
+def _trash():
+    return os.path.join(art_dir(), '.deleted')
+
+
+def list_deleted():
+    """Artwork in .deleted/, most recently deleted first: [{name, title, width, height, layers, deleted}]."""
+    out = []
+    d = _trash()
+    if not os.path.isdir(d):
+        return out
+    for name in os.listdir(d):
+        m = STAMPED_RE.match(name)
+        if not m:
+            continue
+        path = os.path.join(d, name)
+        try:
+            with open(path[:-4] + '.json', encoding='utf-8') as f:
+                meta = json.load(f)
+        except (OSError, ValueError):
+            try:  # deleted by an earlier version, which dropped the details
+                with open(path, encoding='utf-8') as f:
+                    meta = _meta_of(json.load(f))
+            except (OSError, ValueError):
+                continue
+        out.append({'name': name, **meta, 'deleted': int(m.group(2))})
+    out.sort(key=lambda a: -a['deleted'])
+    return out
+
+
+def deleted_thumb(name):
+    if not STAMPED_RE.match(name or ''):
+        raise ValueError('Bad name')
+    with open(os.path.join(_trash(), name[:-4] + '.png'), 'rb') as f:
+        return f.read()
+
+
+def restore_deleted(name):
+    """Puts a deleted artwork back in the gallery (under a new id if its old one has been taken since)."""
+    m = STAMPED_RE.match(name or '')
+    if not m:
+        raise ValueError('Bad name')
+    src = os.path.join(_trash(), name)
+    if not os.path.exists(src):
+        raise FileNotFoundError(name)
+    art_id = m.group(1)
+    if os.path.exists(_paths(art_id)[0]):
+        art_id = uuid.uuid4().hex[:16]
+    path, thumb = _paths(art_id)
+    os.makedirs(os.path.dirname(thumb), exist_ok=True)
+    os.replace(src, path)
+    os.utime(path)  # comes first in the gallery
+    for ext, dest in (('.png', thumb), ('.json', _meta_path(art_id))):
+        try:
+            os.replace(src[:-4] + ext, dest)
+            os.utime(dest)
+        except OSError:
+            pass
+    return {'id': art_id}
+
+
+def _rewrite(art_id, change):
+    """Loads an artwork, lets change(doc) edit it and writes it back (keeping a backup, as saving does)."""
+    path, _ = _paths(_check_id(art_id))
+    with open(path, encoding='utf-8') as f:
+        doc = json.load(f)
+    change(doc)
+    _keep_backup(art_id, path)
+    _write_atomic(path, json.dumps(doc, separators=(',', ':')).encode('utf-8'))
+    _write_atomic(_meta_path(art_id), json.dumps(_meta_of(doc)).encode('utf-8'))
+    return doc
+
+
+def rename_art(art_id, title):
+    title = (title or '').strip()[:120]
+    if not title:
+        raise ValueError('The title is empty')
+    _rewrite(art_id, lambda d: d.__setitem__('title', title))
+    return {'ok': True}
+
+
+def duplicate_art(art_id):
+    """Copies an artwork (and its thumbnail) to a new id, titled "<title> copy"."""
+    path, thumb = _paths(_check_id(art_id))
+    with open(path, encoding='utf-8') as f:
+        doc = json.load(f)
+    doc['title'] = ((doc.get('title') or 'Untitled') + ' copy')[:120]
+    new_id = uuid.uuid4().hex[:16]
+    new_path, new_thumb = _paths(new_id)
+    _write_atomic(new_path, json.dumps(doc, separators=(',', ':')).encode('utf-8'))
+    _write_atomic(_meta_path(new_id), json.dumps(_meta_of(doc)).encode('utf-8'))
+    if os.path.exists(thumb):
+        with open(thumb, 'rb') as f:
+            _write_atomic(new_thumb, f.read())
+    return {'id': new_id}
 
 
 def read_thumb(art_id):
@@ -305,7 +461,22 @@ class Handler(SimpleHTTPRequestHandler):
         n = int(self.headers.get('Content-Length') or 0)
         if n > MAX_BODY:
             raise ValueError('That is too big to save.')
+        self._body_read = True
         return self.rfile.read(n)
+
+    def _drop_body(self):
+        """A request body nobody read would stay in the kept-alive connection and be taken for the next request
+        (which then fails with 501), so read small ones away and close the connection after big ones."""
+        if getattr(self, '_body_read', False):
+            return
+        try:
+            n = int(self.headers.get('Content-Length') or 0)
+        except ValueError:
+            n = -1
+        if 0 < n <= 65536:
+            self.rfile.read(n)
+        elif n:
+            self.close_connection = True
 
     def _route(self, method):
         u = urlparse(self.path)
@@ -328,6 +499,20 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(save_art(p.get('id', ''), json.loads(self._raw() or b'null')))
             elif route == ('POST', 'art/delete'):
                 self._json(delete_art(p.get('id', '')))
+            elif route == ('POST', 'art/rename'):
+                self._json(rename_art(p.get('id', ''), p.get('title', '')))
+            elif route == ('POST', 'art/duplicate'):
+                self._json(duplicate_art(p.get('id', '')))
+            elif route == ('GET', 'art/backups'):
+                self._json(list_backups(p.get('id', '')))
+            elif route == ('GET', 'art/backup'):
+                self._json(load_backup(p.get('id', ''), p.get('name', '')))
+            elif route == ('GET', 'deleted'):
+                self._json(list_deleted())
+            elif route == ('GET', 'deleted/thumb'):
+                self._send(deleted_thumb(p.get('name', '')), 'image/png')
+            elif route == ('POST', 'deleted/restore'):
+                self._json(restore_deleted(p.get('name', '')))
             elif route == ('POST', 'export'):
                 self._json(export_image(p.get('name', ''), self._raw(), p.get('format', 'png')))
             elif route == ('POST', 'open-folder'):
@@ -363,10 +548,14 @@ class Handler(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
-        if not self._allowed():
-            self._refuse()
-        elif not self._route('POST'):
-            self._json({'error': 'not found'}, 404)
+        self._body_read = False
+        try:
+            if not self._allowed():
+                self._refuse()
+            elif not self._route('POST'):
+                self._json({'error': 'not found'}, 404)
+        finally:
+            self._drop_body()
 
 
 def start_server(port):

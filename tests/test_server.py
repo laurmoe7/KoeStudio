@@ -40,8 +40,8 @@ class Storage(unittest.TestCase):
         self.assertEqual(app.load_art(aid)['title'], 'Renamed')
         app.delete_art(aid)
         self.assertEqual(app.list_art(), [])
-        self.assertEqual(len(os.listdir(os.path.join(self.tmp.name, '.deleted'))), 2, 'file and thumbnail kept in .deleted')
-        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, '.thumbs', aid + '.json')))
+        self.assertEqual(len(os.listdir(os.path.join(self.tmp.name, '.deleted'))), 3, 'file, thumbnail and details kept in .deleted')
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, '.thumbs', aid + '.json')), 'details moved along')
 
     def test_listing_uses_saved_metadata_instead_of_parsing_artwork(self):
         aid = app.save_art('', doc('Quick'))['id']
@@ -65,6 +65,59 @@ class Storage(unittest.TestCase):
         later = os.path.getmtime(meta) + 5
         os.utime(path, (later, later))  # the artwork is newer than its metadata
         self.assertEqual(app.list_art()[0]['title'], 'Changed')
+
+    def test_backups_are_spaced_and_limited(self):
+        aid = app.save_art('', doc('v1'))['id']
+        self.assertEqual(app.list_backups(aid), [], 'nothing to back up on the first save')
+        app.save_art(aid, doc('v2'))
+        self.assertEqual(len(app.list_backups(aid)), 1)
+        self.assertEqual(app.load_backup(aid, app.list_backups(aid)[0]['name'])['title'], 'v1', 'the replaced version')
+        app.save_art(aid, doc('v3'))
+        self.assertEqual(len(app.list_backups(aid)), 1, 'no second backup within BACKUP_EVERY')
+        path = os.path.join(self.tmp.name, aid + '.koe')
+        start = app.list_backups(aid)[0]['kept']
+        for i in range(1, 8):  # each "save" an hour after the last
+            app._keep_backup(aid, path, now=start + i * 3600)
+        kept = app.list_backups(aid)
+        self.assertEqual(len(kept), app.BACKUP_KEEP)
+        self.assertEqual(kept[0]['kept'], start + 7 * 3600, 'newest first, oldest dropped')
+        self.assertEqual(app.load_art(aid)['title'], 'v3', 'the artwork itself is untouched')
+        with self.assertRaises(ValueError):
+            app.load_backup(aid, '../' + kept[0]['name'])
+        with self.assertRaises(ValueError):
+            app.load_backup('abcdef1234', kept[0]['name'])
+
+    def test_restore_deleted(self):
+        aid = app.save_art('', doc('Gone'))['id']
+        app.delete_art(aid)
+        gone = app.list_deleted()
+        self.assertEqual([(g['title'], g['layers']) for g in gone], [('Gone', 1)])
+        self.assertEqual(app.deleted_thumb(gone[0]['name']), PNG)
+        self.assertEqual(app.restore_deleted(gone[0]['name'])['id'], aid)
+        self.assertEqual([a['title'] for a in app.list_art()], ['Gone'])
+        self.assertEqual(app.read_thumb(aid), PNG)
+        self.assertEqual(app.list_deleted(), [])
+        # restored again after its id was reused: gets a new one
+        app.delete_art(aid)
+        name = app.list_deleted()[0]['name']
+        app.save_art(aid, doc('Newer'))
+        new_id = app.restore_deleted(name)['id']
+        self.assertNotEqual(new_id, aid)
+        self.assertEqual(sorted(a['title'] for a in app.list_art()), ['Gone', 'Newer'])
+        with self.assertRaises(ValueError):
+            app.restore_deleted('../x.koe')
+
+    def test_rename_and_duplicate(self):
+        aid = app.save_art('', doc('Orig'))['id']
+        app.rename_art(aid, '  New name ')
+        self.assertEqual(app.load_art(aid)['title'], 'New name')
+        self.assertEqual(app.list_art()[0]['title'], 'New name', 'gallery details follow')
+        with self.assertRaises(ValueError):
+            app.rename_art(aid, '   ')
+        copy = app.duplicate_art(aid)['id']
+        self.assertEqual(app.load_art(copy)['title'], 'New name copy')
+        self.assertEqual(app.read_thumb(copy), PNG)
+        self.assertEqual(len(app.list_art()), 2)
 
     def test_layer_count_includes_folders(self):
         d = doc()
@@ -160,6 +213,21 @@ class Http(unittest.TestCase):
         self.assertEqual(json.loads(data)['title'], 'Test')
         status, data, _ = self.req('GET', '/api/art/thumb?id=' + aid)
         self.assertEqual(data, PNG)
+
+    def test_unread_body_does_not_spoil_the_next_request(self):
+        aid = app.save_art('', doc('Keep'))['id']
+        c = http.client.HTTPConnection('127.0.0.1', self.port)
+        try:  # one kept-alive connection, as the browser uses; duplicate gets a body it does not read
+            c.request('POST', '/api/art/duplicate?id=' + aid, body=b'{}', headers={'Content-Type': 'application/json'})
+            r = c.getresponse()
+            r.read()
+            self.assertEqual(r.status, 200)
+            c.request('GET', '/api/art')
+            r = c.getresponse()
+            self.assertEqual(r.status, 200)
+            self.assertIn('Keep copy', [a['title'] for a in json.loads(r.read())])
+        finally:
+            c.close()
 
     def test_refuses_other_sites(self):
         status, _, _ = self.req('GET', '/api/art', headers={'Host': 'evil.example:80'})
