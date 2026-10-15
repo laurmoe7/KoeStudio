@@ -26,7 +26,7 @@ if ($Remove) {
     Set-ItemProperty "$classes\KoeStudio.Project" -Name '(default)' -Value 'KoeStudio project'
     New-Item "$classes\KoeStudio.Project\DefaultIcon" -Force | Out-Null
     Set-ItemProperty "$classes\KoeStudio.Project\DefaultIcon" -Name '(default)' -Value ((Join-Path $root 'web\icon.ico') + ',0')
-    # Run the launcher (see make_launcher.ps1) when it exists, so Windows shows a program called KoeStudio;
+    # Run the launcher when it exists, so Windows shows a program called KoeStudio;
     # otherwise start pythonw directly.
     $exe = Join-Path $root 'KoeStudio.exe'
     if (Test-Path $exe) { $cmd = '"{0}" "%1"' -f $exe }
