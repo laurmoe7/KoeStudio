@@ -4,7 +4,7 @@ A Windows drawing and painting program, built to grow into a full-purpose tool i
 
 ## Running it
 
-Double-click **KoeStudio** on the Desktop or in the Start menu. It runs straight from this folder (needs Python 3.10+ and `pip install -r requirements.txt`), so there is nothing to install or build. `Run KoeStudio.lnk` and `Run KoeStudio.bat` in this folder do the same.
+Double-click **KoeStudio** on the Desktop or in the Start menu. It runs straight from this folder (needs Python 3.10+ and `pip install -r requirements.txt`), so there is nothing to install or build. `Run KoeStudio.lnk` and `KoeStudio.exe` in this folder do the same.
 
 If you move the folder, recreate the shortcuts with `powershell -ExecutionPolicy Bypass -File tools\make_shortcut.ps1`.
 
