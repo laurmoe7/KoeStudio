@@ -1,6 +1,7 @@
 // Whole-canvas operations: canvas size, image size, crop (tool and to selection) and turning the canvas.
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
-// Every one goes through reshapeCanvas(): each layer gets a new canvas, and one undo step swaps them back.
+// Every one goes through reshapeCanvas(): each layer (and the quick mask, while it is on) gets a new canvas, and
+// one undo step swaps them back.
 
 import { ANCHORS, anchorOffset, validSide, keepRatio, rotatedSize, cropRect } from '../canvasmath.js';
 import { MAX_SIDE, renderFolder } from '../doc.js';
@@ -12,14 +13,13 @@ import { matrix, toDoc } from '../view.js';
 import { HANDLE_PX } from './selecttools.js';
 
 export const canvasMethods = {
-  /** Gives every layer a new w x h canvas drawn by paint(ctx, oldCanvas), as one undo step. */
+  /** Gives every layer and mask (the quick mask too) a new w x h canvas drawn by paint(ctx, oldCanvas), as one undo step. */
   reshapeCanvas(label, w, h, paint) {
     this.finishTransform();
     this.finishText();
-    if (this.quickMask) this.exitQuickMask();  // it is the size of the old canvas
     if (!validSide(w) || !validSide(h)) return toast(`Width and height must be between 1 and ${MAX_SIDE} pixels.`, { error: true });
     const d = this.doc;
-    const rasters = d.rasters();
+    const rasters = this.quickMask ? [...d.rasters(), this.quickMask] : d.rasters();  // the quick mask changes along
     const before = { w: d.width, h: d.height, canvases: new Map(rasters.map(l => [l, l.canvas])) };
     const after = { w, h, canvases: new Map() };
     for (const l of rasters) {
