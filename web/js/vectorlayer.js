@@ -35,7 +35,7 @@ export function renderVector(layer, rect = null) {
       random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7) });
     for (const st of strokeStamps(s, b)) {
       const { size, flow } = stampAt(b, st.p);
-      painter.dab(st.x, st.y, size * st.k, flow * st.f);
+      painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c);
     }
     const [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b) }, a);
     ctx.globalAlpha = s.opacity;

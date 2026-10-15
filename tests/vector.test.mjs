@@ -95,3 +95,15 @@ test('erase: up to intersection', () => {
   const cut = eraseVector(vec(line(0, 0, 20, 0, 2), line(7, -5, 7, 5, 1)), 'intersection', [15, 0], [15, 0], 1);
   assert.deepEqual(cut.strokes[0].pts, [[0, 0, 1], [7, 0, 1]], 'a crossing inside a long segment: the cut point is made there');
 });
+
+test('vector lines repeat their colour jitter', () => {
+  const line = { pts: [[0, 0, 1], [40, 0, 1]], seed: 7, color: '#ff0000' };
+  const b = sanitizeBrush({ size: 10, hueJitter: 1, pressureSize: false });
+  const one = strokeStamps(line, b), two = strokeStamps(line, b);
+  assert.deepEqual(one, two, 'the same seed gives the same colours');
+  assert.ok(one.every(st => /^#[0-9a-f]{6}$/.test(st.c)), 'every dab has a colour');
+  assert.ok(new Set(one.map(st => st.c)).size > 1, 'the colours vary');
+  const once = strokeStamps(line, sanitizeBrush({ size: 10, hueJitter: 1, colorJitterStroke: true, pressureSize: false }));
+  assert.ok(once.every(st => !('c' in st)), 'per stroke: the line colour is already varied');
+  assert.ok(strokeStamps(line, sanitizeBrush({ size: 10 })).every(st => !('c' in st)), 'no jitter, no colours');
+});

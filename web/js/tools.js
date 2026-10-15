@@ -14,7 +14,7 @@ export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['re
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false,
-    minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, taperIn: 0, taperOut: 0, preset: '' };
+    minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0, preset: '' };
 }
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
@@ -86,6 +86,10 @@ export const SETTING_FIELDS = [
   ['scatter', 'Scatter', 'range', 0, 2, 0.01],
   ['sizeJitter', 'Size jitter', 'range', 0, 1, 0.01],
   ['flowJitter', 'Density jitter', 'range', 0, 1, 0.01],
+  ['hueJitter', 'Hue jitter', 'range', 0, 1, 0.01],
+  ['satJitter', 'Saturation jitter', 'range', 0, 1, 0.01],
+  ['valJitter', 'Brightness jitter', 'range', 0, 1, 0.01],
+  ['colorJitterStroke', 'Once per stroke', 'check'],
   ['taperIn', 'Start taper', 'range', 0, 500, 1],
   ['taperOut', 'End taper', 'range', 0, 500, 1],
   ['sizeCurve', 'Size curve', 'curve'],
@@ -119,7 +123,7 @@ export const SETTING_GROUPS = [
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut']],
-  ['Variation', ['scatter', 'sizeJitter', 'flowJitter']],
+  ['Variation', ['scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert']],
 ];
 
@@ -163,6 +167,10 @@ export const SETTING_HINTS = {
   scatter: 'Moves each dab a random distance from the stroke, up to this many times the brush size',
   sizeJitter: 'Makes each dab smaller by a random amount, up to this share of its size',
   flowJitter: 'Makes each dab lighter by a random amount, up to this share of its density',
+  hueJitter: 'Turns the colour of each dab round the colour wheel by a random amount, up to this share of a half turn either way',
+  satJitter: 'Makes each dab more or less vivid by a random amount, up to this much either way',
+  valJitter: 'Makes each dab lighter or darker by a random amount, up to this much either way',
+  colorJitterStroke: 'Picks one varied colour for the whole stroke instead of a new one for every dab',
   taperIn: 'Starts each stroke thin and grows to full size over this many pixels (0 = off)',
   taperOut: 'Ends each stroke thin over this many pixels (0 = off). The last stretch appears when you lift the pen',
 };

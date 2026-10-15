@@ -38,7 +38,7 @@ export const GUIDE = [
       <li><b>Pen pressure</b>: what pressure changes (size, density) and how much.</li>
       <li><b>Stroke</b>: spacing between dabs, stabilization, and <b>Start / End taper</b> to begin or end strokes thin
       (the tapered end appears when you lift the pen).</li>
-      <li><b>Variation</b>: scatter dabs around the stroke, make them randomly smaller or lighter.</li>
+      <li><b>Variation</b>: scatter dabs around the stroke, make them randomly smaller or lighter, or vary their hue, saturation and brightness (per dab, or once per stroke).</li>
       <li><b>Texture</b>: a paper grain fixed to the canvas, so overlapping strokes share it.</li>
     </ul>
     <p>You can keep painting with the window open; drag it by its title bar.</p>

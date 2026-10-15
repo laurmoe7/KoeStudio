@@ -46,12 +46,12 @@ export const vectorMethods = {
    * Turns a finished pen stroke (its smoothed path, [[x, y, p]]) into vector lines, one per symmetric copy, and
    * replaces the live stroke with them. s: the tool settings it was drawn with.
    */
-  commitVectorStroke(layer, pts, s, opacity, label) {
+  commitVectorStroke(layer, pts, s, opacity, label, color = this.inkFor(layer)) {
     this.live = null;
     if (!pts.length) { this.updateComp(null); this.requestRender(); return; }
     const d = this.doc, base = resample(pts, Math.max(1, Math.min(4, s.size * 0.15)));
     const copies = base.map(([x, y]) => symmetryPoints(d.rulers.symmetry, x, y, d.width, d.height));
-    const r2 = v => Math.round(v * 100) / 100, color = this.inkFor(layer);
+    const r2 = v => Math.round(v * 100) / 100;
     const strokes = copies[0].map((_, k) => ({
       pts: base.map((q, i) => [r2(copies[i][k].x), r2(copies[i][k].y), q[2]]),
       color, opacity, seed: Math.floor(Math.random() * 2147483646) + 1,

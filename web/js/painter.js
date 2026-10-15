@@ -38,8 +38,9 @@ export class Painter {
   constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random }) {
     this.ctx = ctx;
     this.color = color;
-    const mask = tipImages.get(imageRef(tip));
-    this.image = mask ? tinted(mask, color) : null;
+    this.hardness = hardness;
+    this.mask = tipImages.get(imageRef(tip)) || null;
+    this.image = this.mask ? tinted(this.mask, color) : null;
     this.hard = !this.image && hardness >= 0.99;
     if (!this.image && !this.hard) this.tip = makeTip(color, hardness);
     this.squash = Math.max(0.05, Math.min(1, thickness));
@@ -50,8 +51,18 @@ export class Painter {
     this.last = [];  // per symmetric copy: last dab position and direction
   }
 
-  /** One dab; k numbers the symmetric copy it belongs to, so each copy follows its own direction. */
-  dab(x, y, size, alpha, k = 0) {
+  /** Paints the next dabs in another colour (colour jitter); the tip is redrawn into its own canvas. */
+  setColor(color) {
+    if (color === this.color) return;
+    this.color = color;
+    if (this.image) this.image = tinted(this.mask, color, this.image);
+    else if (!this.hard) this.tip = makeTip(color, this.hardness, this.tip);
+  }
+
+  /** One dab; k numbers the symmetric copy it belongs to, so each copy follows its own direction. With a colour,
+   * this dab (and the next ones) take it. */
+  dab(x, y, size, alpha, k = 0, color = null) {
+    if (color) this.setColor(color);
     const ctx = this.ctx;
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     const rot = this.rotation(x, y, k);
@@ -93,10 +104,9 @@ export class Painter {
   }
 }
 
-/** The tip shape filled with the brush colour. */
-function tinted(mask, color) {
-  const c = document.createElement('canvas');
-  c.width = mask.width; c.height = mask.height;
+/** The tip shape filled with the brush colour (into canvas c when given). */
+function tinted(mask, color, c = document.createElement('canvas')) {
+  c.width = mask.width; c.height = mask.height;  // also clears a reused canvas
   const ctx = c.getContext('2d');
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, c.width, c.height);
@@ -105,8 +115,7 @@ function tinted(mask, color) {
   return c;
 }
 
-function makeTip(color, hardness) {
-  const c = document.createElement('canvas');
+function makeTip(color, hardness, c = document.createElement('canvas')) {
   c.width = c.height = TIP;
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(TIP / 2, TIP / 2, 0, TIP / 2, TIP / 2, TIP / 2);

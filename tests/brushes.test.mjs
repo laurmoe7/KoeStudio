@@ -111,3 +111,25 @@ test('dab variation and the starting taper', async () => {
   assert.equal(pen.scatter, 2, 'clamped');
   assert.equal(pen.taperIn, 0);
 });
+
+test('colour jitter', async () => {
+  const { colorJitter } = await import('../web/js/brush.js');
+  const { shiftColor } = await import('../web/js/color.js');
+  const seq = list => () => list.shift();
+  // hue: (0.75 * 2 - 1) * 0.5 * 180 = 45; no saturation jitter takes no number; brightness (0.25 * 2 - 1) * 0.2 = -0.1
+  const j = colorJitter({ hueJitter: 0.5, valJitter: 0.2 }, seq([0.75, 0.25]));
+  near(j.h, 45, 'hue'); near(j.s, 0, 'saturation'); near(j.v, -0.1, 'brightness');
+  assert.equal(colorJitter({ hueJitter: 0 }, () => { throw new Error('no randomness needed'); }), null);
+  assert.equal(shiftColor('#ff0000', { h: 120 }), '#00ff00', 'red turned a third of the way round is green');
+  assert.equal(shiftColor('#ff0000', { h: -480 }), '#0000ff', 'turns wrap round');
+  assert.equal(shiftColor('#ff0000', { s: -1 }), '#ffffff', 'no saturation left: white at full brightness');
+  assert.equal(shiftColor('#ff0000', { v: -0.5 }), '#800000', 'half brightness: 127.5 rounds up');
+  assert.equal(shiftColor('#808080', { s: 0.5 }), '#804040', 'gray gains red (hue 0): 128 and 128 - 64');
+  assert.equal(shiftColor('#ffffff', { v: 0.5 }), '#ffffff', 'clamped');
+  assert.equal(shiftColor('nope', { h: 10 }), 'nope');
+  const pen = sanitizeSettings({ pen: { hueJitter: 3, colorJitterStroke: true } }).pen;
+  assert.equal(pen.hueJitter, 1, 'clamped');
+  assert.equal(pen.colorJitterStroke, true);
+  assert.equal(sanitizeSettings(null).brush.satJitter, 0, 'off by default');
+  assert.ok(BRUSH_KEYS.includes('valJitter') && BRUSH_KEYS.includes('colorJitterStroke'), 'saved with brushes');
+});

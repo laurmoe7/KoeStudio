@@ -12,7 +12,8 @@
 // passes over, 'intersection' removes the stretch of a touched line up to the nearest crossings with other lines,
 // and 'line' removes every line it touches.
 
-import { stampAt, dabJitter, taperIn, taperOut, StampPath, sanitizeCurve } from './brush.js';
+import { shiftColor } from './color.js';
+import { stampAt, dabJitter, colorJitter, taperIn, taperOut, StampPath, sanitizeCurve } from './brush.js';
 import { tipReach } from './brushtip.js';
 
 export const MAX_STROKES = 20000;
@@ -22,10 +23,10 @@ export const MAX_POINTS = 50000;
 const NUM = {
   size: [6, 0.5, 1000], flow: [1, 0.01, 1], hardness: [1, 0, 1], spacing: [0.08, 0.02, 1], minSize: [0.15, 0, 1],
   minFlow: [0, 0, 1], gamma: [1, 0.3, 3], thickness: [1, 0.05, 1], tipAngle: [0, 0, 360], tipRandom: [0, 0, 1],
-  scatter: [0, 0, 2], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500],
+  scatter: [0, 0, 2], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500],
   textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4],
 };
-const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, textureInvert: false };
+const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, textureInvert: false, colorJitterStroke: false };
 const CURVES = ['sizeCurve', 'flowCurve'];
 export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture'];
 
@@ -146,11 +147,13 @@ export function changedBounds(a, b) {
 }
 
 /**
- * The dabs that draw a line: {x, y, p, k (size factor), f (density factor)} in order, as the pen tools stamp
- * them (spacing by size, start and end taper by distance along the line, scatter and jitter from its seed).
+ * The dabs that draw a line: {x, y, p, k (size factor), f (density factor), c (colour, with per-dab colour
+ * jitter)} in order, as the pen tools stamp them (spacing by size, start and end taper by distance along the line,
+ * scatter and jitter from its seed). Colour jitter once per stroke is already in the line's colour.
  */
 export function strokeStamps(s, b) {
   const sizeAt = p => stampAt(b, p).size, path = new StampPath(sizeAt, b.spacing), rnd = seeded(s.seed);
+  const dabColors = !b.colorJitterStroke && !!colorJitter(b);
   const out = [];
   let dist = 0, prev = null;
   for (const [x, y, p] of s.pts) {
@@ -158,7 +161,9 @@ export function strokeStamps(s, b) {
       if (prev) dist += Math.hypot(st.x - prev.x, st.y - prev.y);
       prev = { x: st.x, y: st.y };
       const j = dabJitter(b, sizeAt(st.p), rnd);
-      out.push({ x: st.x + j.dx, y: st.y + j.dy, p: st.p, k: j.sizeK * taperIn(dist, b.taperIn), f: j.flowK, d: dist });
+      const q = { x: st.x + j.dx, y: st.y + j.dy, p: st.p, k: j.sizeK * taperIn(dist, b.taperIn), f: j.flowK, d: dist };
+      if (dabColors) q.c = shiftColor(s.color, colorJitter(b, rnd));
+      out.push(q);
     }
   }
   if (b.taperOut > 0) for (const st of out) st.k *= taperOut(dist - st.d, b.taperOut);

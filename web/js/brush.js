@@ -72,6 +72,16 @@ export function dabJitter(s, size, rnd = Math.random) {
   return out;
 }
 
+/**
+ * Random colour variation: hue turned up to hueJitter x 180 degrees either way, saturation and brightness moved up
+ * to satJitter / valJitter either way (for color.js shiftColor). null when the brush has none.
+ */
+export function colorJitter(s, rnd = Math.random) {
+  if (!(s.hueJitter > 0 || s.satJitter > 0 || s.valJitter > 0)) return null;
+  const either = k => k > 0 ? (rnd() * 2 - 1) * k : 0;
+  return { h: either(s.hueJitter) * 180, s: either(s.satJitter), v: either(s.valJitter) };
+}
+
 /** Size factor of the starting taper: grows from 10% to full over the first `length` pixels of the stroke. */
 export function taperIn(dist, length) {
   if (!(length > 0) || dist >= length) return 1;

@@ -1,9 +1,9 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, stampAt, stampBounds, dabJitter, taperIn, taperOut, releaseHeld } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld } from '../brush.js';
 import { tipReach } from '../brushtip.js';
-import { hexToRgb, rgbToHex } from '../color.js';
+import { hexToRgb, rgbToHex, shiftColor } from '../color.js';
 import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource } from '../doc.js';
 import { isFolder } from '../tree.js';
 import { floodMask, growMask, closeGapFill } from '../fill.js';
@@ -868,9 +868,13 @@ export class Editor {
     const sizeAt = p => stampAt(s, p).size;
     const reach = tipReach(hasTipImage(s.tip)) * 2;
     const line = shift && this.lastStroke && this.lastStroke.layer === layer ? this.lastStroke.pt : null;
+    // colour jitter: erasers and masks keep their black; per stroke the varied colour is picked once here
+    const ink = tool.erase ? '#000000' : this.inkFor(layer), varies = !tool.erase && layer.kind !== 'mask' && !!colorJitter(s);
+    const color = varies && s.colorJitterStroke ? shiftColor(ink, colorJitter(s)) : ink;
     this.gesture = {
       type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
-      painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.inkFor(layer), hardness: s.hardness,
+      color, dabColors: varies && !s.colorJitterStroke,
+      painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
         tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
@@ -908,6 +912,7 @@ export class Editor {
       st.k = j.sizeK * taperIn(g.dist, g.s.taperIn);
       st.f = j.flowK;
       st.d = g.dist;
+      if (g.dabColors) st.c = shiftColor(g.color, colorJitter(g.s));
     }
     if (g.s.taperOut > 0) {  // the end taper holds the last stretch back until the pen lifts
       const r = releaseHeld([...g.held, ...stamps], g.dist, g.s.taperOut);
@@ -924,7 +929,7 @@ export class Editor {
     const per = all.length / stamps.length;  // copies of each stamp, in order
     all.forEach((st, i) => {
       const { size, flow } = stampAt(g.s, st.p);
-      g.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per);
+      g.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per, st.c);
     });
     const r = stampBounds(all, g.reachAt);
     g.bounds = union(g.bounds, r);
@@ -943,7 +948,7 @@ export class Editor {
     this.drawStamps(g.held);
     g.held = [];
     this.lastStroke = { layer: g.layer, pt: g.last };
-    if (g.vec) this.commitVectorStroke(g.layer, g.vec, g.s, g.s.opacity, 'Draw line');
+    if (g.vec) this.commitVectorStroke(g.layer, g.vec, g.s, g.s.opacity, 'Draw line', g.color);
     else this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');
     if (!g.erase && g.layer.kind !== 'mask') this.colors.used();
   }
@@ -1253,7 +1258,7 @@ function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (key === 'corner') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);

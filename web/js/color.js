@@ -20,6 +20,15 @@ export function rgbToHsv(r, g, b) {
   return [(h + 360) % 360, max ? d / max : 0, max];
 }
 
+/** A colour moved in HSV: hue turned by h degrees, saturation and brightness shifted by s / v (clamped to 0-1). */
+export function shiftColor(hex, { h = 0, s = 0, v = 0 }) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const [H, S, V] = rgbToHsv(...rgb);
+  const clamp = x => Math.max(0, Math.min(1, x));
+  return rgbToHex(...hsvToRgb(H + h, clamp(S + s), clamp(V + v)));
+}
+
 export const PALETTE_MAX = 64;
 
 /** A saved palette with a colour added at the end (not twice: an existing one moves to the end), at most PALETTE_MAX. */
