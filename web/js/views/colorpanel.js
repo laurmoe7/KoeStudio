@@ -1,6 +1,7 @@
-// Colour panel: saturation/value square, hue bar, main and sub colour, hex box and recently used colours.
+// Colour panel: saturation/value square, hue bar, main and sub colour, hex box, recently used colours and a saved
+// palette (+ adds the main colour, a click picks one, right-click removes it; kept per machine in koe.palette).
 
-import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb } from '../color.js';
+import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, paletteAdd, sanitizePalette } from '../color.js';
 import { icon } from '../icons.js';
 import { store, esc } from '../ui.js';
 
@@ -13,6 +14,7 @@ export class ColorPanel {
     this.main = hexToRgb(saved.main) ? saved.main : '#1b1b1f';
     this.sub = hexToRgb(saved.sub) ? saved.sub : '#ffffff';
     this.recent = Array.isArray(saved.recent) ? saved.recent.filter(c => hexToRgb(c)).slice(0, 18) : [];
+    this.palette = sanitizePalette(store('palette'));
     this.hsv = rgbToHsv(...hexToRgb(this.main));
     root.innerHTML = `
       <div class="cp-row">
@@ -27,7 +29,9 @@ export class ColorPanel {
         <button class="icon-btn cp-swap" title="Swap main and sub color (X)">${icon('swap', 18)}</button>
         <input class="cp-hex" type="text" maxlength="7" spellcheck="false" aria-label="Hex color">
       </div>
-      <div class="cp-recent" aria-label="Recent colors"></div>`;
+      <div class="cp-recent" aria-label="Recent colors"></div>
+      <div class="cp-palette-head"><span>Palette</span><button class="icon-btn cp-add" title="Add the main color to the palette">${icon('plus', 14)}</button></div>
+      <div class="cp-palette" aria-label="Palette"></div>`;
     this.sv = root.querySelector('.cp-sv');
     this.hue = root.querySelector('.cp-hue');
     this.hex = root.querySelector('.cp-hex');
@@ -35,6 +39,7 @@ export class ColorPanel {
     this.drag(this.sv, (x, y) => this.setHsv([this.hsv[0], x / SQ, 1 - y / SQ]));
     this.drag(this.hue, (x, y) => this.setHsv([(y / SQ) * 360, this.hsv[1], this.hsv[2]]));
     root.querySelector('.cp-swap').onclick = () => this.swap();
+    root.querySelector('.cp-add').onclick = () => { this.palette = paletteAdd(this.palette, this.main); this.savePalette(); };
     root.querySelector('.cp-sub').onclick = () => this.swap();
     this.hex.addEventListener('change', () => {
       const rgb = hexToRgb(this.hex.value);
@@ -122,6 +127,23 @@ export class ColorPanel {
     this.root.querySelector('.cp-sub').style.background = this.sub;
     if (updateHex || document.activeElement !== this.hex) this.hex.value = this.main;
     this.drawRecent();
+    this.drawPalette();
+  }
+
+  savePalette() {
+    store('palette', this.palette);
+    this.drawPalette();
+  }
+
+  drawPalette() {
+    const box = this.root.querySelector('.cp-palette');
+    box.innerHTML = this.palette.length
+      ? this.palette.map(c => `<button style="background:${esc(c)}" title="${esc(c)}: click to use, right-click to remove" data-c="${esc(c)}"></button>`).join('')
+      : '<span class="muted small">Press + to keep the main color here.</span>';
+    box.querySelectorAll('button').forEach(b => {
+      b.onclick = () => this.set(b.dataset.c);
+      b.oncontextmenu = e => { e.preventDefault(); this.palette = this.palette.filter(c => c !== b.dataset.c); this.savePalette(); };
+    });
   }
 
   drawRecent() {

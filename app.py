@@ -654,6 +654,14 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(delete_brush_image(p.get('id', '')))
             elif route == ('POST', 'brushes/presets'):
                 self._json(save_presets(json.loads(self._raw() or b'null')))
+            elif route == ('GET', 'refs'):
+                self._json(list_refs())
+            elif route == ('GET', 'refs/image'):
+                self._send(*ref_image(p.get('id', '')))
+            elif route == ('POST', 'refs/add'):
+                self._json(add_ref(p.get('name', ''), self._raw()))
+            elif route == ('POST', 'refs/delete'):
+                self._json(delete_ref(p.get('id', '')))
             elif route == ('POST', 'brushes/import'):
                 self._json(import_brushes(p.get('name', ''), self._raw()))
             else:
@@ -809,6 +817,83 @@ def import_brushes(name, data):
     """The brushes in a Procreate or Photoshop brush file (brushimport.py)."""
     import brushimport
     return brushimport.import_brushes(name, data)
+
+
+# ---------- reference pictures ----------
+# Pictures shown in the Reference window, kept in <app dir>/references as <id>__<name>.<ext>, oldest first.
+
+REF_TYPES = {'png': 'image/png', 'jpg': 'image/jpeg', 'webp': 'image/webp', 'gif': 'image/gif', 'bmp': 'image/bmp'}
+REF_RE = re.compile(r'^([0-9a-f]{16})__(.{0,80})\.(png|jpg|webp|gif|bmp)$')
+MAX_REF = 60 * 1024 * 1024
+
+
+def refs_dir():
+    return os.path.join(app_dir(), 'references')
+
+
+def _ref_kind(data):
+    """The picture type from the file's first bytes, or None for anything else."""
+    if data.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'png'
+    if data.startswith(b'\xff\xd8\xff'):
+        return 'jpg'
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return 'webp'
+    if data[:6] in (b'GIF87a', b'GIF89a'):
+        return 'gif'
+    if data[:2] == b'BM':
+        return 'bmp'
+    return None
+
+
+def _ref_files():
+    try:
+        names = os.listdir(refs_dir())
+    except FileNotFoundError:
+        return []
+    out = []
+    for n in names:
+        m = REF_RE.match(n)
+        if m:
+            out.append((os.path.getmtime(os.path.join(refs_dir(), n)), m.group(1), m.group(2), n))
+    return sorted(out)
+
+
+def list_refs():
+    return [{'id': i, 'name': name} for _, i, name, _ in _ref_files()]
+
+
+def add_ref(name, data):
+    kind = _ref_kind(data or b'')
+    if not kind:
+        raise ValueError('That is not a picture KoeStudio can show (PNG, JPEG, WebP, GIF or BMP).')
+    if len(data) > MAX_REF:
+        raise ValueError('That picture is too big.')
+    base = re.split(r'[\\/]', name or '')[-1]  # a file name, never a path
+    safe = re.sub(r'[^\w .()-]', '_', os.path.splitext(base)[0]).strip()[:80] or 'Reference'
+    entry = {'id': uuid.uuid4().hex[:16], 'name': safe}
+    _write_atomic(os.path.join(refs_dir(), f"{entry['id']}__{safe}.{kind}"), data)
+    return entry
+
+
+def _ref_file(ref_id):
+    if not ID_RE.match(ref_id or ''):
+        raise FileNotFoundError(ref_id)
+    for _, i, _, n in _ref_files():
+        if i == ref_id:
+            return n
+    raise FileNotFoundError(ref_id)
+
+
+def ref_image(ref_id):
+    n = _ref_file(ref_id)
+    with open(os.path.join(refs_dir(), n), 'rb') as f:
+        return f.read(), REF_TYPES[n.rsplit('.', 1)[1]]
+
+
+def delete_ref(ref_id):
+    os.remove(os.path.join(refs_dir(), _ref_file(ref_id)))
+    return {'ok': True}
 
 
 # ---------- window position and size ----------

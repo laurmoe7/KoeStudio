@@ -6,7 +6,7 @@ import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex } from '../color.js';
 import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource } from '../doc.js';
 import { isFolder } from '../tree.js';
-import { floodMask, growMask } from '../fill.js';
+import { floodMask, growMask, closeGapFill } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
@@ -32,6 +32,7 @@ import { quickMaskMethods } from './quickmask.js';
 import { navMethods } from './navpanels.js';
 import { helpMenuItems } from './help.js';
 import { vectorMethods } from './vectortools.js';
+import { refMethods } from './reftools.js';
 import { smudgeMethods } from './smudgetool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -125,6 +126,7 @@ export class Editor {
     window.removeEventListener('paste', this.onPaste);
     window.removeEventListener('blur', this.onKeyUp);
     this.resizeObs?.disconnect();
+    this.refObs?.disconnect();
     clearTimeout(this.saveTimer);
     clearTimeout(this.thumbTimer);
     clearInterval(this.antsTimer);
@@ -244,6 +246,7 @@ export class Editor {
     this.bindPointer();
     this.bindNavigator();
     this.renderHistory();
+    this.renderRefWindow();
     this.updateUndoButtons();
     this.updateSnapButton();
     this.root.querySelector('[data-act="rulers"]').classList.toggle('on', this.showRulers);
@@ -360,6 +363,7 @@ export class Editor {
         { label: 'Symmetry settings…', run: () => this.symmetryDialog() },
         '-',
         { label: 'Show mask area (while painting on a mask)', checked: this.maskOverlay, run: () => this.toggleMaskOverlay() },
+        { label: 'Reference window', checked: this.refState().open, run: () => this.toggleRefWindow() },
         '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
       ],
@@ -972,7 +976,8 @@ export class Editor {
     const s = this.settings.fill, d = this.doc, layer = this.target('fill');
     if (!layer) return;
     const data = this.sampleData(s.sample, layer);
-    let res = floodMask(data, d.width, d.height, pt.x, pt.y, s.tolerance, s.contiguous);
+    let res = s.gap > 0 && s.contiguous ? closeGapFill(data, d.width, d.height, pt.x, pt.y, s.tolerance, s.gap)
+      : floodMask(data, d.width, d.height, pt.x, pt.y, s.tolerance, s.contiguous);
     if (!res) return;
     res = growMask(res.mask, d.width, d.height, s.grow, res.bounds);
     const b = res.bounds;
@@ -1242,11 +1247,12 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, exportMethods, smudgeMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (key === 'corner') return Math.round(v) + ' px';
+  if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';

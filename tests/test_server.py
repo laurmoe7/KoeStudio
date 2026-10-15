@@ -336,3 +336,31 @@ class Http(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ReferencePictureTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.old = os.environ.get('KOE_APP_DIR')
+        os.environ['KOE_APP_DIR'] = self.tmp.name
+
+    def tearDown(self):
+        if self.old is None:
+            os.environ.pop('KOE_APP_DIR', None)
+        else:
+            os.environ['KOE_APP_DIR'] = self.old
+        self.tmp.cleanup()
+
+    def test_add_list_read_delete(self):
+        png = b'\x89PNG\r\n\x1a\n' + b'rest'
+        a = app.add_ref('C:/pics/Pose: front?.png', png)
+        self.assertEqual(a['name'], 'Pose_ front_', 'unsafe characters replaced, extension dropped')
+        b = app.add_ref('', b'\xff\xd8\xff\xe0jpeg')
+        self.assertEqual([r['id'] for r in app.list_refs()], [a['id'], b['id']])
+        self.assertEqual(app.ref_image(b['id']), (b'\xff\xd8\xff\xe0jpeg', 'image/jpeg'))
+        with self.assertRaises(ValueError):
+            app.add_ref('x.txt', b'hello')
+        app.delete_ref(a['id'])
+        self.assertEqual([r['id'] for r in app.list_refs()], [b['id']])
+        with self.assertRaises(FileNotFoundError):
+            app.ref_image('../../etc')

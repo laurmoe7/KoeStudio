@@ -53,6 +53,10 @@ export const GUIDE = [
     <ul>
       <li><kbd>X</kbd> swaps main and sub.</li>
       <li>Hold <kbd>Alt</kbd> with a painting tool to pick a colour from the canvas, or use the Eyedropper <kbd>I</kbd>.</li>
+      <li><b>Palette</b>: <b>+</b> keeps the main colour there for good; click a swatch to use it, right-click to remove it.</li>
+      <li>The <b>Reference window</b> (View menu) shows pictures beside the canvas: scroll to zoom, drag to move,
+      click to pick a colour from it, double-click to fit. <b>+</b> adds pictures (or drop them on it); they stay there
+      for every artwork.</li>
     </ul>`],
 
   ['fill', 'Fill, gradient and lasso fill', `
@@ -61,7 +65,8 @@ export const GUIDE = [
       <li><b>Fill</b>: click an area to fill it. <b>Look at</b> chooses whether the outline comes from everything you
       see, the current layer, or the layers ticked <b>Reference</b> (handy for colouring under line art).
       <b>Margin</b> allows nearby colours, <b>Expand</b> tucks the fill under the lines, and untick
-      <b>Connected only</b> to fill every pixel of that colour.</li>
+      <b>Connected only</b> to fill every pixel of that colour. <b>Close gaps</b> stops the fill running out through
+      small openings in the lines (up to about twice that many pixels wide).</li>
       <li><b>Gradient</b>: drag from where it starts to where it ends (Shift snaps the angle). Straight or circle;
       <b>Repeat</b> and <b>Mirror</b> make stripes and rings.</li>
       <li><b>Lasso fill</b>: draw round an area to fill it with the main colour.</li>

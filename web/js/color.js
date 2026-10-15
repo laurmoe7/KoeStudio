@@ -20,6 +20,24 @@ export function rgbToHsv(r, g, b) {
   return [(h + 360) % 360, max ? d / max : 0, max];
 }
 
+export const PALETTE_MAX = 64;
+
+/** A saved palette with a colour added at the end (not twice: an existing one moves to the end), at most PALETTE_MAX. */
+export function paletteAdd(list, hex) {
+  const c = String(hex).toLowerCase();
+  return [...list.filter(x => x !== c), c].slice(-PALETTE_MAX);
+}
+
+/** A palette from storage: valid #rrggbb colours only, no repeats, at most PALETTE_MAX. */
+export function sanitizePalette(raw) {
+  const out = [];
+  for (const c of Array.isArray(raw) ? raw : []) {
+    const h = typeof c === 'string' ? c.toLowerCase() : '';
+    if (/^#[0-9a-f]{6}$/.test(h) && !out.includes(h)) out.push(h);
+  }
+  return out.slice(0, PALETTE_MAX);
+}
+
 export function rgbToHex(r, g, b) {
   return '#' + [r, g, b].map(n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')).join('');
 }

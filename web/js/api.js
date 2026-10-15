@@ -41,5 +41,10 @@ export const api = {
   savePresets: presets => call('POST', 'brushes/presets', presets),
   /** The brushes in a Procreate (.brush, .brushset) or Photoshop (.abr) file: {name, brushes, images}. */
   importBrushes: (name, blob) => call('POST', `brushes/import?name=${q(name)}`, blob, 'application/octet-stream'),
+  /** Reference pictures (Reference window): [{id, name}], oldest first. */
+  refs: () => call('GET', 'refs'),
+  refImageUrl: id => `/api/refs/image?id=${q(id)}`,
+  addRef: (name, blob) => call('POST', `refs/add?name=${q(name)}`, blob, 'application/octet-stream'),
+  deleteRef: id => call('POST', `refs/delete?id=${q(id)}`, {}),
   openFolder: (sub = '', path = '') => call('POST', `open-folder?sub=${q(sub)}&path=${q(path)}`, {}),
 };

@@ -1,5 +1,7 @@
 // Paint-bucket flood fill (pure, tested). Works on RGBA bytes as in ImageData.data.
 
+import { chamferDistance } from './maskops.js';
+
 /**
  * Pixels connected to (x, y) whose colour is within tolerance (0-255, per channel incl. alpha) of the start pixel;
  * with contiguous = false every such pixel in the image, connected or not.
@@ -77,4 +79,43 @@ export function growMask(mask, w, h, n, bounds) {
   }
   const x = Math.max(0, bounds.x - n), y = Math.max(0, bounds.y - n);
   return { mask: cur, bounds: { x, y, w: Math.min(w, bounds.x + bounds.w + n) - x, h: Math.min(h, bounds.y + bounds.h + n) - y } };
+}
+
+/**
+ * Fill that does not leak through small gaps in line art (Fill → Close gaps). The lines (every pixel not of the
+ * clicked colour) are thickened by `gap` px, so openings up to about twice that close; the area is flood filled
+ * inside the thickened lines and then grown back out to the real lines, within the clicked colour. Clicking too
+ * close to a line to start inside falls back to the ordinary fill.
+ */
+export function closeGapFill(data, w, h, x, y, tolerance = 0, gap = 0) {
+  const plain = floodMask(data, w, h, x, y, tolerance, true);
+  if (!plain || !(gap > 0)) return plain;
+  const same = floodMask(data, w, h, x, y, tolerance, false).mask;
+  const wall = new Uint8Array(w * h);
+  for (let i = 0; i < wall.length; i++) wall[i] = same[i] ? 0 : 1;
+  const toWall = chamferDistance(wall, w, h), limit = Math.round(gap * 3);  // thirds of a pixel
+  const sx = Math.floor(x), sy = Math.floor(y);
+  if (toWall[sy * w + sx] <= limit) return plain;
+  // the core: connected to the click and further than `gap` from every line
+  const core = new Uint8Array(w * h), stack = [sy * w + sx];
+  core[sy * w + sx] = 1;
+  while (stack.length) {
+    const i = stack.pop(), px = i % w, py = (i - px) / w;
+    for (const j of [px > 0 ? i - 1 : -1, px < w - 1 ? i + 1 : -1, py > 0 ? i - w : -1, py < h - 1 ? i + w : -1]) {
+      if (j >= 0 && !core[j] && toWall[j] > limit) { core[j] = 1; stack.push(j); }
+    }
+  }
+  // grown back by the gap (and a diagonal step, so corners fill), only over the clicked colour
+  const toCore = chamferDistance(core, w, h), back = limit + 4, mask = new Uint8Array(w * h);
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let i = 0; i < mask.length; i++) {
+    if (!(core[i] || (same[i] && toCore[i] <= back))) continue;
+    mask[i] = 1;
+    const px = i % w, py = (i - px) / w;
+    if (px < minX) minX = px;
+    if (px > maxX) maxX = px;
+    if (py < minY) minY = py;
+    if (py > maxY) maxY = py;
+  }
+  return { mask, bounds: { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } };
 }

@@ -192,3 +192,31 @@ test('vector layers in the save format', () => {
   assert.equal(d.layers[0].vector.brushes[0].size, 3);
   assert.equal('vector' in d.layers[1], false, 'ordinary layers have none');
 });
+
+test('fill closes small gaps in line art', async () => {
+  const { closeGapFill } = await import('../web/js/fill.js');
+  // a 30x30 clear picture with a black square outline from (5,5) to (24,24), open for 3 px at the top (x 14-16)
+  const W = 30, data = new Uint8ClampedArray(W * W * 4);
+  const ink = (x, y) => { data[(y * W + x) * 4 + 3] = 255; };
+  for (let i = 5; i <= 24; i++) { if (i < 14 || i > 16) ink(i, 5); ink(i, 24); ink(5, i); ink(24, i); }
+  const at = (m, x, y) => m.mask[y * W + x];
+  const leaky = closeGapFill(data, W, W, 15, 15, 0, 0);
+  assert.equal(at(leaky, 0, 0), 1, 'without closing, the fill runs out through the opening');
+  const shut = closeGapFill(data, W, W, 15, 15, 0, 2);
+  assert.equal(at(shut, 0, 0), 0, 'a 3 px opening closes with a 2 px gap setting');
+  assert.equal(at(shut, 15, 15), 1);
+  assert.equal(at(shut, 6, 6), 1, 'grown back into the corner up to the lines');
+  assert.equal(at(shut, 5, 10), 0, 'the lines themselves stay unfilled');
+  assert.ok(shut.bounds.y >= 3 && shut.bounds.x >= 6, 'at most a small bulge past the opening: ' + JSON.stringify(shut.bounds));
+  const near = closeGapFill(data, W, W, 6, 6, 0, 2);
+  assert.equal(at(near, 0, 0), 1, 'clicking next to a line falls back to the ordinary fill');
+});
+
+test('colour palette', async () => {
+  const { paletteAdd, sanitizePalette, PALETTE_MAX } = await import('../web/js/color.js');
+  assert.deepEqual(paletteAdd(['#111111', '#222222'], '#111111'), ['#222222', '#111111'], 'an existing colour moves to the end');
+  assert.deepEqual(paletteAdd([], '#ABCDEF'), ['#abcdef'], 'stored in lower case');
+  assert.equal(paletteAdd(Array.from({ length: PALETTE_MAX }, (_, i) => '#' + String(i).padStart(6, '0')), '#ffffff').length, PALETTE_MAX, 'the oldest drops off');
+  assert.deepEqual(sanitizePalette(['#FFFFFF', 'red', '#ffffff', 5, '#000000']), ['#ffffff', '#000000']);
+  assert.deepEqual(sanitizePalette(null), []);
+});

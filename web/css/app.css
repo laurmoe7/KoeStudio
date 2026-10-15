@@ -166,6 +166,12 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .bw-nav button { text-align: left; padding: 4px 8px; font-size: 12px; background: transparent; border-color: transparent; white-space: nowrap; }
 .bw-nav button:hover { background: var(--panel-2); }
 .bw-nav button.on { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.ref-win { resize: both; overflow: hidden; min-width: 220px; min-height: 160px; max-width: 95vw; max-height: 95vh; }
+.ref-win .bw-head { padding-right: 4px; }
+.ref-win .bw-head .icon-btn { padding: 2px 5px; font-size: 15px; line-height: 1; }
+.ref-body { position: relative; flex: 1; min-height: 0; background: #17181c; border-radius: 0 0 8px 8px; overflow: hidden; }
+.ref-canvas { display: block; cursor: crosshair; touch-action: none; }
+.ref-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 16px; margin: 0; }
 .bw-body { flex: 1; min-width: 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; overflow: auto; }
 
 /* colour panel */
@@ -182,6 +188,10 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .cp-recent { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; min-height: 18px; }
 .cp-recent button { width: 18px; height: 18px; padding: 0; border-radius: 3px; border: 1px solid #111; }
 .cp-recent:not(:empty)::before { content: 'Recent'; width: 100%; font-size: 11px; color: var(--muted); }
+.cp-palette-head { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.cp-palette-head .icon-btn { padding: 1px; }
+.cp-palette { display: flex; flex-wrap: wrap; gap: 3px; max-height: 66px; overflow-y: auto; }
+.cp-palette button { width: 18px; height: 18px; padding: 0; border-radius: 3px; border: 1px solid #111; }
 
 /* layer panel */
 .layer-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 6px; }
