@@ -29,10 +29,10 @@ export const GUIDE = [
       <li><b>Stabilization</b> smooths shaky lines; higher values trail further behind the pen.</li>
       <li><b>Shift+click</b> draws a straight line from where your last stroke on that layer ended.</li>
     </ul>
-    <p>Each tool remembers its own settings. <b>Smudge</b> <kbd>J</kbd> drags paint along like a wet finger; press <kbd>J</kbd> again for <b>Liquify</b>, which bends the picture: Push drags it with the pen, Pinch, Bloat and Twirl work where you hold the pen (and keep going while it stays still).</p>`],
+    <p>Each tool remembers its own settings. <b>Smudge</b> <kbd>J</kbd> drags paint along like a wet finger; press <kbd>J</kbd> again for <b>Liquify</b>, which bends the picture: Push drags it with the pen, Pinch, Bloat and Twirl work where you hold the pen (and keep going while it stays still). It follows the symmetry ruler.</p>`],
 
   ['brushes', 'Brush settings and saved brushes', `
-    <p>The tool panel shows only the basics. <b>Brush settings…</b> opens a window with everything else, on pages:</p>
+    <p>The tool panel shows only the basics. <b>Brush settings…</b> opens a window with everything else, on pages, under a preview stroke that shows each change at once (light to full pressure and back):</p>
     <ul>
       <li><b>Tip</b>: round, or any picture as the tip; squash it, turn it, turn it at random or with the stroke.</li>
       <li><b>Pen pressure</b>: what pressure changes (size, density) and how much.</li>

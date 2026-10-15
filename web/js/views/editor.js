@@ -210,7 +210,7 @@ export class Editor {
     this.rotLabel = $('.rot-label');
     this.colors = new ColorPanel($('.color-panel'));
     this.layerPanel = new LayerPanel($('.layer-panel'), this);
-    this.colors.onChange = () => this.textColorChanged();
+    this.colors.onChange = () => { this.textColorChanged(); this.drawBrushPreview(); this.drawGradientStrip(); };
     this.root.querySelectorAll('[data-tool]').forEach(b => { b.onclick = () => this.selectTool(b.dataset.tool); });
     const acts = {
       home: () => this.goHome(), undo: () => this.undo(), redo: () => this.redo(),
@@ -654,7 +654,9 @@ export class Editor {
       const acts = { all: () => this.selectAll(), none: () => this.deselect(), invert: () => this.invertSelection(), xf: () => this.beginTransform() };
       box.querySelectorAll('[data-sel]').forEach(b => { b.onclick = () => acts[b.dataset.sel](); });
     }
+    if (t.kind === 'gradient') box.insertAdjacentHTML('afterbegin', '<canvas class="grad-strip" title="The colours this gradient will use"></canvas>');
     this.bindSettings(box);
+    this.drawGradientStrip();
   }
 
   /** The settings of a tool worth showing: the grain settings only with a texture chosen, curves only when set. */
@@ -690,6 +692,8 @@ export class Editor {
         if (t.id === 'text') this.textSettingsChanged();
         if (k === 'texture') this.renderToolProps();
         else this.showSetting(k, inp);
+        this.drawBrushPreview();
+        this.drawGradientStrip();
         this.drawOverlay();
       });
     });

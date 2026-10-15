@@ -32,6 +32,7 @@ export class LayerPanel {
           ${LABELS.map(([id, color]) => `<button class="lp-label-btn" data-label="${id}" style="background:${color}" title="${id[0].toUpperCase() + id.slice(1)} label"></button>`).join('')}
         </span>
       </div>
+      <div class="lp-picked" hidden title="The settings above and the buttons below change all of them"><span></span><button type="button" title="Keep only the selected layer picked">Only this one</button></div>
       <div class="lp-list" role="tree" aria-label="Layers"></div>
       <div class="lp-buttons">
         <button class="icon-btn" data-op="add" title="New layer (Ctrl+Shift+N)">${icon('plus', 18)}</button>
@@ -44,6 +45,7 @@ export class LayerPanel {
         <button class="icon-btn" data-op="del" title="Delete">${icon('trash', 18)}</button>
       </div>`;
     this.list = root.querySelector('.lp-list');
+    root.querySelector('.lp-picked button').onclick = () => editor.selectNode(editor.doc.active);
     const ops = {
       add: () => editor.layerAdd(), folder: () => editor.folderAdd(), dup: () => editor.layerDuplicate(),
       mask: () => editor.doc.active.mask ? editor.editMask(true) : editor.addMask(),
@@ -79,7 +81,9 @@ export class LayerPanel {
   render() {
     const ed = this.ed, n = ed.doc.active, folder = isFolder(n);
     const blend = this.root.querySelector('.lp-blend');
-    const multi = ed.multiPicked();
+    const multi = ed.multiPicked(), bar = this.root.querySelector('.lp-picked');
+    bar.hidden = !multi;
+    if (multi) bar.querySelector('span').textContent = `${multi.length} layers picked`;
     blend.innerHTML = (folder || multi?.some(isFolder) ? [PASS_THROUGH, ...BLEND_MODES] : BLEND_MODES).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
     blend.value = n.blend;
     this.root.querySelector('.lp-opacity input').value = Math.round(n.opacity * 100);

@@ -61,6 +61,15 @@ export function symmetryStamps(sym, stamps, w, h) {
   return out;
 }
 
+/**
+ * For each copy symmetryPoints makes of (x, y), whether it is mirrored (left and right swapped), found from how
+ * the copy turns two small steps: a mirror flips the sign of their cross product. Twirling copies turn the other way.
+ */
+export function symmetryFlips(sym, x, y, w, h) {
+  const p = symmetryPoints(sym, x, y, w, h), a = symmetryPoints(sym, x + 1, y, w, h), b = symmetryPoints(sym, x, y + 1, w, h);
+  return p.map((q, k) => (a[k].x - q.x) * (b[k].y - q.y) - (a[k].y - q.y) * (b[k].x - q.x) < 0);
+}
+
 /** Directions (radians, 0 = right, clockwise) of the guide lines drawn from the centre. */
 export function symmetryRays(sym) {
   const up = -Math.PI / 2;

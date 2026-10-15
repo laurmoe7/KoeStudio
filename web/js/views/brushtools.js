@@ -8,16 +8,19 @@
 // images; the dialog picks which to keep, saves their images (each once) and adds them as presets.
 
 import { api } from '../api.js';
-import { curveAt } from '../brush.js';
+import { curveAt, stampAt, previewPath, previewSettings } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
-import { loadImage } from '../doc.js';
-import { registerTip, registerTexture, forgetBrushImage } from '../painter.js';
+import { loadImage, liveSource } from '../doc.js';
+import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor } from '../painter.js';
+import { sanitizeBrush, strokeStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 
 const newId = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
 const IMG_RE = /^image\//;
+const PREVIEW_H = 76;  // height of the stroke preview in the Brush settings window, CSS px
+const PREVIEW_SEED = 12345;  // the preview's jitter is the same every time, so changing a setting shows only that change
 
 /** Reads an image file as PNG bytes (other formats are converted), with its name without the extension. */
 async function fileAsPng(file) {
@@ -131,6 +134,7 @@ export const brushMethods = {
       w.className = 'brush-win';
       w.setAttribute('role', 'dialog');
       w.innerHTML = `<div class="bw-head"><span class="bw-title"></span><button class="icon-btn" data-bw-close title="Close">✕</button></div>
+        <canvas class="bw-preview" title="How a stroke with these settings looks (light to full pressure and back)"></canvas>
         <div class="bw-main"><nav class="bw-nav"></nav><div class="bw-body"></div></div>`;
       this.root.append(w);
       w.querySelector('[data-bw-close]').onclick = () => this.toggleBrushWindow(false);
@@ -164,6 +168,41 @@ export const brushMethods = {
     const body = w.querySelector('.bw-body');
     body.innerHTML = this.settingsHtml(page[1], s);
     this.bindSettings(body);
+    this.drawBrushPreview();
+  },
+
+  /** Redraws the stroke preview at the top of the Brush settings window (once per frame, however often asked). */
+  drawBrushPreview() {
+    if (!this.brushWin || this.previewRaf) return;
+    this.previewRaf = requestAnimationFrame(() => {
+      this.previewRaf = 0;
+      const c = this.brushWin?.querySelector('.bw-preview'), t = TOOL_BY_ID[this.tool];
+      if (!c || t.kind !== 'paint') return;
+      const dpr = window.devicePixelRatio || 1, w = Math.round((c.clientWidth || 320) * dpr), h = Math.round(PREVIEW_H * dpr);
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      const ctx = c.getContext('2d'), s = this.settings[t.id];
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      // the real dab pipeline (spacing, pressure, tapers, jitter, colour jitter) as for a vector line
+      // the brush at most a quarter of the height; the curve keeps half a brush from the top and bottom (scatter may
+      // spill over there) and the scatter too from the sides
+      const b = sanitizeBrush(previewSettings(s, h / 4)), half = b.size / 2;
+      const line = { pts: previewPath(w, h, Math.min(half * (1 + 2 * (b.scatter || 0)) + 10 * dpr, w / 4), half + 5 * dpr), seed: PREVIEW_SEED, color: t.erase ? '#6b6f7a' : this.colors.main };
+      const scratch = this.previewScratch ||= document.createElement('canvas');
+      scratch.width = w; scratch.height = h;
+      const sctx = scratch.getContext('2d');
+      const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle,
+        random: b.tipRandom, follow: b.tipFollow, rnd: seeded(PREVIEW_SEED + 7) });
+      for (const st of strokeStamps(line, b)) {
+        const { size, flow } = stampAt(b, st.p);
+        painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c);
+      }
+      const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b) }, r);
+      ctx.globalAlpha = s.opacity ?? 1;
+      ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
+      ctx.globalAlpha = 1;
+    });
   },
 
   /** Moves the window to x, y (screen px), kept on screen with its title bar reachable. */

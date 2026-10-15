@@ -82,6 +82,25 @@ export function colorJitter(s, rnd = Math.random) {
   return { h: either(s.hueJitter) * 180, s: either(s.satJitter), v: either(s.valJitter) };
 }
 
+/**
+ * The sample stroke of a brush preview: an S-curve across a w x h box (padX px in from the sides, padY from the
+ * top and bottom), with pen pressure rising from light to full in the middle and back. [[x, y, p]], n + 1 points.
+ */
+export function previewPath(w, h, padX, padY = padX, n = 64) {
+  const out = [], amp = Math.max(0, h / 2 - padY);
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    out.push([padX + (w - 2 * padX) * t, h / 2 - Math.sin(t * Math.PI * 2) * amp, 0.15 + 0.85 * Math.sin(t * Math.PI)]);
+  }
+  return out;
+}
+
+/** Brush settings for a preview: size at most maxSize, with the tapers shrunk along so the stroke looks the same. */
+export function previewSettings(s, maxSize) {
+  const k = Math.min(1, maxSize / Math.max(0.5, s.size || 1));
+  return { ...s, size: (s.size || 1) * k, taperIn: (s.taperIn || 0) * k, taperOut: (s.taperOut || 0) * k };
+}
+
 /** Size factor of the starting taper: grows from 10% to full over the first `length` pixels of the stroke. */
 export function taperIn(dist, length) {
   if (!(length > 0) || dist >= length) return 1;

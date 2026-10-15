@@ -106,8 +106,9 @@ export class Painter {
 
 /** The tip shape filled with the brush colour (into canvas c when given). */
 function tinted(mask, color, c = document.createElement('canvas')) {
-  c.width = mask.width; c.height = mask.height;  // also clears a reused canvas
   const ctx = c.getContext('2d');
+  if (c.width !== mask.width || c.height !== mask.height) { c.width = mask.width; c.height = mask.height; }
+  else { ctx.globalCompositeOperation = 'source-over'; ctx.clearRect(0, 0, c.width, c.height); }  // reused for the next colour
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, c.width, c.height);
   ctx.globalCompositeOperation = 'destination-in';
@@ -116,8 +117,9 @@ function tinted(mask, color, c = document.createElement('canvas')) {
 }
 
 function makeTip(color, hardness, c = document.createElement('canvas')) {
-  c.width = c.height = TIP;
   const ctx = c.getContext('2d');
+  if (c.width !== TIP || c.height !== TIP) c.width = c.height = TIP;
+  else ctx.clearRect(0, 0, TIP, TIP);
   const g = ctx.createRadialGradient(TIP / 2, TIP / 2, 0, TIP / 2, TIP / 2, TIP / 2);
   const solid = Math.max(0, Math.min(0.98, hardness));
   g.addColorStop(0, color);

@@ -1,12 +1,14 @@
 // The Liquify tool (J, after Smudge), as Editor methods. Like Smudge it changes the layer directly dab by dab
 // (each dab reads what the last one left), keeps a copy of the layer from pen-down and on pen-up makes the changed
 // rectangle one undo step, putting the old pixels back outside the selection. Push dabs follow the pen; Pinch,
-// Bloat and Twirl also keep working while the pen is held still.
+// Bloat and Twirl also keep working while the pen is held still. With the symmetry ruler every copy bends too
+// (each pushed its own way; mirrored copies twirl the other way round).
 
 import { Smoother, StampPath, stampAt, stampBounds } from '../brush.js';
 import { mixByMask } from '../filters.js';
 import { liquifyDab, liquifyReach } from '../liquify.js';
 import { union, clip } from '../rect.js';
+import { symmetryPoints, symmetryFlips } from '../symmetry.js';
 
 const HOLD_MS = 50;  // while the pen stays put, Pinch/Bloat/Twirl dab this often
 
@@ -35,9 +37,20 @@ export const liquifyMethods = {
     }
   },
 
-  /** One dab at stamp st (with the pen's step dx, dy for Push), straight onto the layer. */
+  /** One dab at stamp st (with the pen's step dx, dy for Push) and at its symmetric copies, straight onto the layer. */
   liquifyAt(st, dx, dy) {
-    const g = this.gesture, d = this.doc, mode = g.s.liquify;
+    const d = this.doc, sym = d.rulers.symmetry, mode = this.gesture.s.liquify;
+    const at = symmetryPoints(sym, st.x, st.y, d.width, d.height);
+    if (at.length === 1) return this.liquifyDabAt(st, dx, dy, mode);
+    const from = symmetryPoints(sym, st.x - dx, st.y - dy, d.width, d.height), flips = symmetryFlips(sym, st.x, st.y, d.width, d.height);
+    at.forEach((q, k) => {
+      const m = mode.startsWith('twirl') && flips[k] ? (mode === 'twirl' ? 'twirl-left' : 'twirl') : mode;
+      this.liquifyDabAt({ ...st, x: q.x, y: q.y }, q.x - from[k].x, q.y - from[k].y, m);
+    });
+  },
+
+  liquifyDabAt(st, dx, dy, mode) {
+    const g = this.gesture, d = this.doc;
     const { size, flow } = stampAt(g.brush, st.p), r = Math.max(1, size / 2);
     if (mode === 'push' && !dx && !dy) return;
     const reach = r + liquifyReach(mode, r, flow, dx, dy);

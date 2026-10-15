@@ -133,3 +133,17 @@ test('colour jitter', async () => {
   assert.equal(sanitizeSettings(null).brush.satJitter, 0, 'off by default');
   assert.ok(BRUSH_KEYS.includes('valJitter') && BRUSH_KEYS.includes('colorJitterStroke'), 'saved with brushes');
 });
+
+test('brush preview stroke', async () => {
+  const { previewPath, previewSettings } = await import('../web/js/brush.js');
+  const pts = previewPath(200, 60, 10, 18, 4);
+  assert.equal(pts.length, 5);
+  assert.deepEqual(pts[0], [10, 30, 0.15], 'starts at the left middle, light');
+  near(pts[2][0], 100, 'middle x'); near(pts[2][1], 30, 'crosses the middle line'); near(pts[2][2], 1, 'full pressure');
+  near(pts[1][1], 18, 'a quarter in: the top of the S, 18 px from the top');
+  near(pts[3][1], 42, 'three quarters: the bottom');
+  assert.deepEqual(pts[4].map(v => Math.round(v * 1e9) / 1e9), [190, 30, 0.15]);
+  const s = previewSettings({ size: 200, taperIn: 100, taperOut: 50, flow: 0.5 }, 40);
+  assert.deepEqual(s, { size: 40, taperIn: 20, taperOut: 10, flow: 0.5 }, 'shrunk by 40 / 200');
+  assert.equal(previewSettings({ size: 10, taperIn: 30 }, 40).taperIn, 30, 'small brushes stay as they are');
+});

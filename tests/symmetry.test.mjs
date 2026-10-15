@@ -68,3 +68,14 @@ test('reference and lock are saved; the old sampleAll tick carries over', () => 
   assert.equal(sanitizeSettings({ fill: { sample: 'nonsense' } }).fill.sample, 'all');
   assert.equal(sanitizeSettings(null).smudge.strength, 0.6);
 });
+
+test('which symmetric copies are mirrored', async () => {
+  const { symmetryFlips, symmetryPoints } = await import('../web/js/symmetry.js');
+  const sym = kind => ({ kind, lines: 6, x: null, y: null });
+  assert.deepEqual(symmetryFlips(sym('vertical'), 30, 40, 100, 100), [false, true], 'left-right mirror');
+  assert.ok(symmetryFlips(sym('radial'), 30, 40, 100, 100).every(f => !f), 'turned copies are not mirrored');
+  const k = symmetryFlips(sym('kaleido'), 30, 40, 100, 100);
+  assert.equal(k.length, symmetryPoints(sym('kaleido'), 30, 40, 100, 100).length);
+  assert.equal(k.filter(Boolean).length, k.length / 2, 'kaleidoscope: half of them mirrored');
+  assert.deepEqual(symmetryFlips({ kind: 'off' }, 1, 2, 10, 10), [false]);
+});

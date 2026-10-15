@@ -69,6 +69,23 @@ export const gradientMethods = {
     if (g.t.kind !== 'mask') this.colors.used();
   },
 
+  /** The colour strip at the top of the Gradient tool's settings (over a checker, so transparent ends show). */
+  drawGradientStrip() {
+    const c = this.root.querySelector('.tool-props .grad-strip');
+    if (!c || this.tool !== 'gradient') return;
+    const dpr = window.devicePixelRatio || 1, w = Math.round((c.clientWidth || 200) * dpr), h = Math.round(18 * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const ctx = c.getContext('2d'), s = this.settings.gradient, cell = 6 * dpr;
+    for (let y = 0; y < h; y += cell) for (let x = 0; x < w; x += cell) {
+      ctx.fillStyle = ((x + y) / cell) % 2 ? '#c8c8c8' : '#ffffff';
+      ctx.fillRect(x, y, cell, cell);
+    }
+    const grad = ctx.createLinearGradient(0, 0, w, 0);
+    for (const [o, col] of gradientStops(s.colors, this.colors.main, this.colors.sub)) grad.addColorStop(o, col);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  },
+
   /** The drag line while making a gradient. */
   drawGradientOverlay(ctx) {
     const g = this.gesture;
