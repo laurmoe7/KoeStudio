@@ -34,6 +34,7 @@ import { helpMenuItems } from './help.js';
 import { vectorMethods } from './vectortools.js';
 import { refMethods } from './reftools.js';
 import { smudgeMethods } from './smudgetool.js';
+import { liquifyMethods } from './liquifytool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
 import { symmetryStamps } from '../symmetry.js';
@@ -561,9 +562,9 @@ export class Editor {
     }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
-    set({ paint: 'none', smudge: 'none', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+    set({ paint: 'none', smudge: 'none', liquify: 'none', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
-    return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge') ? tool : null;
+    return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge' || tool.kind === 'liquify') ? tool : null;
   }
 
   drawBrushOutline(ctx, tool) {
@@ -760,6 +761,7 @@ export class Editor {
       }
       else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId, e.shiftKey);
       else if (tool.kind === 'smudge') this.beginSmudge(dp, e.pointerId);
+      else if (tool.kind === 'liquify') this.beginLiquify(dp, e.pointerId);
       else if (tool.kind === 'lassofill') this.beginLassoFill(dp, e.pointerId);
       else if (tool.kind === 'figure') this.beginFigure(this.gridPoint(dp), e.pointerId, e.shiftKey, e.detail >= 2);
       else if (tool.kind === 'fill') this.fillAt(dp);
@@ -775,11 +777,12 @@ export class Editor {
       this.pointerShift = e.shiftKey;
       const g = this.gesture;
       if (g && g.id === e.pointerId) {
-        if (g.type === 'paint' || g.type === 'smudge') {
+        if (g.type === 'paint' || g.type === 'smudge' || g.type === 'liquify') {
           const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
           for (const ev of evs.length ? evs : [e]) {
             const q = pos(ev), pt = { ...toDoc(this.view, q.x, q.y), p: pressure(ev) };
             if (g.type === 'paint') this.addPoint(pt);
+            else if (g.type === 'liquify') this.liquifyPoint(pt);
             else this.smudgePoint(pt);
           }
           this.requestRender();
@@ -819,6 +822,7 @@ export class Editor {
       this.pointer = pos(e);
       if (g.type === 'paint') this.endPaint();
       else if (g.type === 'smudge') this.endSmudge();
+      else if (g.type === 'liquify') this.endLiquify();
       else if (g.type === 'verase') this.endVectorErase();
       else if (g.type === 'lassofill') this.endLassoFill();
       else if (g.type === 'guide' || g.type === 'vp') this.rulerEnd(this.pointer);
@@ -1256,7 +1260,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

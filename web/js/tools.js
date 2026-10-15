@@ -5,6 +5,7 @@ import { GRADIENT_COLORS, GRADIENT_SHAPES, GRADIENT_REPEATS } from './gradient.j
 import { FONTS, ALIGNS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
 import { FIGURE_SHAPES } from './figure.js';
+import { LIQUIFY_MODES } from './liquify.js';
 import { sanitizeCurve } from './brush.js';
 import { imageRef } from './brushtip.js';
 
@@ -35,6 +36,8 @@ export const TOOLS = [
     defaults: { vectorErase: 'area', size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1, ...tex() } },
   { id: 'smudge', label: 'Smudge', key: 'j', kind: 'smudge', icon: 'smudge', group: 'draw',
     defaults: { size: 40, strength: 0.6, hardness: 0.3, spacing: 0.08, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
+  { id: 'liquify', label: 'Liquify', key: 'j', kind: 'liquify', icon: 'liquify', group: 'draw',
+    defaults: { liquify: 'push', size: 120, strength: 0.7, spacing: 0.08, pressureSize: false, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
     defaults: { opacity: 1, tolerance: 12, grow: 1, gap: 0, sample: 'all', contiguous: true } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
@@ -72,6 +75,7 @@ export const SETTING_FIELDS = [
   ['size', 'Size', 'range', 1, 1000, 1],
   ['opacity', 'Opacity', 'range', 0.01, 1, 0.01],
   ['flow', 'Density', 'range', 0.01, 1, 0.01],
+  ['liquify', 'Mode', 'choice', LIQUIFY_MODES],
   ['strength', 'Strength', 'range', 0.01, 1, 0.01],
   ['hardness', 'Hardness', 'range', 0, 1, 0.01],
   ['spacing', 'Spacing', 'range', 0.02, 1, 0.01],
@@ -142,7 +146,8 @@ export const SETTING_HINTS = {
   grow: 'Grows the filled area by this many pixels, so it tucks under line edges',
   gap: 'Fills as if openings in the lines up to about twice this many pixels were closed, so the fill does not leak out (0 = off)',
   sample: 'Find the area from everything you see, the current layer only, or only layers marked as reference (Layer panel)',
-  strength: 'How far each dab drags the colour along (pen pressure makes it stronger when Pressure → density is on)',
+  strength: 'How strongly each dab smudges or bends the picture (pen pressure makes it stronger when Pressure → density is on)',
+  liquify: 'Push drags the picture along with the pen; Pinch pulls it in, Bloat swells it, Twirl turns it (these keep working while you hold the pen still)',
   shape: 'Straight: along the line you drag. Circle: outwards from where you start',
   dither: 'Adds a faint, even grain so smooth gradients show no bands (steps between colour levels)',
   colors: 'Main and sub are the two colour squares in the Color panel; the named gradients have colours of their own',
