@@ -10,6 +10,3 @@ __pycache__/
 
 node_modules/
 *.zip
-
-# Machine-specific launcher (recreate with tools/make_launcher.ps1)
-/KoeStudio.exe
