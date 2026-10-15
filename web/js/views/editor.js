@@ -31,6 +31,7 @@ import { figureMethods } from './figuretool.js';
 import { quickMaskMethods } from './quickmask.js';
 import { navMethods } from './navpanels.js';
 import { helpMenuItems } from './help.js';
+import { vectorMethods } from './vectortools.js';
 import { smudgeMethods } from './smudgetool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -307,6 +308,7 @@ export class Editor {
       help: helpMenuItems(),
       layer: [
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
+        { label: 'New vector layer', run: () => this.newVectorLayer() },
         { label: 'New folder', run: () => this.folderAdd() },
         { label: 'Duplicate layer', run: () => this.layerDuplicate() },
         { label: 'Rename…', key: 'F2', run: () => this.renameLayer() },
@@ -332,6 +334,7 @@ export class Editor {
         { label: 'Flip layer vertically', run: () => this.flipPixels(this.layerRasters(), 'v', 'Flip layer') },
         '-',
         { label: 'Rasterize text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
+        { label: 'Rasterize vector layer', run: () => this.rasterizeVector(d.active), disabled: !d.active.vector },
       ],
       view: [
         { label: 'Zoom in', key: 'Ctrl+=', run: () => this.zoomStep(1) },
@@ -773,6 +776,8 @@ export class Editor {
             else this.smudgePoint(pt);
           }
           this.requestRender();
+        } else if (g.type === 'verase') {
+          this.vectorEraseTo({ ...toDoc(this.view, p.x, p.y), p: pressure(e) });
         } else if (g.type === 'lassofill') {
           this.lassoFillDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'pan') {
@@ -806,6 +811,7 @@ export class Editor {
       this.pointer = pos(e);
       if (g.type === 'paint') this.endPaint();
       else if (g.type === 'smudge') this.endSmudge();
+      else if (g.type === 'verase') this.endVectorErase();
       else if (g.type === 'lassofill') this.endLassoFill();
       else if (g.type === 'guide' || g.type === 'vp') this.rulerEnd(this.pointer);
       else if (g.type === 'gradient') this.endGradient();
@@ -851,8 +857,9 @@ export class Editor {
   /** Pen down. With Shift, the stroke starts as a straight line from where the last stroke on this layer ended. */
   beginPaint(toolId, pt, id, shift = false) {
     const tool = TOOL_BY_ID[toolId], s = this.settings[toolId];
-    const layer = this.target(tool.erase ? 'erase' : 'draw on');
+    const layer = this.target(tool.erase ? 'erase' : 'draw on', { vector: true });
     if (!layer) return;
+    if (layer.vector && tool.erase) return this.beginVectorErase(toolId, pt, id, layer);  // erases lines, not pixels
     this.resetStroke();
     const sizeAt = p => stampAt(s, p).size;
     const reach = tipReach(hasTipImage(s.tip)) * 2;
@@ -864,8 +871,10 @@ export class Editor {
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
+      vec: layer.vector ? [] : null,  // on a vector layer: the smoothed path, kept as a line at pen-up (vectortools.js)
     };
-    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), sel: this.sel.active ? this.sel : null };
+    // vector lines are kept whole, so the selection does not cut them
+    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), sel: this.sel.active && !layer.vector ? this.sel : null };
     if (line) {
       this.addStampPoint({ ...line, p: pt.p });
       for (const q of linePoints({ ...line, p: pt.p }, pt, 3)) this.addStampPoint(q);
@@ -883,7 +892,9 @@ export class Editor {
   addStampPoint(pt) {
     const g = this.gesture;
     g.last = pt;
-    const stamps = g.path.add(g.smoother.add(pt));
+    const sp = g.smoother.add(pt);
+    if (g.vec) g.vec.push([sp.x, sp.y, sp.p]);
+    const stamps = g.path.add(sp);
     if (!stamps.length) return;
     for (const st of stamps) {  // distance along the stroke (for the taper) and random variation; symmetric copies share it
       if (g.prevStamp) g.dist += Math.hypot(st.x - g.prevStamp.x, st.y - g.prevStamp.y);
@@ -928,7 +939,8 @@ export class Editor {
     this.drawStamps(g.held);
     g.held = [];
     this.lastStroke = { layer: g.layer, pt: g.last };
-    this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');
+    if (g.vec) this.commitVectorStroke(g.layer, g.vec, g.s, g.s.opacity, 'Draw line');
+    else this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');
     if (!g.erase && g.layer.kind !== 'mask') this.colors.used();
   }
 
@@ -1230,7 +1242,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, exportMethods, smudgeMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, exportMethods, smudgeMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

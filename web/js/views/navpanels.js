@@ -88,7 +88,14 @@ export const navMethods = {
   scheduleNav() {
     if (this.destroyed || this.root.querySelector('[data-panel="navigator"]')?.classList.contains('folded')) return;
     if (!this.navRaf) this.navRaf = requestAnimationFrame(() => { this.navRaf = 0; this.paintNav(); });
-    if (!this.navTimer) this.navTimer = setTimeout(() => { this.navTimer = 0; this.navStale = true; this.scheduleNav(); }, NAV_CONTENT_MS);
+    // one picture refresh per burst of renders (not re-armed by its own repaint, so an idle editor stays idle)
+    if (!this.navTimer) {
+      this.navTimer = setTimeout(() => {
+        this.navTimer = 0;
+        this.navStale = true;
+        if (!this.navRaf && !this.destroyed) this.navRaf = requestAnimationFrame(() => { this.navRaf = 0; this.paintNav(); });
+      }, NAV_CONTENT_MS);
+    }
   },
 
   paintNav() {

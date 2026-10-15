@@ -33,8 +33,9 @@ export function hasTipImage(tip) {
 
 export class Painter {
   /** opts: color, hardness, and optionally tip ('round' or 'img:<id>'), thickness (0-1), angle (degrees),
-   * random (0-1: share of a half turn either way), follow (turn with the stroke). */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false }) {
+   * random (0-1: share of a half turn either way), follow (turn with the stroke), rnd (random numbers 0-1; a seeded
+   * source makes the random turns repeatable, as vector lines need). */
+  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random }) {
     this.ctx = ctx;
     this.color = color;
     const mask = tipImages.get(imageRef(tip));
@@ -45,6 +46,7 @@ export class Painter {
     this.angle = (angle || 0) * Math.PI / 180;
     this.random = Math.max(0, Math.min(1, random || 0));
     this.follow = !!follow;
+    this.rnd = rnd;
     this.last = [];  // per symmetric copy: last dab position and direction
   }
 
@@ -86,7 +88,7 @@ export class Painter {
       if (dx * dx + dy * dy > 0.25) { l.dir = Math.atan2(dy, dx); l.x = x; l.y = y; }
       a += l.dir;
     }
-    if (this.random) a += (Math.random() * 2 - 1) * Math.PI * this.random;
+    if (this.random) a += (this.rnd() * 2 - 1) * Math.PI * this.random;
     return a;
   }
 }

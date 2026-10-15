@@ -185,3 +185,10 @@ test('history jumps to any step', () => {
   h.goTo(99);
   assert.equal(v, 4, 'past the end stops at the newest step');
 });
+
+test('vector layers in the save format', () => {
+  const d = sanitizeDoc({ layers: [{ name: 'Lines', vector: { brushes: [{ size: 3 }], strokes: [{ pts: [[1, 2, 0.5], [3, 4, 1]], b: 0, color: '#FF0000', opacity: 0.5, seed: 9 }] } }, { name: 'Plain' }] });
+  assert.deepEqual(d.layers[0].vector.strokes, [{ pts: [[1, 2, 0.5], [3, 4, 1]], b: 0, color: '#ff0000', opacity: 0.5, seed: 9 }]);
+  assert.equal(d.layers[0].vector.brushes[0].size, 3);
+  assert.equal('vector' in d.layers[1], false, 'ordinary layers have none');
+});

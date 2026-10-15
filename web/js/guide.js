@@ -112,8 +112,24 @@ export const GUIDE = [
       one under it (great for shading).</li>
       <li><b>Lock</b> protects a layer from changes; <b>Reference</b> marks line art for Fill and the wand.</li>
       <li>The coloured dots label layers so you can find them.</li>
+      <li><b>Vector layers</b> keep lines as lines, for erasing whole lines (see Vector layers).</li>
       <li>Double-click a name (or <kbd>F2</kbd>) to rename. <kbd>Ctrl+G</kbd> puts the layer in a new folder,
       <kbd>Ctrl+E</kbd> merges down.</li>
+    </ul>`],
+
+  ['vector', 'Vector layers', `
+    <p>A <b>vector layer</b> (Layer → New vector layer) keeps every line you draw as a line, not as pixels. That is
+    what makes cleaning up line art quick: the Eraser can remove a line, or cut it back to where it crosses another.</p>
+    <ul>
+      <li>Draw on it with the Pen, Pencil, Brush and Airbrush, and with the Figure tool (outlines, not filled shapes).
+      Each line keeps the brush, colour and opacity it was drawn with.</li>
+      <li>The <b>Eraser</b>'s <b>Vector</b> setting chooses how it works on vector layers:
+        <b>Touched area</b> cuts away only what the eraser passes over;
+        <b>Up to intersection</b> removes the stretch of a line between the lines it crosses, so overshoots
+        disappear in one stroke; <b>Whole line</b> removes every line it touches.</li>
+      <li>The Move tool moves the lines, <kbd>Del</kbd> clears them all, and undo works as everywhere.</li>
+      <li>Tools that need pixels (Fill, filters, Transform, Smudge) ask you to <b>rasterize</b> the layer first
+      (Layer → Rasterize vector layer). Flipping, resizing the canvas or merging into it rasterizes it too.</li>
     </ul>`],
 
   ['masks', 'Masks and screentone', `

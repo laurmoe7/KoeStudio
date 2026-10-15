@@ -7,6 +7,7 @@
 import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, PASS_THROUGH } from '../doc.js';
 import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget } from '../tree.js';
 import { toast } from '../ui.js';
+import { translateVector } from '../vector.js';
 
 /** The node itself or the nearest folder around it that is locked, or null. */
 export function lockedNode(n) {
@@ -21,7 +22,7 @@ export const layerMethods = {
    * The raster tools change (layer or mask), or null after telling the user why not. verb: 'draw on', 'fill'...
    * read: the tool only reads pixels (copy, select), so text layers are fine as they are.
    */
-  target(verb = 'draw on', { read = false } = {}) {
+  target(verb = 'draw on', { read = false, vector = false } = {}) {
     if (this.quickMask) return this.quickMask;
     const n = this.doc.active;
     if (!n.visible) { toast(`This ${isFolder(n) ? 'folder' : 'layer'} is hidden. Show it to ${verb} it.`); return null; }
@@ -31,6 +32,10 @@ export const layerMethods = {
     if (isFolder(n)) { toast(`A folder has no pixels of its own. Select a layer inside it to ${verb}, or click the folder's mask.`); return null; }
     if (n.text && !read) {
       toast('This is a text layer. Use the Text tool to change it, or rasterize it to paint on it.', { action: { label: 'Rasterize', run: () => this.rasterizeText(n) }, ms: 6000 });
+      return null;
+    }
+    if (n.vector && !read && !vector) {
+      toast(`This is a vector layer: pens, the Eraser and Figure outlines work on it. Rasterize it to ${verb} it.`, { action: { label: 'Rasterize', run: () => this.rasterizeVector(n) }, ms: 6000 });
       return null;
     }
     return n;
@@ -300,12 +305,17 @@ export const layerMethods = {
         p.textAfter = { ...p.r.text, x: p.r.text.x + g.dx, y: p.r.text.y + g.dy };
         p.r.text = p.textAfter;
       }
+      if (p.r.vector) {  // a vector layer keeps its lines: move them too
+        p.vectorBefore = p.r.vector;
+        p.vectorAfter = p.r.vector = translateVector(p.r.vector, g.dx, g.dy);
+      }
     }
     const put = key => {
       for (const p of g.parts) {
         p.r.ctx.putImageData(p[key], 0, 0);
         p.r.touch();
         if (p.textBefore) p.r.text = key === 'before' ? p.textBefore : p.textAfter;
+        if (p.vectorBefore) p.r.vector = key === 'before' ? p.vectorBefore : p.vectorAfter;
       }
       this.changed(null);
     };
@@ -315,6 +325,11 @@ export const layerMethods = {
 
   /** Clears the selected pixels, or the whole layer when nothing is selected (on a mask: reveals). */
   clearLayer(label = 'Delete') {
+    const n = this.doc.active;
+    if (n.vector && !this.sel.active && !this.maskEdit && !this.quickMask && !lockedNode(n) && n.visible) {  // a vector layer: every line goes
+      if (n.vector.strokes.length) { const before = n.vector, after = { brushes: before.brushes, strokes: [] }; this.showVector(n, before, after); this.pushVectorStep(n, before, after, 'Clear layer'); }
+      return;
+    }
     const d = this.doc, t = this.target('clear');
     if (!t) return;
     if (this.sel.active) {

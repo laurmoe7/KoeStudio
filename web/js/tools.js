@@ -19,6 +19,8 @@ function tex(texture = 'none', textureAmount = 0.5) {
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
 export const TIPS = [['round', 'Round']];
+/** How the Eraser works on vector layers (vector.js eraseVector). */
+export const VECTOR_ERASE = [['area', 'Touched area'], ['intersection', 'Up to intersection'], ['line', 'Whole line']];
 
 export const TOOLS = [
   { id: 'pen', label: 'Pen', key: 'p', kind: 'paint', icon: 'pen', group: 'draw',
@@ -30,7 +32,7 @@ export const TOOLS = [
   { id: 'airbrush', label: 'Airbrush', key: 'a', kind: 'paint', icon: 'air', group: 'draw',
     defaults: { size: 120, opacity: 1, flow: 0.06, hardness: 0, spacing: 0.06, pressureSize: false, pressureOpacity: true, minSize: 0.5, smoothing: 0, gamma: 1, ...tex() } },
   { id: 'eraser', label: 'Eraser', key: 'e', kind: 'paint', icon: 'eraser', erase: true, group: 'draw',
-    defaults: { size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1, ...tex() } },
+    defaults: { vectorErase: 'area', size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1, ...tex() } },
   { id: 'smudge', label: 'Smudge', key: 'j', kind: 'smudge', icon: 'smudge', group: 'draw',
     defaults: { size: 40, strength: 0.6, hardness: 0.3, spacing: 0.08, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
@@ -59,6 +61,7 @@ export const TOOL_BY_ID = Object.fromEntries(TOOLS.map(t => [t.id, t]));
 /** The settings each control in the tool panel edits: [key, label, type, min, max, step], or [key, label, 'choice', options]. */
 export const SETTING_FIELDS = [
   ['mode', 'Mode', 'choice', SELECT_MODES],
+  ['vectorErase', 'Vector', 'choice', VECTOR_ERASE],
   ['figure', 'Shape', 'choice', FIGURE_SHAPES],
   ['colors', 'Colors', 'choice', GRADIENT_COLORS],
   ['shape', 'Shape', 'choice', GRADIENT_SHAPES],
@@ -107,11 +110,11 @@ export const SETTING_FIELDS = [
 ];
 
 /** The paint settings the tool panel shows; the rest are in the Brush settings window (as Clip Studio Paint's Sub Tool Detail). */
-export const BASIC_PAINT = ['size', 'opacity', 'flow', 'hardness', 'smoothing'];
+export const BASIC_PAINT = ['vectorErase', 'size', 'opacity', 'flow', 'hardness', 'smoothing'];
 
 /** The pages of the Brush settings window, and which settings each holds (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
-  ['Paint', ['size', 'opacity', 'flow', 'hardness']],
+  ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness']],
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut']],
@@ -121,6 +124,7 @@ export const SETTING_GROUPS = [
 
 /** Tooltips for the tool settings whose short label needs explaining. */
 export const SETTING_HINTS = {
+  vectorErase: 'On vector layers: Touched area cuts away what the eraser passes over; Up to intersection removes a line back to where it crosses other lines; Whole line removes every line it touches',
   mode: 'What a new selection does with the one you have (or hold Shift / Alt while dragging)',
   flow: 'How much paint each dab lays down; it builds up within one stroke, while Opacity caps the whole stroke',
   hardness: 'Hard edge (100%) or soft, fading edge',

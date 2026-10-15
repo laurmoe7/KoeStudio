@@ -8,6 +8,7 @@
 import { constrain, figurePoints, figureBounds, pointsBounds, polyCorners, POLY_SHAPES } from '../figure.js';
 import { Painter } from '../painter.js';
 import { union } from '../rect.js';
+import { toast } from '../ui.js';
 import { toScreen, toDoc, matrix } from '../view.js';
 
 const SPACING = 0.1;  // stamp spacing as a share of the brush size
@@ -17,7 +18,7 @@ export const figureMethods = {
   beginFigure(dp, id, shift, dbl = false) {
     const s = this.settings.figure;
     if (s.figure in POLY_SHAPES || this.figPoly) return this.figurePolyClick(dp, shift, dbl);
-    const layer = this.target('draw on');
+    const layer = this.figureTarget();
     if (!layer) return;
     this.resetStroke();
     this.gesture = { type: 'figure', tool: 'figure', id, s, layer, start: dp, cur: dp, shift, bounds: null,
@@ -44,6 +45,8 @@ export const figureMethods = {
     ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(area.x, area.y, area.w, area.h);
     const { points, closed } = figurePoints(s.figure, g.start, b, s.size * SPACING, s.corner);
+    g.points = points;
+    g.closed = closed;
     this.stampOutline(g.painter, s, g.layer, points, closed);
     ctx.restore();
     this.sel.clipCanvas(ctx, area);
@@ -79,11 +82,21 @@ export const figureMethods = {
 
   // ---------- polyline and polygon ----------
 
+  /** The layer a figure goes on: vector layers take outlines (kept as lines), not filled shapes. */
+  figureTarget() {
+    const layer = this.target('draw on', { vector: true });
+    if (layer?.vector && this.settings.figure.fill) {
+      toast('A vector layer keeps lines, not filled shapes. Untick "Fill the shape", or draw it on an ordinary layer.');
+      return null;
+    }
+    return layer;
+  },
+
   /** A click with the polyline/polygon figure: the first starts the shape, later ones add corners or finish it. */
   figurePolyClick(dp, shift, dbl) {
     const p = this.figPoly;
     if (!p) {
-      const layer = this.target('draw on');
+      const layer = this.figureTarget();
       if (layer) this.figPoly = { layer, closed: POLY_SHAPES[this.settings.figure.figure], points: [{ x: dp.x, y: dp.y }] };
       return;
     }
@@ -102,6 +115,7 @@ export const figureMethods = {
     const pts = polyCorners(p.points, p.closed);
     if (pts.length < 2) return this.drawOverlay();
     const s = this.settings.figure, closed = p.closed && pts.length > 2;
+    if (p.layer.vector) { this.commitVectorFigure(p.layer, pts, closed, s); this.colors.used(); this.drawOverlay(); return; }
     this.resetStroke();
     const ctx = this.strokeCtx;
     ctx.save();
@@ -163,7 +177,8 @@ export const figureMethods = {
 
   endFigure() {
     const g = this.gesture;
-    this.commitStroke(g.layer, g.bounds, 'Figure');
+    if (g.layer.vector) this.commitVectorFigure(g.layer, g.points, g.closed, g.s);
+    else this.commitStroke(g.layer, g.bounds, 'Figure');
     if (g.layer.kind !== 'mask') this.colors.used();
   },
 };

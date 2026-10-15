@@ -168,12 +168,15 @@ export const textMethods = {
     toast('The text is now ordinary pixels you can paint on.');
   },
 
-  /** For operations that change text layers' pixels directly: drop their text (and restore it on undo). */
+  /**
+   * For operations that change text or vector layers' pixels directly: drop their text or lines, so they become
+   * ordinary pixels (and restore them on undo).
+   */
   textsIn(rasters) {
-    const list = rasters.filter(r => r.text).map(r => [r, r.text]);
+    const list = rasters.filter(r => r.text || r.vector).map(r => [r, r.text, r.vector]);
     return {
-      drop: () => list.forEach(([r]) => { r.text = null; }),
-      restore: () => list.forEach(([r, t]) => { r.text = t; }),
+      drop: () => list.forEach(([r]) => { r.text = null; r.vector = null; }),
+      restore: () => list.forEach(([r, t, v]) => { r.text = t; r.vector = v; }),
     };
   },
 };

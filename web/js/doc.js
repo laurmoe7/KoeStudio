@@ -5,6 +5,7 @@ import { isFolder, allNodes, allLayers, pathOf, nodeAt, insertNode } from './tre
 import { defaultRulers, sanitizeRulers } from './rulers.js';
 import { sanitizeText } from './textlayer.js';
 import { sanitizeTone, applyTone } from './tone.js';
+import { sanitizeVector } from './vector.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -29,7 +30,8 @@ const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
  * Version 1 files had a flat `layers` list and an `active` index; version 2 nests folders ({type: 'folder',
  * children}) in `layers`, gives any node an optional `mask: {png, enabled}`, and stores `activePath`.
  * `rulers` (guides, perspective ruler, snapping; see rulers.js) is optional in either version, as is a layer's
- * `tone` (shown as screentone; see tone.js), and any node's `label` (a colour label from LABELS).
+ * `tone` (shown as screentone; see tone.js), a layer's `vector` (its lines as data; see vector.js), and any node's
+ * `label` (a colour label from LABELS).
  */
 export function sanitizeDoc(raw) {
   const d = raw && typeof raw === 'object' ? raw : {};
@@ -57,6 +59,7 @@ export function sanitizeDoc(raw) {
       out.alphaLock = !!l?.alphaLock;
       out.png = isPng(l?.png) ? l.png : null;
       if (l?.text) out.text = sanitizeText(l.text);  // a text layer (textlayer.js); png holds its last rendering
+      else if (l?.vector) out.vector = sanitizeVector(l.vector);  // a vector layer (vector.js); png holds its last rendering
       out.tone = sanitizeTone(l?.tone);
     }
     return out;
@@ -139,6 +142,7 @@ export class Layer extends Raster {
     this.locked = !!props.locked;        // no pixel changes (Layer panel → Lock)
     this.reference = !!props.reference;  // Fill and the wand can look at reference layers only
     this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
+    this.vector = props.vector || null;  // set on vector layers: the lines (vector.js); never changed in place
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
   }
 }
@@ -170,7 +174,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, tone: n.tone ? { ...n.tone } : null });
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -260,6 +264,7 @@ export class Doc {
         out.alphaLock = n.alphaLock;
         out.png = await n.toPng();
         if (n.text) out.text = n.text;
+        if (n.vector) out.vector = n.vector;
         if (n.tone) out.tone = n.tone;
       }
       if (n.mask) out.mask = { enabled: n.mask.enabled, png: await n.mask.toPng() };

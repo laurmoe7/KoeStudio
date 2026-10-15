@@ -103,6 +103,7 @@ export class LayerPanel {
       row.style.paddingLeft = 4 + depth * INDENT + 'px';
       const sub = [blendLabel(node.blend), Math.round(node.opacity * 100) + '%'];
       if (node.text) sub.unshift('Text');
+      if (node.vector) sub.unshift('Vector');
       if (node.tone) sub.unshift('Tone');
       if (node.locked) sub.push('locked');
       else if (node.alphaLock) sub.push('alpha locked');
