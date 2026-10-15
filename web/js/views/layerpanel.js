@@ -19,7 +19,7 @@ export class LayerPanel {
         <label class="lp-opacity" title="Opacity"><input type="range" min="0" max="100" step="1"><span></span></label>
       </div>
       <div class="lp-props">
-        <label class="check" title="Lock transparent pixels: paint only where the layer already has paint"><input type="checkbox" class="lp-lock">${icon('lock', 15)} Lock alpha</label>
+        <label class="check" title="Lock transparent pixels: paint only where the layer already has paint"><input type="checkbox" class="lp-lock">${icon('lockAlpha', 15)} Lock alpha</label>
         <label class="check" title="Clip to the layer below: show only where it has paint"><input type="checkbox" class="lp-clip">${icon('clip', 15)} Clip below</label>
       </div>
       <div class="lp-props">

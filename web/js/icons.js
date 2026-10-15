@@ -44,6 +44,7 @@ const P = {
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-4"/>',
   redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h4"/>',
   back: '<path d="M15 18l-6-6 6-6"/>',
+  lockAlpha: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 4h8v8H4zM12 12h8v8h-8z" fill="currentColor" stroke="none" opacity=".55"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
   clip: '<path d="M7 7h10v10"/><path d="M7 3v14h14"/>',
   swap: '<path d="M7 4L4 7l3 3"/><path d="M4 7h11a5 5 0 015 5"/><path d="M17 20l3-3-3-3"/><path d="M20 17H9a5 5 0 01-5-5"/>',

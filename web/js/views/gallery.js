@@ -129,7 +129,10 @@ async function fillGrid(root, onOpen) {
     return;
   }
   if (!list.length) {
-    grid.innerHTML = `<div class="empty"><p>No artwork yet.</p><p class="muted">Click <b>New canvas</b> to start drawing.</p></div>`;
+    grid.innerHTML = `<div class="empty"><span class="empty-art">${icon('brush', 56)}</span><p>No artwork yet.</p>
+      <p class="muted">Start with a new canvas, or open a picture or a .koe project.</p>
+      <button class="primary" data-empty-new>${icon('plus', 18)} New canvas</button></div>`;
+    grid.querySelector('[data-empty-new]').onclick = () => document.querySelector('[data-act="new"]')?.click();
     return;
   }
   grid.innerHTML = list.map(a => `
@@ -137,7 +140,8 @@ async function fillGrid(root, onOpen) {
       <div class="thumb"><img src="${api.thumbUrl(a.id, a.modified)}" alt="" loading="lazy" onerror="this.remove()"></div>
       <div class="card-info">
         <div class="card-title">${esc(a.title)}</div>
-        <div class="muted small">${a.width} × ${a.height} · ${a.layers} layer${a.layers === 1 ? '' : 's'} · ${esc(when(a.modified))}</div>
+        <div class="muted small">${a.width} × ${a.height} · ${a.layers} layer${a.layers === 1 ? '' : 's'}</div>
+        <div class="muted small" title="Last changed">${esc(when(a.modified))}</div>
       </div>
       <button class="icon-btn card-more" title="More: rename, duplicate, earlier versions, delete" aria-label="More">${icon('more', 18)}</button>
     </div>`).join('');

@@ -134,7 +134,7 @@ export const exportMethods = {
         <label class="check"><input type="checkbox" name="area"${o.area === 'selection' && hasSel ? ' checked' : ''}${hasSel ? '' : ' disabled'}> Only the selected area${hasSel ? '' : ' (nothing is selected)'}</label>
         <p class="small" data-size></p>
         <label class="field"><span>Save in</span>
-          <div class="fb-dest"><code data-dest></code><button type="button" data-browse>Browse…</button></div></label>`,
+          <div class="fb-dest"><span class="fb-path" data-dest></span><button type="button" data-browse>Browse…</button></div></label>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'Export', primary: true }],
       onOpen: root => {
         const show = () => {
