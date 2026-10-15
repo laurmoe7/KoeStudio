@@ -152,6 +152,44 @@ class Storage(unittest.TestCase):
         self.assertEqual(got['title'], 'My Picture', 'an untitled project takes its file name')
         self.assertIsNone(app.take_open_file(), 'handed out once')
 
+    def test_export_to_a_chosen_folder(self):
+        other = os.path.join(self.tmp.name, 'Elsewhere')
+        os.mkdir(other)
+        res = app.export_image('pic', PNG, 'png', other)
+        self.assertEqual(res, {'path': os.path.join(other, 'pic.png'), 'folder': other})
+        with self.assertRaises(FileExistsError):
+            app.export_image('pic', PNG, 'png', other, 'ask')
+        bigger = PNG + b'more'
+        self.assertEqual(app.export_image('pic', bigger, 'png', other, 'replace')['path'], os.path.join(other, 'pic.png'))
+        with open(os.path.join(other, 'pic.png'), 'rb') as f:
+            self.assertEqual(f.read(), bigger, 'replaced')
+        self.assertTrue(app.export_image('pic', PNG, 'png', other)['path'].endswith('pic (2).png'), 'numbered by default')
+        with self.assertRaises(ValueError):
+            app.export_image('pic', PNG, 'png', os.path.join(self.tmp.name, 'missing'))
+
+    def test_folder_listing_and_new_folder(self):
+        root = os.path.join(self.tmp.name, 'Browse')
+        os.mkdir(root)
+        for name in ('b.png', 'A.koe', 'notes.txt', '.hidden.png'):
+            with open(os.path.join(root, name), 'wb') as f:
+                f.write(b'x')
+        os.mkdir(os.path.join(root, 'zeta'))
+        os.mkdir(os.path.join(root, '.secret'))
+        self.assertEqual(app.make_dir(root, 'Alpha: new?')['path'], os.path.join(root, 'Alpha new'))
+        with self.assertRaises(FileExistsError):
+            app.make_dir(root, 'zeta')
+        got = app.list_dir(root)
+        self.assertEqual(got['path'], root)
+        self.assertEqual(got['parent'], self.tmp.name)
+        self.assertEqual(got['dirs'], ['Alpha new', 'zeta'], 'hidden folders left out, sorted')
+        self.assertEqual([f['name'] for f in got['files']], ['A.koe', 'b.png'], 'only pictures and projects')
+        self.assertIn('Exports', [p['name'] for p in got['places']])
+        self.assertEqual(app.list_dir('')['path'], app.exports_dir(), 'empty path: the Exports folder (made if missing)')
+        top = app.list_dir(os.path.splitdrive(root)[0] + os.sep if os.name == 'nt' else '/')
+        self.assertIsNone(top['parent'], 'a drive root has no parent')
+        with self.assertRaises(FileNotFoundError):
+            app.list_dir(os.path.join(root, 'nope'))
+
     def test_export_project_file(self):
         data = json.dumps(doc('Proj')).encode()
         path = app.export_image('Proj', data, 'koe')['path']
@@ -228,6 +266,14 @@ class Http(unittest.TestCase):
             self.assertIn('Keep copy', [a['title'] for a in json.loads(r.read())])
         finally:
             c.close()
+
+    def test_export_asks_before_replacing(self):
+        url = '/api/export?name=ask&format=png&mode=ask&dir=' + self.tmp.name.replace('\\', '/')
+        status, _, _ = self.req('POST', url, PNG)
+        self.assertEqual(status, 200)
+        status, data, _ = self.req('POST', url, PNG)
+        self.assertEqual(status, 409)
+        self.assertEqual(json.loads(data), {'error': 'ask.png already exists', 'exists': True})
 
     def test_refuses_other_sites(self):
         status, _, _ = self.req('GET', '/api/art', headers={'Host': 'evil.example:80'})

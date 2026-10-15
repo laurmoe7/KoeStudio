@@ -30,15 +30,22 @@ MAX_BODY = 512 * 1024 * 1024  # a big canvas with many layers is a big JSON file
 ID_RE = re.compile(r'^[0-9a-f]{8,32}$')
 
 
-def pictures_folder():
-    """The user's Pictures folder, wherever Windows has put it (it may be redirected to OneDrive)."""
+KNOWN_FOLDERS = {  # Windows FOLDERIDs, and the usual place elsewhere
+    'Pictures': '33E28130-4E1E-4676-835A-98395C3BC3BB',
+    'Desktop': 'B4BFCC3A-DB2C-424C-B029-7FE99A87C641',
+    'Documents': 'FDD39AD0-238F-46AF-ADB4-6C85480369C7',
+    'Downloads': '374DE290-123F-4565-9164-39C4925E467B',
+}
+
+
+def known_folder(name):
+    """A user folder (Pictures, Desktop, Documents, Downloads) wherever Windows has put it (it may be redirected to
+    OneDrive)."""
     if sys.platform == 'win32':
         try:
             import ctypes
-            from ctypes import wintypes
             buf = ctypes.c_wchar_p()
-            # FOLDERID_Pictures {33E28130-4E1E-4676-835A-98395C3BC3BB}
-            guid = (ctypes.c_byte * 16)(*uuid.UUID('33E28130-4E1E-4676-835A-98395C3BC3BB').bytes_le)
+            guid = (ctypes.c_byte * 16)(*uuid.UUID(KNOWN_FOLDERS[name]).bytes_le)
             if ctypes.windll.shell32.SHGetKnownFolderPath(guid, 0, None, ctypes.byref(buf)) == 0:
                 path = buf.value
                 ctypes.windll.ole32.CoTaskMemFree(buf)
@@ -46,7 +53,11 @@ def pictures_folder():
                     return path
         except Exception:
             pass
-    return os.path.join(os.path.expanduser('~'), 'Pictures')
+    return os.path.join(os.path.expanduser('~'), name)
+
+
+def pictures_folder():
+    return known_folder('Pictures')
 
 
 def art_dir():
@@ -376,21 +387,91 @@ EXPORT_TYPES = {
 }
 
 
-def export_image(name, data, fmt='png'):
-    """Saves a flattened image to Pictures\\KoeStudio\\Exports, never overwriting an older export."""
+def exports_dir():
+    return os.path.join(art_dir(), 'Exports')
+
+
+def export_image(name, data, fmt='png', folder='', mode='number'):
+    """Saves an exported file into `folder` (an existing folder; empty means Pictures\\KoeStudio\\Exports). When the
+    name is taken, mode 'number' adds " (2)", " (3)"…, 'ask' raises FileExistsError and 'replace' overwrites."""
     check = EXPORT_TYPES.get(fmt)
     if check is None:
         raise ValueError('Unknown export format')
     if not check(data):
         raise ValueError(f'Expected {fmt.upper()} data')
-    folder = os.path.join(art_dir(), 'Exports')
+    if folder:
+        folder = os.path.abspath(folder)
+        if not os.path.isdir(folder):
+            raise ValueError('That folder does not exist any more: ' + folder)
+    else:
+        folder = os.path.abspath(exports_dir())
     base = safe_filename(name)
     path = os.path.join(folder, f'{base}.{fmt}')
-    n = 2
-    while os.path.exists(path):
-        path = os.path.join(folder, f'{base} ({n}).{fmt}')
-        n += 1
+    if os.path.exists(path):
+        if mode == 'ask':
+            raise FileExistsError(path)
+        if mode != 'replace':
+            n = 2
+            while os.path.exists(path):
+                path = os.path.join(folder, f'{base} ({n}).{fmt}')
+                n += 1
     _write_atomic(path, data)
+    return {'path': path, 'folder': folder}
+
+
+# ---------- file browser (choosing where exports go) ----------
+
+LISTED_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tga', '.koe')
+
+
+def places():
+    """Folders offered at the side of the file browser: [{name, path}], only those that exist."""
+    out = [{'name': 'Exports', 'path': exports_dir()}, {'name': 'Artwork folder', 'path': art_dir()}]
+    out += [{'name': n, 'path': known_folder(n)} for n in ('Desktop', 'Pictures', 'Documents', 'Downloads')]
+    out = [{**p, 'path': os.path.abspath(p['path'])} for p in out if os.path.isdir(p['path']) or p['name'] == 'Exports']
+    if sys.platform == 'win32':
+        import string
+        out += [{'name': f'Drive {c}:', 'path': f'{c}:\\'} for c in string.ascii_uppercase if os.path.isdir(f'{c}:\\')]
+    else:
+        out.append({'name': 'Computer', 'path': '/'})
+    return out
+
+
+def list_dir(path=''):
+    """A folder for the file browser: its sub-folders and picture/project files (hidden ones left out), its parent
+    (None at a drive's root), and the places. An empty path is the Exports folder."""
+    path = os.path.abspath(path or exports_dir())
+    if path == os.path.abspath(exports_dir()):
+        os.makedirs(path, exist_ok=True)
+    dirs, files = [], []
+    with os.scandir(path) as it:
+        for e in it:
+            if e.name.startswith(('.', '$')) or e.name in ('desktop.ini', 'Thumbs.db'):
+                continue
+            try:
+                if e.is_dir():
+                    dirs.append(e.name)
+                elif e.name.lower().endswith(LISTED_EXT):
+                    st = e.stat()
+                    files.append({'name': e.name, 'size': st.st_size, 'modified': st.st_mtime})
+            except OSError:
+                continue
+    dirs.sort(key=str.lower)
+    files.sort(key=lambda f: f['name'].lower())
+    parent = os.path.dirname(path)
+    return {'path': path, 'parent': parent if parent != path else None, 'dirs': dirs, 'files': files, 'places': places()}
+
+
+def make_dir(parent, name):
+    """A new folder inside parent, for the file browser's New folder button."""
+    name = safe_filename(name)
+    parent = os.path.abspath(parent)
+    if not os.path.isdir(parent):
+        raise ValueError('That folder does not exist')
+    path = os.path.join(parent, name)
+    if os.path.exists(path):
+        raise FileExistsError(path)
+    os.mkdir(path)
     return {'path': path}
 
 
@@ -423,9 +504,15 @@ def take_open_file():
     return None
 
 
-def open_folder(sub=''):
-    folder = os.path.join(art_dir(), sub) if sub in ('', 'Exports') else art_dir()
-    os.makedirs(folder, exist_ok=True)
+def open_folder(sub='', path=''):
+    """Shows a folder in Explorer: the artwork folder, its Exports folder, or an existing folder by path."""
+    if path:
+        folder = os.path.abspath(path)
+        if not os.path.isdir(folder):
+            raise FileNotFoundError(folder)
+    else:
+        folder = os.path.join(art_dir(), sub) if sub in ('', 'Exports') else art_dir()
+        os.makedirs(folder, exist_ok=True)
     if sys.platform == 'win32':
         os.startfile(folder)
     return {'path': folder}
@@ -514,13 +601,21 @@ class Handler(SimpleHTTPRequestHandler):
             elif route == ('POST', 'deleted/restore'):
                 self._json(restore_deleted(p.get('name', '')))
             elif route == ('POST', 'export'):
-                self._json(export_image(p.get('name', ''), self._raw(), p.get('format', 'png')))
+                self._json(export_image(p.get('name', ''), self._raw(), p.get('format', 'png'), p.get('dir', ''), p.get('mode', 'number')))
             elif route == ('POST', 'open-folder'):
-                self._json(open_folder(p.get('sub', '')))
+                self._json(open_folder(p.get('sub', ''), p.get('path', '')))
+            elif route == ('GET', 'fs/list'):
+                self._json(list_dir(p.get('path', '')))
+            elif route == ('POST', 'fs/mkdir'):
+                self._json(make_dir(p.get('path', ''), p.get('name', '')))
             else:
                 self._json({'error': 'not found'}, 404)
+        except FileExistsError as e:
+            self._json({'error': f'{os.path.basename(str(e)) or "That"} already exists', 'exists': True}, 409)
         except FileNotFoundError:
             self._json({'error': 'not found'}, 404)
+        except PermissionError:
+            self._json({'error': 'Windows does not allow that here (no permission).'}, 403)
         except Exception as e:  # surface errors to the UI instead of hanging
             self._json({'error': str(e)}, 500)
         return True

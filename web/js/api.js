@@ -7,7 +7,7 @@ async function call(method, path, body, type = 'application/json') {
     body: body === undefined ? undefined : (type === 'application/json' ? JSON.stringify(body) : body),
   });
   const data = await res.json().catch(() => ({ error: `Server answered ${res.status}` }));
-  if (!res.ok || data?.error) throw new Error(data?.error || `Server answered ${res.status}`);
+  if (!res.ok || data?.error) throw Object.assign(new Error(data?.error || `Server answered ${res.status}`), { status: res.status, data });
   return data;
 }
 
@@ -27,7 +27,11 @@ export const api = {
   deletedThumbUrl: name => `/api/deleted/thumb?name=${q(name)}`,
   restore: name => call('POST', `deleted/restore?name=${q(name)}`, {}),
   thumbUrl: (id, v) => `/api/art/thumb?id=${q(id)}&v=${q(v)}`,
-  exportImage: (name, format, blob) => call('POST', `export?name=${q(name)}&format=${q(format)}`, blob, 'application/octet-stream'),
+  /** dir: a folder ('' = the Exports folder); mode: 'number' (add " (2)" when taken), 'ask' (fails with data.exists) or 'replace'. */
+  exportImage: (name, format, blob, { dir = '', mode = 'number' } = {}) =>
+    call('POST', `export?name=${q(name)}&format=${q(format)}&dir=${q(dir)}&mode=${q(mode)}`, blob, 'application/octet-stream'),
+  listDir: path => call('GET', `fs/list?path=${q(path)}`),
+  makeDir: (path, name) => call('POST', `fs/mkdir?path=${q(path)}&name=${q(name)}`, {}),
   openFile: () => call('GET', 'open-file'),
-  openFolder: (sub = '') => call('POST', `open-folder?sub=${q(sub)}`, {}),
+  openFolder: (sub = '', path = '') => call('POST', `open-folder?sub=${q(sub)}&path=${q(path)}`, {}),
 };

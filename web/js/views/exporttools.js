@@ -1,28 +1,54 @@
-// Exporting the picture (Export dialog: format, size, quality, background, area, file name) and the project file,
-// as Editor methods.
+// Exporting the picture (Export dialog: format, size, quality, background, area, folder and file name) and the
+// project file, as Editor methods. Where files go is picked with the file browser (filebrowser.js) and remembered
+// (koe.exportDir for pictures, koe.projectDir for project files; '' is Pictures\KoeStudio\Exports).
 
 import { api } from '../api.js';
 import { composite } from '../doc.js';
 import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, exportSize, sanitizeExportOptions } from '../imageformats.js';
-import { esc, toast, modal, store } from '../ui.js';
+import { esc, toast, modal, store, confirmBox } from '../ui.js';
 import { versionsDialog } from './gallery.js';
+import { browseFile } from './filebrowser.js';
 
-const showFolder = { label: 'Show folder', run: () => api.openFolder('Exports') };
+const showFolder = folder => ({ label: 'Show folder', run: () => api.openFolder('', folder).catch(e => toast(e.message, { error: true })) });
+const dirLabel = dir => dir || 'Exports folder (Pictures\\KoeStudio\\Exports)';
+
+/**
+ * Writes an exported file into dir. ask: a file of that name is replaced only after asking (otherwise the new one
+ * is numbered). A remembered folder that has gone away falls back to the Exports folder. Resolves to the server's
+ * {path, folder}, or null when the user chose not to replace.
+ */
+async function writeExport(name, ext, blob, dir, ask) {
+  try {
+    return await api.exportImage(name, ext, blob, { dir, mode: ask ? 'ask' : 'number' });
+  } catch (e) {
+    if (e.data?.exists) {
+      if (!await confirmBox('Replace file', `${name}.${ext} already exists in ${dir || 'the Exports folder'}. Replace it?`, 'Replace')) return null;
+      return api.exportImage(name, ext, blob, { dir, mode: 'replace' });
+    }
+    if (dir && /does not exist/.test(e.message)) {
+      toast(`${dir} is not there any more; saving in the Exports folder instead.`);
+      return api.exportImage(name, ext, blob, { mode: ask ? 'ask' : 'number' });
+    }
+    throw e;
+  }
+}
 
 export const exportMethods = {
   /**
-   * Exports the flattened picture to Pictures\KoeStudio\Exports. exportAs('png') exports straight away (whole
-   * canvas, 100%, with paper); without a format the Export dialog asks, and its choices are kept (koe.exportOpts).
+   * Exports the flattened picture. exportAs('png') exports straight away (whole canvas, 100%, with paper, into the
+   * last export folder, numbered if the name is taken); without a format the Export dialog asks, and its choices
+   * are kept (koe.exportOpts, koe.exportDir).
    */
   async exportAs(format) {
     this.finishText();
-    let o, name = this.doc.title;
+    let o, name = this.doc.title, dir = store('exportDir') || '';
     if (format) o = sanitizeExportOptions({ format });
     else {
-      const res = await this.exportDialog(sanitizeExportOptions(store('exportOpts')));
+      const res = await this.exportDialog(sanitizeExportOptions(store('exportOpts')), dir);
       if (!res) return;
-      ({ opts: o, name } = res);
+      ({ opts: o, name, dir } = res);
       store('exportOpts', o);
+      store('exportDir', dir);
     }
     const fmt = EXPORT_BY_ID[o.format];
     try {
@@ -35,8 +61,8 @@ export const exportMethods = {
         blob = await new Promise(r => canvas.toBlob(r, fmt.mime, fmt.quality ? o.quality / 100 : undefined));
         if (!blob || blob.type !== fmt.mime) throw new Error(`This window cannot make ${fmt.label} files`);
       }
-      const res = await api.exportImage(name, fmt.id, blob);
-      toast(`Exported ${canvas.width} × ${canvas.height} ${fmt.label} to ${res.path}`, { action: showFolder, ms: 6000 });
+      const res = await writeExport(name, fmt.ext, blob, dir, !format);
+      if (res) toast(`Exported ${canvas.width} × ${canvas.height} ${fmt.label} to ${res.path}`, { action: showFolder(res.folder), ms: 6000 });
     } catch (e) {
       toast('Export failed: ' + e.message, { error: true });
     }
@@ -80,8 +106,8 @@ export const exportMethods = {
     return out;
   },
 
-  /** The Export dialog. Resolves to {opts, name}, or null when cancelled. */
-  exportDialog(o) {
+  /** The Export dialog. Resolves to {opts, name, dir}, or null when cancelled. */
+  exportDialog(o, dir) {
     const d = this.doc, hasSel = this.sel.active;
     const areaOf = a => (a === 'selection' && hasSel ? this.sel.bounds : { w: d.width, h: d.height });
     const read = root => {
@@ -107,7 +133,8 @@ export const exportMethods = {
         <label class="check"><input type="checkbox" name="paper"${o.paper && d.paper ? ' checked' : ''}${d.paper ? '' : ' disabled'}> Include the paper colour${d.paper ? '' : ' (this canvas has none)'}</label>
         <label class="check"><input type="checkbox" name="area"${o.area === 'selection' && hasSel ? ' checked' : ''}${hasSel ? '' : ' disabled'}> Only the selected area${hasSel ? '' : ' (nothing is selected)'}</label>
         <p class="small" data-size></p>
-        <p class="muted small">Saved in Pictures\\KoeStudio\\Exports; an existing file is never overwritten.</p>`,
+        <label class="field"><span>Save in</span>
+          <div class="fb-dest"><code data-dest></code><button type="button" data-browse>Browse…</button></div></label>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'Export', primary: true }],
       onOpen: root => {
         const show = () => {
@@ -122,13 +149,21 @@ export const exportMethods = {
           el.classList.toggle('error', size.tooBig);
         };
         root.querySelectorAll('input, select').forEach(el => el.addEventListener('input', show));
+        const dest = root.querySelector('[data-dest]');
+        const showDir = () => { dest.textContent = dirLabel(dir); dest.title = dirLabel(dir); };
+        root.querySelector('[data-browse]').onclick = async () => {
+          const nameEl = root.querySelector('[name="name"]');
+          const pick = await browseFile({ title: 'Export to', dir, name: nameEl.value.trim() || d.title, ext: EXPORT_BY_ID[read(root).format].ext, okLabel: 'Choose' });
+          if (pick) { dir = pick.dir; nameEl.value = pick.name; showDir(); }
+        };
         root.querySelector('[name="name"]').select();
+        showDir();
         show();
       },
       collect: root => {
         const opts = read(root), a = areaOf(opts.area);
         if (exportSize(a.w, a.h, opts.scale).tooBig) return undefined;
-        return { opts, name: root.querySelector('[name="name"]').value.trim() || d.title };
+        return { opts, dir, name: root.querySelector('[name="name"]').value.trim() || d.title };
       },
     });
   },
@@ -141,13 +176,19 @@ export const exportMethods = {
     if (doc) this.onOpen({ newDoc: doc });
   },
 
-  /** Writes a self-contained .koe project (layers, masks, text, rulers…) to the Exports folder; reopen it with "Open image or project…" in the gallery. */
+  /**
+   * Writes a self-contained .koe project (layers, masks, text, rulers…) where the user picks in the file browser;
+   * reopen it with "Open image or project…" in the gallery or by double-clicking it.
+   */
   async saveProjectFile() {
     if (this.xf || this.textEdit) { toast('Finish the current edit first.'); return; }
+    const pick = await browseFile({ title: 'Save project file', dir: store('projectDir') || '', name: this.doc.title, ext: 'koe', okLabel: 'Save' });
+    if (!pick) return;
+    store('projectDir', pick.dir);
     try {
       const json = await this.doc.toJSON();
-      const res = await api.exportImage(this.doc.title, 'koe', new Blob([JSON.stringify(json)]));
-      toast('Project saved to ' + res.path, { action: showFolder, ms: 6000 });
+      const res = await writeExport(pick.name, 'koe', new Blob([JSON.stringify(json)]), pick.dir, true);
+      if (res) toast('Project saved to ' + res.path, { action: showFolder(res.folder), ms: 6000 });
     } catch (e) {
       toast('Could not save project: ' + e.message, { error: true });
     }

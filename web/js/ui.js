@@ -41,8 +41,10 @@ export function modal({ title, body, buttons = [{ label: 'OK', value: true, prim
       } else done(b.value);
     };
     const key = e => {
+      if ([...document.querySelectorAll('.modal-back')].at(-1) !== back) return;  // a dialog opened on top of this one has the keys
       if (e.key === 'Escape') { e.stopPropagation(); done(null); }
-      else if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {  // a focused button does its own thing
+      // a focused button, or a field marked data-own-enter, does its own thing with Enter
+      else if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && !('ownEnter' in e.target.dataset)) {
         const b = buttons.find(x => x.primary);
         if (b) { e.preventDefault(); e.stopPropagation(); finish(b); }
       }
