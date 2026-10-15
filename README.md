@@ -8,7 +8,7 @@ Double-click **KoeStudio** on the Desktop or in the Start menu. It runs straight
 
 If you move the folder, recreate the shortcuts with `powershell -ExecutionPolicy Bypass -File tools\make_shortcut.ps1`.
 
-Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
+Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The window opens where and as big as you last left it (maximized too); if that screen is gone, it opens centred.
 
 ## Where your work goes
 
@@ -26,18 +26,18 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
   - Pen pressure for size and density, with a pressure curve and a minimum size.
   - Stabilization (smooths shaky lines), hardness, density, spacing. Each tool remembers its own settings.
   - **Brush textures:** paper, watercolor paper, canvas, chalk and noise grain, with strength and size. The grain is fixed to the canvas, so overlapping strokes share it like real paper. The Pencil has a paper grain by default.
-  - Fill can look at all layers or only the current one, with a colour margin and an expand option that tucks the fill under line edges.
+  - Fill can look at all layers or only the current one, with a colour margin and an expand option that tucks the fill under line edges. Untick **Connected only** to fill every pixel of that colour in the picture (the Magic wand has the same option).
   - The pen's eraser end erases.
   - **Shift+click** draws a straight line from where the last stroke on the layer ended.
-- **Figure (U, press again for the Ruler):** drag to draw a straight line, rectangle or ellipse with the brush size, opacity and hardness, outlined or filled; Shift makes a 45° line, a square or a circle.
+- **Figure (U, press again for the Ruler):** drag to draw a straight line, rectangle or ellipse with the brush size, opacity and hardness, outlined or filled; Shift makes a 45° line, a square or a circle. **Round corners** gives rectangles rounded corners of that radius.
 - **Gradient (G, press again to switch between Fill and Gradient):** drag to set the direction (Shift snaps the angle). Colors main → sub, main → transparent (or the other way round), straight or circular, with opacity. It fills the selection if there is one, and works on masks too.
 - **Text (T):** click to type a new text, click a text to edit it again; click elsewhere, switch tools or press Esc to finish. Font (including Japanese fonts), size, bold, italic, alignment, line spacing and **vertical writing** (top to bottom, columns right to left, as in manga). Text stays editable on its own text layer; the Move tool moves it. To paint on it, rasterize it (Layer → Rasterize text, or the button that appears when you try).
-- **Selections:** rectangle, ellipse (M again), lasso, polygon (L again: click the corners, double-click or Enter closes) and magic wand; Shift adds, Alt subtracts, Shift+Alt keeps the overlap. Select all, deselect, invert, select layer pixels; **expand, shrink and feather** the selection by a number of pixels (Select menu). Painting, fills, filters, Delete and Alt+Del stay inside the selection, softly where it is feathered.
+- **Selections:** rectangle, ellipse (M again), lasso, polygon (L again: click the corners, double-click or Enter closes) and magic wand; Shift adds, Alt subtracts, Shift+Alt keeps the overlap. Select all, deselect, invert, select layer pixels; **expand, shrink, feather and border** the selection by a number of pixels (Select menu; Border selects a band along the edge, e.g. to outline a shape). Painting, fills, filters, Delete and Alt+Del stay inside the selection, softly where it is feathered.
 - **Transform (Ctrl+T):** scale with the handles (Shift or "Keep aspect" for proportions), rotate by dragging outside the box (Shift snaps to 15°), move by dragging inside or with the arrow keys, flip and turn 90°. Enter applies, Esc cancels. Works on the selection, or the whole layer when nothing is selected. The Move tool moves just the selected pixels when there is a selection.
 - **Canvas and image size (Image menu):** Canvas size adds or removes space around the picture, kept at any of nine anchor points; Image size stretches or shrinks everything (by pixels or percent, smooth or hard-pixel). Rotate the canvas 90° or 180° and flip it.
-- **Crop:** the Crop tool (C) shows a box you drag by its edges and corners (Shift keeps proportions) or redraw; Enter crops. Image → Crop to selection crops to the selection in one step.
+- **Crop:** the Crop tool (C) shows a box you drag by its edges and corners (Shift keeps proportions) or redraw; Enter crops. Image → Crop to selection crops to the selection in one step, and **Image → Trim to content** crops away the empty space around everything you have drawn.
 - **Copy, cut and paste:** Ctrl+C / Ctrl+X / Ctrl+V paste onto a new layer in the same spot; images copied in other programs paste too.
-- **Layers:** add, duplicate, delete, merge down, rename (double-click), hide, opacity, 16 blending modes, lock transparent pixels, clip to the layer below. Drag layers in the list to reorder them, or onto a folder to put them in it. Drop or paste images to add them as layers.
+- **Layers:** add, duplicate, delete, merge down, merge visible to a new layer (Ctrl+Shift+Alt+E; the layers stay as they are), rename (double-click), hide, opacity, 16 blending modes, lock transparent pixels, clip to the layer below. Drag layers in the list to reorder them, or onto a folder to put them in it. Drop or paste images to add them as layers.
 - **Folders:** new folder, Put in new folder (Ctrl+G), open/close, opacity and blending ("Through" by default, so the layers inside blend as if there were no folder), hide, duplicate, Merge folder (into one layer). The Move tool moves everything in a folder.
 - **Layer masks:** add a mask to a layer or folder (with a selection, everything outside it is hidden). Click the mask thumbnail to paint on it: painting hides and erasing shows again, as in Clip Studio Paint. "Painting on mask" shows in the top bar. Turn masks off, apply them or delete them from the Layer menu. View → Show mask area tints what the mask hides in red while you paint on it.
 - **Screentone:** Layer → New screentone makes a tone layer (in the selection, if there is one) with a density, dot spacing, angle, shape (dots, lines, squares, diamonds, noise) and dot colour, previewed in the dialog. Paint on a tone layer in gray: darker gives denser dots, white or erasing removes them. Layer → Screentone settings turns any layer into tone (or back) and changes its dots; Rasterize screentone turns the dots into ordinary pixels. Merging a tone layer down keeps its dots.
@@ -64,6 +64,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 | V | Move layer (or selection) | Ctrl+Z / Ctrl+Y | Undo / redo |
 | H | Hand | Ctrl+Shift+N | New layer |
 | Ctrl+G | Put in new folder | Ctrl+E | Merge down / merge folder |
+| Ctrl+Shift+Alt+E | Merge visible to new layer | | |
 | Del | Clear selection or layer | | |
 | Alt+Del | Fill selection or layer | Ctrl+S / Ctrl+Shift+S | Save / export PNG |
 | Ctrl+Alt+Shift+S | Export… (format, size, quality) | Ctrl+' | Show grid |
