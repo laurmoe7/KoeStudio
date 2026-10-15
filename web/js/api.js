@@ -21,5 +21,6 @@ export const api = {
   remove: id => call('POST', `art/delete?id=${q(id)}`, {}),
   thumbUrl: (id, v) => `/api/art/thumb?id=${q(id)}&v=${q(v)}`,
   exportImage: (name, format, blob) => call('POST', `export?name=${q(name)}&format=${q(format)}`, blob, 'application/octet-stream'),
+  openFile: () => call('GET', 'open-file'),
   openFolder: (sub = '') => call('POST', `open-folder?sub=${q(sub)}`, {}),
 };

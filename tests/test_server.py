@@ -86,6 +86,19 @@ class Storage(unittest.TestCase):
         with self.assertRaises(ValueError):
             app.export_png('x', b'not a png')
 
+    def test_project_file_from_command_line(self):
+        path = os.path.join(self.tmp.name, 'My Picture.koe')
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump({**doc('Untitled'), 'title': 'Untitled'}, f)
+        junk = os.path.join(self.tmp.name, 'junk.koe')
+        with open(junk, 'w') as f:
+            f.write('not json')
+        self.assertEqual(app.project_args(['app.py', '--hidden', path, 'missing.koe', 'x.png']), [path])
+        app.PENDING_OPEN[:] = [junk, path]
+        got = app.take_open_file()
+        self.assertEqual(got['title'], 'My Picture', 'an untitled project takes its file name')
+        self.assertIsNone(app.take_open_file(), 'handed out once')
+
     def test_export_project_file(self):
         data = json.dumps(doc('Proj')).encode()
         path = app.export_image('Proj', data, 'koe')['path']

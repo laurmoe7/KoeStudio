@@ -242,6 +242,31 @@ def export_png(name, data):
     return export_image(name, data, 'png')
 
 
+PENDING_OPEN = []  # .koe files given on the command line (double-click in Explorer), waiting for the page to take them
+
+
+def project_args(argv):
+    """Existing .koe files named in the command line."""
+    return [a for a in argv[1:] if a.lower().endswith('.koe') and os.path.isfile(a)]
+
+
+def take_open_file():
+    """The next waiting project file as a document (the page makes a new artwork from it), or None. Handed out once."""
+    while PENDING_OPEN:
+        path = PENDING_OPEN.pop(0)
+        try:
+            with open(path, encoding='utf-8') as f:
+                doc = json.load(f)
+        except (OSError, ValueError):
+            log_error('Could not read project file ' + path)
+            continue
+        if isinstance(doc, dict) and doc.get('format') == 'koe':
+            if not doc.get('title') or doc['title'] == 'Untitled':
+                doc['title'] = os.path.splitext(os.path.basename(path))[0]
+            return doc
+    return None
+
+
 def open_folder(sub=''):
     folder = os.path.join(art_dir(), sub) if sub in ('', 'Exports') else art_dir()
     os.makedirs(folder, exist_ok=True)
@@ -290,7 +315,9 @@ class Handler(SimpleHTTPRequestHandler):
         route = (method, u.path[5:])
         try:
             if route == ('GET', 'config'):
-                self._json({'muted': muted(), 'artDir': art_dir()})
+                self._json({'muted': muted(), 'artDir': art_dir(), 'openFile': bool(PENDING_OPEN)})
+            elif route == ('GET', 'open-file'):
+                self._json({'doc': take_open_file()})
             elif route == ('GET', 'art'):
                 self._json(list_art())
             elif route == ('GET', 'art/file'):
@@ -382,6 +409,7 @@ def main():
             break
         except OSError:
             continue
+    PENDING_OPEN.extend(project_args(sys.argv))
     url = f'http://127.0.0.1:{port}/'
     if '--browser' in sys.argv:
         print('Serving', url, '(muted)' if muted() else '', flush=True)

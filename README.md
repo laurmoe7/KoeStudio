@@ -13,7 +13,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 ## Where your work goes
 
 - Artwork saves automatically to **Pictures\KoeStudio** as `.koe` files. Deleted artwork goes to the `.deleted` subfolder, so you can get it back.
-- Exports go to **Pictures\KoeStudio\Exports**: PNG with Ctrl+Shift+S, or File → Export as other format… for JPEG, WebP, GIF, TGA and BMP. File → Save project file (.koe)… writes the whole layered artwork there too; open it again from the gallery with **Open image or project…**.
+- Exports go to **Pictures\KoeStudio\Exports**: PNG with Ctrl+Shift+S, or File → Export as other format… for JPEG, WebP, GIF, TGA and BMP. File → Save project file (.koe)… writes the whole layered artwork there too; open it again from the gallery with **Open image or project…**, or double-click the file in Explorer (run `toolsegister_koe.ps1` once to set that up).
 - Tool settings and colours are kept in `%LOCALAPPDATA%\KoeStudio`.
 
 ## Features

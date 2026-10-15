@@ -5,6 +5,7 @@ import { applyMute } from './mute.js';
 import { isReloadKey } from './keys.js';
 import { toast, closeMenus } from './ui.js';
 import { showGallery } from './views/gallery.js';
+import { Doc } from './doc.js';
 import { openEditor } from './views/editor.js';
 
 const root = document.getElementById('app');
@@ -70,13 +71,18 @@ window.addEventListener('keydown', e => {
 }, true);
 
 async function start() {
+  let opened = null;  // a .koe file the app was started with (double-click in Explorer)
   try {
     const cfg = await api.config();
     if (cfg.muted) {
       applyMute();
       document.documentElement.dataset.muted = '';
     }
+    if (cfg.openFile) opened = (await api.openFile()).doc;
   } catch { /* server not reachable: the screens below will say so */ }
+  if (opened) {
+    try { await open({ newDoc: await Doc.fromJSON(opened) }); return; } catch (e) { toast('Could not open that file: ' + e.message, { error: true }); }
+  }
   const s = remembered();
   if (s?.view === 'editor' && s.id) await open({ id: s.id });
   else await gallery();
