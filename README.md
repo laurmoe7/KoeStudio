@@ -13,7 +13,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 ## Where your work goes
 
 - Artwork saves automatically to **Pictures\KoeStudio** as `.koe` files. Deleted artwork goes to the `.deleted` subfolder, so you can get it back.
-- PNG exports go to **Pictures\KoeStudio\Exports**.
+- Exports go to **Pictures\KoeStudio\Exports**: PNG with Ctrl+Shift+S, or File → Export as other format… for JPEG, WebP, GIF, TGA and BMP.
 - Tool settings and colours are kept in `%LOCALAPPDATA%\KoeStudio`.
 
 ## Features
