@@ -86,6 +86,19 @@ class Storage(unittest.TestCase):
         with self.assertRaises(ValueError):
             app.export_png('x', b'not a png')
 
+    def test_export_other_formats(self):
+        samples = {'gif': b'GIF89a....', 'bmp': b'BM....', 'jpg': b'\xff\xd8\xff....',
+                   'webp': b'RIFF\x00\x00\x00\x00WEBPVP8 ', 'tga': b'\x00' * 18 + b'TRUEVISION-XFILE.\x00'}
+        for fmt, data in samples.items():
+            path = app.export_image('pic', data, fmt)['path']
+            self.assertEqual(os.path.basename(path), f'pic.{fmt}')
+            with open(path, 'rb') as f:
+                self.assertEqual(f.read(), data)
+        with self.assertRaises(ValueError):
+            app.export_image('x', b'GIF89a', 'bmp')
+        with self.assertRaises(ValueError):
+            app.export_image('x', b'GIF89a', 'exe')
+
 
 class Http(unittest.TestCase):
     @classmethod

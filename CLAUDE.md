@@ -25,6 +25,7 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
   - API: `config`, `art` (list), `art/file`, `art/thumb`, `art/save` (new id when none given), `art/delete` (moves to `.deleted/`), `export` (PNG to `Exports/`, never overwrites), `open-folder`.
 - **`web/`**: vanilla ES modules, no framework, no build step. Edit and reload.
   - `js/app.js`: start-up (mute, reload key) and switching between gallery and editor.
+  - `js/imageformats.js`: export formats (`EXPORT_FORMATS`) and pure TGA/BMP/GIF encoders (median-cut palette + LZW); PNG/JPEG/WebP come from `canvas.toBlob`. `exportAs(format)` in `editor.js` posts to `export?format=`; `app.py` `export_image` checks the file signature per format.
   - `js/views/gallery.js`: artwork cards, New canvas dialog (`PRESETS`), Open image.
   - `js/views/editor.js`: the drawing screen. Viewport (`render`, `updateComp`), pointer input, painting, undo, autosave, menus and shortcuts (`onKey`). Feature groups live in mixins assigned to `Editor.prototype`: `layerops.js`, `selecttools.js`, `canvasops.js`.
   - `js/views/colorpanel.js`, `js/views/layerpanel.js`: side panels. They change the document only through editor methods. The layer panel draws `panelRows()` (top first, indented), handles click-to-select (the mask thumbnail selects mask editing) and drag-and-drop (`moveNodeTo`).

@@ -209,19 +209,36 @@ def safe_filename(name):
     return name[:80] or 'Untitled'
 
 
-def export_png(name, data):
-    """Saves a flattened PNG to Pictures\\KoeStudio\\Exports, never overwriting an older export."""
-    if not data.startswith(b'\x89PNG'):
-        raise ValueError('Expected PNG data')
+EXPORT_TYPES = {
+    'png': lambda d: d.startswith(b'\x89PNG'),
+    'jpg': lambda d: d.startswith(b'\xff\xd8'),
+    'webp': lambda d: d[:4] == b'RIFF' and d[8:12] == b'WEBP',
+    'gif': lambda d: d[:4] == b'GIF8',
+    'bmp': lambda d: d[:2] == b'BM',
+    'tga': lambda d: d.endswith(b'TRUEVISION-XFILE.\x00'),
+}
+
+
+def export_image(name, data, fmt='png'):
+    """Saves a flattened image to Pictures\\KoeStudio\\Exports, never overwriting an older export."""
+    check = EXPORT_TYPES.get(fmt)
+    if check is None:
+        raise ValueError('Unknown export format')
+    if not check(data):
+        raise ValueError(f'Expected {fmt.upper()} data')
     folder = os.path.join(art_dir(), 'Exports')
     base = safe_filename(name)
-    path = os.path.join(folder, base + '.png')
+    path = os.path.join(folder, f'{base}.{fmt}')
     n = 2
     while os.path.exists(path):
-        path = os.path.join(folder, f'{base} ({n}).png')
+        path = os.path.join(folder, f'{base} ({n}).{fmt}')
         n += 1
     _write_atomic(path, data)
     return {'path': path}
+
+
+def export_png(name, data):
+    return export_image(name, data, 'png')
 
 
 def open_folder(sub=''):
@@ -284,7 +301,7 @@ class Handler(SimpleHTTPRequestHandler):
             elif route == ('POST', 'art/delete'):
                 self._json(delete_art(p.get('id', '')))
             elif route == ('POST', 'export'):
-                self._json(export_png(p.get('name', ''), self._raw()))
+                self._json(export_image(p.get('name', ''), self._raw(), p.get('format', 'png')))
             elif route == ('POST', 'open-folder'):
                 self._json(open_folder(p.get('sub', '')))
             else:

@@ -13,7 +13,8 @@ import { Painter, textureFor } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_GROUPS, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
-import { esc, toast, menu, promptBox, fileToDataUrl, store } from '../ui.js';
+import { esc, toast, menu, modal, promptBox, fileToDataUrl, store } from '../ui.js';
+import { EXPORT_FORMATS, EXPORT_BY_ID, encodePixels } from '../imageformats.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
 import { LayerPanel } from './layerpanel.js';
@@ -216,7 +217,8 @@ export class Editor {
     return {
       file: [
         { label: 'Save now', key: 'Ctrl+S', run: () => this.save() },
-        { label: 'Export as PNG…', key: 'Ctrl+Shift+S', run: () => this.exportPng() },
+        { label: 'Export as PNG…', key: 'Ctrl+Shift+S', run: () => this.exportAs('png') },
+        { label: 'Export as other format…', run: () => this.exportAs() },
         '-',
         { label: 'Import image as layer…', run: () => this.pickImage() },
         { label: 'Open artwork folder', run: () => api.openFolder() },
@@ -980,10 +982,47 @@ export class Editor {
     this.scheduleSave();
   }
 
-  async exportPng() {
-    const blob = await new Promise(r => this.doc.flatten().toBlob(r, 'image/png'));
+  /** Exports the flattened picture. Without a format, asks which one (PNG, JPEG, WebP, GIF, TGA, BMP). */
+  async exportAs(format) {
+    if (!format) {
+      const last = store('exportFormat') || 'gif';
+      format = await modal({
+        title: 'Export as…',
+        body: `<label class="field"><span>Format</span><select name="f">${EXPORT_FORMATS.map(f =>
+          `<option value="${f.id}"${f.id === last ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select></label>
+          <p class="muted small" data-note></p>`,
+        buttons: [{ label: 'Cancel', value: null }, { label: 'Export', primary: true }],
+        onOpen: root => {
+          const sel = root.querySelector('select'), note = root.querySelector('[data-note]');
+          const show = () => { note.textContent = EXPORT_BY_ID[sel.value].note; };
+          sel.onchange = show; show();
+        },
+        collect: root => root.querySelector('select').value,
+      });
+      if (!format) return;
+      store('exportFormat', format);
+    }
+    const fmt = EXPORT_BY_ID[format];
     try {
-      const res = await api.exportPng(this.doc.title, blob);
+      let canvas = this.doc.flatten();
+      if (fmt.flatten) {  // no alpha in this format: put the picture on white
+        const c = document.createElement('canvas');
+        c.width = canvas.width; c.height = canvas.height;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(canvas, 0, 0);
+        canvas = c;
+      }
+      let blob;
+      if (['gif', 'tga', 'bmp'].includes(fmt.id)) {
+        const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        blob = new Blob([encodePixels(fmt.id, data, canvas.width, canvas.height)]);
+      } else {
+        blob = await new Promise(r => canvas.toBlob(r, fmt.mime, 0.92));
+        if (!blob || blob.type !== fmt.mime) throw new Error(`This window cannot make ${fmt.label} files`);
+      }
+      const res = await api.exportImage(this.doc.title, fmt.id, blob);
       toast('Exported to ' + res.path, { action: { label: 'Show folder', run: () => api.openFolder('Exports') }, ms: 6000 });
     } catch (e) {
       toast('Export failed: ' + e.message, { error: true });
@@ -1024,7 +1063,7 @@ export class Editor {
       'delete': () => this.clearLayer(), 'backspace': () => this.clearLayer(),
       'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
       'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
-      'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportPng(),
+      'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'),
       'ctrl+e': () => this.mergeDown(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
       'ctrl+f': () => this.repeatFilter(),
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
