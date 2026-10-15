@@ -863,6 +863,17 @@ def list_refs():
     return [{'id': i, 'name': name} for _, i, name, _ in _ref_files()]
 
 
+_last_ref_us = 0
+
+
+def _ref_id():
+    """A new reference id that sorts after every earlier one (microseconds, then a little randomness): pictures
+    added within one file-time tick still list in the order they were added."""
+    global _last_ref_us
+    us = _last_ref_us = max(time.time_ns() // 1000, _last_ref_us + 1)
+    return f'{us:013x}{uuid.uuid4().hex[:3]}'
+
+
 def add_ref(name, data):
     kind = _ref_kind(data or b'')
     if not kind:
@@ -871,7 +882,7 @@ def add_ref(name, data):
         raise ValueError('That picture is too big.')
     base = re.split(r'[\\/]', name or '')[-1]  # a file name, never a path
     safe = re.sub(r'[^\w .()-]', '_', os.path.splitext(base)[0]).strip()[:80] or 'Reference'
-    entry = {'id': uuid.uuid4().hex[:16], 'name': safe}
+    entry = {'id': _ref_id(), 'name': safe}
     _write_atomic(os.path.join(refs_dir(), f"{entry['id']}__{safe}.{kind}"), data)
     return entry
 

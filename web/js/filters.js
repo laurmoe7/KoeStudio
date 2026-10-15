@@ -39,9 +39,9 @@ export const FILTERS = [
     margin: () => 0, apply: (d, w, h, p) => levels(d, p) },
   { id: 'posterize', label: 'Posterize…', fields: [f('levels', 'Levels', 2, 32, 1, 4)], margin: () => 0, apply: (d, w, h, p) => posterize(d, p.levels) },
   { id: 'threshold', label: 'Threshold (black and white)…', fields: [f('threshold', 'Threshold', 1, 255, 1, 128)], margin: () => 0, apply: (d, w, h, p) => threshold(d, p.threshold) },
-  { id: 'lines', label: 'Extract lines…', fields: [f('radius', 'Line width', 1, 50, 1, 6, ' px'), f('threshold', 'Ignore', 0, 128, 1, 12),
+  { id: 'lines', label: 'Extract lines…', fields: [f('radius', 'Line width', 1, 100, 1, 16, ' px'), f('threshold', 'Ignore', 0, 128, 1, 12),
     f('softness', 'Softness', 1, 255, 1, 48), f('color', 'Keep color', 0, 100, 1, 0, '%')],
-    margin: p => Math.ceil(p.radius * 3), apply: (d, w, h, p) => extractLines(d, w, h, p) },
+    margin: p => Math.ceil(p.radius) + 4, apply: (d, w, h, p) => extractLines(d, w, h, p) },
   { id: 'invert', label: 'Invert colors', fields: [], margin: () => 0, apply: d => invert(d) },
 ];
 
@@ -68,9 +68,10 @@ export function sanitizeParams(filter, raw) {
 
 /**
  * Keeps only what is darker than its surroundings (lines), as see-through ink: each pixel is compared, over white,
- * with a blur of its neighbourhood (radius ~ the widest line to keep). Flat areas, paper and soft shading go
- * clear; a pixel darker by `threshold` starts to show and is solid once `softness` darker still. The ink is black,
- * or the pixel's own colour by `color` %.
+ * with the lightest pixel near it (a square max filter reaching half of `radius` and a bit, so lines up to `radius`
+ * px wide still see the paper beside them, then softened slightly). Flat areas, paper and soft shading go clear;
+ * a pixel darker by `threshold` starts to show and is solid once `softness` darker still. The ink is black, or
+ * the pixel's own colour by `color` %.
  */
 export function extractLines(data, w, h, { radius = 6, threshold = 12, softness = 48, color = 0 } = {}) {
   const n = w * h, lum = new Float32Array(n);
@@ -79,7 +80,7 @@ export function extractLines(data, w, h, { radius = 6, threshold = 12, softness 
     const y = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
     lum[i] = y * a + 255 * (1 - a);  // as seen over white paper
   }
-  const bg = blurPlane(Float32Array.from(lum), w, h, radius * 2);
+  const bg = blurPlane(maxFilter(lum, w, h, Math.ceil(radius / 2) + 1), w, h, 2);
   const k = Math.max(0, Math.min(1, color / 100));
   for (let i = 0; i < n; i++) {
     const t = Math.max(0, Math.min(1, (bg[i] - lum[i] - threshold) / Math.max(1, softness)));
@@ -87,6 +88,27 @@ export function extractLines(data, w, h, { radius = 6, threshold = 12, softness 
     data[i * 4 + 3] = Math.round(255 * t);
   }
   return data;
+}
+
+/** Square max filter of a w x h plane (each value becomes the largest within r across and down); a new plane. */
+export function maxFilter(plane, w, h, r) {
+  const tmp = new Float32Array(plane.length), out = new Float32Array(plane.length);
+  for (let y = 0; y < h; y++) maxLine(plane, tmp, y * w, 1, w, r);
+  for (let x = 0; x < w; x++) maxLine(tmp, out, x, w, h, r);
+  return out;
+}
+
+/**
+ * Running max over a window of i - r .. i + r along one line (van Herk / Gil-Werman: maxima from the left and
+ * from the right within blocks of 2r + 1, so it costs the same for any r).
+ */
+function maxLine(src, dst, start, step, n, r) {
+  // padded by r on both sides with -Infinity, so every window is exactly k long and spans at most two blocks
+  const k = 2 * r + 1, m = n + 2 * r, left = new Float32Array(m), right = new Float32Array(m);
+  const at = j => (j < r || j >= n + r ? -Infinity : src[start + (j - r) * step]);
+  for (let j = 0; j < m; j++) left[j] = j % k === 0 ? at(j) : Math.max(left[j - 1], at(j));
+  for (let j = m - 1; j >= 0; j--) right[j] = j === m - 1 || (j + 1) % k === 0 ? at(j) : Math.max(right[j + 1], at(j));
+  for (let i = 0; i < n; i++) dst[start + i * step] = Math.max(right[i], left[i + 2 * r]);  // window i - r .. i + r, shifted by r
 }
 
 // ---------- blur ----------

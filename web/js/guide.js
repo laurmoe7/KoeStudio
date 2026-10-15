@@ -156,7 +156,7 @@ export const GUIDE = [
     <ul>
       <li>Blurs: Gaussian, motion, zoom and spin (click the canvas to put their centre there). Sharpen, mosaic and noise.</li>
       <li>Colour: brightness/contrast, hue/saturation, colour balance, curves, levels, posterize, threshold and invert.</li>
-      <li><b>Extract lines</b> keeps only lines darker than their surroundings, as black ink (or their own colour) on a clear layer: use it on a scanned sketch or photo. Duplicate the layer first to keep the original.</li>
+      <li><b>Extract lines</b> keeps only lines darker than their surroundings, as black ink (or their own colour) on a clear layer: use it on a scanned sketch or photo. Set <b>Line width</b> to at least your widest lines (wider lines keep only their edges). Duplicate the layer first to keep the original.</li>
       <li><kbd>Ctrl+F</kbd> repeats the last filter with the same settings.</li>
     </ul>`],
 

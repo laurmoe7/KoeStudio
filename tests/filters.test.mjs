@@ -316,3 +316,21 @@ test('line extraction', async () => {
   const kept = extractLines(d.slice(), w, h, { radius: 3, threshold: 10, softness: 40, color: 100 });
   assert.deepEqual(px(kept, 20 * w + 20), [200, 0, 0, 255], 'Keep color 100%: its own colour');
 });
+
+test('max filter and thick lines', async () => {
+  const { maxFilter, extractLines } = await import('../web/js/filters.js');
+  // 1 x 9: a 9 at index 4 spreads 2 each way; check against the plain definition for every window size
+  const row = Float32Array.from([1, 0, 3, 0, 9, 0, 0, 5, 0]);
+  assert.deepEqual([...maxFilter(row, 9, 1, 2)], [3, 3, 9, 9, 9, 9, 9, 5, 5]);
+  const rnd = Float32Array.from({ length: 37 }, (_, i) => (i * 7919) % 23);
+  for (const r of [1, 3, 5, 40]) {
+    const want = [...rnd].map((_, i) => Math.max(...rnd.slice(Math.max(0, i - r), i + r + 1)));
+    assert.deepEqual([...maxFilter(rnd, 37, 1, r)], want, `r = ${r}`);
+  }
+  // a 10 px wide black band on white is solid ink in the middle with Line width 12 (it sees white 7 px away)
+  const w = 41, h = 9, d = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) d.set(i % w >= 15 && i % w < 25 ? [0, 0, 0, 255] : [255, 255, 255, 255], i * 4);
+  const out = extractLines(d, w, h, { radius: 12 });
+  assert.equal(out[(4 * w + 20) * 4 + 3], 255, 'the middle of the band');
+  assert.equal(out[(4 * w + 5) * 4 + 3], 0, 'the paper');
+});
