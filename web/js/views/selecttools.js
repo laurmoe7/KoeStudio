@@ -41,9 +41,9 @@ export const selectionMethods = {
   async morphSelection(kind) {
     if (!this.sel.active) return toast('There is no selection to change.');
     const titles = { expand: ['Expand selection', 'Grow the selection outwards by', 'Expand'], shrink: ['Shrink selection', 'Shrink the selection inwards by', 'Shrink'],
-      feather: ['Feather selection', 'Soften the edges over', 'Feather'] };
+      feather: ['Feather selection', 'Soften the edges over', 'Feather'], border: ['Border selection', 'Select a band along the edge, as wide as', 'Select border'] };
     const [title, label, ok] = titles[kind];
-    const last = (this.lastMorph ||= {})[kind] ?? (kind === 'feather' ? 10 : 2);
+    const last = (this.lastMorph ||= {})[kind] ?? (kind === 'feather' || kind === 'border' ? 10 : 2);
     const n = await modal({
       title,
       body: `<label class="field"><span>${esc(label)}</span><div class="field-row"><input type="number" name="n" min="1" max="500" step="1" value="${last}"><span class="muted small">px</span></div></label>`,
@@ -53,7 +53,7 @@ export const selectionMethods = {
     });
     if (!n) return;
     this.lastMorph[kind] = n;
-    this.changeSelection(title, () => (kind === 'feather' ? this.sel.feather(n) : this.sel.morph(kind, n)));
+    this.changeSelection(title, () => (kind === 'feather' ? this.sel.feather(n) : kind === 'border' ? this.sel.border(n) : this.sel.morph(kind, n)));
   },
 
   // ---------- selection tools ----------
@@ -153,7 +153,7 @@ export const selectionMethods = {
     const d = this.doc, s = this.settings.wand;
     const a = this.doc.active, t = this.maskEdit && a.mask ? a.mask : a;
     const src = s.sampleAll || !t.ctx ? this.compCtx : t.ctx;
-    const res = floodMask(src.getImageData(0, 0, d.width, d.height).data, d.width, d.height, dp.x, dp.y, s.tolerance);
+    const res = floodMask(src.getImageData(0, 0, d.width, d.height).data, d.width, d.height, dp.x, dp.y, s.tolerance, s.contiguous);
     if (!res) return;
     this.changeSelection('Magic wand', () => this.sel.combineMask(mode, res.mask, res.bounds));
   },

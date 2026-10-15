@@ -246,6 +246,7 @@ export class Editor {
         { label: 'Image size…', key: 'Ctrl+Alt+I', run: () => this.imageSizeDialog() },
         { label: 'Crop tool', key: 'C', run: () => this.selectTool('crop') },
         { label: 'Crop to selection', run: () => this.cropToSelection(), disabled: !this.sel.active },
+        { label: 'Trim to content', run: () => this.trimToContent() },
         '-',
         { label: 'Rotate canvas 90° right', run: () => this.rotateCanvas(1) },
         { label: 'Rotate canvas 90° left', run: () => this.rotateCanvas(-1) },
@@ -262,6 +263,7 @@ export class Editor {
         { label: 'Expand selection…', run: () => this.morphSelection('expand'), disabled: !this.sel.active },
         { label: 'Shrink selection…', run: () => this.morphSelection('shrink'), disabled: !this.sel.active },
         { label: 'Feather selection…', run: () => this.morphSelection('feather'), disabled: !this.sel.active },
+        { label: 'Border selection…', run: () => this.morphSelection('border'), disabled: !this.sel.active },
         '-',
         { label: 'Transform selection…', key: 'Ctrl+T', run: () => this.beginTransform() },
       ],
@@ -275,6 +277,7 @@ export class Editor {
         isFolder(d.active)
           ? { label: 'Merge folder', key: 'Ctrl+E', run: () => this.mergeFolder(d.active) }
           : { label: 'Merge with layer below', key: 'Ctrl+E', run: () => this.mergeDown() },
+        { label: 'Merge visible to new layer', key: 'Ctrl+Shift+Alt+E', run: () => this.mergeVisible() },
         '-',
         d.active.mask
           ? { label: d.active.mask.enabled ? 'Turn mask off' : 'Turn mask on', run: () => this.toggleMask() }
@@ -830,7 +833,7 @@ export class Editor {
     if (!layer) return;
     const src = s.sampleAll ? this.compCtx : layer.ctx;
     const data = src.getImageData(0, 0, d.width, d.height).data;
-    let res = floodMask(data, d.width, d.height, pt.x, pt.y, s.tolerance);
+    let res = floodMask(data, d.width, d.height, pt.x, pt.y, s.tolerance, s.contiguous);
     if (!res) return;
     res = growMask(res.mask, d.width, d.height, s.grow, res.bounds);
     const b = res.bounds;
@@ -1030,7 +1033,7 @@ export class Editor {
       'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
       'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
       'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'), 'ctrl+alt+shift+s': () => this.exportAs(),
-      'ctrl+e': () => this.mergeDown(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
+      'ctrl+e': () => this.mergeDown(), 'ctrl+alt+shift+e': () => this.mergeVisible(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
       'ctrl+f': () => this.repeatFilter(),
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
       'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
@@ -1077,6 +1080,7 @@ Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, r
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
+  if (key === 'corner') return Math.round(v) + ' px';
   if (['opacity', 'flow', 'hardness', 'spacing', 'minSize', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);

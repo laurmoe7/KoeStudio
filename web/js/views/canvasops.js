@@ -3,9 +3,9 @@
 // Every one goes through reshapeCanvas(): each layer gets a new canvas, and one undo step swaps them back.
 
 import { ANCHORS, anchorOffset, validSide, keepRatio, rotatedSize, cropRect } from '../canvasmath.js';
-import { MAX_SIDE } from '../doc.js';
+import { MAX_SIDE, renderFolder } from '../doc.js';
 import { icon } from '../icons.js';
-import { Selection } from '../selection.js';
+import { Selection, maskBounds } from '../selection.js';
 import { newTransform, corners, hitTest, dragHandle } from '../transform.js';
 import { modal, toast } from '../ui.js';
 import { matrix, toDoc } from '../view.js';
@@ -130,6 +130,20 @@ export const canvasMethods = {
   cropToSelection() {
     if (!this.sel.active) return toast('Make a selection first, then crop to it.');
     this.cropTo(this.sel.bounds);
+  },
+
+  /** Image → Trim to content: crops to the bounding box of everything visible (the paper does not count). */
+  trimToContent() {
+    const d = this.doc, c = document.createElement('canvas');
+    c.width = d.width; c.height = d.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    renderFolder(ctx, d.root, { x: 0, y: 0, w: d.width, h: d.height });
+    const data = ctx.getImageData(0, 0, d.width, d.height).data, alpha = new Uint8Array(d.width * d.height);
+    for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+    const r = maskBounds(alpha, d.width, d.height);
+    if (!r) return toast('Nothing is drawn yet, so there is nothing to trim to.');
+    if (r.w === d.width && r.h === d.height) return toast('The drawing already reaches every edge.');
+    this.cropTo(r);
   },
 
   cropTo(r) {

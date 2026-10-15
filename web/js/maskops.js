@@ -71,6 +71,17 @@ export function shrinkMask(alpha, w, h, n) {
   return out;
 }
 
+/**
+ * A band n pixels wide along the mask's edge, half outside and half inside it (the outer half gets the odd pixel):
+ * the mask grown by ceil(n/2) minus the mask shrunk by floor(n/2).
+ */
+export function borderMask(alpha, w, h, n) {
+  const outer = expandMask(alpha, w, h, Math.ceil(n / 2)), inner = shrinkMask(alpha, w, h, Math.floor(n / 2));
+  const out = new Uint8ClampedArray(alpha.length);
+  for (let i = 0; i < alpha.length; i++) out[i] = outer[i] - inner[i];
+  return out;
+}
+
 /** Softens the mask's edges over about `radius` pixels each way (a Gaussian blur of the alpha). */
 export function featherMask(alpha, w, h, radius) {
   const plane = new Float32Array(alpha.length);

@@ -191,6 +191,18 @@ export const layerMethods = {
       d.width * d.height * 4);
   },
 
+  /** Layer → Merge visible to new layer: everything visible, as one new layer on top (the layers stay as they are). */
+  mergeVisible() {
+    const d = this.doc;
+    const layer = new Layer(d.width, d.height, { name: 'Merged visible' });
+    renderFolder(layer.ctx, d.root, { x: 0, y: 0, w: d.width, h: d.height });
+    const root = d.root, prev = d.active;
+    this.structural('Merge visible to new layer',
+      () => { insertNode(root, root.children.length, layer); d.active = layer; },
+      () => { removeNode(layer); d.active = prev; },
+      d.width * d.height * 4);
+  },
+
   setLayerProp(node, key, value, label) {
     const old = node[key];
     if (old === value) return this.layerPanel.render();

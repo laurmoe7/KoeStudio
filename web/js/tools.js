@@ -21,11 +21,11 @@ export const TOOLS = [
   { id: 'eraser', label: 'Eraser', key: 'e', kind: 'paint', icon: 'eraser', erase: true, group: 'draw',
     defaults: { size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1, ...tex() } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
-    defaults: { opacity: 1, tolerance: 12, grow: 1, sampleAll: true } },
+    defaults: { opacity: 1, tolerance: 12, grow: 1, sampleAll: true, contiguous: true } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
     defaults: { colors: 'main-sub', shape: 'linear', opacity: 1 } },
   { id: 'figure', label: 'Figure', key: 'u', kind: 'figure', icon: 'figure', group: 'draw',
-    defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, fill: false } },
+    defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, fill: false } },
   { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',
     defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, vertical: false } },
   { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', group: 'draw', defaults: {} },
@@ -33,7 +33,7 @@ export const TOOLS = [
   { id: 'ellipse', label: 'Ellipse selection', key: 'm', kind: 'select', icon: 'ellipseSel', group: 'select', defaults: { mode: 'replace' } },
   { id: 'lasso', label: 'Lasso selection', key: 'l', kind: 'select', icon: 'lasso', group: 'select', defaults: { mode: 'replace' } },
   { id: 'polygon', label: 'Polygon selection', key: 'l', kind: 'select', icon: 'polySel', group: 'select', defaults: { mode: 'replace' } },
-  { id: 'wand', label: 'Magic wand', key: 'w', kind: 'select', icon: 'wand', group: 'select', defaults: { mode: 'replace', tolerance: 12, sampleAll: true } },
+  { id: 'wand', label: 'Magic wand', key: 'w', kind: 'select', icon: 'wand', group: 'select', defaults: { mode: 'replace', tolerance: 12, sampleAll: true, contiguous: true } },
   { id: 'move', label: 'Move layer', key: 'v', kind: 'move', icon: 'move', group: 'select', defaults: {} },
   { id: 'crop', label: 'Crop', key: 'c', kind: 'crop', icon: 'crop', group: 'select', defaults: {} },
   { id: 'ruler', label: 'Ruler', key: 'u', kind: 'ruler', icon: 'ruler', group: 'view', defaults: {} },
@@ -62,6 +62,7 @@ export const SETTING_FIELDS = [
   ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
   ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
   ['leading', 'Line spacing', 'range', 0.5, 4, 0.05],
+  ['corner', 'Round corners', 'range', 0, 500, 1],
   ['bold', 'Bold', 'check'],
   ['italic', 'Italic', 'check'],
   ['vertical', 'Vertical', 'check'],
@@ -71,6 +72,7 @@ export const SETTING_FIELDS = [
   ['tolerance', 'Margin', 'range', 0, 255, 1],
   ['grow', 'Expand', 'range', 0, 6, 1],
   ['sampleAll', 'Look at all layers', 'check'],
+  ['contiguous', 'Connected only', 'check'],
 ];
 
 /** Which group of the tool panel a paint setting belongs to (paint tools only; other tools show one flat list). */
@@ -103,6 +105,8 @@ export const SETTING_HINTS = {
   textureScale: 'Size of the texture (100% = as made)',
   figure: 'Drag to draw it; hold Shift for a 45° line, a square or a circle',
   fill: 'Fill the rectangle or ellipse, not only its outline',
+  corner: 'Corner radius of rectangles, in pixels (0 = sharp corners)',
+  contiguous: 'Only the area connected to where you click (on), or every pixel of that colour in the picture (off)',
 };
 
 /** Every tool's settings, starting from its defaults and keeping only valid stored values. */

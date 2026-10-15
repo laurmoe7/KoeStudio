@@ -37,7 +37,7 @@ export const figureMethods = {
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(area.x, area.y, area.w, area.h);
-    const { points, closed } = figurePoints(s.figure, g.start, b, s.size * SPACING);
+    const { points, closed } = figurePoints(s.figure, g.start, b, s.size * SPACING, s.corner);
     if (s.fill && closed) {
       ctx.fillStyle = this.inkFor(g.layer);
       ctx.beginPath();

@@ -1,7 +1,7 @@
 // The selection: a doc-sized mask canvas (alpha = how selected a pixel is), its bounds and its outline.
 // Painting, filling, clearing, copying and transforming all respect it. Pure helpers at the bottom are tested.
 
-import { expandMask, shrinkMask, featherMask } from './maskops.js';
+import { expandMask, shrinkMask, featherMask, borderMask } from './maskops.js';
 
 export const SELECT_MODES = [['replace', 'New selection'], ['add', 'Add (Shift)'], ['subtract', 'Subtract (Alt)'], ['intersect', 'Intersect (Shift+Alt)']];
 
@@ -102,6 +102,12 @@ export class Selection {
     if (!this.bounds || !(n > 0)) return;
     const fn = kind === 'shrink' ? shrinkMask : expandMask;
     this.setAlphaPlane(fn(this.alphaPlane(), this.w, this.h, n));
+  }
+
+  /** Turns the selection into a band n pixels wide along its edge. */
+  border(n) {
+    if (!this.bounds || !(n > 0)) return;
+    this.setAlphaPlane(borderMask(this.alphaPlane(), this.w, this.h, n));
   }
 
   /** Softens the selection's edges over about r pixels. */

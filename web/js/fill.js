@@ -1,10 +1,11 @@
 // Paint-bucket flood fill (pure, tested). Works on RGBA bytes as in ImageData.data.
 
 /**
- * Pixels connected to (x, y) whose colour is within tolerance (0-255, per channel incl. alpha) of the start pixel.
+ * Pixels connected to (x, y) whose colour is within tolerance (0-255, per channel incl. alpha) of the start pixel;
+ * with contiguous = false every such pixel in the image, connected or not.
  * Returns { mask: Uint8Array(w*h) with 1 = fill, bounds: {x, y, w, h} } or null when (x, y) is outside.
  */
-export function floodMask(data, w, h, x, y, tolerance = 0) {
+export function floodMask(data, w, h, x, y, tolerance = 0, contiguous = true) {
   x = Math.floor(x); y = Math.floor(y);
   if (x < 0 || y < 0 || x >= w || y >= h) return null;
   const i0 = (y * w + x) * 4;
@@ -17,6 +18,19 @@ export function floodMask(data, w, h, x, y, tolerance = 0) {
   };
   const mask = new Uint8Array(w * h);
   let minX = x, maxX = x, minY = y, maxY = y;
+  if (!contiguous) {
+    for (let py = 0; py < h; py++) {
+      for (let px = 0; px < w; px++) {
+        if (!match((py * w + px) * 4)) continue;
+        mask[py * w + px] = 1;
+        if (px < minX) minX = px;
+        if (px > maxX) maxX = px;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+      }
+    }
+    return { mask, bounds: { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } };
+  }
   const stack = [x, y];
   while (stack.length) {
     const sy = stack.pop(), sx0 = stack.pop();
