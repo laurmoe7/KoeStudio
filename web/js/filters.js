@@ -13,7 +13,13 @@ export const FILTERS = [
     margin: p => Math.ceil(p.radius * 3), apply: (d, w, h, p) => sharpen(d, w, h, p.amount / 100, p.radius) },
   { id: 'mosaic', label: 'Mosaic…', fields: [f('cell', 'Cell size', 2, 200, 1, 8, ' px')],
     margin: () => 0, apply: (d, w, h, p, x0, y0) => mosaic(d, w, h, p.cell, x0, y0) },
+  { id: 'motion', label: 'Motion blur…', fields: [f('distance', 'Distance', 1, 200, 1, 20, ' px'), f('angle', 'Angle', 0, 180, 1, 0, '°')],
+    margin: p => Math.ceil(p.distance / 2) + 1, apply: (d, w, h, p) => motionBlur(d, w, h, p.distance, p.angle) },
+  { id: 'noise', label: 'Add noise…', fields: [f('amount', 'Amount', 1, 100, 1, 20, '%'), f('color', 'Color', 0, 100, 1, 0, '%')],
+    margin: () => 0, apply: (d, w, h, p, x0, y0) => addNoise(d, w, h, p.amount, p.color, x0, y0) },
   '-',
+  { id: 'balance', label: 'Color balance…', fields: [f('red', 'Cyan – Red', -100, 100, 1, 0), f('green', 'Magenta – Green', -100, 100, 1, 0), f('blue', 'Yellow – Blue', -100, 100, 1, 0)],
+    margin: () => 0, apply: (d, w, h, p) => colorBalance(d, p.red, p.green, p.blue) },
   { id: 'brightness', label: 'Brightness/Contrast…', fields: [f('brightness', 'Brightness', -100, 100, 1, 0), f('contrast', 'Contrast', -100, 100, 1, 0)],
     margin: () => 0, apply: (d, w, h, p) => brightnessContrast(d, p.brightness, p.contrast) },
   { id: 'hsl', label: 'Hue/Saturation/Lightness…', fields: [f('hue', 'Hue', -180, 180, 1, 0, '°'), f('saturation', 'Saturation', -100, 100, 1, 0), f('lightness', 'Lightness', -100, 100, 1, 0)],
@@ -160,7 +166,85 @@ export function mosaic(data, w, h, cell, x0 = 0, y0 = 0) {
   return data;
 }
 
+/**
+ * Motion blur: every pixel becomes the mean of a line `distance` px long through it at `angle` degrees
+ * (0 = horizontal). The image is walked along parallel pixel lines in that direction (each pixel on exactly one
+ * line), and each line gets a running-sum box blur, so the cost does not grow with the distance.
+ */
+export function motionBlur(data, w, h, distance, angle) {
+  const rad = (angle * Math.PI) / 180, c = Math.cos(rad), s = Math.sin(rad);
+  const alongX = Math.abs(c) >= Math.abs(s);
+  // the line advances one pixel along its main axis per step; a step is 1/|cos| (or 1/|sin|) px long
+  const slope = alongX ? s / c : c / s, r = Math.round(((distance - 1) / 2) * Math.abs(alongX ? c : s));
+  if (r < 1) return data;
+  const planes = toPlanes(data);
+  const n = alongX ? w : h, m = alongX ? h : w;  // steps along a line, and the size of the other axis
+  const off = new Int32Array(n);
+  let lo = 0, hi = 0;
+  for (let i = 0; i < n; i++) { off[i] = Math.round(i * slope); lo = Math.min(lo, off[i]); hi = Math.max(hi, off[i]); }
+  const idx = new Int32Array(n), buf = new Float32Array(n), out = new Float32Array(n);
+  for (let L = -hi; L < m - lo; L++) {
+    let len = 0;
+    for (let i = 0; i < n; i++) {
+      const j = L + off[i];
+      if (j >= 0 && j < m) idx[len++] = alongX ? j * w + i : i * w + j;
+    }
+    if (len < 2) continue;
+    for (const p of planes) {
+      for (let k = 0; k < len; k++) buf[k] = p[idx[k]];
+      boxLine(buf, out, 0, 1, len, r);
+      for (let k = 0; k < len; k++) p[idx[k]] = out[k];
+    }
+  }
+  fromPlanes(planes, data);
+  return data;
+}
+
+/** A repeatable pseudo-random number 0..1 for a document pixel and channel, so noise stays put while previewing. */
+export function noiseAt(x, y, ch) {
+  let v = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(ch + 1, 1442695041);
+  v = Math.imul(v ^ (v >>> 13), 1274126177);
+  v ^= v >>> 16;
+  return (v >>> 0) / 4294967296;
+}
+
+/**
+ * Adds grain: amount 0-100 (100 = up to ±128 per channel); colour 0-100 mixes from gray grain (the same change
+ * in every channel) to independent grain per channel. Anchored to the doc at x0, y0. Alpha is kept.
+ */
+export function addNoise(data, w, h, amount, color = 0, x0 = 0, y0 = 0) {
+  const k = (Math.max(0, Math.min(100, amount)) / 100) * 256, mix = Math.max(0, Math.min(100, color)) / 100;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (!data[i + 3]) continue;
+      const dx = x + x0, dy = y + y0, gray = noiseAt(dx, dy, 3) - 0.5;
+      for (let c = 0; c < 3; c++) data[i + c] += k * (gray * (1 - mix) + (noiseAt(dx, dy, c) - 0.5) * mix);
+    }
+  }
+  return data;
+}
+
 // ---------- tone corrections ----------
+
+/**
+ * Colour balance for one channel: shift -100..100 pushes the midtones towards the colour (positive) or its
+ * opposite (negative), up to ±64 at mid gray; black and white stay as they are.
+ */
+export function balanceLut(shift) {
+  const lut = new Uint8ClampedArray(256), k = (Math.max(-100, Math.min(100, shift)) / 100) * 64;
+  for (let v = 0; v < 256; v++) { const t = v / 255; lut[v] = Math.round(v + k * 4 * t * (1 - t)); }
+  return lut;
+}
+
+/** Colour balance: cyan–red, magenta–green and yellow–blue, each -100..100. */
+export function colorBalance(data, red, green, blue) {
+  const luts = [balanceLut(red), balanceLut(green), balanceLut(blue)];
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = luts[0][data[i]]; data[i + 1] = luts[1][data[i + 1]]; data[i + 2] = luts[2][data[i + 2]];
+  }
+  return data;
+}
 
 /** Applies a 256-entry lookup table to the colour channels. */
 export function applyLut(data, lut) {

@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FILTERS, FILTER_BY_ID, defaultParams, sanitizeParams, boxesForGauss, boxLine, blurPlane, gaussianBlur, sharpen, mosaic,
-  brightnessContrastLut, levelsLut, posterizeLut, threshold, invert, rgbToHsl, hslToRgb, hueSaturation, mixByMask } from '../web/js/filters.js';
+  brightnessContrastLut, levelsLut, posterizeLut, threshold, invert, rgbToHsl, hslToRgb, hueSaturation, mixByMask,
+  motionBlur, addNoise, noiseAt, balanceLut, colorBalance } from '../web/js/filters.js';
 import { chamferDistance, expandMask, shrinkMask, featherMask } from '../web/js/maskops.js';
 
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg || ''} ${a} ≈ ${b}`);
@@ -205,4 +206,47 @@ test('feather softens an edge symmetrically', () => {
   assert.ok(f[19] < 255 && f[20] > 0, 'the edge is soft');
   const flat = featherMask(new Uint8Array(16).fill(255), 4, 4, 3);
   assert.ok([...flat].every(v => v === 255), 'a full mask stays full');
+});
+
+/** Opaque gray pixels from a list of values. */
+const grays = vals => Uint8ClampedArray.from(vals.flatMap(v => [v, v, v, 255]));
+const reds = d => [...d].filter((_, i) => i % 4 === 0);
+
+test('motion blur averages along the direction only', () => {
+  // horizontal, 3 px long: the 90 spreads over its neighbours (90 / 3 = 30); the ends repeat
+  assert.deepEqual(reds(motionBlur(grays([0, 0, 90, 0, 0]), 5, 1, 3, 0)), [0, 30, 30, 30, 0]);
+  assert.deepEqual(reds(motionBlur(grays([0, 0, 90, 0, 0]), 5, 1, 3, 90)), [0, 0, 90, 0, 0], 'vertical does not touch a single row');
+  assert.deepEqual(reds(motionBlur(grays([0, 0, 90, 0, 0]), 1, 5, 3, 90)), [0, 30, 30, 30, 0], 'but blurs a column');
+  assert.deepEqual(reds(motionBlur(grays([0, 0, 90, 0, 0]), 5, 1, 1, 0)), [0, 0, 90, 0, 0], '1 px long changes nothing');
+  // 45°: 3 px along the diagonal is one step each way (r = round(1 * cos 45°) = 1); only the diagonal through the centre gets it
+  const d = reds(motionBlur(grays([0, 0, 0, 0, 90, 0, 0, 0, 0]), 3, 3, 3, 45));
+  assert.deepEqual(d, [30, 0, 0, 0, 30, 0, 0, 0, 30]);
+  // transparency does not bleed colour: red next to clear stays pure red, only less opaque
+  const t = motionBlur(Uint8ClampedArray.from([255, 0, 0, 255, 0, 0, 255, 0, 0, 0, 255, 0]), 3, 1, 3, 0);
+  assert.deepEqual(px(t, 1), [255, 0, 0, 85]);
+});
+
+test('noise is repeatable, anchored to the doc and keeps alpha and clear pixels', () => {
+  assert.equal(noiseAt(5, 7, 0), noiseAt(5, 7, 0));
+  assert.notEqual(noiseAt(5, 7, 0), noiseAt(6, 7, 0));
+  for (let i = 0; i < 50; i++) { const v = noiseAt(i, i * 3, 1); assert.ok(v >= 0 && v < 1); }
+  const whole = addNoise(pixels(4, 1, [128, 128, 128, 200]), 4, 1, 50, 100, 10, 20);
+  const right = addNoise(pixels(2, 1, [128, 128, 128, 200]), 2, 1, 50, 100, 12, 20);
+  assert.deepEqual([...whole.slice(8)], [...right], 'the same doc pixel gets the same grain wherever the area starts');
+  const gray = addNoise(pixels(3, 1, [128, 128, 128, 255]), 3, 1, 100, 0);
+  for (let p = 0; p < 3; p++) {
+    const [r, g, b, a] = px(gray, p);
+    assert.ok(r === g && g === b, 'gray grain changes all channels alike');
+    assert.equal(a, 255);
+  }
+  assert.deepEqual(px(addNoise(pixels(1, 1, [9, 9, 9, 0]), 1, 1, 100, 100), 0), [9, 9, 9, 0], 'clear pixels stay as they are');
+});
+
+test('colour balance moves the midtones and leaves black and white', () => {
+  const up = balanceLut(100), down = balanceLut(-100);
+  assert.equal(up[0], 0); assert.equal(up[255], 255);
+  assert.equal(up[128], 192, '128 + 64 * 4t(1-t), t ≈ 0.5');
+  assert.equal(down[128], 64);
+  assert.equal(balanceLut(0)[77], 77);
+  assert.deepEqual(px(colorBalance(pixels(1, 1, [128, 128, 128, 255]), 100, 0, -100), 0), [192, 128, 64, 255]);
 });
