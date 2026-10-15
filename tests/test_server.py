@@ -211,6 +211,33 @@ class Storage(unittest.TestCase):
             app.export_image('x', b'GIF89a', 'exe')
 
 
+class WindowState(unittest.TestCase):
+    SCREENS = [(0, 0, 1920, 1080), (1920, 0, 1280, 1024)]  # two monitors side by side
+
+    def test_defaults_without_a_saved_state(self):
+        self.assertEqual(app.window_options(None, self.SCREENS), {'width': 1500, 'height': 950, 'maximized': False})
+        self.assertEqual(app.window_options({'width': 'big'}, self.SCREENS)['width'], 1500)
+
+    def test_position_and_size_come_back(self):
+        got = app.window_options({'x': 2000, 'y': 40, 'width': 1100, 'height': 800, 'maximized': True}, self.SCREENS)
+        self.assertEqual(got, {'x': 2000, 'y': 40, 'width': 1100, 'height': 800, 'maximized': True}, 'on the second monitor')
+
+    def test_sizes_kept_within_minimum_and_screen(self):
+        got = app.window_options({'width': 300, 'height': 5000}, self.SCREENS)
+        self.assertEqual((got['width'], got['height']), (1000, 1080))
+
+    def test_off_screen_window_is_centred(self):
+        gone = app.window_options({'x': 3300, 'y': 100, 'width': 1200, 'height': 800}, self.SCREENS)
+        self.assertNotIn('x', gone, 'its monitor was unplugged')
+        self.assertNotIn('x', app.window_options({'x': 100, 'y': -500, 'width': 1200, 'height': 800}, self.SCREENS),
+                         'title bar above every screen')
+        self.assertNotIn('x', app.window_options({'x': 1850, 'y': 1050, 'width': 1200, 'height': 800}, self.SCREENS),
+                         'only a sliver at the bottom edge')
+        edge = app.window_options({'x': -1000, 'y': 10, 'width': 1200, 'height': 800}, self.SCREENS)
+        self.assertEqual(edge['x'], -1000, '200 px still showing is enough to grab it')
+        self.assertNotIn('x', app.window_options({'x': -1100, 'y': 10, 'width': 1200, 'height': 800}, self.SCREENS))
+
+
 class Http(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

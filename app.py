@@ -670,6 +670,100 @@ def _wait_forever():
         pass
 
 
+# ---------- window position and size ----------
+# Kept in <app dir>/window.json as {x, y, width, height, maximized}, in logical pixels (as pywebview takes them).
+# For a maximized window, x/y/width/height are its normal (restored) placement, so un-maximizing goes back there.
+
+WINDOW_DEFAULT = {'width': 1500, 'height': 950}
+WINDOW_MIN = (1000, 650)
+VISIBLE_PX = 120  # this much of the window's top edge must be on a screen, or it opens centred instead
+
+
+def _window_state_path():
+    return os.path.join(app_dir(), 'window.json')
+
+
+def window_options(raw, screens):
+    """create_window arguments from a saved state: sizes kept within the minimum and the largest screen, and the
+    position dropped (centred) when the window's top edge would not be reachable on any screen now (a monitor that
+    has been unplugged, a changed layout). screens: [(x, y, width, height)] in logical pixels."""
+    out = {**WINDOW_DEFAULT, 'maximized': False}
+    if not isinstance(raw, dict):
+        return out
+    num = lambda v: v if isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) < 100000 else None
+    max_w = max((s[2] for s in screens), default=10000)
+    max_h = max((s[3] for s in screens), default=10000)
+    w, h = num(raw.get('width')), num(raw.get('height'))
+    if w is not None and h is not None:
+        out['width'] = int(min(max(w, WINDOW_MIN[0]), max_w))
+        out['height'] = int(min(max(h, WINDOW_MIN[1]), max_h))
+    x, y = num(raw.get('x')), num(raw.get('y'))
+    if x is not None and y is not None:
+        x, y = int(x), int(y)
+        for sx, sy, sw, sh in screens:
+            overlap = min(x + out['width'], sx + sw) - max(x, sx)
+            if overlap >= min(VISIBLE_PX, out['width']) and sy <= y < sy + sh - 40:
+                out['x'], out['y'] = x, y
+                break
+    out['maximized'] = raw.get('maximized') is True
+    return out
+
+
+def load_window_options(screens):
+    try:
+        with open(_window_state_path(), encoding='utf-8') as f:
+            raw = json.load(f)
+    except (OSError, ValueError):
+        raw = None
+    return window_options(raw, screens)
+
+
+def window_placement(window):
+    """The window's normal placement and whether it is maximized, from Windows itself (GetWindowPlacement gives the
+    restored rectangle even while maximized or minimized), in logical pixels. None when it cannot be read."""
+    if sys.platform != 'win32':
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    class PLACEMENT(ctypes.Structure):
+        _fields_ = [('length', wintypes.UINT), ('flags', wintypes.UINT), ('showCmd', wintypes.UINT),
+                    ('ptMin', wintypes.POINT), ('ptMax', wintypes.POINT), ('rcNormal', wintypes.RECT)]
+    user32 = ctypes.windll.user32
+    hwnd = window.native.Handle.ToInt64()
+    p = PLACEMENT()
+    p.length = ctypes.sizeof(PLACEMENT)
+    if not user32.GetWindowPlacement(wintypes.HWND(hwnd), ctypes.byref(p)):
+        return None
+    scale = (user32.GetDpiForWindow(wintypes.HWND(hwnd)) or 96) / 96
+    maximized = p.showCmd == 3 or (p.showCmd == 2 and p.flags & 2)  # SW_SHOWMAXIMIZED, or minimized from maximized
+    r = p.rcNormal
+    if p.showCmd == 1:  # normal: the real window rectangle (rcNormal is in work-area coordinates)
+        r = wintypes.RECT()
+        user32.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(r))
+    else:  # work-area coordinates: add the offset of the work area (a taskbar at the top or left)
+        mon = user32.MonitorFromRect(ctypes.byref(r), 2)
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [('cbSize', wintypes.DWORD), ('rcMonitor', wintypes.RECT), ('rcWork', wintypes.RECT), ('dwFlags', wintypes.DWORD)]
+        mi = MONITORINFO()
+        mi.cbSize = ctypes.sizeof(MONITORINFO)
+        if user32.GetMonitorInfoW(mon, ctypes.byref(mi)):
+            dx, dy = mi.rcWork.left - mi.rcMonitor.left, mi.rcWork.top - mi.rcMonitor.top
+            r = wintypes.RECT(r.left + dx, r.top + dy, r.right + dx, r.bottom + dy)
+    return {'x': round(r.left / scale), 'y': round(r.top / scale), 'width': round((r.right - r.left) / scale),
+            'height': round((r.bottom - r.top) / scale), 'maximized': bool(maximized)}
+
+
+def save_window_state(window):
+    try:
+        state = window_placement(window)
+        if state:
+            _write_atomic(_window_state_path(), json.dumps(state).encode('utf-8'))
+    except Exception:
+        log_error('Could not remember the window position:\n' + traceback.format_exc())
+
+
 def close_after_flush(window, timeout=20):
     """Lets the page save pending work before the window goes (artwork saves 0.8 s after the last change, and a big
     canvas takes seconds to encode). Runs off the GUI thread, since the page can only be asked from there."""
@@ -708,9 +802,15 @@ def main():
         except Exception:
             pass
     storage = os.path.join(app_dir(), 'webview')  # keeps localStorage (tool settings, last artwork) between launches
+    hidden = '--hidden' in sys.argv
     try:
-        win = webview.create_window(APP_NAME, url, width=1500, height=950, min_size=(1000, 650),
-                                    hidden='--hidden' in sys.argv, background_color='#1e1f24')
+        try:
+            screens = [(s.x, s.y, s.width, s.height) for s in webview.screens]
+        except Exception:
+            screens = []
+        # opens where and as big as it was last closed (window.json in the app folder)
+        win = webview.create_window(APP_NAME, url, **load_window_options(screens), min_size=WINDOW_MIN,
+                                    hidden=hidden, background_color='#1e1f24')
         closing = []
 
         def on_closing():
@@ -718,6 +818,8 @@ def main():
             if closing:
                 return None
             closing.append(True)
+            if not hidden:  # a test window never moves the user's own
+                save_window_state(win)
             threading.Thread(target=close_after_flush, args=(win,), daemon=True).start()
             return False
         win.events.closing += on_closing
