@@ -4,7 +4,7 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
 
 ## Workflow (follow this in every session)
 
-- **Runs straight from this folder.** The Desktop and Start-menu shortcuts (`KoeStudio.lnk`) and `Run KoeStudio.lnk` start `pythonw app.py` from the project folder. There is no installer and no build step for day-to-day use: every saved change is live the next time the app is opened, or straight away after a reload.
+- **Runs straight from this folder.** The Desktop and Start-menu shortcuts (`KoeStudio.lnk`) `Run KoeStudio.lnk` and `KoeStudio.exe` (a committed launcher, see the `.koe` double-click note) start `pythonw app.py` from the project folder. There is no installer and no build step for day-to-day use: every saved change is live the next time the app is opened, or straight away after a reload.
 - **Reload key:** F5 or Ctrl+R in any screen saves pending work, then reloads the page so edited `web/` files take effect (`reload()` in `js/app.js`; the open screen and artwork are remembered in `sessionStorage`). Changes to `app.py` need the app restarted.
 - **The user's data lives outside the project folder.** Artwork: `Pictures\KoeStudio` (`<id>.koe`, `.thumbs/`, `.deleted/`, `Exports/`). Window storage (tool settings, colours) and `error.log`: `%LOCALAPPDATA%\KoeStudio`. Never write user data into the project.
 - **Never build installers or release packages (nothing for others to install), and never publish a GitHub release, unless the user asks.** The committed `KoeStudio.exe` launcher is not one of these: it just starts `app.py`. Finish changes in source, run the tests, and commit.
@@ -23,11 +23,11 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
 - **`app.py`**: stdlib `ThreadingHTTPServer` on 127.0.0.1 (port 8770, or the next free one) serving `web/` and a small JSON API, shown in a pywebview (WebView2) window. Flags: `--browser` (serve only), `--hidden` (window never shown), `--muted`. Env: `KOE_ART_DIR`, `KOE_APP_DIR`, `KOE_PORT`, `KOE_MUTE`.
   - `Handler._allowed` refuses requests from other web pages (foreign `Host`, foreign `Origin`, `Sec-Fetch-Site` cross-site/same-site).
   - Static files are sent `Cache-Control: no-cache` (revalidated, so a reload picks up edits); API answers `no-store`.
-  - API: `config`, `art` (list), `art/file`, `art/thumb`, `art/save` (new id when none given), `art/delete` (moves to `.deleted/`), `export` (PNG to `Exports/`, never overwrites), `open-folder`.
+  - API: `config`, `art` (list), `art/file`, `art/thumb`, `art/save` (new id when none given), `art/delete` (moves to `.deleted/`), `export?format=` (png, jpg, webp, gif, bmp, tga or koe; the body's signature is checked; saved to `Exports/`, never overwrites), `open-file` (the `.koe` given on the command line, handed out once), `open-folder`. `app.py <file.koe>` queues a project to open.
 - **`web/`**: vanilla ES modules, no framework, no build step. Edit and reload.
   - `js/app.js`: start-up (mute, reload key) and switching between gallery and editor.
-  - `js/imageformats.js`: export formats (`EXPORT_FORMATS`) and pure TGA/BMP/GIF encoders (median-cut palette + LZW); PNG/JPEG/WebP come from `canvas.toBlob`. `exportAs(format)` in `editor.js` posts to `export?format=`; `app.py` `export_image` checks the file signature per format.
-  - `js/views/gallery.js`: artwork cards, New canvas dialog (`PRESETS`), Open image.
+  - `js/imageformats.js`: export formats (`EXPORT_FORMATS`) and pure TGA/BMP/GIF encoders (median-cut palette + LZW); PNG/JPEG/WebP come from `canvas.toBlob`. `exportAs(format)` in `editor.js` posts to `export?format=`; `saveProjectFile()` writes the whole document (`doc.toJSON()`) as a `.koe` to `Exports/`; `app.py` `export_image` checks the file signature per format.
+  - `js/views/gallery.js`: artwork cards, New canvas dialog (`PRESETS`), Open image or project (a `.koe` file becomes a new artwork; an image becomes a one-layer canvas).
   - `js/views/editor.js`: the drawing screen. Viewport (`render`, `updateComp`), pointer input, painting, undo, autosave, menus and shortcuts (`onKey`). Feature groups live in mixins assigned to `Editor.prototype`: `layerops.js`, `selecttools.js`, `canvasops.js`.
   - `js/views/colorpanel.js`, `js/views/layerpanel.js`: side panels. They change the document only through editor methods. The layer panel draws `panelRows()` (top first, indented), handles click-to-select (the mask thumbnail selects mask editing) and drag-and-drop (`moveNodeTo`).
   - `js/doc.js`: `Doc` with a layer **tree** (`doc.root`, a `Folder`; `doc.active` is the selected node), `Layer` and `Mask` (both rasters: canvas, `version`, cached PNG), `Folder`, `cloneNode`, `nodeRasters`, `composite()` (paper, folders, "Through" pass-through, blend modes, opacity, clipping groups, masks, the live stroke), save format and `sanitizeDoc`.
@@ -82,6 +82,8 @@ Run `npm test` and `npm run check` before calling a change done, and add tests f
 
 ## Gotchas
 
+- Port 8790 can already belong to another program on this PC (it once answered with a different app's page). The server then moves to the next free port and prints the URL (`Serving http://127.0.0.1:<port>/`); read that line instead of assuming the port, and check `/api/config` answers with `artDir` before testing.
+- Editing files that contain backslashes (`.ps1`, docs with Windows paths) through a Python string in a shell heredoc silently turns `\r`, `\t`, `\x` and similar into control characters. Use the Edit tool, or build backslashes with `chr(92)`, and re-read the result.
 - Use `127.0.0.1`, not `localhost` (IPv6-first lookup makes every request slower).
 - The pywebview window keeps localStorage in `%LOCALAPPDATA%\KoeStudio\webview` (`private_mode=False`); without it tool settings are forgotten each launch.
 - `setPointerCapture` throws for pointers the browser no longer tracks; keep it in a `try`.
