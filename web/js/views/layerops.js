@@ -22,6 +22,7 @@ export const layerMethods = {
    * read: the tool only reads pixels (copy, select), so text layers are fine as they are.
    */
   target(verb = 'draw on', { read = false } = {}) {
+    if (this.quickMask) return this.quickMask;
     const n = this.doc.active;
     if (!n.visible) { toast(`This ${isFolder(n) ? 'folder' : 'layer'} is hidden. Show it to ${verb} it.`); return null; }
     const lockedBy = lockedNode(n);
@@ -264,9 +265,9 @@ export const layerMethods = {
   /** The Move tool: the layer and its mask, everything in a folder, or only the mask while editing it. */
   beginMove(pt, id) {
     const d = this.doc, n = d.active;
-    if (!n.visible) return toast('This layer is hidden. Show it to move it.');
-    if (lockedNode(n)) return toast(`"${lockedNode(n).name}" is locked. Untick Lock in the Layers panel to move it.`);
-    const rasters = this.maskEdit && n.mask ? [n.mask] : nodeRasters(n);
+    if (!this.quickMask && !n.visible) return toast('This layer is hidden. Show it to move it.');
+    if (!this.quickMask && lockedNode(n)) return toast(`"${lockedNode(n).name}" is locked. Untick Lock in the Layers panel to move it.`);
+    const rasters = this.layerRasters();
     const parts = rasters.map(r => {
       const copy = document.createElement('canvas');
       copy.width = d.width; copy.height = d.height;
@@ -356,6 +357,7 @@ export const layerMethods = {
   /** Rasters "Flip layer" works on: the mask while editing it, else the layer (or folder) with its mask(s). */
   layerRasters() {
     const n = this.doc.active;
+    if (this.quickMask) return [this.quickMask];
     return this.maskEdit && n.mask ? [n.mask] : nodeRasters(n);
   },
 

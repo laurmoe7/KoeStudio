@@ -16,6 +16,7 @@ export const canvasMethods = {
   reshapeCanvas(label, w, h, paint) {
     this.finishTransform();
     this.finishText();
+    if (this.quickMask) this.exitQuickMask();  // it is the size of the old canvas
     if (!validSide(w) || !validSide(h)) return toast(`Width and height must be between 1 and ${MAX_SIDE} pixels.`, { error: true });
     const d = this.doc;
     const rasters = d.rasters();

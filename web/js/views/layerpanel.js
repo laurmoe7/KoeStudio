@@ -90,7 +90,7 @@ export class LayerPanel {
     this.root.querySelector('.lp-ref').checked = !!n.reference;
     this.root.querySelectorAll('.lp-label-btn').forEach(b => { b.classList.toggle('on', (n.label || '') === b.dataset.label); b.setAttribute('aria-checked', (n.label || '') === b.dataset.label); });
     this.root.querySelector('[data-op="mask"]').title = n.mask ? 'Paint on the mask' : 'Add a mask (hides outside the selection, if there is one)';
-    const chip = ed.root.querySelector('.mask-chip');
+    const chip = ed.root.querySelector('.mask-chip:not(.qmask-chip)');
     if (chip) chip.hidden = !ed.maskEdit;
     this.list.innerHTML = '';
     for (const { node, depth } of panelRows(ed.doc.root)) {

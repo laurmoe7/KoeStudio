@@ -28,6 +28,7 @@ import { textMethods } from './texttool.js';
 import { toneMethods } from './tonetools.js';
 import { filterMethods } from './filtertools.js';
 import { figureMethods } from './figuretool.js';
+import { quickMaskMethods } from './quickmask.js';
 import { smudgeMethods } from './smudgetool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -72,6 +73,7 @@ export class Editor {
     this.maskOverlay = store('maskOverlay') === true;  // tint what a mask hides while painting on it
     this.poly = null;  // polygon selection being drawn (selecttools.js)
     this.figPoly = null;  // polyline/polygon figure being clicked (figuretool.js)
+    this.quickMask = null;  // the Mask tools paint on while Quick mask is on (quickmask.js)
     this.onKey = this.onKey.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onPaste = this.onPaste.bind(this);
@@ -141,6 +143,7 @@ export class Editor {
           <button class="menu-btn" data-menu="view">View</button>
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
           <button class="mask-chip" hidden title="Tools paint on the layer mask: painting hides, erasing shows. Click to paint on the layer again.">${icon('mask', 14)} Painting on mask</button>
+          <button class="mask-chip qmask-chip" hidden title="Tools paint the selection: painting selects, erasing deselects. Click (or press Q) to turn it into the selection.">${icon('mask', 14)} Quick mask</button>
           <div class="grow"></div>
           <button class="icon-btn" data-act="undo" title="Undo (Ctrl+Z)">${icon('undo')}</button>
           <button class="icon-btn" data-act="redo" title="Redo (Ctrl+Y)">${icon('redo')}</button>
@@ -227,7 +230,8 @@ export class Editor {
         store('folded', f);
       };
     });
-    $('.mask-chip').onclick = () => this.editMask(false);
+    $('.mask-chip:not(.qmask-chip)').onclick = () => this.editMask(false);
+    $('.qmask-chip').onclick = () => this.toggleQuickMask();
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
     this.bindPointer();
@@ -287,6 +291,7 @@ export class Editor {
         { label: 'Feather selection…', run: () => this.morphSelection('feather'), disabled: !this.sel.active },
         { label: 'Border selection…', run: () => this.morphSelection('border'), disabled: !this.sel.active },
         '-',
+        { label: 'Quick mask (paint the selection)', key: 'Q', checked: !!this.quickMask, run: () => this.toggleQuickMask() },
         { label: 'Transform selection…', key: 'Ctrl+T', run: () => this.beginTransform() },
       ],
       filter: this.filterMenuItems(),
@@ -452,12 +457,15 @@ export class Editor {
     }
   }
 
-  /** The hidden part of the mask being painted on, in red (View → Show mask area), or null. */
+  /**
+   * In red: the quick mask (the selection being painted), or the hidden part of the mask being painted on
+   * (View → Show mask area); null when there is neither.
+   */
   maskTint() {
-    const n = this.doc.active, m = n.mask;
-    if (!this.maskOverlay || !this.maskEdit || !m) return null;
+    const m = this.quickMask || (this.maskOverlay && this.maskEdit ? this.doc.active.mask : null);
+    if (!m) return null;
     const d = this.doc, live = this.live && this.live.layer === m ? this.live : null;
-    const key = `${m.version}/${live ? this.strokeVersion : 0}/${d.width}x${d.height}`;
+    const key = `${this.quickMask ? 'q' : 'm'}${m.version}/${live ? this.strokeVersion : 0}/${d.width}x${d.height}`;
     if (this.tintKey === key && this.tintCanvas) return this.tintCanvas;
     const c = this.tintCanvas || (this.tintCanvas = document.createElement('canvas'));
     if (c.width !== d.width || c.height !== d.height) { c.width = d.width; c.height = d.height; }
@@ -1100,6 +1108,7 @@ export class Editor {
       '[': () => s.size && this.setSize(nextSize(s.size, -1)),
       ']': () => s.size && this.setSize(nextSize(s.size, 1)),
       'x': () => this.colors.swap(),
+      'q': () => this.toggleQuickMask(),
       'shift+m': () => this.flipView(),
       'ctrl+a': () => this.selectAll(), 'ctrl+d': () => this.deselect(), 'ctrl+shift+i': () => this.invertSelection(),
       'ctrl+t': () => this.beginTransform(),
@@ -1157,7 +1166,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, exportMethods, smudgeMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, exportMethods, smudgeMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
