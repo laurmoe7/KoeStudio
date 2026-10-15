@@ -87,7 +87,7 @@ export const filterMethods = {
     const src = new Uint8ClampedArray(r.w * r.h * 4);
     for (let y = 0; y < r.h; y++) src.set(orig.data.subarray(((r.y + y) * W + r.x) * 4, ((r.y + y) * W + r.x + r.w) * 4), y * r.w * 4);
     const out = new Uint8ClampedArray(src);
-    filter.apply(out, r.w, r.h, params, r.x, r.y);
+    filter.apply(out, r.w, r.h, params, r.x, r.y, W, H);
     // the mask: the selection inside the area, nothing in the margin
     const mask = new Uint8Array(r.w * r.h);
     for (let y = 0; y < r.h; y++) {

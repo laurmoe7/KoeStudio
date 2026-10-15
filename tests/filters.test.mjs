@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FILTERS, FILTER_BY_ID, defaultParams, sanitizeParams, boxesForGauss, boxLine, blurPlane, gaussianBlur, sharpen, mosaic,
   brightnessContrastLut, levelsLut, posterizeLut, threshold, invert, rgbToHsl, hslToRgb, hueSaturation, mixByMask,
-  motionBlur, addNoise, noiseAt, balanceLut, colorBalance } from '../web/js/filters.js';
+  motionBlur, addNoise, noiseAt, balanceLut, colorBalance, zoomBlur, spinBlur } from '../web/js/filters.js';
 import { chamferDistance, expandMask, shrinkMask, featherMask } from '../web/js/maskops.js';
 
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg || ''} ${a} ≈ ${b}`);
@@ -264,4 +264,37 @@ test('curves', async () => {
   const f = FILTER_BY_ID.curves;
   assert.deepEqual(sanitizeParams(f, { r: 'nope', g: [[0, 0.2], [1, 0.9]] }),
     { ...defaultParams(f), g: [[0, 0.2], [1, 0.9]] }, 'a broken curve becomes the diagonal');
+});
+
+test('zoom blur smears along the line to the centre', () => {
+  const row = () => { const d = new Uint8ClampedArray(5 * 4); for (let i = 0; i < 5; i++) d[i * 4 + 3] = 255; d[3 * 4] = 90; return d; };
+  const d = zoomBlur(row(), 5, 1, 1, 0.5, 0.5);  // centre on pixel 0
+  assert.equal(d[0], 0, 'the centre pixel keeps itself (one sample)');
+  assert.equal(d[2 * 4], 20, 'pixel 2 is 2 px out: 3 parts, samples at 3.17 (2/3 of the way to the 90), 2.5, 1.83 -> 60 / 3');
+  assert.equal(d[4 * 4], 22, 'pixel 4: 5 parts, samples at 6.1, 5.3, 4.5 (all 0), 3.7 (72), 2.9 (36) -> 108 / 5 = 21.6');
+  assert.equal(d[4 * 4 + 3], 255, 'alpha stays');
+  const flat = new Uint8ClampedArray(6 * 6 * 4).fill(200);
+  assert.ok(zoomBlur(flat, 6, 6, 0.5, 1, 4).every(v => v === 200), 'a flat image stays flat');
+  // a long streak: two passes of 8 parts give 64 evenly spaced samples, so a lone pixel spreads evenly
+  const long = new Uint8ClampedArray(200 * 4);
+  for (let i = 0; i < 200; i++) long[i * 4 + 3] = 255;
+  long[150 * 4] = 255;
+  const z = zoomBlur(long, 200, 1, 0.5, 0.5, 0.5);
+  const near150 = [];
+  for (let x = 140; x <= 160; x++) near150.push(z[x * 4]);
+  assert.ok(near150.every(v => v > 0 && v < 20), 'no gaps or spikes near it: ' + near150.join(' '));
+});
+
+test('spin blur smears round the centre', () => {
+  const img = new Uint8ClampedArray(5 * 5 * 4);
+  for (let i = 0; i < 25; i++) img[i * 4 + 3] = 255;
+  img[(2 * 5 + 2) * 4] = 255;  // one red pixel two to the right of the centre pixel (0, 2)
+  const d = spinBlur(img, 5, 5, 57.29578, 0.5, 2.5);
+  const red = (x, y) => d[(y * 5 + x) * 4];
+  assert.ok(red(2, 1) > 0 && red(2, 3) > 0, 'it spreads up and down (along the circle)');
+  assert.equal(red(2, 1), red(2, 3), 'evenly both ways');
+  assert.equal(red(1, 2), 0, 'not towards the centre');
+  assert.equal(red(0, 2), 0, 'the centre pixel keeps itself');
+  const flat = new Uint8ClampedArray(6 * 6 * 4).fill(120);
+  assert.ok(spinBlur(flat, 6, 6, 30, 3, 3).every(v => v === 120), 'a flat image stays flat');
 });

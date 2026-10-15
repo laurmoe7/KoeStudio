@@ -1,7 +1,8 @@
 // Image filters (pure, tested). They work on RGBA bytes as in ImageData.data and change them in place.
 // FILTERS lists them for the Filter menu: each has the sliders of its dialog, how far it reaches outside the
 // area being filtered (margin, so a blur at a selection's edge sees what is around it), and apply(data, w, h,
-// params, x0, y0), x0/y0 being where the data sits in the document (for filters with a grid).
+// params, x0, y0, W, H), x0/y0 being where the data sits in the document (for filters with a grid) and W x H the
+// document size (for filters with a centre).
 
 import { curveAt, sanitizeCurve } from './brush.js';
 
@@ -17,6 +18,10 @@ export const FILTERS = [
     margin: () => 0, apply: (d, w, h, p, x0, y0) => mosaic(d, w, h, p.cell, x0, y0) },
   { id: 'motion', label: 'Motion blur…', fields: [f('distance', 'Distance', 1, 200, 1, 20, ' px'), f('angle', 'Angle', 0, 180, 1, 0, '°')],
     margin: p => Math.ceil(p.distance / 2) + 1, apply: (d, w, h, p) => motionBlur(d, w, h, p.distance, p.angle) },
+  { id: 'zoom', label: 'Zoom blur…', fields: [f('amount', 'Amount', 1, 100, 1, 20, '%'), f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
+    margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => zoomBlur(d, w, h, p.amount / 100, (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
+  { id: 'spin', label: 'Spin blur…', fields: [f('angle', 'Angle', 1, 90, 1, 10, '°'), f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
+    margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => spinBlur(d, w, h, p.angle, (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
   { id: 'noise', label: 'Add noise…', fields: [f('amount', 'Amount', 1, 100, 1, 20, '%'), f('color', 'Color', 0, 100, 1, 0, '%')],
     margin: () => 0, apply: (d, w, h, p, x0, y0) => addNoise(d, w, h, p.amount, p.color, x0, y0) },
   '-',
@@ -203,6 +208,87 @@ export function motionBlur(data, w, h, distance, angle) {
   }
   fromPlanes(planes, data);
   return data;
+}
+
+const PASS_SAMPLES = 8;  // samples per pixel per pass of zoom and spin blur
+
+/** RGBA bytes as one interleaved premultiplied float array (4 per pixel). */
+function premultiplied(data) {
+  const out = new Float32Array(data.length);
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3] / 255;
+    out[i] = data[i] * a; out[i + 1] = data[i + 1] * a; out[i + 2] = data[i + 2] * a; out[i + 3] = data[i + 3];
+  }
+  return out;
+}
+
+/** Adds k times the bilinear sample of src at (fx, fy) (pixel-centre coordinates, edges repeated) into acc. */
+function addSample(src, w, h, fx, fy, k, acc) {
+  fx = fx < 0.5 ? 0 : fx > w - 0.5 ? w - 1 : fx - 0.5;
+  fy = fy < 0.5 ? 0 : fy > h - 0.5 ? h - 1 : fy - 0.5;
+  const x = Math.floor(fx), y = Math.floor(fy), x1 = x + 1 < w ? x + 1 : x, y1 = y + 1 < h ? y + 1 : y;
+  const tx = fx - x, ty = fy - y;
+  const w00 = (1 - tx) * (1 - ty) * k, w10 = tx * (1 - ty) * k, w01 = (1 - tx) * ty * k, w11 = tx * ty * k;
+  const i00 = (y * w + x) * 4, i10 = (y * w + x1) * 4, i01 = (y1 * w + x) * 4, i11 = (y1 * w + x1) * 4;
+  for (let c = 0; c < 4; c++) acc[c] += src[i00 + c] * w00 + src[i10 + c] * w10 + src[i01 + c] * w01 + src[i11 + c] * w11;
+}
+
+/**
+ * Smears every pixel along a path through it: a straight line towards the centre (cx, cy) over `amount` of its
+ * distance from it (zoom), or an arc round it over `amount` radians (spin), centred on the pixel. A pass cuts the
+ * streak into m equal parts (one per pixel of length plus one, at most PASS_SAMPLES) and takes a bilinear sample in
+ * the middle of each; when m was capped, a further pass 1/m as long fills each part the same way, so 8 x 8 evenly
+ * spaced samples cost 16 and long streaks stay smooth. Coordinates are pixel-centre: pixel x is at x + 0.5.
+ */
+function pathBlur(data, w, h, spin, amount, cx, cy) {
+  const far = Math.max(Math.hypot(cx, cy), Math.hypot(w - cx, cy), Math.hypot(cx, h - cy), Math.hypot(w - cx, h - cy));
+  let src = premultiplied(data), dst = new Float32Array(src.length);
+  const acc = new Float64Array(4);
+  for (let pass = 0, a = amount; pass < 4; pass++, a /= PASS_SAMPLES) {
+    if (pass > 0 && a * PASS_SAMPLES * far <= PASS_SAMPLES - 1) break;  // no streak of the last pass was capped
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const px = x + 0.5, py = y + 0.5, dx = px - cx, dy = py - cy, len = Math.hypot(dx, dy) * a, i = (y * w + x) * 4;
+        const m = Math.min(PASS_SAMPLES, Math.ceil(len - 1e-9) + 1);
+        if (m < 2 || (pass > 0 && len * PASS_SAMPLES <= PASS_SAMPLES - 1)) { for (let c = 0; c < 4; c++) dst[i + c] = src[i + c]; continue; }
+        acc[0] = acc[1] = acc[2] = acc[3] = 0;
+        const k = 1 / m;
+        if (spin) {
+          const step = a / m, cs = Math.cos(step), sn = Math.sin(step), a0 = (step - a) / 2;
+          let ox = dx * Math.cos(a0) - dy * Math.sin(a0), oy = dx * Math.sin(a0) + dy * Math.cos(a0);
+          for (let j = 0; j < m; j++) {
+            addSample(src, w, h, cx + ox, cy + oy, k, acc);
+            const nx = ox * cs - oy * sn; oy = ox * sn + oy * cs; ox = nx;
+          }
+        } else {
+          // from the outer end of the streak inwards, in the middle of each part
+          const sx = -dx * a / m, sy = -dy * a / m;
+          let qx = px + dx * a / 2 + sx / 2, qy = py + dy * a / 2 + sy / 2;
+          for (let j = 0; j < m; j++) { addSample(src, w, h, qx, qy, k, acc); qx += sx; qy += sy; }
+        }
+        for (let c = 0; c < 4; c++) dst[i + c] = acc[c];
+      }
+    }
+    [src, dst] = [dst, src];
+  }
+  for (let i = 0; i < data.length; i += 4) {
+    const al = src[i + 3], k = al > 0 ? 255 / al : 0;
+    data[i] = src[i] * k; data[i + 1] = src[i + 1] * k; data[i + 2] = src[i + 2] * k; data[i + 3] = al;
+  }
+  return data;
+}
+
+/**
+ * Zoom blur: every pixel is smeared along the line to the centre (cx, cy, in the data's pixel-centre
+ * coordinates), over `amount` (0-1) of its distance from it, half towards and half away from the centre.
+ */
+export function zoomBlur(data, w, h, amount, cx, cy) {
+  return pathBlur(data, w, h, false, amount, cx, cy);
+}
+
+/** Spin blur: every pixel is smeared along the circle round (cx, cy) through it, over `angle` degrees. */
+export function spinBlur(data, w, h, angle, cx, cy) {
+  return pathBlur(data, w, h, true, (angle * Math.PI) / 180, cx, cy);
 }
 
 /** A repeatable pseudo-random number 0..1 for a document pixel and channel, so noise stays put while previewing. */
