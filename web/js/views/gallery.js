@@ -4,6 +4,7 @@
 import { api } from '../api.js';
 import { Doc, MAX_SIDE, loadImage } from '../doc.js';
 import { icon } from '../icons.js';
+import { guideDialog } from './help.js';
 import { esc, toast, modal, confirmBox, promptBox, fileToDataUrl, menu } from '../ui.js';
 
 export const PRESETS = [
@@ -26,6 +27,7 @@ export async function showGallery(root, { onOpen }) {
         <button data-act="import">Open image or project…</button>
         <button data-act="deleted" title="Put back artwork you deleted">${icon('trash', 16)} Deleted</button>
         <button data-act="folder" title="Open the folder where artwork is saved">Artwork folder</button>
+        <button data-act="guide" title="How KoeStudio works (F1)">Guide</button>
       </header>
       <div class="gal-grid" aria-live="polite"><p class="muted">Loading…</p></div>
     </div>`;
@@ -35,6 +37,7 @@ export async function showGallery(root, { onOpen }) {
   };
   root.querySelector('[data-act="import"]').onclick = () => importImage(onOpen);
   root.querySelector('[data-act="folder"]').onclick = () => api.openFolder();
+  root.querySelector('[data-act="guide"]').onclick = () => guideDialog();
   root.querySelector('[data-act="deleted"]').onclick = async () => { if (await deletedDialog()) fillGrid(root, onOpen); };
   await fillGrid(root, onOpen);
 }

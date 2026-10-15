@@ -30,6 +30,7 @@ import { filterMethods } from './filtertools.js';
 import { figureMethods } from './figuretool.js';
 import { quickMaskMethods } from './quickmask.js';
 import { navMethods } from './navpanels.js';
+import { helpMenuItems } from './help.js';
 import { smudgeMethods } from './smudgetool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -142,6 +143,7 @@ export class Editor {
           <button class="menu-btn" data-menu="layer">Layer</button>
           <button class="menu-btn" data-menu="filter">Filter</button>
           <button class="menu-btn" data-menu="view">View</button>
+          <button class="menu-btn" data-menu="help">Help</button>
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
           <button class="mask-chip" hidden title="Tools paint on the layer mask: painting hides, erasing shows. Click to paint on the layer again.">${icon('mask', 14)} Painting on mask</button>
           <button class="mask-chip qmask-chip" hidden title="Tools paint the selection: painting selects, erasing deselects. Click (or press Q) to turn it into the selection.">${icon('mask', 14)} Quick mask</button>
@@ -302,6 +304,7 @@ export class Editor {
         { label: 'Transform selection…', key: 'Ctrl+T', run: () => this.beginTransform() },
       ],
       filter: this.filterMenuItems(),
+      help: helpMenuItems(),
       layer: [
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
         { label: 'New folder', run: () => this.folderAdd() },

@@ -268,7 +268,22 @@ class Http(unittest.TestCase):
         self.assertEqual(r.getheader('Cache-Control'), 'no-cache', 'UI files revalidate, so edits show after a reload')
         status, data, r = self.req('GET', '/api/config')
         self.assertEqual(json.loads(data)['artDir'], self.tmp.name)
+        self.assertIn('build', json.loads(data))
         self.assertEqual(r.getheader('Cache-Control'), 'no-store')
+
+    def test_build_info(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(app.build_info(d), {'build': '', 'buildDate': ''}, 'not a git checkout')
+            os.makedirs(os.path.join(d, '.git', 'refs', 'heads'))
+            with open(os.path.join(d, '.git', 'HEAD'), 'w') as f:
+                f.write('ref: refs/heads/main\n')
+            with open(os.path.join(d, '.git', 'refs', 'heads', 'main'), 'w') as f:
+                f.write('84a27d5f00000000000000000000000000000000\n')
+            self.assertEqual(app.build_info(d)['build'], '84a27d5')
+            os.remove(os.path.join(d, '.git', 'refs', 'heads', 'main'))
+            with open(os.path.join(d, '.git', 'packed-refs'), 'w') as f:
+                f.write('# pack-refs with: peeled\nabcdef1234 refs/heads/main\n')
+            self.assertEqual(app.build_info(d)['build'], 'abcdef1', 'packed refs')
 
     def test_save_roundtrip(self):
         status, data, _ = self.req('POST', '/api/art/save?id=', json.dumps(doc()), {'Content-Type': 'application/json'})

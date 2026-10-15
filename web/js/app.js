@@ -7,6 +7,7 @@ import { toast, closeMenus } from './ui.js';
 import { showGallery } from './views/gallery.js';
 import { Doc } from './doc.js';
 import { openEditor } from './views/editor.js';
+import { guideDialog } from './views/help.js';
 
 const root = document.getElementById('app');
 let editor = null;
@@ -72,6 +73,10 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     e.stopPropagation();
     reload();
+  } else if (e.key === 'F1') {  // the guide, on every screen (the browser's own help page stays shut)
+    e.preventDefault();
+    e.stopPropagation();
+    guideDialog();
   }
 }, true);
 

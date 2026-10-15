@@ -21,6 +21,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 
 ## Features
 
+- **Help menu:** **Guide** (F1, also a button in the gallery) explains every part of KoeStudio on short pages, with a search box; **Keyboard shortcuts** lists every key; **About KoeStudio** shows the version and where your artwork and settings are kept.
 - **Gallery** of your artwork with thumbnails; new canvas presets (Full HD, A4 and B5 at print resolution, square, icon) or any size up to 10,000 px; open any image as a new artwork.
 - **Tools:** Pen, Pencil, Brush, Airbrush, Eraser, Smudge, Fill, Gradient, Lasso fill, Figure, Text, Rectangle and Ellipse selection, Lasso, Polygon, Magic wand, Crop, Eyedropper, Move, Ruler, Hand. The **Tool property** panel next to the tool bar shows the current tool's settings; click its heading to fold it away. For the pen tools it keeps the basics (size, opacity, density, hardness, stabilization) and **Brush settings…** opens a floating window with every setting on pages (Paint, Tip, Pen pressure, Stroke, Variation, Texture), as Clip Studio Paint's Sub Tool Detail. You can paint with it open; drag it by its title bar. It remembers whether it was open, where, and the page.
   - Pen pressure for size and density, with a pressure curve and a minimum size and density.
@@ -83,4 +84,4 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 | U | Figure (press again: Ruler) | Ctrl+2 / Ctrl+; | Snap to rulers / show guides |
 | Shift+click (pen tools) | Straight line from the last stroke | Ctrl+F | Repeat last filter |
 | F5 / Ctrl+R | Reload screen | Ctrl+0 / Ctrl+1 | Fit / 100% |
-| F2 | Rename the layer | | |
+| F2 | Rename the layer | F1 | Guide |

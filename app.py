@@ -64,6 +64,32 @@ def art_dir():
     return os.environ.get('KOE_ART_DIR') or os.path.join(pictures_folder(), APP_NAME)
 
 
+def build_info(base=None):
+    """Which version of the program this is, for Help -> About: the git commit it runs from and when that was
+    checked out, read straight from .git (no git needed). Empty when the folder is not a git checkout."""
+    git = os.path.join(base or BASE, '.git')
+    try:
+        with open(os.path.join(git, 'HEAD'), encoding='utf-8') as f:
+            head = f.read().strip()
+        if not head.startswith('ref: '):
+            return {'build': head[:7], 'buildDate': ''}
+        ref = head[5:]
+        path = os.path.join(git, *ref.split('/'))
+        if os.path.isfile(path):
+            with open(path, encoding='utf-8') as f:
+                sha = f.read().strip()
+            when = time.strftime('%Y-%m-%d', time.localtime(os.path.getmtime(path)))
+            return {'build': sha[:7], 'buildDate': when}
+        with open(os.path.join(git, 'packed-refs'), encoding='utf-8') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) == 2 and parts[1] == ref:
+                    return {'build': parts[0][:7], 'buildDate': ''}
+    except OSError:
+        pass
+    return {'build': '', 'buildDate': ''}
+
+
 def app_dir():
     return os.environ.get('KOE_APP_DIR') or os.path.join(os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), APP_NAME)
 
@@ -582,7 +608,8 @@ class Handler(SimpleHTTPRequestHandler):
         route = (method, u.path[5:])
         try:
             if route == ('GET', 'config'):
-                self._json({'muted': muted(), 'artDir': art_dir(), 'openFile': bool(PENDING_OPEN)})
+                self._json({'muted': muted(), 'artDir': art_dir(), 'appDir': app_dir(), 'openFile': bool(PENDING_OPEN),
+                            'python': sys.version.split()[0], **build_info()})
             elif route == ('GET', 'open-file'):
                 self._json({'doc': take_open_file()})
             elif route == ('GET', 'art'):
