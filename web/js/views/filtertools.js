@@ -47,11 +47,14 @@ export const filterMethods = {
       this.previewFilter(job);
       // one preview per frame, however fast the slider moves
       const dialog = filter.curves ? (f, p, cb) => curvesDialog(f, p, cb, histogram(orig, selData)) : filterDialog;
+      // a centred blur: clicking the canvas moves the centre there (the dialog lets clicks through)
+      const pick = filter.centre ? set => { this.canvasPick = dp => set({ cx: Math.round(dp.x / W * 100), cy: Math.round(dp.y / H * 100) }); } : null;
       params = await dialog(filter, job.params, p => {
         job.params = p;
         cancelAnimationFrame(job.raf);
         job.raf = requestAnimationFrame(() => this.previewFilter(job));
-      });
+      }, pick);
+      this.canvasPick = null;
       cancelAnimationFrame(job.raf);  // a preview still waiting must not land after the cancel or the undo step
       if (params) { job.params = params; this.previewFilter(job); }
     } else {
@@ -107,8 +110,11 @@ export const filterMethods = {
   },
 };
 
-/** The sliders of a filter; onChange(params) runs on every change. Resolves to the params, or null when cancelled. */
-function filterDialog(filter, params, onChange) {
+/**
+ * The sliders of a filter; onChange(params) runs on every change. Resolves to the params, or null when cancelled.
+ * pick(set), when given, receives a function that sets some sliders from outside (a click on the canvas).
+ */
+function filterDialog(filter, params, onChange, pick = null) {
   const fmt = (x, v) => (x.step < 1 ? (+v).toFixed(2).replace(/\.?0+$/, '') : Math.round(v)) + x.unit;
   return modal({
     title: filter.label.replace(/…$/, ''),
@@ -117,9 +123,10 @@ function filterDialog(filter, params, onChange) {
         <input type="range" data-k="${x.key}" min="${x.min}" max="${x.max}" step="${x.step}" value="${params[x.key]}"><output>${fmt(x, params[x.key])}</output></label>`).join('')}
       </div>
       <div class="btn-row"><button type="button" data-reset>Reset</button></div>
-      <p class="muted small">The canvas shows the result as you drag.</p>`,
+      <p class="muted small">The canvas shows the result as you drag.${pick ? ' Click the canvas to put the centre there.' : ''}</p>`,
     buttons: [{ label: 'Cancel', value: null }, { label: 'OK', primary: true }],
     live: true,
+    passClicks: !!pick,
     onOpen: root => {
       const read = () => {
         const raw = {};
@@ -138,6 +145,10 @@ function filterDialog(filter, params, onChange) {
         onChange(p);
       };
       root.querySelectorAll('input[data-k]').forEach(inp => inp.addEventListener('input', changed));
+      pick?.(vals => {
+        root.querySelectorAll('input[data-k]').forEach(inp => { if (inp.dataset.k in vals) inp.value = vals[inp.dataset.k]; });
+        changed();
+      });
       root.querySelector('[data-reset]').onclick = () => {
         const def = defaultParams(filter);
         root.querySelectorAll('input[data-k]').forEach(inp => { inp.value = def[inp.dataset.k]; });

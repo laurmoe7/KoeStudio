@@ -92,7 +92,7 @@ export const selectionMethods = {
     };
     const later = () => { cancelAnimationFrame(job.raf); job.raf = requestAnimationFrame(preview); };
     let swatch = null;
-    this.colorRangePick = dp => {
+    this.canvasPick = dp => {
       const x = Math.floor(dp.x), y = Math.floor(dp.y);
       if (x < 0 || y < 0 || x >= d.width || y >= d.height) return;
       const data = sampled(), i = (y * d.width + x) * 4;
@@ -123,7 +123,7 @@ export const selectionMethods = {
     });
     cancelAnimationFrame(job.raf);
     this.colorRange = null;
-    this.colorRangePick = null;
+    this.canvasPick = null;
     if (!ok) { this.sel.restore(before); this.drawOverlay(); return; }
     preview();
     store('colorRange', { fuzziness: job.fuzziness, sample: job.sample, mode: job.mode });

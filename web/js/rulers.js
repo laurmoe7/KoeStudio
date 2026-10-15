@@ -28,6 +28,12 @@ export function sanitizeGrid(raw) {
 /** Spacing between neighbouring grid lines (subdivisions included). */
 export const gridStep = g => g.size / g.div;
 
+/** pt moved onto the nearest grid line across and down, each only when it is within tol (for selections and figures). */
+export function snapToGrid(g, pt, tol) {
+  const step = gridStep(g), sx = Math.round(pt.x / step) * step + 0, sy = Math.round(pt.y / step) * step + 0;  // + 0 turns -0 into 0
+  return { ...pt, x: Math.abs(pt.x - sx) <= tol ? sx : pt.x, y: Math.abs(pt.y - sy) <= tol ? sy : pt.y };
+}
+
 export function sanitizeRulers(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const num = v => (Number.isFinite(+v) ? Math.max(-FAR, Math.min(FAR, +v)) : null);

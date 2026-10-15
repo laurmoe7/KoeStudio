@@ -154,7 +154,7 @@ export const GUIDE = [
     <p>The Filter menu changes the current layer (or the mask you are painting on), inside the selection. Drag the
     sliders and the canvas shows the result; <b>OK</b> keeps it, <b>Cancel</b> puts it back.</p>
     <ul>
-      <li>Blurs: Gaussian, motion, zoom and spin. Sharpen, mosaic and noise.</li>
+      <li>Blurs: Gaussian, motion, zoom and spin (click the canvas to put their centre there). Sharpen, mosaic and noise.</li>
       <li>Colour: brightness/contrast, hue/saturation, colour balance, curves, levels, posterize, threshold and invert.</li>
       <li><b>Extract lines</b> keeps only lines darker than their surroundings, as black ink (or their own colour) on a clear layer: use it on a scanned sketch or photo. Duplicate the layer first to keep the original.</li>
       <li><kbd>Ctrl+F</kbd> repeats the last filter with the same settings.</li>
@@ -167,7 +167,7 @@ export const GUIDE = [
       <li>With <b>snapping</b> on (<kbd>Ctrl+2</kbd>, or the magnet at the bottom) strokes follow the guide or
       perspective line they start along.</li>
       <li><b>Symmetry</b> (View → Symmetry settings…) mirrors what you draw, or repeats it round a centre.</li>
-      <li><b>Grid</b> <kbd>Ctrl+'</kbd>, with its spacing in View → Grid settings….</li>
+      <li><b>Grid</b> <kbd>Ctrl+'</kbd>, with its spacing in View → Grid settings…. Tick Snap there and strokes follow grid lines, while rectangle, ellipse and polygon selections, figures and crops put their corners on them.</li>
     </ul>`],
 
   ['canvas', 'Canvas size, cropping and turning', `

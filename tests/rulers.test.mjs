@@ -78,3 +78,11 @@ test('strokes snap to the nearest grid line only when grid snapping is on', () =
   assert.equal(snapCandidates({ ...r, grid: { ...grid, show: false } }, { x: 48, y: 74 }, 3).length, 0, 'a hidden grid does not snap');
   assert.equal(snapCandidates({ ...r, visible: false }, { x: 48, y: 74 }, 3).length, 2, 'hiding guides leaves the grid');
 });
+
+test('selection and figure corners snap to the grid', async () => {
+  const { snapToGrid } = await import('../web/js/rulers.js');
+  const g = { show: true, size: 100, div: 4, snap: true };  // a line every 25 px
+  assert.deepEqual(snapToGrid(g, { x: 47, y: 61 }, 4), { x: 50, y: 61 }, 'x is 3 from 50; y is 11 from 50 and 14 from 75');
+  assert.deepEqual(snapToGrid(g, { x: 12, y: 99, p: 0.5 }, 4), { x: 12, y: 100, p: 0.5 }, '12 is halfway between lines; pressure kept');
+  assert.deepEqual(snapToGrid(g, { x: -2, y: 0 }, 4), { x: 0, y: 0 }, 'the edge is a line too');
+});

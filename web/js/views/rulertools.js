@@ -5,13 +5,14 @@
 // the artwork (doc.rulers); the edge rulers themselves are a view setting.
 
 import { icon } from '../icons.js';
-import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, sanitizeGrid, MAX_GUIDES } from '../rulers.js';
+import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, snapToGrid, sanitizeGrid, MAX_GUIDES } from '../rulers.js';
 import { modal, store, toast } from '../ui.js';
 import { matrix, toScreen, toDoc } from '../view.js';
 
 export const RULER_PX = 20;   // thickness of the edge rulers, in screen pixels
 const GRAB_PX = 6;            // how close (screen px) the pointer must be to a guide to grab it
 const VP_PX = 10;             // ... or to a vanishing point
+const GRID_SNAP_PX = 10;      // corners of selections, figures and crops this close (on screen) to a grid line go onto it
 const SNAP_PX = 6;            // how far the pen moves before a stroke picks its snap line
 const LINE_COLOR = 'rgba(64, 200, 255, 0.85)';
 const PERSPECTIVE_COLOR = 'rgba(190, 120, 255, 0.35)';
@@ -82,7 +83,7 @@ export const rulerMethods = {
           <label class="field"><span>Spacing (px)</span><input type="number" name="size" min="2" max="5000" value="${before.size}"></label>
           <label class="field"><span>Divisions</span><input type="number" name="div" min="1" max="20" value="${before.div}"></label>
         </div>
-        <label class="check"><input type="checkbox" name="snap"${before.snap ? ' checked' : ''}> Strokes started on a grid line follow it (with Snap to rulers on)</label>
+        <label class="check"><input type="checkbox" name="snap"${before.snap ? ' checked' : ''}> Snap to the grid: strokes started on a line follow it; selections, figures and crops snap their corners (with Snap to rulers on)</label>
         <p class="muted small">A strong line every spacing, divided into thinner ones. View → Grid (Ctrl+') shows or hides it.</p>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'OK', primary: true }],
       live: true,
@@ -110,6 +111,12 @@ export const rulerMethods = {
     this.root.querySelector('[data-act="rulers"]')?.classList.toggle('on', this.showRulers);
     if (this.tool === 'ruler') this.renderToolProps();
     this.drawOverlay();
+  },
+
+  /** A selection, figure or crop corner moved onto the grid, when the grid is shown and snaps (and snapping is on). */
+  gridPoint(dp) {
+    const r = this.doc.rulers;
+    return r.snap && r.grid.show && r.grid.snap ? snapToGrid(r.grid, dp, GRID_SNAP_PX / this.view.zoom) : dp;
   },
 
   updateSnapButton() {

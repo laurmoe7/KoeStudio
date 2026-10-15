@@ -6,6 +6,8 @@
 
 import { curveAt, sanitizeCurve } from './brush.js';
 
+/** Filters with `centre: true` have cx / cy sliders (% of the canvas) that a click on the canvas also sets. */
+
 /** A filter dialog's slider: {key, label, min, max, step, value (default), unit}. */
 const f = (key, label, min, max, step, value, unit = '') => ({ key, label, min, max, step, value, unit });
 
@@ -18,9 +20,9 @@ export const FILTERS = [
     margin: () => 0, apply: (d, w, h, p, x0, y0) => mosaic(d, w, h, p.cell, x0, y0) },
   { id: 'motion', label: 'Motion blur…', fields: [f('distance', 'Distance', 1, 200, 1, 20, ' px'), f('angle', 'Angle', 0, 180, 1, 0, '°')],
     margin: p => Math.ceil(p.distance / 2) + 1, apply: (d, w, h, p) => motionBlur(d, w, h, p.distance, p.angle) },
-  { id: 'zoom', label: 'Zoom blur…', fields: [f('amount', 'Amount', 1, 100, 1, 20, '%'), f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
+  { id: 'zoom', label: 'Zoom blur…', centre: true, fields: [f('amount', 'Amount', 1, 100, 1, 20, '%'), f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
     margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => zoomBlur(d, w, h, p.amount / 100, (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
-  { id: 'spin', label: 'Spin blur…', fields: [f('angle', 'Angle', 1, 90, 1, 10, '°'), f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
+  { id: 'spin', label: 'Spin blur…', centre: true, fields: [f('angle', 'Angle', 1, 90, 1, 10, '°'), f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
     margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => spinBlur(d, w, h, p.angle, (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
   { id: 'noise', label: 'Add noise…', fields: [f('amount', 'Amount', 1, 100, 1, 20, '%'), f('color', 'Color', 0, 100, 1, 0, '%')],
     margin: () => 0, apply: (d, w, h, p, x0, y0) => addNoise(d, w, h, p.amount, p.color, x0, y0) },

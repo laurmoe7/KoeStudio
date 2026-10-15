@@ -42,6 +42,7 @@ import { linePoints } from '../figure.js';
 const SAVE_DELAY = 800;
 const SAVE_RETRY = 10000;  // after a failed save
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
+const GRID_TOOLS = new Set(['select', 'ellipse', 'polygon']);  // selection tools whose corners snap to the grid
 
 /** Visible layers marked as reference, or inside a reference folder (bottom first). */
 function referenceLayers(root) {
@@ -742,7 +743,7 @@ export class Editor {
       if (e.button === 1) return this.beginPan(p, e.pointerId);
       if (e.button !== 0 && !(e.pointerType === 'pen' && e.button === 5)) return;
       const dp = { ...toDoc(this.view, p.x, p.y), p: pressure(e) };
-      if (this.colorRangePick) { this.colorRangePick(dp); return; }  // Select → Color range is open
+      if (this.canvasPick) { this.canvasPick(dp); return; }  // a dialog takes canvas clicks (Color range, blur centre)
       const band = this.xf ? null : this.rulerBand(p);
       if (band) { if (band !== 'corner') this.beginNewGuide(band, dp, e.pointerId); this.drawOverlay(); return; }
       if (this.xf && !this.held.space) { this.xfPointerDown(dp, e.pointerId); this.drawOverlay(); return; }
@@ -750,8 +751,8 @@ export class Editor {
       const toolId = penEraser ? 'eraser' : this.effectiveTool();
       const tool = TOOL_BY_ID[toolId];
       if (tool.kind === 'hand') this.beginPan(p, e.pointerId);
-      else if (tool.kind === 'select') this.beginSelect(toolId, dp, e.pointerId, e);
-      else if (tool.kind === 'crop') this.beginCrop(dp, e.pointerId);
+      else if (tool.kind === 'select') this.beginSelect(toolId, GRID_TOOLS.has(toolId) ? this.gridPoint(dp) : dp, e.pointerId, e);
+      else if (tool.kind === 'crop') this.beginCrop(this.gridPoint(dp), e.pointerId);
       else if (tool.kind === 'ruler') this.beginRulerTool(dp, e.pointerId);
       else if (tool.kind === 'move' && this.sel.active) {
         // with a selection, the Move tool moves only the selected pixels (a quick transform)
@@ -760,7 +761,7 @@ export class Editor {
       else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId, e.shiftKey);
       else if (tool.kind === 'smudge') this.beginSmudge(dp, e.pointerId);
       else if (tool.kind === 'lassofill') this.beginLassoFill(dp, e.pointerId);
-      else if (tool.kind === 'figure') this.beginFigure(dp, e.pointerId, e.shiftKey, e.detail >= 2);
+      else if (tool.kind === 'figure') this.beginFigure(this.gridPoint(dp), e.pointerId, e.shiftKey, e.detail >= 2);
       else if (tool.kind === 'fill') this.fillAt(dp);
       else if (tool.kind === 'gradient') this.beginGradient(dp, e.pointerId);
       else if (tool.kind === 'text') { e.preventDefault(); this.textClick(dp); }
@@ -794,17 +795,18 @@ export class Editor {
         } else if (g.type === 'move') {
           this.moveTo(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'select') {
-          this.selectDrag(toDoc(this.view, p.x, p.y));
+          const q = toDoc(this.view, p.x, p.y);
+          this.selectDrag(GRID_TOOLS.has(g.tool) ? this.gridPoint(q) : q);
         } else if (g.type === 'xf') {
           this.xfDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         } else if (g.type === 'crop') {
-          this.cropDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
+          this.cropDrag(this.gridPoint(toDoc(this.view, p.x, p.y)), e.shiftKey);
         } else if (g.type === 'guide' || g.type === 'vp') {
           this.rulerDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'gradient') {
           this.gradientDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         } else if (g.type === 'figure') {
-          this.figureDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
+          this.figureDrag(this.gridPoint(toDoc(this.view, p.x, p.y)), e.shiftKey);
         }
       }
       const dp = toDoc(this.view, p.x, p.y);
