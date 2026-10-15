@@ -14,7 +14,7 @@ export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['re
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false,
-    minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, taperIn: 0, preset: '' };
+    minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, taperIn: 0, taperOut: 0, preset: '' };
 }
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
@@ -83,6 +83,7 @@ export const SETTING_FIELDS = [
   ['sizeJitter', 'Size jitter', 'range', 0, 1, 0.01],
   ['flowJitter', 'Density jitter', 'range', 0, 1, 0.01],
   ['taperIn', 'Start taper', 'range', 0, 500, 1],
+  ['taperOut', 'End taper', 'range', 0, 500, 1],
   ['sizeCurve', 'Size curve', 'curve'],
   ['flowCurve', 'Density curve', 'curve'],
   ['texture', 'Texture', 'choice', TEXTURES],
@@ -109,7 +110,7 @@ export const SETTING_GROUPS = [
   ['Paint', ['size', 'opacity', 'flow', 'hardness']],
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
-  ['Stroke', ['spacing', 'smoothing', 'taperIn']],
+  ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut']],
   ['Variation', ['scatter', 'sizeJitter', 'flowJitter']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert']],
 ];
@@ -152,6 +153,7 @@ export const SETTING_HINTS = {
   sizeJitter: 'Makes each dab smaller by a random amount, up to this share of its size',
   flowJitter: 'Makes each dab lighter by a random amount, up to this share of its density',
   taperIn: 'Starts each stroke thin and grows to full size over this many pixels (0 = off)',
+  taperOut: 'Ends each stroke thin over this many pixels (0 = off). The last stretch appears when you lift the pen',
 };
 
 /** Every tool's settings, starting from its defaults and keeping only valid stored values. */

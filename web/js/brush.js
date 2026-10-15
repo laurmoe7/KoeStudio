@@ -79,6 +79,20 @@ export function taperIn(dist, length) {
   return 0.1 + 0.9 * t * (2 - t);  // eases out: quick at first, then settles
 }
 
+/**
+ * The ending taper holds the last `length` px of a stroke back until the pen lifts (only then is it known to be
+ * the end). Given the held stamps (each with its distance `d` along the stroke) and the distance so far, returns
+ * the ones now far enough from the end to draw as they are, and those still held.
+ */
+export function releaseHeld(held, dist, length) {
+  let i = 0;
+  while (i < held.length && held[i].d <= dist - length) i++;
+  return { ready: held.slice(0, i), held: held.slice(i) };
+}
+
+/** Size factor of the ending taper for a stamp `left` px before the end: the start taper's curve, mirrored. */
+export const taperOut = (left, length) => taperIn(left, length);
+
 /** Size and opacity of one stamp for a tool's settings at pressure p (already curved). */
 export function stampFor(settings, p) {
   const minSize = settings.minSize ?? 0.1;

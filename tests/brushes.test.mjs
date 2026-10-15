@@ -100,6 +100,13 @@ test('dab variation and the starting taper', async () => {
   near(taperIn(50, 100), 0.775, 'halfway: 0.1 + 0.9 * 0.5 * 1.5');
   near(taperIn(100, 100), 1, 'full size at the end of the taper');
   near(taperIn(10, 0), 1, 'off');
+  const { releaseHeld, taperOut } = await import('../web/js/brush.js');
+  const held = [{ d: 0 }, { d: 10 }, { d: 20 }, { d: 30 }];
+  assert.deepEqual(releaseHeld(held, 35, 20), { ready: [{ d: 0 }, { d: 10 }], held: [{ d: 20 }, { d: 30 }] }, 'stamps 15 px or more from the end are drawn');
+  assert.deepEqual(releaseHeld(held, 15, 20).ready, [], 'all still within the last 20 px');
+  near(taperOut(0, 40), 0.1, 'the last stamp is 10%');
+  near(taperOut(20, 40), 0.775, 'halfway back up');
+  near(taperOut(60, 40), 1, 'before the taper: full size');
   const pen = sanitizeSettings({ pen: { scatter: 5, taperIn: -3 } }).pen;
   assert.equal(pen.scatter, 2, 'clamped');
   assert.equal(pen.taperIn, 0);

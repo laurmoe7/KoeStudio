@@ -1,7 +1,7 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, stampAt, stampBounds, dabJitter, taperIn } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds, dabJitter, taperIn, taperOut, releaseHeld } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex } from '../color.js';
 import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource } from '../doc.js';
@@ -285,6 +285,7 @@ export class Editor {
         { label: 'Deselect', key: 'Ctrl+D', run: () => this.deselect(), disabled: !this.sel.active },
         { label: 'Invert selection', key: 'Ctrl+Shift+I', run: () => this.invertSelection() },
         { label: 'Select layer pixels', run: () => this.selectLayerPixels() },
+        { label: 'Color range…', run: () => this.colorRangeDialog() },
         '-',
         { label: 'Expand selection…', run: () => this.morphSelection('expand'), disabled: !this.sel.active },
         { label: 'Shrink selection…', run: () => this.morphSelection('shrink'), disabled: !this.sel.active },
@@ -686,6 +687,7 @@ export class Editor {
       if (e.button === 1) return this.beginPan(p, e.pointerId);
       if (e.button !== 0 && !(e.pointerType === 'pen' && e.button === 5)) return;
       const dp = { ...toDoc(this.view, p.x, p.y), p: pressure(e) };
+      if (this.colorRangePick) { this.colorRangePick(dp); return; }  // Select → Color range is open
       const band = this.xf ? null : this.rulerBand(p);
       if (band) { if (band !== 'corner') this.beginNewGuide(band, dp, e.pointerId); this.drawOverlay(); return; }
       if (this.xf && !this.held.space) { this.xfPointerDown(dp, e.pointerId); this.drawOverlay(); return; }
@@ -810,7 +812,7 @@ export class Editor {
     const reach = tipReach(hasTipImage(s.tip)) * 2;
     const line = shift && this.lastStroke && this.lastStroke.layer === layer ? this.lastStroke.pt : null;
     this.gesture = {
-      type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, bounds: null, last: pt, erase: !!tool.erase,
+      type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
       painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.inkFor(layer), hardness: s.hardness,
         tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow }),
       smoother: new Smoother(s.smoothing),
@@ -844,7 +846,19 @@ export class Editor {
       st.x += j.dx; st.y += j.dy;
       st.k = j.sizeK * taperIn(g.dist, g.s.taperIn);
       st.f = j.flowK;
+      st.d = g.dist;
     }
+    if (g.s.taperOut > 0) {  // the end taper holds the last stretch back until the pen lifts
+      const r = releaseHeld([...g.held, ...stamps], g.dist, g.s.taperOut);
+      g.held = r.held;
+      this.drawStamps(r.ready);
+    } else this.drawStamps(stamps);
+  }
+
+  /** Dabs a stroke's stamps (with their symmetric copies) into the stroke canvas and recomposites them. */
+  drawStamps(stamps) {
+    const g = this.gesture;
+    if (!stamps.length) return;
     const all = symmetryStamps(this.doc.rulers.symmetry, stamps, this.doc.width, this.doc.height);
     const per = all.length / stamps.length;  // copies of each stamp, in order
     all.forEach((st, i) => {
@@ -863,6 +877,10 @@ export class Editor {
     if (g.snap && !g.snap.line) for (const q of g.snap.held) this.addStampPoint(q);
     // stabilization lags behind the pen: catch up to where the pen was lifted
     if (g.s.smoothing && g.last) for (let i = 0; i < 400 && g.smoother.distanceTo(g.last) > 0.5; i++) this.addStampPoint(g.last);
+    // the end is known now: the held-back stamps thin out towards it
+    for (const st of g.held) st.k *= taperOut(g.dist - st.d, g.s.taperOut);
+    this.drawStamps(g.held);
+    g.held = [];
     this.lastStroke = { layer: g.layer, pt: g.last };
     this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');
     if (!g.erase && g.layer.kind !== 'mask') this.colors.used();
@@ -1173,7 +1191,7 @@ function fmt(key, v) {
   if (key === 'corner') return Math.round(v) + ' px';
   if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
-  if (key === 'taperIn') return Math.round(v) + ' px';
+  if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);
 }
