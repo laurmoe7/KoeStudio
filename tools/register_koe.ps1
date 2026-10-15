@@ -13,6 +13,11 @@ if ($Remove) {
     $pyw = Get-Command pythonw.exe -All -ErrorAction SilentlyContinue |
         Where-Object { $_.Source -notmatch '\\WindowsApps\\' } | Select-Object -First 1
     if (-not $pyw) { $pyw = Get-Command pythonw.exe -ErrorAction Stop }
+    # An earlier "Open with > Always" choice (for example pythonw.exe, which would run the .koe file as a script)
+    # outranks the association below, so clear it.
+    $exts = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.koe'
+    Remove-Item "$exts\UserChoice", "$exts\UserChoiceLatest", "$exts\OpenWithList", "$exts\OpenWithProgids" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$classes\koe_auto_file" -Recurse -Force -ErrorAction SilentlyContinue
     New-Item "$classes\.koe" -Force | Out-Null
     Set-ItemProperty "$classes\.koe" -Name '(default)' -Value 'KoeStudio.Project'
     New-Item "$classes\KoeStudio.Project\shell\open\command" -Force | Out-Null
