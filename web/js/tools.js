@@ -5,12 +5,20 @@ import { GRADIENT_COLORS, GRADIENT_SHAPES } from './gradient.js';
 import { FONTS, ALIGNS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
 import { FIGURE_SHAPES } from './figure.js';
+import { sanitizeCurve } from './brush.js';
+import { imageRef } from './brushtip.js';
 
 /** Where Fill and the Magic wand find their area. */
 export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['reference', 'Reference layers']];
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
-function tex(texture = 'none', textureAmount = 0.5) { return { texture, textureAmount, textureScale: 1 }; }
+function tex(texture = 'none', textureAmount = 0.5) {
+  return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false,
+    minFlow: 0, sizeCurve: null, flowCurve: null, preset: '' };
+}
+
+/** Tip shapes besides the tip images in the brush library ('img:<id>'). */
+export const TIPS = [['round', 'Round']];
 
 export const TOOLS = [
   { id: 'pen', label: 'Pen', key: 'p', kind: 'paint', icon: 'pen', group: 'draw',
@@ -65,7 +73,17 @@ export const SETTING_FIELDS = [
   ['minSize', 'Min. size', 'range', 0, 1, 0.01],
   ['smoothing', 'Stabilization', 'range', 0, 20, 1],
   ['gamma', 'Pressure', 'range', 0.3, 3, 0.05],
+  ['tip', 'Tip', 'choice', TIPS],
+  ['thickness', 'Squash', 'range', 0.05, 1, 0.01],
+  ['tipAngle', 'Angle', 'range', 0, 360, 1],
+  ['tipRandom', 'Random turn', 'range', 0, 1, 0.01],
+  ['tipFollow', 'Turn with the stroke', 'check'],
+  ['minFlow', 'Min. density', 'range', 0, 1, 0.01],
+  ['sizeCurve', 'Size curve', 'curve'],
+  ['flowCurve', 'Density curve', 'curve'],
   ['texture', 'Texture', 'choice', TEXTURES],
+  ['textureInvert', 'Invert texture', 'check'],
+  ['preset', 'Brush', 'id'],
   ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
   ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
   ['leading', 'Line spacing', 'range', 0.5, 4, 0.05],
@@ -85,9 +103,10 @@ export const SETTING_FIELDS = [
 /** Which group of the tool panel a paint setting belongs to (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
   ['Brush', ['size', 'opacity', 'flow', 'hardness']],
-  ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'gamma']],
+  ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow']],
+  ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing']],
-  ['Texture', ['texture', 'textureAmount', 'textureScale']],
+  ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert']],
 ];
 
 /** Tooltips for the tool settings whose short label needs explaining. */
@@ -115,6 +134,15 @@ export const SETTING_HINTS = {
   fill: 'Fill the rectangle or ellipse, not only its outline',
   corner: 'Corner radius of rectangles, in pixels (0 = sharp corners)',
   contiguous: 'Only the area connected to where you click (on), or every pixel of that colour in the picture (off)',
+  tip: 'The shape of each dab: round, or a tip image (Brush ⋯ → Add tip image…)',
+  thickness: 'Squashes the tip: 100% keeps its shape, lower makes it flatter',
+  tipAngle: 'Turns the tip (most useful with a squashed or image tip)',
+  tipRandom: 'Turns each dab by a random amount, up to this share of a half turn either way',
+  tipFollow: 'Turns the tip with the direction the stroke is going',
+  minFlow: 'Density at the lightest pen pressure, as a share of Density',
+  sizeCurve: 'How pen pressure maps to size (from an imported brush); it replaces the Pressure setting for size',
+  flowCurve: 'How pen pressure maps to density (from an imported brush); it replaces the Pressure setting for density',
+  textureInvert: 'Swaps the texture: paint goes into the dark parts instead of the light ones',
 };
 
 /** Every tool's settings, starting from its defaults and keeping only valid stored values. */
@@ -125,18 +153,29 @@ export function sanitizeSettings(stored) {
     let from = stored && typeof stored === 'object' ? stored[t.id] : null;
     // before 'sample', Fill and the wand had a "look at all layers" tick
     if (from && typeof from === 'object' && !('sample' in from) && from.sampleAll === false) from = { ...from, sample: 'layer' };
-    if (from && typeof from === 'object') {
-      for (const [key, , type, min, max] of SETTING_FIELDS) {
-        if (!(key in s) || !(key in from)) continue;
-        if (type === 'check') s[key] = !!from[key];
-        else if (type === 'choice') { if (min.some(o => o[0] === from[key])) s[key] = from[key]; }
-        else if (Number.isFinite(+from[key])) s[key] = Math.max(min, Math.min(max, +from[key]));
-      }
-    }
+    applySettings(s, from);
     out[t.id] = s;
   }
   return out;
 }
+
+/** Copies the valid values of `from` into the settings s (only settings s has); tips and textures may name a library image. */
+export function applySettings(s, from) {
+  if (!from || typeof from !== 'object') return s;
+  for (const [key, , type, min, max] of SETTING_FIELDS) {
+    if (!(key in s) || !(key in from)) continue;
+    const v = from[key];
+    if (type === 'check') s[key] = !!v;
+    else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture') && imageRef(v))) s[key] = v; }
+    else if (type === 'curve') s[key] = sanitizeCurve(v);
+    else if (type === 'id') s[key] = typeof v === 'string' && /^[0-9a-f]{0,32}$/.test(v) ? v : '';
+    else if (Number.isFinite(+v) && v !== null && v !== '') s[key] = Math.max(min, Math.min(max, +v));
+  }
+  return s;
+}
+
+/** The settings a saved brush keeps: everything a paint tool has, except which saved brush it came from. */
+export const BRUSH_KEYS = Object.keys(TOOL_BY_ID.brush.defaults).filter(k => k !== 'preset');
 
 /** The tool a shortcut key picks: tools sharing a key (G: fill, gradient) take turns on repeated presses. */
 export function toolForKey(key, current) {

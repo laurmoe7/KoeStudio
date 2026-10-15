@@ -5,7 +5,7 @@
 // pixels are put back (softly where it is feathered). Lasso fill draws the enclosed shape into the stroke canvas
 // and commits it like a stroke, so opacity, alpha lock, masks and undo behave as for painting.
 
-import { Smoother, StampPath, pressureCurve, stampFor, stampBounds } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds } from '../brush.js';
 import { mixByMask } from '../filters.js';
 import { union, clip } from '../rect.js';
 import { smudgeDab } from '../smudge.js';
@@ -19,7 +19,7 @@ export const smudgeMethods = {
     const before = document.createElement('canvas');
     before.width = d.width; before.height = d.height;
     before.getContext('2d').drawImage(layer.canvas, 0, 0);
-    const sizeAt = p => stampFor({ ...s, flow: s.strength }, pressureCurve(p, s.gamma)).size;
+    const sizeAt = p => stampAt({ ...s, flow: s.strength }, p).size;
     this.gesture = { type: 'smudge', tool: 'smudge', id, s, layer, before, bounds: null, sizeAt, last: pt,
       smoother: new Smoother(s.smoothing), path: new StampPath(sizeAt, s.spacing), bufs: null };
     this.smudgePoint(pt);
@@ -37,7 +37,7 @@ export const smudgeMethods = {
     const ctx = g.layer.ctx;
     all.forEach((st, k) => {
       const copy = k % per;
-      const { size, flow } = stampFor({ ...s, flow: s.strength }, pressureCurve(st.p, s.gamma));
+      const { size, flow } = stampAt({ ...s, flow: s.strength }, st.p);
       const dd = Math.max(2, Math.round(size)), x0 = Math.round(st.x - dd / 2), y0 = Math.round(st.y - dd / 2);
       const img = ctx.getImageData(x0, y0, dd, dd);
       let buf = g.bufs[copy];

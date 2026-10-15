@@ -100,10 +100,19 @@ def _paths(art_id):
 
 def _write_atomic(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + '.tmp'
+    tmp = f'{path}.{threading.get_ident()}.tmp'
     with open(tmp, 'wb') as f:
         f.write(data)
-    os.replace(tmp, path)
+    # Windows refuses to replace a file that someone (another request, a virus scanner) has open for a moment
+    for attempt in range(20):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == 19:
+                os.remove(tmp)
+                raise
+            time.sleep(0.05)
 
 
 def _decode_data_url(url):
@@ -608,6 +617,18 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(list_dir(p.get('path', '')))
             elif route == ('POST', 'fs/mkdir'):
                 self._json(make_dir(p.get('path', ''), p.get('name', '')))
+            elif route == ('GET', 'brushes'):
+                self._json(load_brushes())
+            elif route == ('GET', 'brushes/image'):
+                self._send(brush_image(p.get('id', '')), 'image/png')
+            elif route == ('POST', 'brushes/image'):
+                self._json(add_brush_image(p.get('kind', ''), p.get('name', ''), self._raw()))
+            elif route == ('POST', 'brushes/image/delete'):
+                self._json(delete_brush_image(p.get('id', '')))
+            elif route == ('POST', 'brushes/presets'):
+                self._json(save_presets(json.loads(self._raw() or b'null')))
+            elif route == ('POST', 'brushes/sut'):
+                self._json(import_sut(self._raw()))
             else:
                 self._json({'error': 'not found'}, 404)
         except FileExistsError as e:
@@ -668,6 +689,102 @@ def _wait_forever():
             time.sleep(3600)
     except KeyboardInterrupt:
         pass
+
+
+# ---------- brushes: tip and texture images, saved brushes ----------
+# Kept in <app dir>/brushes: <id>.png per image and brushes.json = {images: [{id, name, kind}], presets: [...]}.
+# Presets are KoeStudio paint-tool settings (checked again in the browser when used), so only their shape is
+# checked here.
+
+BRUSH_KINDS = ('tip', 'texture')
+MAX_BRUSH_IMAGE = 32 * 1024 * 1024
+MAX_PRESETS = 2000
+
+
+def brushes_dir():
+    return os.path.join(app_dir(), 'brushes')
+
+
+BRUSH_LOCK = threading.Lock()  # changes to brushes.json are read-modify-write: one at a time
+
+
+def _brush_index(strict=False):
+    """brushes.json, or an empty library when there is none. strict (before a change): an index that exists but
+    cannot be read raises, so a change never writes an empty library over it."""
+    path = os.path.join(brushes_dir(), 'brushes.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            raw = json.load(f)
+    except FileNotFoundError:
+        raw = {}
+    except (OSError, ValueError):
+        if strict:
+            raise OSError('The brush library could not be read just now; try again.')
+        raw = {}
+    raw = raw if isinstance(raw, dict) else {}
+    images = [i for i in raw.get('images') or [] if isinstance(i, dict) and ID_RE.match(str(i.get('id', '')))
+              and i.get('kind') in BRUSH_KINDS and os.path.exists(os.path.join(brushes_dir(), i['id'] + '.png'))]
+    presets = [p for p in raw.get('presets') or [] if isinstance(p, dict)]
+    return {'images': images, 'presets': presets}
+
+
+def load_brushes():
+    with BRUSH_LOCK:
+        return _brush_index()
+
+
+def _change_brushes(change):
+    with BRUSH_LOCK:
+        lib = _brush_index(strict=True)
+        change(lib)
+        _write_atomic(os.path.join(brushes_dir(), 'brushes.json'), json.dumps(lib, ensure_ascii=False).encode('utf-8'))
+
+
+def add_brush_image(kind, name, data):
+    if kind not in BRUSH_KINDS:
+        raise ValueError('Unknown kind of brush image.')
+    if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+        raise ValueError('Brush images must be PNG files.')
+    if len(data) > MAX_BRUSH_IMAGE:
+        raise ValueError('That image is too big for a brush.')
+    entry = {'id': uuid.uuid4().hex[:16], 'name': (name or kind.capitalize()).strip()[:120], 'kind': kind}
+    _write_atomic(os.path.join(brushes_dir(), entry['id'] + '.png'), data)
+    _change_brushes(lambda lib: lib['images'].append(entry))
+    return entry
+
+
+def brush_image(image_id):
+    if not ID_RE.match(image_id or ''):
+        raise FileNotFoundError(image_id)
+    with open(os.path.join(brushes_dir(), image_id + '.png'), 'rb') as f:
+        return f.read()
+
+
+def delete_brush_image(image_id):
+    if not ID_RE.match(image_id or ''):
+        raise FileNotFoundError(image_id)
+    _change_brushes(lambda lib: lib.update(images=[i for i in lib['images'] if i['id'] != image_id]))
+    try:
+        os.remove(os.path.join(brushes_dir(), image_id + '.png'))
+    except FileNotFoundError:
+        pass
+    return {'ok': True}
+
+
+def save_presets(presets):
+    if not isinstance(presets, list) or len(presets) > MAX_PRESETS or not all(isinstance(p, dict) for p in presets):
+        raise ValueError('Brushes must be a list.')
+    _change_brushes(lambda lib: lib.update(presets=presets))
+    return {'ok': True}
+
+
+def import_sut(data):
+    """The settings of a Clip Studio Paint brush (sutbrush.py), with its icon as a data URL."""
+    import base64
+    import sutbrush
+    res = sutbrush.brush_from_sut(data)
+    res['icon'] = 'data:image/png;base64,' + base64.b64encode(res['icon']).decode() if res['icon'] else None
+    return res
 
 
 # ---------- window position and size ----------

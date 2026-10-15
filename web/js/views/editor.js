@@ -1,7 +1,8 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, pressureCurve, stampFor, stampBounds } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds } from '../brush.js';
+import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex } from '../color.js';
 import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource } from '../doc.js';
 import { isFolder } from '../tree.js';
@@ -9,7 +10,7 @@ import { floodMask, growMask } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
-import { Painter, textureFor } from '../painter.js';
+import { Painter, textureFor, hasTipImage } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_GROUPS, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
@@ -29,6 +30,7 @@ import { filterMethods } from './filtertools.js';
 import { figureMethods } from './figuretool.js';
 import { smudgeMethods } from './smudgetool.js';
 import { symmetryMethods } from './symmetrytools.js';
+import { brushMethods, curveSvg } from './brushtools.js';
 import { symmetryStamps } from '../symmetry.js';
 import { linePoints } from '../figure.js';
 
@@ -101,6 +103,7 @@ export class Editor {
     this.resize();
     this.layerPanel.render();
     this.selectTool(this.tool);
+    this.loadBrushLibrary();
     window.addEventListener('keydown', this.onKey);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('paste', this.onPaste);
@@ -110,6 +113,7 @@ export class Editor {
   }
 
   destroy() {
+    this.destroyed = true;
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('paste', this.onPaste);
@@ -589,8 +593,9 @@ export class Editor {
     const t = TOOL_BY_ID[this.tool], s = this.settings[t.id];
     this.root.querySelector('.tool-title').textContent = t.label;
     const box = this.root.querySelector('.tool-props');
-    // the grain settings only matter with a texture chosen
-    const fields = SETTING_FIELDS.filter(f => f[0] in s && !(s.texture === 'none' && (f[0] === 'textureAmount' || f[0] === 'textureScale')));
+    // the grain settings only matter with a texture chosen; curves show only when a brush has them
+    const fields = SETTING_FIELDS.filter(f => f[0] in s && f[2] !== 'id' && !(f[2] === 'curve' && !s[f[0]])
+      && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureInvert'].includes(f[0])));
     if (t.kind === 'ruler') return this.renderRulerProps(box);
     if (!fields.length) {
       box.innerHTML = `<p class="hint">${t.kind === 'picker' ? 'Click the canvas to pick a color. Hold Alt with a brush to pick quickly.'
@@ -599,19 +604,23 @@ export class Editor {
       return;
     }
     const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
-    const row = ([key, label, type, min, max, step]) => type === 'choice'
-      ? `<label class="slider"${tip(key)}><span>${esc(label)}</span><select data-k="${key}">${min.map(([v, l]) => `<option value="${v}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
+    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'texture' ? this.textureChoices() : list;
+    const row = ([key, label, type, min, max, step]) => type === 'curve'
+      ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="Remove the curve (use the Pressure setting instead)">✕</button></div>`
+      : type === 'choice'
+      ? `<label class="slider"${tip(key)}><span>${esc(label)}</span><select data-k="${key}">${options(key, min).map(([v, l]) => `<option value="${esc(v)}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
       : `<label class="slider"${tip(key)}><span>${esc(label)}</span><input type="range" data-k="${key}" min="${key === 'size' ? 0 : min}" max="${key === 'size' ? 1000 : max}" step="${key === 'size' ? 1 : step}" value="${key === 'size' ? sizeToSlider(s.size) : s[key]}"><output>${fmt(key, s[key])}</output></label>`;
     const check = ([key, label]) => `<label class="check"${tip(key)}><input type="checkbox" data-k="${key}" ${s[key] ? 'checked' : ''}> ${esc(label)}</label>`;
     const block = fs => {  // sliders and choices first, the check boxes together under them
       const checks = fs.filter(f => f[2] === 'check');
       return fs.filter(f => f[2] !== 'check').map(row).join('') + (checks.length ? `<div class="checks">${checks.map(check).join('')}</div>` : '');
     };
-    if (t.kind === 'paint') {  // paint tools have many settings: in named groups
-      box.innerHTML = SETTING_GROUPS.map(([name, keys]) => {
+    if (t.kind === 'paint') {  // paint tools have many settings: in named groups, under the saved-brush row
+      box.innerHTML = this.presetRowHtml(s) + SETTING_GROUPS.map(([name, keys]) => {
         const fs = keys.map(k => fields.find(f => f[0] === k)).filter(Boolean);
         return fs.length ? `<div class="prop-group">${esc(name)}</div>${block(fs)}` : '';
       }).join('');
+      this.bindPresetRow(box);
     } else box.innerHTML = block(fields);
     if (t.kind === 'select') {
       box.insertAdjacentHTML('beforeend', `<div class="btn-row">
@@ -621,7 +630,7 @@ export class Editor {
       const acts = { all: () => this.selectAll(), none: () => this.deselect(), invert: () => this.invertSelection(), xf: () => this.beginTransform() };
       box.querySelectorAll('[data-sel]').forEach(b => { b.onclick = () => acts[b.dataset.sel](); });
     }
-    box.querySelectorAll('input, select').forEach(inp => {
+    box.querySelectorAll('input[data-k], select[data-k]').forEach(inp => {
       inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
         const k = inp.dataset.k;
         s[k] = inp.type === 'checkbox' ? inp.checked : inp.tagName === 'SELECT' ? inp.value : k === 'size' ? sliderToSize(+inp.value) : +inp.value;
@@ -781,11 +790,13 @@ export class Editor {
     const layer = this.target(tool.erase ? 'erase' : 'draw on');
     if (!layer) return;
     this.resetStroke();
-    const sizeAt = p => stampFor(s, pressureCurve(p, s.gamma)).size;
+    const sizeAt = p => stampAt(s, p).size;
+    const reach = tipReach(hasTipImage(s.tip)) * 2;
     const line = shift && this.lastStroke && this.lastStroke.layer === layer ? this.lastStroke.pt : null;
     this.gesture = {
-      type: 'paint', tool: toolId, id, s, sizeAt, layer, bounds: null, last: pt, erase: !!tool.erase,
-      painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.inkFor(layer), hardness: s.hardness }),
+      type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, bounds: null, last: pt, erase: !!tool.erase,
+      painter: new Painter(this.strokeCtx, { color: tool.erase ? '#000000' : this.inkFor(layer), hardness: s.hardness,
+        tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
@@ -811,11 +822,12 @@ export class Editor {
     const stamps = g.path.add(g.smoother.add(pt));
     if (!stamps.length) return;
     const all = symmetryStamps(this.doc.rulers.symmetry, stamps, this.doc.width, this.doc.height);
-    for (const st of all) {
-      const { size, flow } = stampFor(g.s, pressureCurve(st.p, g.s.gamma));
-      g.painter.dab(st.x, st.y, size, flow);
-    }
-    const r = stampBounds(all, g.sizeAt);
+    const per = all.length / stamps.length;  // copies of each stamp, in order
+    all.forEach((st, i) => {
+      const { size, flow } = stampAt(g.s, st.p);
+      g.painter.dab(st.x, st.y, size, flow, i % per);
+    });
+    const r = stampBounds(all, g.reachAt);
     g.bounds = union(g.bounds, r);
     this.strokeVersion = (this.strokeVersion || 0) + 1;
     this.updateComp(r);
@@ -1124,12 +1136,13 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, exportMethods, smudgeMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, exportMethods, smudgeMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (key === 'corner') return Math.round(v) + ' px';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
+  if (key === 'tipAngle') return Math.round(v) + '°';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);
 }

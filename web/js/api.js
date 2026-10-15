@@ -33,5 +33,13 @@ export const api = {
   listDir: path => call('GET', `fs/list?path=${q(path)}`),
   makeDir: (path, name) => call('POST', `fs/mkdir?path=${q(path)}&name=${q(name)}`, {}),
   openFile: () => call('GET', 'open-file'),
+  /** Brush tip/texture images and saved brushes ({images, presets}). */
+  brushes: () => call('GET', 'brushes'),
+  brushImageUrl: id => `/api/brushes/image?id=${q(id)}`,
+  addBrushImage: (kind, name, blob) => call('POST', `brushes/image?kind=${q(kind)}&name=${q(name)}`, blob, 'application/octet-stream'),
+  deleteBrushImage: id => call('POST', `brushes/image/delete?id=${q(id)}`, {}),
+  savePresets: presets => call('POST', 'brushes/presets', presets),
+  /** The settings of a Clip Studio Paint brush file: {name, settings, tips, texture, notes, icon}. */
+  importSut: blob => call('POST', 'brushes/sut', blob, 'application/octet-stream'),
   openFolder: (sub = '', path = '') => call('POST', `open-folder?sub=${q(sub)}&path=${q(path)}`, {}),
 };
