@@ -1,15 +1,15 @@
-// Saved brushes, tip and texture images, and importing Clip Studio Paint brushes, as Editor methods.
+// Saved brushes, tip and texture images, and importing Procreate and Photoshop brushes, as Editor methods.
 //
 // The brush library lives in the app folder (app.py: <app dir>/brushes): images ({id, name, kind: 'tip' |
 // 'texture'}) and presets ({id, name, settings, source}). Paint tools name an image as 'img:<id>' in their tip or
 // texture setting; images are loaded once (loadBrushLibrary) and registered with painter.js. A preset is a full
 // set of paint settings (BRUSH_KEYS) that any paint tool can take on; the tool remembers which one in `preset`.
-// A .sut import (app.py → sutbrush.py) brings the settings; its tip and texture images are encrypted inside the
-// file, so the import dialog asks for PNGs and remembers them by the material's name for the next brush.
+// Importing (app.py → brushimport.py) reads every brush in a .brush/.brushset/.abr file with its tip and texture
+// images; the dialog picks which to keep, saves their images (each once) and adds them as presets.
 
 import { api } from '../api.js';
 import { curveAt } from '../brush.js';
-import { tipMask, textureGray, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
+import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage } from '../doc.js';
 import { registerTip, registerTexture, forgetBrushImage } from '../painter.js';
 import { TEXTURES } from '../textures.js';
@@ -119,7 +119,7 @@ export const brushMethods = {
       { label: 'Rename brush…', disabled: !p, run: () => this.renamePreset(p) },
       { label: 'Delete brush…', disabled: !p, run: () => this.deletePreset(p) },
       '-',
-      { label: 'Import Clip Studio Paint brush (.sut)…', run: () => this.importSut() },
+      { label: 'Import brushes (Procreate, Photoshop)…', run: () => this.importBrushFile() },
       '-',
       { label: 'Add tip image…', run: () => this.addBrushImageFile('tip') },
       { label: 'Add texture image…', run: () => this.addBrushImageFile('texture') },
@@ -239,62 +239,80 @@ export const brushMethods = {
     });
   },
 
-  /** Brush menu → Import Clip Studio Paint brush: reads its settings, asks for its tip and texture images, saves it. */
-  async importSut() {
-    const file = await pickFile('.sut');
+  /** A brush file's image as PNG bytes to save: Procreate shapes (white on black) become see-through tips. */
+  async importedImagePng(im) {
+    if (!im.white) return (await fetch(im.png)).blob();
+    const img = await loadImage(im.png);
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, c.width, c.height);
+    whiteToAlpha(data.data, im.invert);
+    ctx.putImageData(data, 0, 0);
+    return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('Could not convert a brush tip.'))), 'image/png'));
+  },
+
+  /** Brush menu → Import brushes: a Procreate (.brush, .brushset) or Photoshop (.abr) file; pick which to keep. */
+  async importBrushFile() {
+    const file = await pickFile('.brush,.brushset,.abr');
     if (!file) return;
     let res;
     try {
-      res = await api.importSut(await file.arrayBuffer());
+      res = await api.importBrushes(file.name, await file.arrayBuffer());
     } catch (e) {
       toast(e.message, { error: true });
       return;
     }
-    const byName = (kind, name) => this.brushImages(kind).find(i => name && i.name === name);
-    const tipName = res.tips[0] || '', texName = res.texture || '';
-    const choice = { tip: byName('tip', tipName)?.id || '', texture: byName('texture', texName)?.id || '' };
-    const picker = (kind, cspName) => {
-      const opts = this.brushImages(kind);
-      const none = kind === 'tip' ? 'Round tip' : 'No texture';
-      return `<label class="field"><span>${kind === 'tip' ? 'Tip image' : 'Texture image'}</span>
-        <div class="img-pick"><select data-pick="${kind}"><option value="">${none}</option>${opts.map(i =>
-          `<option value="${i.id}" ${i.id === choice[kind] ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select>
-        <button type="button" data-add="${kind}">Choose image…</button></div></label>
-        <p class="muted small">In Clip Studio Paint it uses the ${kind} “${esc(cspName)}”. Its image is locked inside the brush file, so choose a picture of it.</p>`;
+    const thumb = b => {
+      const im = res.images[b.tip];
+      return im ? `<img src="${im.png}" alt=""${im.white ? ' class="white-tip"' : ''}>` : '<span class="round-tip"></span>';
     };
-    const ok = await modal({
-      title: 'Import Clip Studio Paint brush',
-      body: `<div class="sut-head">${res.icon ? `<img src="${res.icon}" alt="">` : ''}<label class="field grow"><span>Name</span>
-          <input type="text" name="name" maxlength="120" value="${esc(res.name)}"></label></div>
-        ${tipName ? picker('tip', tipName) : ''}
-        ${texName ? picker('texture', texName) : ''}
-        ${res.notes.length ? `<p class="muted small">Not carried over: ${esc(res.notes.join(', '))}.</p>` : ''}
-        <p class="muted small">Size, density, spacing, tip angle and squash, pen pressure curves and texture strength come from the brush.</p>`,
+    const chosen = await modal({
+      title: `Import brushes from ${file.name}`,
+      wide: true,
+      body: `<label class="check import-all"><input type="checkbox" data-all checked> All ${res.brushes.length} brush${res.brushes.length === 1 ? '' : 'es'}</label>
+        <div class="pick-list import-list">${res.brushes.map((b, i) => `<label class="pick-row"><input type="checkbox" data-i="${i}" checked>${thumb(b)}
+          <div class="grow"><b>${esc(b.name)}</b><div class="muted small">${b.texture != null ? 'With texture' : 'No texture'}${b.notes.length ? ` · not carried over: ${esc(b.notes.join(', '))}` : ''}</div></div></label>`).join('')}</div>
+        <p class="muted small">Size, opacity, spacing, tip angle, squash and rotation, pen pressure and texture strength come from the brushes. Procreate settings are approximate; check the size after importing.</p>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'Import', primary: true }],
       onOpen: root => {
-        root.querySelectorAll('[data-pick]').forEach(sel => { sel.onchange = () => { choice[sel.dataset.pick] = sel.value; }; });
-        root.querySelectorAll('[data-add]').forEach(b => {
-          b.onclick = async () => {
-            const kind = b.dataset.add;
-            b.disabled = true;
-            const entry = await this.uploadBrushImage(kind, kind === 'tip' ? tipName : texName).finally(() => { b.disabled = false; });
-            if (!entry) return;
-            const sel = root.querySelector(`[data-pick="${kind}"]`);
-            sel.insertAdjacentHTML('beforeend', `<option value="${entry.id}">${esc(entry.name)}</option>`);
-            sel.value = choice[kind] = entry.id;
-          };
-        });
+        const boxes = [...root.querySelectorAll('[data-i]')], all = root.querySelector('[data-all]');
+        all.onchange = () => boxes.forEach(b => { b.checked = all.checked; });
       },
-      collect: root => root.querySelector('[name="name"]').value.trim() || res.name,
+      collect: root => {
+        const picked = [...root.querySelectorAll('[data-i]:checked')].map(b => res.brushes[+b.dataset.i]);
+        return picked.length ? picked : undefined;
+      },
     });
-    if (!ok) return;
-    const settings = { ...this.brushSettingsOf(TOOL_BY_ID.brush.defaults), ...res.settings,
-      tip: choice.tip ? `img:${choice.tip}` : 'round', texture: choice.texture ? `img:${choice.texture}` : 'none' };
-    const p = { id: newId(), name: ok, settings: applySettings(this.brushSettingsOf(TOOL_BY_ID.brush.defaults), settings), source: 'Clip Studio Paint' };
-    this.brushLib.presets.push(p);
+    if (!chosen) return;
+    // the images the chosen brushes use, each saved once
+    const saved = new Map();
+    try {
+      for (const b of chosen) {
+        for (const k of [b.tip, b.texture]) {
+          if (k == null || saved.has(k)) continue;
+          const im = res.images[k];
+          const entry = await api.addBrushImage(im.kind, im.name, await this.importedImagePng(im));
+          await this.registerBrushImage(entry);
+          this.brushLib.images.push(entry);
+          saved.set(k, entry.id);
+        }
+      }
+    } catch (e) {
+      toast('Could not save the brush images: ' + e.message, { error: true });
+      return;
+    }
+    const base = this.brushSettingsOf(TOOL_BY_ID.brush.defaults);
+    const presets = chosen.map(b => ({
+      id: newId(), name: b.name, source: res.name,
+      settings: applySettings({ ...base }, { ...b.settings,
+        tip: b.tip != null ? `img:${saved.get(b.tip)}` : 'round', texture: b.texture != null ? `img:${saved.get(b.texture)}` : 'none' }),
+    }));
+    this.brushLib.presets.push(...presets);
     if (!(await this.savePresetList())) return;
-    if (TOOL_BY_ID[this.tool].kind !== 'paint' || TOOL_BY_ID[this.tool].erase) this.selectTool('pencil');
-    this.applyPreset(p.id);
-    toast(`Imported “${p.name}”`);
+    if (TOOL_BY_ID[this.tool].kind !== 'paint' || TOOL_BY_ID[this.tool].erase) this.selectTool('brush');
+    this.applyPreset(presets[0].id);
+    toast(presets.length === 1 ? `Imported “${presets[0].name}”` : `Imported ${presets.length} brushes`);
   },
 };

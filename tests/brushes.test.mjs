@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeCurve, curveAt, stampAt } from '../web/js/brush.js';
-import { tipMask, textureGray, fitSide, imageRef, tipReach } from '../web/js/brushtip.js';
+import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, tipReach } from '../web/js/brushtip.js';
 import { sanitizeSettings, applySettings, BRUSH_KEYS } from '../web/js/tools.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} is not ${b}`);
@@ -54,6 +54,10 @@ test('tip and texture images', () => {
   assert.deepEqual([...tipMask(Uint8ClampedArray.from([255, 255, 255, 200, 0, 0, 0, 0]))], [200, 0]);
   // texture: gray as it is; see-through counts as white (paint sticks)
   assert.deepEqual([...textureGray(Uint8ClampedArray.from([100, 100, 100, 255, 0, 0, 0, 0, 0, 0, 0, 128]))], [100, 255, 127]);
+  // Procreate shapes: white is paint; the result is black with that alpha (times the picture's own alpha)
+  assert.deepEqual([...whiteToAlpha(Uint8ClampedArray.from([255, 255, 255, 255, 0, 0, 0, 255, 100, 100, 100, 128]))],
+    [0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 50]);  // 100 * 128 / 255 = 50.2
+  assert.deepEqual([...whiteToAlpha(Uint8ClampedArray.from([255, 255, 255, 255, 0, 0, 0, 255]), true)], [0, 0, 0, 0, 0, 0, 0, 255], 'inverted');
   assert.deepEqual(fitSide(1024, 512, 512), { w: 512, h: 256 });
   assert.deepEqual(fitSide(100, 50, 512), { w: 100, h: 50 }, 'never enlarged');
   assert.equal(imageRef('img:0123456789abcdef'), '0123456789abcdef');

@@ -1,105 +1,238 @@
-"""Brush library storage and the Clip Studio Paint brush (.sut) reader. Builds small .sut-shaped databases in a temp
-folder; expected values worked out by hand from the numbers put in."""
-import base64
+"""Brush library storage and the Procreate / Photoshop brush readers. Builds small brush files byte by byte;
+expected values worked out by hand from the numbers put in."""
+import io
 import json
 import os
-import sqlite3
+import plistlib
 import struct
 import sys
 import tempfile
+import threading
 import unittest
+import zipfile
+import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import app  # noqa: E402
-import sutbrush  # noqa: E402
+import brushimport as bi  # noqa: E402
 
-PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
-
-
-def effector(enabled, pressure_min=0, random_min=0, curve=None):
-    head = struct.pack('>11i', 44, 0x1f0, enabled, pressure_min, 0, 0, random_min, 0, 60, 0, 100)
-    if curve:
-        head += struct.pack('>3i', 12, len(curve), 16) + b''.join(struct.pack('>2d', x, y) for x, y in curve)
-    return head
+PNG = bi.png_bytes(1, 1, b'\x80')
 
 
-def material(*names):
-    items = b''
-    for i, name in enumerate(names):
-        path, n = f'.:{i}:data:material_0.layer'.encode('utf-16-le'), name.encode('utf-16-le')
-        body = struct.pack('>I', len(path)) + path + struct.pack('>2I', 2, len(n)) + n + struct.pack('>2I', 1, 0) + b'\0\0\0\0'
-        items += struct.pack('>I', len(body) + 4) + body
-    return struct.pack('>2I', 8, len(names)) + items
+def png_pixels(png):
+    """(width, height, colour type, raw pixel bytes) of a PNG written by png_bytes (filter 0 on every row)."""
+    pos, idat = 8, b''
+    while pos < len(png):
+        n, kind = struct.unpack('>I4s', png[pos:pos + 8])
+        body = png[pos + 8:pos + 8 + n]
+        if kind == b'IHDR':
+            w, h, _, ct = struct.unpack('>2I2B', body[:10])
+        elif kind == b'IDAT':
+            idat += body
+        pos += 12 + n
+    raw, bpp = zlib.decompress(idat), 2 if ct == 4 else 1
+    rows = [raw[y * (w * bpp + 1):(y + 1) * (w * bpp + 1)] for y in range(h)]
+    assert all(r[0] == 0 for r in rows)
+    return w, h, ct, b''.join(r[1:] for r in rows)
 
 
-COLS = ('BrushSize BrushSizeUnit Opacity BrushFlow BrushHardness BrushInterval BrushUsePatternImage BrushPatternImageArray '
-        'BrushThickness BrushVerticalThicknes BrushRotation BrushRotationEffector BrushRotationRandomScale BrushSizeEffector '
-        'BrushFlowEffector BrushOpacityEffector TextureImage TextureDensity TextureScale2 TextureReverseDensity UseDualBrush BrushUseIn').split()
+def from_url(url):
+    import base64
+    return base64.b64decode(url.split(',', 1)[1])
 
 
-def make_sut(path, node_variant=7, **values):
-    db = sqlite3.connect(path)
-    db.execute('CREATE TABLE Node (_PW_ID INTEGER PRIMARY KEY, NodeName TEXT, NodeVariantID INTEGER, NodeCustomIcon BLOB)')
-    db.execute(f'CREATE TABLE Variant (_PW_ID INTEGER PRIMARY KEY, VariantID INTEGER, {", ".join(COLS)})')
-    db.execute('INSERT INTO Node (NodeName, NodeVariantID, NodeCustomIcon) VALUES (?, ?, ?)', ('Nib ® Pencil', node_variant, PNG))
-    db.execute(f'INSERT INTO Variant (VariantID, {", ".join(values)}) VALUES (7, {", ".join("?" * len(values))})', list(values.values()))
-    db.commit()
-    db.close()
-    with open(path, 'rb') as f:
-        return f.read()
+# ---------- Photoshop file pieces ----------
+
+u16 = lambda n: struct.pack('>H', n)  # noqa: E731
+u32 = lambda n: struct.pack('>I', n)  # noqa: E731
+i32 = lambda n: struct.pack('>i', n)  # noqa: E731
 
 
-class SutReader(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.path = os.path.join(self.tmp.name, 'b.sut')
+def ustr(s):
+    b = (s + '\0').encode('utf-16-be')
+    return u32(len(b) // 2) + b
 
-    def tearDown(self):
-        self.tmp.cleanup()
 
-    def test_effector(self):
-        e = sutbrush.effector(effector(0x10 | 0x80, 40, 20, [(0, 0), (0.5, 0.25), (1, 1)]))
-        self.assertEqual(e, {'pressure': True, 'tilt': False, 'velocity': False, 'random': True, 'pressureMin': 0.4,
-                             'randomMin': 0.2, 'curve': [[0, 0], [0.5, 0.25], [1, 1]]})
-        self.assertIsNone(sutbrush.effector(b'\0' * 10))
-        self.assertIsNone(sutbrush.effector(None))
-        self.assertIsNone(sutbrush.effector(effector(0x10))['curve'], 'no curve stored')
-        self.assertTrue(sutbrush.straight([[0, 0], [0.5, 0.5], [1, 1]]))
-        self.assertFalse(sutbrush.straight([[0, 0], [0.5, 0.3], [1, 1]]))
+def pstr(s):
+    return bytes([len(s)]) + s.encode('latin-1')
 
-    def test_material_names(self):
-        self.assertEqual(sutbrush.material_names(material('pencilNib01', 'Grainy ® Surface')), ['pencilNib01', 'Grainy ® Surface'])
-        self.assertEqual(sutbrush.material_names(b'\0\0\0\x08\0\0\0\x01\0\0'), [], 'cut short')
-        self.assertEqual(sutbrush.material_names(None), [])
 
-    def test_brush(self):
-        data = make_sut(self.path, BrushSize=2000.0, BrushSizeUnit=0, Opacity=80, BrushFlow=50, BrushHardness=100, BrushInterval=25.0,
-                        BrushUsePatternImage=1, BrushPatternImageArray=material('nibA', 'nibB'), BrushThickness=50,
-                        BrushVerticalThicknes=0, BrushRotation=30.0, BrushRotationEffector=0x81, BrushRotationRandomScale=20,
-                        BrushSizeEffector=effector(0x10 | 0x80, 40, 0, [(0, 0), (0.5, 0.25), (1, 1)]),
-                        BrushFlowEffector=effector(0, 10, 0, [(0, 0), (1, 1)]), BrushOpacityEffector=effector(0),
-                        TextureImage=material('Paper'), TextureDensity=30, TextureScale2=200.0, TextureReverseDensity=1,
-                        UseDualBrush=1, BrushUseIn=0)
-        res = sutbrush.brush_from_sut(data)
-        self.assertEqual(res['name'], 'Nib ® Pencil')
-        self.assertEqual(res['tips'], ['nibA', 'nibB'])
-        self.assertEqual(res['texture'], 'Paper')
-        self.assertEqual(res['icon'], PNG)
-        self.assertEqual(res['settings'], {
-            'size': 1000, 'opacity': 0.8, 'flow': 0.5, 'hardness': 1, 'spacing': 0.25,
-            'thickness': 0.5, 'tipAngle': 120, 'tipRandom': 0.2, 'tipFollow': True,  # squashed sideways: +90 degrees
-            'pressureSize': True, 'minSize': 0.4, 'sizeCurve': [[0, 0], [0.5, 0.25], [1, 1]],
-            'pressureOpacity': False, 'minFlow': 0.1, 'flowCurve': None, 'gamma': 1,
-            'textureAmount': 0.3, 'textureScale': 2, 'textureInvert': True})
-        self.assertEqual(res['notes'], ['It switches between 2 tip images; KoeStudio uses one', 'Size changing with randomness', 'Dual brush'])
+def key(k):
+    return u32(0) + k.encode('latin-1') if len(k) == 4 else u32(len(k)) + k.encode('latin-1')
 
-    def test_not_a_brush(self):
-        with self.assertRaisesRegex(ValueError, 'not a Clip Studio Paint brush'):
-            sutbrush.brush_from_sut(b'PK\3\4 not sqlite')
-        data = make_sut(self.path, node_variant=99, BrushSize=10.0)
-        with self.assertRaisesRegex(ValueError, 'not a brush'):
-            sutbrush.brush_from_sut(data)
+
+def val(v):
+    if isinstance(v, bool):
+        return b'bool' + bytes([v])
+    if isinstance(v, int):
+        return b'long' + i32(v)
+    if isinstance(v, float):
+        return b'doub' + struct.pack('>d', v)
+    if isinstance(v, str):
+        return b'TEXT' + ustr(v)
+    if isinstance(v, tuple):  # (unit, number)
+        return b'UntF' + v[0].encode('latin-1') + struct.pack('>d', v[1])
+    if isinstance(v, list):
+        return b'VlLs' + u32(len(v)) + b''.join(val(x) for x in v)
+    return b'Objc' + desc(v)
+
+
+def desc(d):
+    items = [(k, v) for k, v in d.items() if k != '_class']
+    return ustr('') + key(d.get('_class', 'null')) + u32(len(items)) + b''.join(key(k) + val(v) for k, v in items)
+
+
+def section(kind, body):
+    return b'8BIM' + kind + u32(len(body)) + body + bytes(-len(body) % 4)
+
+
+def padded(body):
+    return u32(len(body)) + body + bytes(-len(body) % 4)
+
+
+def sample(sid, w, h, depth, comp, data):
+    return padded(pstr(sid) + bytes(264) + i32(0) + i32(0) + i32(h) + i32(w) + u16(depth) + bytes([comp]) + data)
+
+
+def gray_pattern(pid, name, w, h, gray):
+    chan = u32(8) + u32(0) + u32(0) + u32(h) + u32(w) + u16(8) + b'\0' + gray
+    vmal = u32(3) + u32(0) + u32(0) + u32(0) + u32(h) + u32(w) + u32(1) + u32(1) + u32(len(chan)) + chan + u32(0) + u32(0)
+    return padded(u32(1) + u32(1) + u16(h) + u16(w) + ustr(name) + pstr(pid) + vmal)
+
+
+def make_abr():
+    # sample $a: 3 x 2, PackBits rows: [0, 0, 9] = repeat 0 twice (0xff) + literal 9 (0x00 0x09); [7, 7, 7] = 0xfe 0x07
+    rows = [b'\xff\x00\x00\x09', b'\xfe\x07']
+    a = sample('$a', 3, 2, 8, 1, u16(len(rows[0])) + u16(len(rows[1])) + b''.join(rows))
+    b = sample('$b', 2, 1, 16, 0, b'\xab\x00\x12\x34')  # 16-bit: the high bytes count
+    brushes = [
+        {'Nm  ': 'Pencil', 'Brsh': {'_class': 'sampledBrush', 'Dmtr': ('#Pxl', 30.0), 'Spcn': ('#Prc', 15.0), 'Intr': True,
+                                    'Angl': ('#Ang', 30.0), 'Rndn': ('#Prc', 50.0), 'sampledData': '$a'},
+         'useTipDynamics': True, 'szVr': {'bVTy': 2, 'jitter': ('#Prc', 10.0)}, 'minimumDiameter': ('#Prc', 25.0),
+         'angleDynamics': {'bVTy': 6, 'jitter': ('#Prc', 40.0)},
+         'usePaintDynamics': True, 'prVr': {'bVTy': 2, 'Mnm ': ('#Prc', 20.0)},
+         'useTexture': True, 'Txtr': {'_class': 'Ptrn', 'Nm  ': 'Paper', 'Idnt': '$p'}, 'textureDepth': ('#Prc', 60.0),
+         'textureScale': ('#Prc', 200.0), 'InvT': True, 'useScatter': True,
+         'toolOptions': {'Opct': ('#Prc', 80.0), 'flow': ('#Prc', 50.0)}},
+        {'Nm  ': 'Round', 'Brsh': {'_class': 'computedBrush', 'Dmtr': ('#Pxl', 9.0), 'Hrdn': ('#Prc', 50.0), 'Spcn': ('#Prc', 25.0)}},
+        {'Nm  ': 'Wide', 'Brsh': {'_class': 'sampledBrush', 'Dmtr': ('#Pxl', 2.0), 'sampledData': '$b'}},
+        {'Nm  ': 'Pencil again', 'Brsh': {'_class': 'sampledBrush', 'Dmtr': ('#Pxl', 3.0), 'sampledData': '$a'}},
+    ]
+    return (u16(6) + u16(2) + section(b'samp', a + b) + section(b'patt', gray_pattern('$p', 'Paper', 2, 2, bytes([10, 20, 30, 40])))
+            + section(b'desc', u32(16) + desc({'Brsh': brushes})))
+
+
+# ---------- Procreate file pieces ----------
+
+def keyed_archive(fields):
+    """An NSKeyedArchiver plist whose root object has these fields; strings and numbers go in as references."""
+    objs, root = ['$null', None], {'$class': plistlib.UID(2)}
+    objs.append({'$classname': 'SilicaBrush', '$classes': ['SilicaBrush', 'NSObject']})
+    for k, v in fields.items():
+        if isinstance(v, str) or (isinstance(v, float) and k == 'shapeScatter'):
+            objs.append(v)
+            root[k] = plistlib.UID(len(objs) - 1)
+        else:
+            root[k] = v
+    objs[1] = root
+    return plistlib.dumps({'$archiver': 'NSKeyedArchiver', '$version': 100000, '$top': {'root': plistlib.UID(1)}, '$objects': objs},
+                          fmt=plistlib.FMT_BINARY)
+
+
+def make_zip(files):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w') as z:
+        for name, data in files.items():
+            z.writestr(name, data)
+    return buf.getvalue()
+
+
+class AbrReader(unittest.TestCase):
+    def test_packbits(self):
+        self.assertEqual(bi.unpackbits(b'\xff\x00\x00\x09', 3), b'\x00\x00\x09')
+        self.assertEqual(bi.unpackbits(b'\x80\xfd\x05', 4), b'\x05\x05\x05\x05', '128 does nothing')
+        self.assertEqual(bi.unpackbits(b'\x01\x01', 3), b'\x01\x00\x00', 'short data is padded')
+
+    def test_descriptor_values(self):
+        r = bi.Reader(desc({'_class': 'Thing', 'a': 5, 'b': True, 'c': ('#Prc', 12.5), 'd': [1, 'x'], 'e': {'f': 2.5}}))
+        self.assertEqual(bi.descriptor(r), {'_class': 'Thing', 'a': 5, 'b': True, 'c': {'unit': '#Prc', 'value': 12.5},
+                                            'd': [1, 'x'], 'e': {'_class': 'null', 'f': 2.5}})
+
+    def test_brushes(self):
+        res = bi.import_brushes('C:\\brushes\\Sketch set.abr', make_abr())
+        self.assertEqual(res['name'], 'Sketch set')
+        self.assertEqual([b['name'] for b in res['brushes']], ['Pencil', 'Round', 'Wide', 'Pencil again'])
+        pencil = res['brushes'][0]
+        self.assertEqual(pencil['settings'], {
+            'size': 30, 'spacing': 0.15, 'tipAngle': 330, 'thickness': 0.5, 'hardness': 1,  # 30° counter-clockwise
+            'pressureSize': True, 'minSize': 0.25, 'tipRandom': 0.4, 'tipFollow': True,
+            'pressureOpacity': True, 'minFlow': 0.2, 'textureAmount': 0.6, 'textureScale': 2, 'textureInvert': True,
+            'opacity': 0.8, 'flow': 0.5, 'gamma': 1})
+        self.assertEqual(pencil['notes'], ['Size jitter', 'Scatter'])
+        self.assertEqual(res['brushes'][1]['settings']['tip'], 'round')
+        self.assertEqual(res['brushes'][1]['settings']['hardness'], 0.5)
+        self.assertEqual(res['brushes'][3]['tip'], pencil['tip'], 'the same tip is shared')
+        self.assertEqual([(i['kind'], i['name']) for i in res['images']], [('tip', 'Pencil'), ('texture', 'Paper'), ('tip', 'Wide')])
+        w, h, ct, px = png_pixels(from_url(res['images'][pencil['tip']]['png']))
+        self.assertEqual((w, h, ct), (3, 2, 4))
+        self.assertEqual(px[1::2], bytes([0, 0, 9, 7, 7, 7]), 'the tip is the alpha')
+        self.assertEqual(px[0::2], bytes(6), 'black')
+        self.assertEqual(png_pixels(from_url(res['images'][2]['png']))[3][1::2], b'\xab\x12', '16-bit: high bytes')
+        self.assertEqual(png_pixels(from_url(res['images'][1]['png'])), (2, 2, 0, bytes([10, 20, 30, 40])))
+
+    def test_old_version(self):
+        computed = u32(0) + u16(25) + u16(12) + u16(80) + struct.pack('>h', 45) + u16(50)
+        sampled = u32(0) + u16(30) + ustr('Old') + b'\0' + bytes(8) + i32(0) + i32(0) + i32(1) + i32(2) + u16(8) + b'\0' + b'\x10\x20'
+        data = u16(2) + u16(2) + u16(1) + u32(len(computed)) + computed + u16(2) + u32(len(sampled)) + sampled
+        res = bi.import_brushes('old.abr', data)
+        self.assertEqual(res['brushes'][0]['settings'], {'size': 12, 'spacing': 0.25, 'hardness': 0.5, 'thickness': 0.8, 'tipAngle': 315, 'tip': 'round'})
+        self.assertEqual(res['brushes'][1]['name'], 'Old')
+        self.assertEqual(res['brushes'][1]['settings'], {'size': 2, 'spacing': 0.3, 'hardness': 1})
+        self.assertEqual(png_pixels(from_url(res['images'][0]['png']))[3][1::2], b'\x10\x20')
+
+    def test_damaged(self):
+        with self.assertRaisesRegex(ValueError, 'not a Procreate'):
+            bi.import_brushes('x.abr', b'GIF89a......')
+        with self.assertRaisesRegex(ValueError, 'damaged'):
+            bi.import_brushes('x.abr', make_abr()[:200])
+
+
+class ProcreateReader(unittest.TestCase):
+    def test_single_brush(self):
+        data = make_zip({'Brush.archive': keyed_archive({'name': 'Charcoal', 'paintSize': 0.5, 'plotSpacing': 0.08, 'shapeScatter': 0.3,
+                                                         'dynamicsPressureSize': 0.6, 'shapeInverted': True, 'grainDepth': 0.7}),
+                         'Shape.png': PNG, 'Grain.png': PNG, 'QuickLook/Thumbnail.png': PNG})
+        res = bi.import_brushes('Charcoal.brush', data)
+        b = res['brushes'][0]
+        self.assertEqual(b['name'], 'Charcoal')
+        # size 3 + 297 * 0.5² = 77.25
+        self.assertEqual(b['settings'], {'hardness': 1, 'gamma': 1, 'size': 77, 'spacing': 0.08, 'tipRandom': 0.3,
+                                         'pressureSize': True, 'minSize': 0.4, 'textureAmount': 0.7})
+        tip, grain = res['images'][b['tip']], res['images'][b['texture']]
+        self.assertEqual((tip['kind'], tip['white'], tip['invert']), ('tip', True, True))
+        self.assertEqual((grain['kind'], grain['name']), ('texture', 'Charcoal grain'))
+        self.assertEqual(from_url(tip['png']), PNG, 'Procreate pictures are passed on as they are')
+
+    def test_brushset_order_and_plain_archive(self):
+        data = make_zip({
+            'brushset.plist': plistlib.dumps({'name': 'Inks', 'brushes': ['B', 'A']}, fmt=plistlib.FMT_BINARY),
+            'A/Brush.archive': keyed_archive({'name': 'First', 'bundledShapePath': 'builtin'}),
+            'B/Brush.archive': plistlib.dumps({'name': 'Second', 'paintOpacity': 0.5}),  # some tools write a plain dictionary
+            'B/Shape.png': PNG,
+        })
+        res = bi.import_brushes('inks.brushset', data)
+        self.assertEqual(res['name'], 'Inks')
+        self.assertEqual([b['name'] for b in res['brushes']], ['Second', 'First'])
+        self.assertEqual(res['brushes'][0]['settings']['opacity'], 0.5)
+        first = res['brushes'][1]
+        self.assertIsNone(first['tip'])
+        self.assertEqual(first['settings']['tip'], 'round')
+        self.assertEqual(first['notes'], ["Its tip is one of Procreate's own and is not in the file"])
+
+    def test_not_brushes(self):
+        with self.assertRaisesRegex(ValueError, 'no Procreate brushes'):
+            bi.import_brushes('x.brush', make_zip({'readme.txt': b'hi'}))
 
 
 class Library(unittest.TestCase):
@@ -127,7 +260,6 @@ class Library(unittest.TestCase):
             app.brush_image(e['id'])
 
     def test_simultaneous_adds_keep_every_image(self):
-        import threading
         errors = []
 
         def add(i):
@@ -164,11 +296,9 @@ class Library(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             app.brush_image('../brushes')
 
-    def test_import_gives_icon_as_data_url(self):
-        data = make_sut(os.path.join(self.tmp.name, 'b.sut'), BrushSize=10.0)
-        res = app.import_sut(data)
-        self.assertTrue(res['icon'].startswith('data:image/png;base64,'))
-        self.assertEqual(json.loads(json.dumps(res))['settings']['size'], 10)
+    def test_import_route_result_is_json(self):
+        res = app.import_brushes('set.abr', make_abr())
+        self.assertEqual(len(json.loads(json.dumps(res))['brushes']), 4)
 
 
 if __name__ == '__main__':

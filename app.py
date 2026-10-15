@@ -627,8 +627,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(delete_brush_image(p.get('id', '')))
             elif route == ('POST', 'brushes/presets'):
                 self._json(save_presets(json.loads(self._raw() or b'null')))
-            elif route == ('POST', 'brushes/sut'):
-                self._json(import_sut(self._raw()))
+            elif route == ('POST', 'brushes/import'):
+                self._json(import_brushes(p.get('name', ''), self._raw()))
             else:
                 self._json({'error': 'not found'}, 404)
         except FileExistsError as e:
@@ -778,13 +778,10 @@ def save_presets(presets):
     return {'ok': True}
 
 
-def import_sut(data):
-    """The settings of a Clip Studio Paint brush (sutbrush.py), with its icon as a data URL."""
-    import base64
-    import sutbrush
-    res = sutbrush.brush_from_sut(data)
-    res['icon'] = 'data:image/png;base64,' + base64.b64encode(res['icon']).decode() if res['icon'] else None
-    return res
+def import_brushes(name, data):
+    """The brushes in a Procreate or Photoshop brush file (brushimport.py)."""
+    import brushimport
+    return brushimport.import_brushes(name, data)
 
 
 # ---------- window position and size ----------

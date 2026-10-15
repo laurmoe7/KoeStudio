@@ -18,6 +18,19 @@ export function tipMask(data) {
   return out;
 }
 
+/**
+ * A Procreate shape (white = paint on black) as a see-through tip, in place: black pixels whose alpha is the
+ * brightness (times any alpha the picture already has). invert: the brush says the shape is drawn black on white.
+ */
+export function whiteToAlpha(data, invert = false) {
+  for (let i = 0; i < data.length; i += 4) {
+    const v = luma(data, i);
+    data[i + 3] = Math.round((invert ? 255 - v : v) * data[i + 3] / 255);
+    data[i] = data[i + 1] = data[i + 2] = 0;
+  }
+  return data;
+}
+
 /** The paper grain (gray 0-255, 255 = paint sticks) of RGBA pixels; see-through counts as tooth top. */
 export function textureGray(data) {
   const n = data.length / 4, out = new Uint8ClampedArray(n);

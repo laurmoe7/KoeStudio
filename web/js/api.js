@@ -39,7 +39,7 @@ export const api = {
   addBrushImage: (kind, name, blob) => call('POST', `brushes/image?kind=${q(kind)}&name=${q(name)}`, blob, 'application/octet-stream'),
   deleteBrushImage: id => call('POST', `brushes/image/delete?id=${q(id)}`, {}),
   savePresets: presets => call('POST', 'brushes/presets', presets),
-  /** The settings of a Clip Studio Paint brush file: {name, settings, tips, texture, notes, icon}. */
-  importSut: blob => call('POST', 'brushes/sut', blob, 'application/octet-stream'),
+  /** The brushes in a Procreate (.brush, .brushset) or Photoshop (.abr) file: {name, brushes, images}. */
+  importBrushes: (name, blob) => call('POST', `brushes/import?name=${q(name)}`, blob, 'application/octet-stream'),
   openFolder: (sub = '', path = '') => call('POST', `open-folder?sub=${q(sub)}&path=${q(path)}`, {}),
 };

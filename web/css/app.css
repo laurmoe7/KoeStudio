@@ -278,5 +278,8 @@ svg.curve rect { fill: var(--panel-2); stroke: var(--line); stroke-width: .5; }
 svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .img-pick { display: flex; gap: 6px; }
 .img-pick select { flex: 1; min-width: 0; }
-.sut-head { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 8px; }
-.sut-head img { width: 48px; height: 48px; border-radius: 6px; flex: none; }
+.import-all { margin-bottom: 8px; }
+.import-list .pick-row { cursor: pointer; }
+.import-list .pick-row img { background: #fff; }
+.import-list .pick-row img.white-tip { background: #000; }
+.round-tip { width: 64px; height: 48px; flex: none; border-radius: 4px; background: radial-gradient(circle, #111 0 14px, #fff 15px); }
