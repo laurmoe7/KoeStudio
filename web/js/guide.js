@@ -68,7 +68,7 @@ export const GUIDE = [
       <b>Connected only</b> to fill every pixel of that colour. <b>Close gaps</b> stops the fill running out through
       small openings in the lines (up to about twice that many pixels wide).</li>
       <li><b>Gradient</b>: drag from where it starts to where it ends (Shift snaps the angle). Straight or circle;
-      <b>Repeat</b> and <b>Mirror</b> make stripes and rings.</li>
+      <b>Repeat</b> and <b>Mirror</b> make stripes and rings. Besides main and sub colour, Colors has ready-made gradients (rainbow, sunset, sky, fire, night); <b>Dither</b> adds a faint grain so smooth gradients show no bands.</li>
       <li><b>Lasso fill</b>: draw round an area to fill it with the main colour.</li>
     </ul>
     <p>All of them stay inside the selection, if there is one.</p>`],

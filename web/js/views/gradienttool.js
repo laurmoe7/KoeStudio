@@ -2,7 +2,7 @@
 // selection, or the whole layer, through the stroke canvas, so opacity, alpha lock, masks and undo work as for
 // painting. Editor methods (mixed into Editor.prototype in editor.js).
 
-import { gradientStops, snapEnd, gradientReach, repeatStops } from '../gradient.js';
+import { gradientStops, snapEnd, gradientReach, repeatStops, ditherData } from '../gradient.js';
 import { clip } from '../rect.js';
 import { matrix } from '../view.js';
 
@@ -30,7 +30,7 @@ export const gradientMethods = {
     if (len < 0.5) { this.updateComp(area); this.requestRender(); return; }
     // on a mask only coverage counts: the main colour end hides fully, the other end hides nothing
     let stops = g.t.kind === 'mask'
-      ? (s.colors.startsWith('main') ? [[0, '#000000'], [1, 'rgba(0,0,0,0)']] : [[0, 'rgba(0,0,0,0)'], [1, '#000000']])
+      ? (!s.colors.startsWith('sub') && !s.colors.startsWith('clear') ? [[0, '#000000'], [1, 'rgba(0,0,0,0)']] : [[0, 'rgba(0,0,0,0)'], [1, '#000000']])
       : gradientStops(s.colors, this.colors.main, this.colors.sub);
     let a = start, b = end, r = len;
     if (s.repeat === 'repeat' || s.repeat === 'mirror') {  // stretch the gradient over the area, with copies of the stops
@@ -60,7 +60,12 @@ export const gradientMethods = {
       this.requestRender();
       return;
     }
-    this.commitStroke(g.t, clip(g.area, this.doc.width, this.doc.height), 'Gradient');
+    const r = clip(g.area, this.doc.width, this.doc.height);
+    if (g.s.dither && r) {  // only once, at the end: it is too faint to matter while dragging
+      const img = this.strokeCtx.getImageData(r.x, r.y, r.w, r.h);
+      this.strokeCtx.putImageData(new ImageData(ditherData(img.data, r.w, r.h, r.x, r.y), r.w, r.h), r.x, r.y);
+    }
+    this.commitStroke(g.t, r, 'Gradient');
     if (g.t.kind !== 'mask') this.colors.used();
   },
 

@@ -1,11 +1,23 @@
 // Gradient tool maths (pure, tested).
 
 import { hexToRgb } from './color.js';
+import { noiseAt } from './filters.js';
 
 export const GRADIENT_COLORS = [
   ['main-sub', 'Main → sub'], ['main-clear', 'Main → transparent'],
-  ['sub-main', 'Sub → main'], ['clear-main', 'Transparent → main'],
+  ['sub-main', 'Sub → main'], ['clear-main', 'Transparent → main'], ['main-sub-main', 'Main → sub → main'],
+  ['rainbow', 'Rainbow'], ['sunset', 'Sunset'], ['sky', 'Sky'], ['fire', 'Fire'], ['night', 'Night'], ['gray', 'Black → white'],
 ];
+
+/** Ready-made gradients with several colours (they ignore the main and sub colour). */
+export const GRADIENT_PRESETS = {
+  rainbow: ['#ff2a2a', '#ff9a1f', '#ffe11f', '#3ccf4e', '#2a9dff', '#4b3cff', '#b13cff'],
+  sunset: ['#2b1055', '#7b2c8f', '#d53369', '#f2784b', '#ffd36e'],
+  sky: ['#0b3d91', '#2f74c8', '#78b4ea', '#cfe8ff'],
+  fire: ['#1a0000', '#8b0000', '#ff4500', '#ffa500', '#fff3b0'],
+  night: ['#05060f', '#141a3a', '#2e2a6b', '#5b3f8c'],
+  gray: ['#000000', '#ffffff'],
+};
 export const GRADIENT_SHAPES = [['linear', 'Straight'], ['radial', 'Circle']];
 export const GRADIENT_REPEATS = [['none', 'Once'], ['repeat', 'Repeat'], ['mirror', 'Mirror']];
 const MAX_REPEATS = 1000;
@@ -18,7 +30,12 @@ export function gradientStops(kind, main, sub) {
     case 'main-clear': return [[0, main], [1, clear(main)]];
     case 'sub-main': return [[0, sub], [1, main]];
     case 'clear-main': return [[0, clear(main)], [1, main]];
-    default: return [[0, main], [1, sub]];
+    case 'main-sub-main': return [[0, main], [0.5, sub], [1, main]];
+    default: {
+      const preset = GRADIENT_PRESETS[kind];
+      if (preset) return preset.map((c, i) => [i / (preset.length - 1), c]);
+      return [[0, main], [1, sub]];
+    }
   }
 }
 
@@ -61,6 +78,21 @@ export function repeatStops(stops, mode, reps, first = 0, edge = 0) {
     });
   }
   return out;
+}
+
+/**
+ * Dithering against banding: every colour channel (and alpha where it is partly see-through) gets a small
+ * repeatable random push of under one level either way (triangular noise anchored to the doc at x0, y0), so the
+ * steps between neighbouring 8-bit levels break up instead of showing as bands. Empty and solid pixels keep their alpha.
+ */
+export function ditherData(data, w, h, x0 = 0, y0 = 0) {
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4, a = data[i + 3];
+    if (!a) continue;
+    const X = x + x0, Y = y + y0;
+    for (let ch = 0; ch < (a < 255 ? 4 : 3); ch++) data[i + ch] = data[i + ch] + noiseAt(X, Y, ch) + noiseAt(X, Y, ch + 4) - 1;
+  }
+  return data;
 }
 
 /** The end point with the angle from start rounded to 15 degree steps (Shift), same length. */

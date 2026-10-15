@@ -83,3 +83,26 @@ test('tools sharing a key take turns', () => {
   assert.equal(s.text.vertical, true);
   assert.equal(s.gradient.shape, 'radial');
 });
+
+test('gradient presets and dithering', async () => {
+  const { GRADIENT_COLORS, GRADIENT_PRESETS, ditherData } = await import('../web/js/gradient.js');
+  assert.deepEqual(gradientStops('main-sub-main', '#ff0000', '#0000ff'), [[0, '#ff0000'], [0.5, '#0000ff'], [1, '#ff0000']]);
+  assert.deepEqual(gradientStops('gray', '#ff0000', '#0000ff'), [[0, '#000000'], [1, '#ffffff']], 'presets ignore main and sub');
+  assert.deepEqual(gradientStops('sky', '', '').map(s => s[0]), [0, 1 / 3, 2 / 3, 1], 'evenly spaced');
+  for (const [id] of GRADIENT_COLORS) assert.ok(gradientStops(id, '#112233', '#445566').length >= 2, id);
+  for (const id of Object.keys(GRADIENT_PRESETS)) assert.ok(GRADIENT_COLORS.some(([c]) => c === id), `${id} is in the menu`);
+
+  const w = 64, h = 64, d = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) d.set(i < 64 ? [0, 0, 0, 0] : i < 128 ? [100, 100, 100, 128] : [100, 150, 200, 255], i * 4);
+  const out = ditherData(d.slice(), w, h, 10, 20), again = ditherData(d.slice(), w, h, 10, 20);
+  assert.deepEqual(out, again, 'the same everywhere it is run (anchored to the doc)');
+  let sum = 0, moved = 0;
+  for (let i = 0; i < d.length; i++) {
+    assert.ok(Math.abs(out[i] - d[i]) <= 1, 'at most one level');
+    if (i % 4 === 3 && (d[i] === 0 || d[i] === 255)) assert.equal(out[i], d[i], 'empty and solid alpha stay');
+    if (i >= 128 * 4 && i % 4 === 0) { sum += out[i] - d[i]; if (out[i] !== d[i]) moved++; }
+  }
+  assert.ok(moved > 500, 'many pixels change');
+  assert.ok(Math.abs(sum / (w * h - 128)) < 0.05, 'on average the colour stays the same');
+  assert.deepEqual([...out.slice(0, 4)], [0, 0, 0, 0], 'empty pixels stay empty');
+});
