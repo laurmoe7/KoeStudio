@@ -37,6 +37,9 @@ export const FILTERS = [
     margin: () => 0, apply: (d, w, h, p) => levels(d, p) },
   { id: 'posterize', label: 'Posterize…', fields: [f('levels', 'Levels', 2, 32, 1, 4)], margin: () => 0, apply: (d, w, h, p) => posterize(d, p.levels) },
   { id: 'threshold', label: 'Threshold (black and white)…', fields: [f('threshold', 'Threshold', 1, 255, 1, 128)], margin: () => 0, apply: (d, w, h, p) => threshold(d, p.threshold) },
+  { id: 'lines', label: 'Extract lines…', fields: [f('radius', 'Line width', 1, 50, 1, 6, ' px'), f('threshold', 'Ignore', 0, 128, 1, 12),
+    f('softness', 'Softness', 1, 255, 1, 48), f('color', 'Keep color', 0, 100, 1, 0, '%')],
+    margin: p => Math.ceil(p.radius * 3), apply: (d, w, h, p) => extractLines(d, w, h, p) },
   { id: 'invert', label: 'Invert colors', fields: [], margin: () => 0, apply: d => invert(d) },
 ];
 
@@ -57,6 +60,31 @@ export function sanitizeParams(filter, raw) {
     out[x.key] = Number.isFinite(v) ? Math.max(x.min, Math.min(x.max, v)) : x.value;
   }
   return out;
+}
+
+// ---------- line extraction ----------
+
+/**
+ * Keeps only what is darker than its surroundings (lines), as see-through ink: each pixel is compared, over white,
+ * with a blur of its neighbourhood (radius ~ the widest line to keep). Flat areas, paper and soft shading go
+ * clear; a pixel darker by `threshold` starts to show and is solid once `softness` darker still. The ink is black,
+ * or the pixel's own colour by `color` %.
+ */
+export function extractLines(data, w, h, { radius = 6, threshold = 12, softness = 48, color = 0 } = {}) {
+  const n = w * h, lum = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = data[i * 4 + 3] / 255;
+    const y = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+    lum[i] = y * a + 255 * (1 - a);  // as seen over white paper
+  }
+  const bg = blurPlane(Float32Array.from(lum), w, h, radius * 2);
+  const k = Math.max(0, Math.min(1, color / 100));
+  for (let i = 0; i < n; i++) {
+    const t = Math.max(0, Math.min(1, (bg[i] - lum[i] - threshold) / Math.max(1, softness)));
+    for (let c = 0; c < 3; c++) data[i * 4 + c] = data[i * 4 + c] * k;
+    data[i * 4 + 3] = Math.round(255 * t);
+  }
+  return data;
 }
 
 // ---------- blur ----------

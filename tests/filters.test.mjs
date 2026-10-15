@@ -298,3 +298,21 @@ test('spin blur smears round the centre', () => {
   const flat = new Uint8ClampedArray(6 * 6 * 4).fill(120);
   assert.ok(spinBlur(flat, 6, 6, 30, 3, 3).every(v => v === 120), 'a flat image stays flat');
 });
+
+test('line extraction', async () => {
+  const { extractLines } = await import('../web/js/filters.js');
+  const w = 41, h = 41;
+  // flat gray (shading) goes clear: the blur of a flat area is the area itself
+  const flat = extractLines(pixels(w, h, [128, 128, 128, 255]), w, h, {});
+  assert.ok(flat.every((v, i) => i % 4 !== 3 || v === 0), 'flat areas vanish');
+  // a 1 px dark red line on white: the line is solid black ink, white paper and empty pixels are clear
+  const d = pixels(w, h, [255, 255, 255, 255]);
+  for (let y = 0; y < h; y++) d.set([200, 0, 0, 255], (y * w + 20) * 4);
+  d.set([0, 0, 0, 0], 0);
+  const out = extractLines(d.slice(), w, h, { radius: 3, threshold: 10, softness: 40 });
+  assert.deepEqual(px(out, 20 * w + 20), [0, 0, 0, 255], 'the line: luminance 60 against nearly white');
+  assert.equal(px(out, 20 * w + 21)[3], 0, 'paper next to it is lighter than its blur');
+  assert.equal(px(out, 0)[3], 0, 'transparent counts as white paper');
+  const kept = extractLines(d.slice(), w, h, { radius: 3, threshold: 10, softness: 40, color: 100 });
+  assert.deepEqual(px(kept, 20 * w + 20), [200, 0, 0, 255], 'Keep color 100%: its own colour');
+});
