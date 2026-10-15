@@ -11,7 +11,7 @@ if ($Remove) {
     Write-Host 'Removed the .koe association'
 } else {
     $pyw = Get-Command pythonw.exe -All -ErrorAction SilentlyContinue |
-        Where-Object { $_.Source -notmatch '\WindowsApps\' } | Select-Object -First 1
+        Where-Object { $_.Source -notmatch '\\WindowsApps\\' } | Select-Object -First 1
     if (-not $pyw) { $pyw = Get-Command pythonw.exe -ErrorAction Stop }
     New-Item "$classes\.koe" -Force | Out-Null
     Set-ItemProperty "$classes\.koe" -Name '(default)' -Value 'KoeStudio.Project'
