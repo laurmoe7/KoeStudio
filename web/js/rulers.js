@@ -8,11 +8,13 @@
 // to the stroke's direction is picked (towards a vanishing point, the perspective's horizontal/vertical, or a
 // guide the stroke started on), and every point is projected onto it.
 
+import { defaultSymmetry, sanitizeSymmetry } from './symmetry.js';
+
 export const MAX_GUIDES = 100;
 const FAR = 200000;  // vanishing points may sit far outside the canvas (20 x the largest canvas side)
 
 export function defaultRulers() {
-  return { guides: [], perspective: null, visible: true, snap: true, grid: defaultGrid() };
+  return { guides: [], perspective: null, visible: true, snap: true, grid: defaultGrid(), symmetry: defaultSymmetry() };
 }
 
 export const defaultGrid = () => ({ show: false, size: 100, div: 4, snap: false });
@@ -36,7 +38,7 @@ export function sanitizeRulers(raw) {
   let perspective = null;
   const pts = Array.isArray(r.perspective?.points) ? r.perspective.points.filter(p => num(p?.x) !== null && num(p?.y) !== null) : [];
   if (pts.length) perspective = { points: pts.slice(0, 3).map(p => ({ x: num(p.x), y: num(p.y) })) };
-  return { guides, perspective, visible: r.visible !== false, snap: r.snap !== false, grid: sanitizeGrid(r.grid) };
+  return { guides, perspective, visible: r.visible !== false, snap: r.snap !== false, grid: sanitizeGrid(r.grid), symmetry: sanitizeSymmetry(r.symmetry) };
 }
 
 /** Vanishing points for a new 1-, 2- or 3-point perspective ruler on a w x h canvas (horizon at 40% height). */

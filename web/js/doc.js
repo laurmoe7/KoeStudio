@@ -47,6 +47,8 @@ export function sanitizeDoc(raw) {
       clip: !!l?.clip,
       mask: l?.mask && typeof l.mask === 'object' ? { png: isPng(l.mask.png) ? l.mask.png : null, enabled: l.mask.enabled !== false } : null,
       label: LABEL_IDS.has(l?.label) ? l.label : null,
+      locked: l?.locked === true,
+      reference: l?.reference === true,
     };
     if (folder) {
       out.open = l.open !== false;
@@ -134,6 +136,8 @@ export class Layer extends Raster {
     this.clip = !!props.clip;
     this.mask = null;
     this.label = props.label || null;  // colour label in the layer list (LABELS)
+    this.locked = !!props.locked;        // no pixel changes (Layer panel → Lock)
+    this.reference = !!props.reference;  // Fill and the wand can look at reference layers only
     this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
   }
@@ -153,12 +157,14 @@ export class Folder {
     this.children = [];  // bottom first
     this.mask = null;
     this.label = props.label || null;
+    this.locked = !!props.locked;
+    this.reference = !!props.reference;
   }
 }
 
 /** A deep copy of a layer or folder (with masks), for Duplicate. */
 export function cloneNode(n, w, h) {
-  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open, label: n.label };
+  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open, label: n.label, locked: n.locked, reference: n.reference };
   let c;
   if (isFolder(n)) {
     c = new Folder(props);
@@ -244,6 +250,8 @@ export class Doc {
   async toJSON() {
     const node = async n => {
       const out = { type: n.kind, name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };
+      if (n.locked) out.locked = true;
+      if (n.reference) out.reference = true;
       if (isFolder(n)) {
         out.open = n.open;
         out.children = [];

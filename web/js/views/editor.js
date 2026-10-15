@@ -27,11 +27,28 @@ import { textMethods } from './texttool.js';
 import { toneMethods } from './tonetools.js';
 import { filterMethods } from './filtertools.js';
 import { figureMethods } from './figuretool.js';
+import { smudgeMethods } from './smudgetool.js';
+import { symmetryMethods } from './symmetrytools.js';
+import { symmetryStamps } from '../symmetry.js';
 import { linePoints } from '../figure.js';
 
 const SAVE_DELAY = 800;
 const SAVE_RETRY = 10000;  // after a failed save
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
+
+/** Visible layers marked as reference, or inside a reference folder (bottom first). */
+function referenceLayers(root) {
+  const out = [];
+  const walk = (n, ref) => {
+    for (const c of n.children) {
+      if (!c.visible) continue;
+      if (isFolder(c)) walk(c, ref || c.reference);
+      else if (ref || c.reference) out.push(c);
+    }
+  };
+  walk(root, false);
+  return out;
+}
 
 export class Editor {
   constructor(root, { onHome, onOpen }) {
@@ -306,6 +323,8 @@ export class Editor {
         { label: 'Reset rotation', key: '5', run: () => this.rotate(null) },
         { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         '-',
+        { label: 'Symmetry ruler', checked: d.rulers.symmetry.kind !== 'off', run: () => this.toggleSymmetry() },
+        { label: 'Symmetry settings…', run: () => this.symmetryDialog() },
         { label: 'Grid', key: "Ctrl+'", checked: d.rulers.grid.show, run: () => this.toggleGrid() },
         { label: 'Grid settings…', run: () => this.gridDialog() },
         { label: 'Edge rulers', checked: this.showRulers, run: () => this.toggleEdgeRulers() },
@@ -484,6 +503,7 @@ export class Editor {
     this.drawSelectionOverlay(ctx);
     this.drawCropOverlay(ctx);
     this.drawRulerOverlay(ctx);
+    this.drawSymmetryOverlay(ctx);
     this.drawGradientOverlay(ctx);
     this.placeTextEditor();
     const brush = this.updateCursor();
@@ -502,9 +522,9 @@ export class Editor {
     }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
-    set({ paint: 'none', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+    set({ paint: 'none', smudge: 'none', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
-    return this.pointer && tool.kind === 'paint' ? tool : null;
+    return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge') ? tool : null;
   }
 
   drawBrushOutline(ctx, tool) {
@@ -657,6 +677,8 @@ export class Editor {
         if (this.beginTransform({ moveOnly: true })) this.gesture = { type: 'xf', tool: 'move', id: e.pointerId, grab: 'move', t0: { ...this.xf.t }, p0: dp };
       }
       else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId, e.shiftKey);
+      else if (tool.kind === 'smudge') this.beginSmudge(dp, e.pointerId);
+      else if (tool.kind === 'lassofill') this.beginLassoFill(dp, e.pointerId);
       else if (tool.kind === 'figure') this.beginFigure(dp, e.pointerId, e.shiftKey);
       else if (tool.kind === 'fill') this.fillAt(dp);
       else if (tool.kind === 'gradient') this.beginGradient(dp, e.pointerId);
@@ -670,13 +692,16 @@ export class Editor {
       this.pointer = p;
       const g = this.gesture;
       if (g && g.id === e.pointerId) {
-        if (g.type === 'paint') {
+        if (g.type === 'paint' || g.type === 'smudge') {
           const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
           for (const ev of evs.length ? evs : [e]) {
-            const q = pos(ev);
-            this.addPoint({ ...toDoc(this.view, q.x, q.y), p: pressure(ev) });
+            const q = pos(ev), pt = { ...toDoc(this.view, q.x, q.y), p: pressure(ev) };
+            if (g.type === 'paint') this.addPoint(pt);
+            else this.smudgePoint(pt);
           }
           this.requestRender();
+        } else if (g.type === 'lassofill') {
+          this.lassoFillDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'pan') {
           this.view = { ...this.view, panX: g.view.panX + p.x - g.start.x, panY: g.view.panY + p.y - g.start.y };
           this.requestRender();
@@ -707,6 +732,8 @@ export class Editor {
       if (!g || g.id !== e.pointerId) return;
       this.pointer = pos(e);
       if (g.type === 'paint') this.endPaint();
+      else if (g.type === 'smudge') this.endSmudge();
+      else if (g.type === 'lassofill') this.endLassoFill();
       else if (g.type === 'guide' || g.type === 'vp') this.rulerEnd(this.pointer);
       else if (g.type === 'gradient') this.endGradient();
       else if (g.type === 'figure') this.endFigure();
@@ -783,11 +810,12 @@ export class Editor {
     g.last = pt;
     const stamps = g.path.add(g.smoother.add(pt));
     if (!stamps.length) return;
-    for (const st of stamps) {
+    const all = symmetryStamps(this.doc.rulers.symmetry, stamps, this.doc.width, this.doc.height);
+    for (const st of all) {
       const { size, flow } = stampFor(g.s, pressureCurve(st.p, g.s.gamma));
       g.painter.dab(st.x, st.y, size, flow);
     }
-    const r = stampBounds(stamps, g.sizeAt);
+    const r = stampBounds(all, g.sizeAt);
     g.bounds = union(g.bounds, r);
     this.strokeVersion = (this.strokeVersion || 0) + 1;
     this.updateComp(r);
@@ -831,8 +859,7 @@ export class Editor {
   fillAt(pt) {
     const s = this.settings.fill, d = this.doc, layer = this.target('fill');
     if (!layer) return;
-    const src = s.sampleAll ? this.compCtx : layer.ctx;
-    const data = src.getImageData(0, 0, d.width, d.height).data;
+    const data = this.sampleData(s.sample, layer);
     let res = floodMask(data, d.width, d.height, pt.x, pt.y, s.tolerance, s.contiguous);
     if (!res) return;
     res = growMask(res.mask, d.width, d.height, s.grow, res.bounds);
@@ -852,6 +879,27 @@ export class Editor {
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, false) };
     this.commitStroke(layer, b, 'Fill');
     if (layer.kind !== 'mask') this.colors.used();
+  }
+
+  /**
+   * The pixels Fill and the wand look at: everything visible ('all'), the target itself ('layer'), or only the
+   * visible layers marked as reference ('reference'; with none marked, everything visible).
+   */
+  sampleData(sample, t) {
+    const d = this.doc;
+    if (sample === 'layer' && t?.ctx) return t.ctx.getImageData(0, 0, d.width, d.height).data;
+    if (sample === 'reference') {
+      const refs = referenceLayers(d.root);
+      if (refs.length) {
+        const c = document.createElement('canvas');
+        c.width = d.width; c.height = d.height;
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        for (const l of refs) { ctx.globalAlpha = l.opacity; ctx.drawImage(l.canvas, 0, 0); }
+        return ctx.getImageData(0, 0, d.width, d.height).data;
+      }
+      toast('No layer is marked as reference, so everything visible counts. Tick Reference in the Layers panel.');
+    }
+    return this.compCtx.getImageData(0, 0, d.width, d.height).data;
   }
 
   pickAt(pt) {
@@ -1076,12 +1124,12 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, exportMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, exportMethods, smudgeMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (key === 'corner') return Math.round(v) + ' px';
-  if (['opacity', 'flow', 'hardness', 'spacing', 'minSize', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);
 }

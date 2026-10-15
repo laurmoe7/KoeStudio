@@ -6,6 +6,9 @@ import { FONTS, ALIGNS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
 import { FIGURE_SHAPES } from './figure.js';
 
+/** Where Fill and the Magic wand find their area. */
+export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['reference', 'Reference layers']];
+
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) { return { texture, textureAmount, textureScale: 1 }; }
 
@@ -20,10 +23,13 @@ export const TOOLS = [
     defaults: { size: 120, opacity: 1, flow: 0.06, hardness: 0, spacing: 0.06, pressureSize: false, pressureOpacity: true, minSize: 0.5, smoothing: 0, gamma: 1, ...tex() } },
   { id: 'eraser', label: 'Eraser', key: 'e', kind: 'paint', icon: 'eraser', erase: true, group: 'draw',
     defaults: { size: 30, opacity: 1, flow: 1, hardness: 0.9, spacing: 0.08, pressureSize: false, pressureOpacity: false, minSize: 0.3, smoothing: 0, gamma: 1, ...tex() } },
+  { id: 'smudge', label: 'Smudge', key: 'j', kind: 'smudge', icon: 'smudge', group: 'draw',
+    defaults: { size: 40, strength: 0.6, hardness: 0.3, spacing: 0.08, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
-    defaults: { opacity: 1, tolerance: 12, grow: 1, sampleAll: true, contiguous: true } },
+    defaults: { opacity: 1, tolerance: 12, grow: 1, sample: 'all', contiguous: true } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
     defaults: { colors: 'main-sub', shape: 'linear', opacity: 1 } },
+  { id: 'lassofill', label: 'Lasso fill', key: 'g', kind: 'lassofill', icon: 'lassoFill', group: 'draw', defaults: { opacity: 1 } },
   { id: 'figure', label: 'Figure', key: 'u', kind: 'figure', icon: 'figure', group: 'draw',
     defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, fill: false } },
   { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',
@@ -33,7 +39,7 @@ export const TOOLS = [
   { id: 'ellipse', label: 'Ellipse selection', key: 'm', kind: 'select', icon: 'ellipseSel', group: 'select', defaults: { mode: 'replace' } },
   { id: 'lasso', label: 'Lasso selection', key: 'l', kind: 'select', icon: 'lasso', group: 'select', defaults: { mode: 'replace' } },
   { id: 'polygon', label: 'Polygon selection', key: 'l', kind: 'select', icon: 'polySel', group: 'select', defaults: { mode: 'replace' } },
-  { id: 'wand', label: 'Magic wand', key: 'w', kind: 'select', icon: 'wand', group: 'select', defaults: { mode: 'replace', tolerance: 12, sampleAll: true, contiguous: true } },
+  { id: 'wand', label: 'Magic wand', key: 'w', kind: 'select', icon: 'wand', group: 'select', defaults: { mode: 'replace', tolerance: 12, sample: 'all', contiguous: true } },
   { id: 'move', label: 'Move layer', key: 'v', kind: 'move', icon: 'move', group: 'select', defaults: {} },
   { id: 'crop', label: 'Crop', key: 'c', kind: 'crop', icon: 'crop', group: 'select', defaults: {} },
   { id: 'ruler', label: 'Ruler', key: 'u', kind: 'ruler', icon: 'ruler', group: 'view', defaults: {} },
@@ -53,6 +59,7 @@ export const SETTING_FIELDS = [
   ['size', 'Size', 'range', 1, 1000, 1],
   ['opacity', 'Opacity', 'range', 0.01, 1, 0.01],
   ['flow', 'Density', 'range', 0.01, 1, 0.01],
+  ['strength', 'Strength', 'range', 0.01, 1, 0.01],
   ['hardness', 'Hardness', 'range', 0, 1, 0.01],
   ['spacing', 'Spacing', 'range', 0.02, 1, 0.01],
   ['minSize', 'Min. size', 'range', 0, 1, 0.01],
@@ -71,7 +78,7 @@ export const SETTING_FIELDS = [
   ['pressureOpacity', 'Pressure → density', 'check'],
   ['tolerance', 'Margin', 'range', 0, 255, 1],
   ['grow', 'Expand', 'range', 0, 6, 1],
-  ['sampleAll', 'Look at all layers', 'check'],
+  ['sample', 'Look at', 'choice', SAMPLE_FROM],
   ['contiguous', 'Connected only', 'check'],
 ];
 
@@ -94,7 +101,8 @@ export const SETTING_HINTS = {
   gamma: 'Pressure curve: below 1 light pressure counts more, above 1 you have to press harder',
   tolerance: 'How different a colour may be and still count as the same area',
   grow: 'Grows the filled area by this many pixels, so it tucks under line edges',
-  sampleAll: 'Find the area from everything you see (on) or from the current layer only (off)',
+  sample: 'Find the area from everything you see, the current layer only, or only layers marked as reference (Layer panel)',
+  strength: 'How far each dab drags the colour along (pen pressure makes it stronger when Pressure → density is on)',
   colors: 'Main and sub are the two colour squares in the Color panel',
   shape: 'Straight: along the line you drag. Circle: outwards from where you start',
   align: 'Which side lines line up on (for vertical text: top, middle or bottom of the columns)',
@@ -114,7 +122,9 @@ export function sanitizeSettings(stored) {
   const out = {};
   for (const t of TOOLS) {
     const s = { ...t.defaults };
-    const from = stored && typeof stored === 'object' ? stored[t.id] : null;
+    let from = stored && typeof stored === 'object' ? stored[t.id] : null;
+    // before 'sample', Fill and the wand had a "look at all layers" tick
+    if (from && typeof from === 'object' && !('sample' in from) && from.sampleAll === false) from = { ...from, sample: 'layer' };
     if (from && typeof from === 'object') {
       for (const [key, , type, min, max] of SETTING_FIELDS) {
         if (!(key in s) || !(key in from)) continue;

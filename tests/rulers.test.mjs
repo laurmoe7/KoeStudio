@@ -15,7 +15,8 @@ test('sanitizing', () => {
   assert.equal(sanitizeRulers({ guides: Array.from({ length: 150 }, () => ({ axis: 'h', pos: 1 })) }).guides.length, MAX_GUIDES);
   assert.equal(sanitizeRulers(null).perspective, null);
   assert.deepEqual(sanitizeDoc({}).rulers, { guides: [], perspective: null, visible: true, snap: true,
-    grid: { show: false, size: 100, div: 4, snap: false } }, 'old files get empty rulers and a hidden grid');
+    grid: { show: false, size: 100, div: 4, snap: false }, symmetry: { kind: 'off', lines: 6, x: null, y: null } },
+    'old files get empty rulers, a hidden grid and no symmetry');
 });
 
 test('new perspective rulers', () => {

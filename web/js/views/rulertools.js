@@ -142,6 +142,7 @@ export const rulerMethods = {
   /** The Ruler tool grabs a vanishing point or a guide under the pointer. */
   beginRulerTool(dp, id) {
     const r = this.doc.rulers;
+    if (this.symAt(dp)) { this.gesture = { type: 'vp', tool: 'ruler', id, index: 'sym', before: clone(r) }; return; }
     if (!r.visible) return toast('Guides and perspective are hidden. Turn them on in the Ruler tool settings.');
     const vp = this.vpAt(dp);
     if (vp >= 0) { this.gesture = { type: 'vp', tool: 'ruler', id, index: vp, before: clone(r) }; return; }
@@ -160,7 +161,8 @@ export const rulerMethods = {
 
   rulerDrag(dp) {
     const g = this.gesture, r = this.doc.rulers;
-    if (g.type === 'vp') r.perspective.points[g.index] = { x: Math.round(dp.x), y: Math.round(dp.y) };
+    if (g.type === 'vp' && g.index === 'sym') r.symmetry = { ...r.symmetry, x: Math.round(dp.x), y: Math.round(dp.y) };
+    else if (g.type === 'vp') r.perspective.points[g.index] = { x: Math.round(dp.x), y: Math.round(dp.y) };
     else {
       g.pos = Math.round(g.axis === 'h' ? dp.y : dp.x);
       if (g.index >= 0) r.guides[g.index].pos = g.pos;
@@ -172,7 +174,7 @@ export const rulerMethods = {
   rulerEnd(p) {
     const g = this.gesture, r = this.doc.rulers;
     const dropped = this.rulerBand(p) && g.type === 'guide';
-    this.editRulers(g.type === 'vp' ? 'Move vanishing point' : dropped ? 'Remove guide' : g.index < 0 ? 'Add guide' : 'Move guide', () => {
+    this.editRulers(g.index === 'sym' ? 'Move symmetry centre' : g.type === 'vp' ? 'Move vanishing point' : dropped ? 'Remove guide' : g.index < 0 ? 'Add guide' : 'Move guide', () => {
       if (g.type !== 'guide') return;
       if (dropped) { if (g.index >= 0) r.guides.splice(g.index, 1); }
       else if (g.index < 0) { r.guides.push({ axis: g.axis, pos: g.pos }); r.visible = true; }
@@ -185,6 +187,7 @@ export const rulerMethods = {
     const g = this.gesture;
     if (g?.type === 'guide') return g.axis === 'h' ? 'row-resize' : 'col-resize';
     if (g?.type === 'vp') return 'grabbing';
+    if (this.effectiveTool() === 'ruler' && p && this.symAt(toDoc(this.view, p.x, p.y))) return 'grab';
     if (this.effectiveTool() !== 'ruler' || !p || !this.doc.rulers.visible) return null;
     const dp = toDoc(this.view, p.x, p.y);
     if (this.vpAt(dp) >= 0) return 'grab';

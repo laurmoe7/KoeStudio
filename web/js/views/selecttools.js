@@ -152,8 +152,7 @@ export const selectionMethods = {
   magicWand(dp, mode) {
     const d = this.doc, s = this.settings.wand;
     const a = this.doc.active, t = this.maskEdit && a.mask ? a.mask : a;
-    const src = s.sampleAll || !t.ctx ? this.compCtx : t.ctx;
-    const res = floodMask(src.getImageData(0, 0, d.width, d.height).data, d.width, d.height, dp.x, dp.y, s.tolerance, s.contiguous);
+    const res = floodMask(this.sampleData(s.sample, t), d.width, d.height, dp.x, dp.y, s.tolerance, s.contiguous);
     if (!res) return;
     this.changeSelection('Magic wand', () => this.sel.combineMask(mode, res.mask, res.bounds));
   },

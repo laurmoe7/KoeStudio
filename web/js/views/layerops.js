@@ -8,6 +8,12 @@ import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas,
 import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget } from '../tree.js';
 import { toast } from '../ui.js';
 
+/** The node itself or the nearest folder around it that is locked, or null. */
+export function lockedNode(n) {
+  for (let x = n; x; x = x.parent) if (x.locked) return x;
+  return null;
+}
+
 export const layerMethods = {
   // ---------- what tools work on ----------
 
@@ -18,6 +24,8 @@ export const layerMethods = {
   target(verb = 'draw on', { read = false } = {}) {
     const n = this.doc.active;
     if (!n.visible) { toast(`This ${isFolder(n) ? 'folder' : 'layer'} is hidden. Show it to ${verb} it.`); return null; }
+    const lockedBy = lockedNode(n);
+    if (lockedBy) { toast(`${lockedBy === n ? '' : 'Its folder '}"${lockedBy.name}" is locked. Untick Lock in the Layers panel to ${verb} it.`); return null; }
     if (this.maskEdit && n.mask) return n.mask;
     if (isFolder(n)) { toast(`A folder has no pixels of its own. Select a layer inside it to ${verb}, or click the folder's mask.`); return null; }
     if (n.text && !read) {
@@ -257,6 +265,7 @@ export const layerMethods = {
   beginMove(pt, id) {
     const d = this.doc, n = d.active;
     if (!n.visible) return toast('This layer is hidden. Show it to move it.');
+    if (lockedNode(n)) return toast(`"${lockedNode(n).name}" is locked. Untick Lock in the Layers panel to move it.`);
     const rasters = this.maskEdit && n.mask ? [n.mask] : nodeRasters(n);
     const parts = rasters.map(r => {
       const copy = document.createElement('canvas');

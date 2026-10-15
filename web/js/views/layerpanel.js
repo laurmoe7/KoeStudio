@@ -23,6 +23,10 @@ export class LayerPanel {
         <label class="check" title="Clip to the layer below: show only where it has paint"><input type="checkbox" class="lp-clip">${icon('clip', 15)} Clip below</label>
       </div>
       <div class="lp-props">
+        <label class="check" title="Lock the layer (or everything in the folder): no painting, filters, moving or transforming"><input type="checkbox" class="lp-locked">${icon('lock', 15)} Lock</label>
+        <label class="check" title="Reference layer: Fill and the Magic wand set to 'Reference layers' find areas from these (e.g. your line art)"><input type="checkbox" class="lp-ref">${icon('ref', 15)} Reference</label>
+      </div>
+      <div class="lp-props">
         <span class="lp-labels" role="radiogroup" aria-label="Color label" title="Color label: marks the layer in this list"><span>Label</span>
           <button class="lp-label-btn none" data-label="" title="No label"></button>
           ${LABELS.map(([id, color]) => `<button class="lp-label-btn" data-label="${id}" style="background:${color}" title="${id[0].toUpperCase() + id.slice(1)} label"></button>`).join('')}
@@ -65,6 +69,8 @@ export class LayerPanel {
     });
     root.querySelector('.lp-lock').onchange = e => editor.setLayerProp(editor.doc.active, 'alphaLock', e.target.checked, 'Lock alpha');
     root.querySelector('.lp-clip').onchange = e => editor.setLayerProp(editor.doc.active, 'clip', e.target.checked, 'Clip to layer below');
+    root.querySelector('.lp-locked').onchange = e => editor.setLayerProp(editor.doc.active, 'locked', e.target.checked, e.target.checked ? 'Lock layer' : 'Unlock layer');
+    root.querySelector('.lp-ref').onchange = e => editor.setLayerProp(editor.doc.active, 'reference', e.target.checked, 'Reference layer');
     root.querySelectorAll('.lp-label-btn').forEach(b => { b.onclick = () => editor.setLayerProp(editor.doc.active, 'label', b.dataset.label || null, 'Color label'); });
     this.bindDrag();
   }
@@ -80,6 +86,8 @@ export class LayerPanel {
     lock.checked = !!n.alphaLock;
     lock.disabled = folder;
     this.root.querySelector('.lp-clip').checked = n.clip;
+    this.root.querySelector('.lp-locked').checked = !!n.locked;
+    this.root.querySelector('.lp-ref').checked = !!n.reference;
     this.root.querySelectorAll('.lp-label-btn').forEach(b => { b.classList.toggle('on', (n.label || '') === b.dataset.label); b.setAttribute('aria-checked', (n.label || '') === b.dataset.label); });
     this.root.querySelector('[data-op="mask"]').title = n.mask ? 'Paint on the mask' : 'Add a mask (hides outside the selection, if there is one)';
     const chip = ed.root.querySelector('.mask-chip');
@@ -96,7 +104,9 @@ export class LayerPanel {
       const sub = [blendLabel(node.blend), Math.round(node.opacity * 100) + '%'];
       if (node.text) sub.unshift('Text');
       if (node.tone) sub.unshift('Tone');
-      if (node.alphaLock) sub.push('locked');
+      if (node.locked) sub.push('locked');
+      else if (node.alphaLock) sub.push('alpha locked');
+      if (node.reference) sub.push('reference');
       if (node.mask && !node.mask.enabled) sub.push('mask off');
       row.innerHTML = `
         <button class="icon-btn lp-eye" title="${node.visible ? 'Hide' : 'Show'}">${icon(node.visible ? 'eye' : 'eyeOff', 16)}</button>
