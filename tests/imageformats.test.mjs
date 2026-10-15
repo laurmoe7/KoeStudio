@@ -1,7 +1,7 @@
 // Export encoders. Expected bytes are worked out by hand from the TGA, BMP and GIF89a specs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeTga, encodeBmp, encodeGif, lzwEncode, quantize, EXPORT_FORMATS } from '../web/js/imageformats.js';
+import { encodeTga, encodeBmp, encodeGif, lzwEncode, quantize, EXPORT_FORMATS, sanitizeExportOptions, exportSize } from '../web/js/imageformats.js';
 
 // 2x1 image: opaque red, then half-transparent blue
 const px = Uint8Array.from([255, 0, 0, 255, 0, 0, 255, 100]);
@@ -108,4 +108,22 @@ test('export format list', () => {
   const ids = EXPORT_FORMATS.map(f => f.id);
   for (const id of ['png', 'jpg', 'gif', 'tga', 'bmp']) assert.ok(ids.includes(id));
   assert.equal(new Set(EXPORT_FORMATS.map(f => f.ext)).size, EXPORT_FORMATS.length);
+});
+
+test('export options are filled in and kept in range', () => {
+  assert.deepEqual(sanitizeExportOptions(null), { format: 'png', scale: 100, quality: 92, paper: true, area: 'canvas' });
+  assert.deepEqual(sanitizeExportOptions({ format: 'exe', scale: 5000, quality: 0, paper: false, area: 'selection' }),
+    { format: 'png', scale: 800, quality: 1, paper: false, area: 'selection' });
+  assert.equal(sanitizeExportOptions({ scale: '33.33' }).scale, 33.3);
+  assert.equal(sanitizeExportOptions({ scale: '' }).scale, 100, 'an empty field keeps the default');
+  assert.equal(sanitizeExportOptions({ format: 'jpg' }).format, 'jpg');
+  assert.ok(EXPORT_FORMATS.find(f => f.id === 'jpg').quality && !EXPORT_FORMATS.find(f => f.id === 'png').quality);
+});
+
+test('export size rounds, never reaches zero and flags huge results', () => {
+  assert.deepEqual(exportSize(1920, 1080, 50), { w: 960, h: 540, tooBig: false });
+  assert.deepEqual(exportSize(3, 3, 50), { w: 2, h: 2, tooBig: false });  // 1.5 rounds up
+  assert.deepEqual(exportSize(10, 1, 1), { w: 1, h: 1, tooBig: false });
+  assert.equal(exportSize(4000, 100, 800).tooBig, true);   // 32000 px wide
+  assert.equal(exportSize(2000, 100, 800).tooBig, false);  // 16000 is still fine
 });

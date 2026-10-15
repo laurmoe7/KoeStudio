@@ -14,7 +14,7 @@ import { union, clip } from '../rect.js';
 import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_GROUPS, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
 import { esc, toast, menu, modal, promptBox, fileToDataUrl, store } from '../ui.js';
-import { EXPORT_FORMATS, EXPORT_BY_ID, encodePixels } from '../imageformats.js';
+import { exportMethods } from './exporttools.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
 import { LayerPanel } from './layerpanel.js';
@@ -30,12 +30,14 @@ import { figureMethods } from './figuretool.js';
 import { linePoints } from '../figure.js';
 
 const SAVE_DELAY = 800;
+const SAVE_RETRY = 10000;  // after a failed save
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
 
 export class Editor {
-  constructor(root, { onHome }) {
+  constructor(root, { onHome, onOpen }) {
     this.root = root;
     this.onHome = onHome;
+    this.onOpen = onOpen;  // opens another artwork in place of this one ({id} or {newDoc})
     this.settings = sanitizeSettings(store('tools'));
     this.tool = TOOL_BY_ID[store('tool')] ? store('tool') : 'pen';
     this.history = new History();
@@ -217,11 +219,12 @@ export class Editor {
     return {
       file: [
         { label: 'Save now', key: 'Ctrl+S', run: () => this.save() },
-        { label: 'Export as PNG…', key: 'Ctrl+Shift+S', run: () => this.exportAs('png') },
-        { label: 'Export as other format…', run: () => this.exportAs() },
+        { label: 'Export as PNG', key: 'Ctrl+Shift+S', run: () => this.exportAs('png') },
+        { label: 'Export…', key: 'Ctrl+Alt+Shift+S', run: () => this.exportAs() },
         { label: 'Save project file (.koe)…', run: () => this.saveProjectFile() },
         '-',
         { label: 'Import image as layer…', run: () => this.pickImage() },
+        { label: 'Earlier versions…', run: () => this.openEarlierVersion(), disabled: !d.id },
         { label: 'Open artwork folder', run: () => api.openFolder() },
         '-',
         { label: 'Back to gallery', run: () => this.goHome() },
@@ -923,9 +926,9 @@ export class Editor {
     }
   }
 
-  setStatus(text) {
+  setStatus(text, title = '') {
     const el = this.root.querySelector('.save-state');
-    if (el) el.textContent = text;
+    if (el) { el.textContent = text; el.title = title; el.classList.toggle('error', text === 'Not saved!'); }
   }
 
   scheduleSave() {
@@ -952,13 +955,20 @@ export class Editor {
     try {
       await this.saving;
     } catch (e) {
-      this.setStatus('Not saved!');
-      toast('Could not save: ' + e.message, { error: true, ms: 8000 });
+      // keep trying in the background (the disk may be full or busy for a moment); say so once per failing spell
+      this.setStatus('Not saved!', `Last attempt failed: ${e.message}. Trying again every ${SAVE_RETRY / 1000} s.`);
+      if (!this.saveFailed) toast(`Could not save: ${e.message}. KoeStudio keeps trying.`, { error: true, ms: 8000 });
+      this.saveFailed = true;
+      this.saveAgain = false;
+      this.saveTimer = setTimeout(() => this.save(), SAVE_RETRY);
+      return;
     } finally {
       this.saving = null;
     }
+    if (this.saveFailed) { this.saveFailed = false; toast('Saved again.'); }
     if (d.version !== this.savedVersion && this.saveAgain) { this.saveAgain = false; return this.save(); }
-    this.setStatus(d.version === this.savedVersion ? 'Saved' : 'Unsaved changes');
+    if (d.version === this.savedVersion) this.setStatus('Saved', 'Saved at ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    else this.setStatus('Unsaved changes');
   }
 
   /** Saves anything pending; used before reloading or leaving the editor. */
@@ -981,65 +991,6 @@ export class Editor {
     this.root.querySelector('.ed-title').textContent = t;
     this.doc.version++;
     this.scheduleSave();
-  }
-
-  /** Exports the flattened picture. Without a format, asks which one (PNG, JPEG, WebP, GIF, TGA, BMP). */
-  async exportAs(format) {
-    if (!format) {
-      const last = store('exportFormat') || 'gif';
-      format = await modal({
-        title: 'Export as…',
-        body: `<label class="field"><span>Format</span><select name="f">${EXPORT_FORMATS.map(f =>
-          `<option value="${f.id}"${f.id === last ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select></label>
-          <p class="muted small" data-note></p>`,
-        buttons: [{ label: 'Cancel', value: null }, { label: 'Export', primary: true }],
-        onOpen: root => {
-          const sel = root.querySelector('select'), note = root.querySelector('[data-note]');
-          const show = () => { note.textContent = EXPORT_BY_ID[sel.value].note; };
-          sel.onchange = show; show();
-        },
-        collect: root => root.querySelector('select').value,
-      });
-      if (!format) return;
-      store('exportFormat', format);
-    }
-    const fmt = EXPORT_BY_ID[format];
-    try {
-      let canvas = this.doc.flatten();
-      if (fmt.flatten) {  // no alpha in this format: put the picture on white
-        const c = document.createElement('canvas');
-        c.width = canvas.width; c.height = canvas.height;
-        const ctx = c.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, c.width, c.height);
-        ctx.drawImage(canvas, 0, 0);
-        canvas = c;
-      }
-      let blob;
-      if (['gif', 'tga', 'bmp'].includes(fmt.id)) {
-        const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-        blob = new Blob([encodePixels(fmt.id, data, canvas.width, canvas.height)]);
-      } else {
-        blob = await new Promise(r => canvas.toBlob(r, fmt.mime, 0.92));
-        if (!blob || blob.type !== fmt.mime) throw new Error(`This window cannot make ${fmt.label} files`);
-      }
-      const res = await api.exportImage(this.doc.title, fmt.id, blob);
-      toast('Exported to ' + res.path, { action: { label: 'Show folder', run: () => api.openFolder('Exports') }, ms: 6000 });
-    } catch (e) {
-      toast('Export failed: ' + e.message, { error: true });
-    }
-  }
-
-  /** Writes a self-contained .koe project (layers, masks, text, rulers…) to the Exports folder; reopen it with "Open image or project…" in the gallery. */
-  async saveProjectFile() {
-    if (this.xf || this.textEdit) { toast('Finish the current edit first.'); return; }
-    try {
-      const json = await this.doc.toJSON();
-      const res = await api.exportImage(this.doc.title, 'koe', new Blob([JSON.stringify(json)]));
-      toast('Project saved to ' + res.path, { action: { label: 'Show folder', run: () => api.openFolder('Exports') }, ms: 6000 });
-    } catch (e) {
-      toast('Could not save project: ' + e.message, { error: true });
-    }
   }
 
   // ---------- keyboard ----------
@@ -1076,7 +1027,7 @@ export class Editor {
       'delete': () => this.clearLayer(), 'backspace': () => this.clearLayer(),
       'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
       'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
-      'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'),
+      'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'), 'ctrl+alt+shift+s': () => this.exportAs(),
       'ctrl+e': () => this.mergeDown(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
       'ctrl+f': () => this.repeatFilter(),
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
@@ -1120,7 +1071,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods);
+Object.assign(Editor.prototype, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, exportMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
@@ -1129,8 +1080,8 @@ function fmt(key, v) {
   return String(v);
 }
 
-export async function openEditor(root, { id, newDoc, onHome }) {
-  const ed = new Editor(root, { onHome });
+export async function openEditor(root, { id, newDoc, onHome, onOpen }) {
+  const ed = new Editor(root, { onHome, onOpen });
   if (newDoc) {
     await ed.open(newDoc, { isNew: true });
   } else {

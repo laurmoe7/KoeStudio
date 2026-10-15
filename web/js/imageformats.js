@@ -11,6 +11,28 @@ export const EXPORT_FORMATS = [
   { id: 'bmp', label: 'BMP', ext: 'bmp', mime: 'image/bmp', note: 'Uncompressed, keeps transparency.' },
 ];
 export const EXPORT_BY_ID = Object.fromEntries(EXPORT_FORMATS.map(f => [f.id, f]));
+for (const f of EXPORT_FORMATS) f.quality = f.id === 'jpg' || f.id === 'webp';  // canvas.toBlob takes a quality for these
+
+export const EXPORT_MAX_SIDE = 16000;  // larger canvases fail in the browser
+
+/** Export dialog settings, filled in and kept in range (from storage or the dialog's fields). */
+export function sanitizeExportOptions(o = {}) {
+  const num = (v, lo, hi, def) => (Number.isFinite(+v) && v !== '' && v !== null ? Math.min(hi, Math.max(lo, +v)) : def);
+  return {
+    format: EXPORT_BY_ID[o?.format] ? o.format : 'png',
+    scale: Math.round(num(o?.scale, 1, 800, 100) * 10) / 10,  // percent
+    quality: Math.round(num(o?.quality, 1, 100, 92)),          // percent, JPEG and WebP
+    paper: o?.paper !== false,                                 // false: leave the paper out (transparent background)
+    area: o?.area === 'selection' ? 'selection' : 'canvas',
+  };
+}
+
+/** Output size in pixels for an area of w × h at scale percent; tooBig when a side would pass EXPORT_MAX_SIDE. */
+export function exportSize(w, h, scale) {
+  const s = scale / 100;
+  const ow = Math.max(1, Math.round(w * s)), oh = Math.max(1, Math.round(h * s));
+  return { w: ow, h: oh, tooBig: ow > EXPORT_MAX_SIDE || oh > EXPORT_MAX_SIDE };
+}
 
 const u16 = (a, i, v) => { a[i] = v & 255; a[i + 1] = (v >> 8) & 255; };
 const u32 = (a, i, v) => { a[i] = v & 255; a[i + 1] = (v >>> 8) & 255; a[i + 2] = (v >>> 16) & 255; a[i + 3] = (v >>> 24) & 255; };
