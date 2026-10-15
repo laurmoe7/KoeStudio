@@ -1,5 +1,5 @@
 // Layer panel: properties of the selected layer or folder, the layer list (top first, folders indented,
-// drag a row to reorder or drop it on a folder) and the layer buttons. Changes go through the editor (undo).
+// drag a row to reorder or drop it on a folder; Ctrl/Shift+click picks several) and the layer buttons. Changes go through the editor (undo).
 
 import { BLEND_MODES, PASS_THROUGH, LABELS } from '../doc.js';
 import { icon } from '../icons.js';
@@ -95,10 +95,10 @@ export class LayerPanel {
     this.list.innerHTML = '';
     for (const { node, depth } of panelRows(ed.doc.root)) {
       const row = document.createElement('div');
-      const active = node === n;
-      row.className = 'lp-row' + (active ? ' active' : '') + (node.clip ? ' clipped' : '') + (isFolder(node) ? ' folder' : '');
+      const active = node === n, picked = ed.picked.has(node);
+      row.className = 'lp-row' + (active ? ' active' : picked ? ' picked' : '') + (node.clip ? ' clipped' : '') + (isFolder(node) ? ' folder' : '');
       row.setAttribute('role', 'treeitem');
-      row.setAttribute('aria-selected', active);
+      row.setAttribute('aria-selected', active || picked);
       if (isFolder(node)) row.setAttribute('aria-expanded', node.open);
       row.style.paddingLeft = 4 + depth * INDENT + 'px';
       const sub = [blendLabel(node.blend), Math.round(node.opacity * 100) + '%'];
@@ -162,7 +162,7 @@ export class LayerPanel {
     list.addEventListener('pointerdown', e => {
       const row = e.target.closest('.lp-row');
       if (!row || e.button !== 0 || e.target.closest('button')) return;
-      drag = { node: row._node, mask: !!e.target.closest('.lp-mask'), y: e.clientY, id: e.pointerId, moving: false, drop: null };
+      drag = { node: row._node, mask: !!e.target.closest('.lp-mask'), add: e.ctrlKey || e.metaKey, range: e.shiftKey, y: e.clientY, id: e.pointerId, moving: false, drop: null };
       try { list.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
     });
     list.addEventListener('pointermove', e => {
@@ -189,12 +189,17 @@ export class LayerPanel {
       clearMarks();
       if (!d.moving) {
         // a second tap on the same row renames it (a dblclick event never arrives: selecting rebuilds the rows)
+        if (d.add || d.range) { this.lastTap = null; return this.ed.selectNode(d.node, { add: d.add, range: d.range }); }
         const rename = !d.mask && isDoubleTap(this.lastTap, d.node, performance.now());
         this.lastTap = rename ? null : { key: d.node, time: performance.now() };
         this.ed.selectNode(d.node, { mask: d.mask });
         if (rename) this.rename(d.node);
       }
-      else if (d.drop && e.type === 'pointerup') this.ed.moveNodeTo(d.node, d.drop.target, d.drop.where);
+      else if (d.drop && e.type === 'pointerup') {
+        const multi = this.ed.picked.has(d.node) && this.ed.multiPicked();  // dragging a picked row takes them all
+        if (multi) this.ed.moveNodesTo(multi, d.drop.target, d.drop.where);
+        else this.ed.moveNodeTo(d.node, d.drop.target, d.drop.where);
+      }
     };
     list.addEventListener('pointerup', end);
     list.addEventListener('pointercancel', end);

@@ -72,6 +72,7 @@ export class Editor {
     this.held = { space: false, alt: false };
     this.pointer = null;  // last pointer position over the canvas, in screen px
     this.savedVersion = -1;
+    this.picked = new Set();  // layers/folders picked together with Ctrl/Shift+click, doc.active among them (layerops.js multiPicked)
     this.maskEdit = false;  // tools paint on the selected layer's mask instead of the layer (layerops.js)
     this.showRulers = store('edgeRulers') !== false;  // pixel rulers along the view edges (rulertools.js)
     this.maskOverlay = store('maskOverlay') === true;  // tint what a mask hides while painting on it
@@ -253,7 +254,7 @@ export class Editor {
   }
 
   menuItems(name) {
-    const d = this.doc;
+    const d = this.doc, multi = !!this.multiPicked();
     return {
       file: [
         { label: 'Save now', key: 'Ctrl+S', run: () => this.save() },
@@ -313,12 +314,13 @@ export class Editor {
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
         { label: 'New vector layer', run: () => this.newVectorLayer() },
         { label: 'New folder', run: () => this.folderAdd() },
-        { label: 'Duplicate layer', run: () => this.layerDuplicate() },
+        { label: multi ? 'Duplicate selected layers' : 'Duplicate layer', run: () => this.layerDuplicate() },
         { label: 'Rename…', key: 'F2', run: () => this.renameLayer() },
-        { label: 'Delete layer', run: () => this.layerDelete() },
+        { label: multi ? 'Delete selected layers' : 'Delete layer', run: () => this.layerDelete() },
         '-',
         { label: 'Put in new folder', key: 'Ctrl+G', run: () => this.groupIntoFolder() },
-        isFolder(d.active)
+        multi ? { label: 'Merge selected layers', key: 'Ctrl+E', run: () => this.mergeDown() }
+        : isFolder(d.active)
           ? { label: 'Merge folder', key: 'Ctrl+E', run: () => this.mergeFolder(d.active) }
           : { label: 'Merge with layer below', key: 'Ctrl+E', run: () => this.mergeDown() },
         { label: 'Merge visible to new layer', key: 'Ctrl+Shift+Alt+E', run: () => this.mergeVisible() },

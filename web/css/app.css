@@ -204,6 +204,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .lp-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid #2a2b31; cursor: pointer; }
 .lp-row:hover { background: #26272d; }
 .lp-row.active { background: #2c3c5c; }
+.lp-row.picked { background: #26324a; }
 .lp-row.clipped { border-left: 3px solid var(--accent); }
 .lp-row canvas { width: 40px; height: 30px; border: 1px solid #111; border-radius: 2px; background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 8px 8px; flex: none; }
 .lp-row canvas.lp-mask { background: #fff; }

@@ -101,3 +101,46 @@ export function stepTarget(node, dir) {
   if (p.parent) return { target: p, where: dir > 0 ? 'above' : 'below' };
   return null;
 }
+
+// ---------- several selected nodes ----------
+
+/** The picked nodes that are not inside another picked folder, bottom first (stacking order). */
+export function outermost(root, picked) {
+  return allNodes(root).filter(n => picked.has(n) && ![...ancestors(n)].some(a => picked.has(a)));
+}
+
+function* ancestors(n) { for (let a = n.parent; a; a = a.parent) yield a; }
+
+/** The nodes on the panel rows from a to b (either order), as Shift+click picks them; [b] when a is not shown. */
+export function rowRange(root, a, b) {
+  const rows = panelRows(root).map(r => r.node), i = rows.indexOf(a), j = rows.indexOf(b);
+  if (i < 0 || j < 0) return [b];
+  return rows.slice(Math.min(i, j), Math.max(i, j) + 1);
+}
+
+/** Takes nodes out of the tree; returns what restoreNodes needs to put them back exactly. */
+export function removeNodes(nodes) {
+  return nodes.map(n => ({ node: n, ...removeNode(n) }));
+}
+
+export function restoreNodes(records) {
+  for (let k = records.length - 1; k >= 0; k--) insertNode(records[k].parent, records[k].index, records[k].node);
+}
+
+/**
+ * Moves several nodes (outermost, bottom first) together above/below target or to the top/bottom of a folder,
+ * keeping their order. Returns the records to undo it (restoreNodes after taking them out again), or null when
+ * target is one of them or inside one.
+ */
+export function moveNodes(nodes, target, where) {
+  const inside = where === 'top-of' || where === 'bottom-of';
+  if (inside && !isFolder(target)) return null;
+  if (!inside && !target.parent) return null;
+  if (nodes.some(n => contains(n, target))) return null;
+  const records = removeNodes(nodes);
+  const parent = inside ? target : target.parent;
+  let index = where === 'top-of' ? parent.children.length : where === 'bottom-of' ? 0
+    : parent.children.indexOf(target) + (where === 'above' ? 1 : 0);
+  for (const n of nodes) insertNode(parent, index++, n);
+  return records;
+}

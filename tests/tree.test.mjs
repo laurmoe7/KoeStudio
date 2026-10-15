@@ -82,3 +82,39 @@ test('version 2 format: folders, masks, pass-through', () => {
   for (let n = sanitizeDoc({ layers: [top] }).layers[0]; n.children?.length; n = n.children[0]) depth++;
   assert.ok(depth <= 20, 'nesting is capped');
 });
+
+test('several selected nodes', async () => {
+  const { outermost, rowRange, removeNodes, restoreNodes, moveNodes } = await import('../web/js/tree.js');
+  let s = sample();
+  assert.deepEqual(outermost(s.root, new Set([s.D, s.C, s.g, s.A])).map(n => n.name), ['A', 'G', 'D'],
+    'bottom first; C goes with its folder G');
+  assert.deepEqual(rowRange(s.root, s.A, s.g).map(n => n.name), ['G', 'B', 'A'], 'panel rows between, top first');
+  assert.deepEqual(rowRange(s.root, s.D, s.f).map(n => n.name), ['D', 'F']);
+  assert.deepEqual(rowRange(s.root, s.C, s.D).map(n => n.name), ['D'], 'C is in a closed folder: only the clicked row');
+
+  const recs = removeNodes([s.A, s.B, s.D]);
+  assert.equal(names(s.root), 'F');
+  assert.equal(names(s.f), 'G');
+  restoreNodes(recs);
+  assert.equal(names(s.root), 'A,F,D');
+  assert.equal(names(s.f), 'B,G');
+  assert.equal(s.B.parent, s.f);
+
+  // A and D (root) and B (in F) go together above G, inside F, keeping their order
+  const back = moveNodes([s.A, s.B, s.D], s.g, 'above');
+  assert.equal(names(s.root), 'F');
+  assert.equal(names(s.f), 'G,A,B,D');
+  removeNodes([s.A, s.B, s.D]);
+  restoreNodes(back);
+  assert.equal(names(s.root), 'A,F,D', 'undone');
+  assert.equal(names(s.f), 'B,G');
+
+  s = sample();
+  moveNodes([s.A, s.D], s.f, 'bottom-of');
+  assert.equal(names(s.f), 'A,D,B,G');
+  moveNodes([s.B, s.g], s.f, 'below');
+  assert.equal(names(s.root), 'B,G,F');
+  assert.equal(moveNodes([s.f], s.A, 'above'), null, 'not into itself');
+  assert.equal(moveNodes([s.A], s.A, 'above'), null);
+  assert.equal(moveNodes([s.A], s.B, 'top-of'), null, 'only folders take nodes inside');
+});

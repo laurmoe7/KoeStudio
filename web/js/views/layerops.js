@@ -5,7 +5,7 @@
 // set by clicking the mask thumbnail). Folders have no pixels of their own, only an optional mask.
 
 import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, PASS_THROUGH } from '../doc.js';
-import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget } from '../tree.js';
+import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes } from '../tree.js';
 import { toast } from '../ui.js';
 import { translateVector } from '../vector.js';
 
@@ -49,8 +49,31 @@ export const layerMethods = {
 
   // ---------- selecting ----------
 
-  selectNode(node, { mask = false } = {}) {
-    this.doc.active = node;
+  /**
+   * Selects a node. add (Ctrl+click) picks it as well, or unpicks it when it is already picked; range (Shift+click)
+   * picks the rows from the last clicked one to this one. Several picked nodes are moved, hidden, deleted, merged,
+   * duplicated or put in a folder together; everything else works on doc.active.
+   */
+  selectNode(node, { mask = false, add = false, range = false } = {}) {
+    const d = this.doc, alive = n => n && contains(d.root, n);
+    if (range) {
+      this.picked = new Set(rowRange(d.root, alive(this.pickAnchor) ? this.pickAnchor : d.active, node));
+    } else if (add) {
+      const picked = new Set([...this.picked].filter(alive));
+      picked.add(d.active);
+      if (picked.has(node) && picked.size > 1) {
+        picked.delete(node);
+        node = node === d.active ? [...picked].pop() : d.active;
+      } else picked.add(node);
+      this.picked = picked;
+      this.pickAnchor = node;
+    } else {
+      this.picked = new Set();
+      this.pickAnchor = node;
+    }
+    if (this.picked.size < 2) this.picked = new Set();
+    else mask = false;
+    d.active = node;
     this.maskEdit = mask && !!node.mask;
     this.layerPanel.render();
     this.doc.version++;
@@ -73,17 +96,29 @@ export const layerMethods = {
 
   /** Visibility is not an undo step either (as in other painting programs), but it is saved. */
   toggleVisible(node) {
-    node.visible = !node.visible;
+    const multi = this.multiPicked(), v = !node.visible;
+    for (const n of multi && this.picked.has(node) ? multi : [node]) n.visible = v;  // the eye of a picked row: all of them
     this.layersChanged();
   },
 
   // ---------- structure ----------
 
-  /** Records and applies a structural change; do() and undo() must leave doc.active sensible. */
+  /**
+   * Records and applies a structural change; do() and undo() must leave doc.active sensible. Several picked nodes
+   * are let go first; do() / undo() may pick nodes again (this.picked).
+   */
   structural(label, doIt, undoIt, bytes = 0) {
-    doIt();
-    this.history.push({ label, bytes, undo: () => { undoIt(); this.layersChanged(); }, redo: () => { doIt(); this.layersChanged(); } });
+    const run = f => { this.picked = new Set(); f(); };
+    run(doIt);
+    this.history.push({ label, bytes, undo: () => { run(undoIt); this.layersChanged(); }, redo: () => { run(doIt); this.layersChanged(); } });
     this.layersChanged();
+  },
+
+  /** The picked nodes when there are several (outermost, bottom first, so the top one is last), else null. */
+  multiPicked() {
+    if (this.picked.size < 2) return null;
+    const list = outermost(this.doc.root, new Set([...this.picked, this.doc.active]));
+    return list.length > 1 ? list : null;
   },
 
   layersChanged() {
@@ -114,6 +149,14 @@ export const layerMethods = {
   /** Puts the selected layer or folder into a new folder in its place (Ctrl+G). */
   groupIntoFolder() {
     const d = this.doc, n = d.active, f = new Folder({ name: d.newName('Folder') });
+    const multi = this.multiPicked();
+    if (multi) {  // the folder goes where the top one was, holding them all in their order
+      const top = multi[multi.length - 1], parent = top.parent, index = parent.children.indexOf(top) + 1;
+      let recs;
+      return this.structural('Put in new folder',
+        () => { insertNode(parent, index, f); recs = removeNodes(multi); multi.forEach((m, k) => insertNode(f, k, m)); f.open = true; d.active = f; },
+        () => { removeNodes(multi); restoreNodes(recs); removeNode(f); d.active = n; this.picked = new Set(multi); });
+    }
     let at;
     this.structural('Put in new folder',
       () => { at = removeNode(n); insertNode(at.parent, at.index, f); insertNode(f, 0, n); d.active = f; },
@@ -121,14 +164,37 @@ export const layerMethods = {
   },
 
   layerDuplicate() {
-    const d = this.doc, n = d.active;
+    const d = this.doc, n = d.active, multi = this.multiPicked();
+    if (multi) {  // each copy just above its original; the copies end up picked
+      const copies = multi.map(m => Object.assign(cloneNode(m, d.width, d.height), { name: m.name + ' copy' }));
+      const bytes = multi.reduce((b, m) => b + nodeRasters(m).length, 0) * d.width * d.height * 4;
+      return this.structural('Duplicate layers',
+        () => {
+          multi.forEach((m, k) => insertNode(m.parent, m.parent.children.indexOf(m) + 1, copies[k]));
+          d.active = copies[multi.indexOf(n)] || copies[copies.length - 1];
+          this.picked = new Set(copies);
+        },
+        () => { removeNodes(copies); d.active = n; this.picked = new Set(multi); }, bytes);
+    }
     const copy = cloneNode(n, d.width, d.height);
     copy.name = n.name + ' copy';
     this.insertNode(copy, isFolder(n) ? 'Duplicate folder' : 'Duplicate layer');
   },
 
   layerDelete() {
-    const d = this.doc, n = d.active;
+    const d = this.doc, n = d.active, multi = this.multiPicked();
+    if (multi) {
+      if (!allLayers(d.root).some(l => !multi.some(m => contains(m, l)))) return toast('An artwork needs at least one layer. Leave one out of the selection.');
+      const bytes = multi.reduce((b, m) => b + nodeRasters(m).length, 0) * d.width * d.height * 4;
+      let recs;
+      return this.structural('Delete layers',
+        () => {
+          recs = removeNodes(multi);
+          const last = recs[recs.length - 1], sib = last.parent.children;  // select what was below the top one
+          d.active = sib[last.index - 1] || sib[last.index] || (last.parent.parent ? last.parent : null) || allLayers(d.root)[0];
+        },
+        () => { restoreNodes(recs); d.active = n; this.picked = new Set(multi); }, bytes);
+    }
     if (!allLayers(d.root).some(l => !contains(n, l))) {
       return toast('An artwork needs at least one layer. Use Edit → Clear layer instead.');
     }
@@ -152,14 +218,31 @@ export const layerMethods = {
       () => { removeNode(node); insertNode(from.parent, from.index, node); d.active = node; });
   },
 
+  /** Moves several nodes together above/below another or into a folder, keeping their order (one undo step). */
+  moveNodesTo(nodes, target, where) {
+    const d = this.doc, n = d.active;
+    if (nodes.some(m => contains(m, target))) return;
+    if (where === 'top-of' || where === 'bottom-of') target.open = true;
+    let recs;
+    this.structural('Move layers',
+      () => { recs = moveNodes(nodes, target, where); d.active = n; this.picked = new Set(nodes); },
+      () => { removeNodes(nodes); restoreNodes(recs); d.active = n; this.picked = new Set(nodes); });
+  },
+
   /** One step up (1) or down (-1) in the layer list, into and out of folders. */
   layerMove(dir) {
+    const multi = this.multiPicked();
+    if (multi) {  // the group steps past what is above its top one (or below its bottom one) and closes up
+      const t = stepTarget(dir > 0 ? multi[multi.length - 1] : multi[0], dir);
+      return t && this.moveNodesTo(multi, t.target, t.where);
+    }
     const t = stepTarget(this.doc.active, dir);
     if (t) this.moveNodeTo(this.doc.active, t.target, t.where);
   },
 
   mergeDown() {
-    const d = this.doc, n = d.active;
+    const d = this.doc, n = d.active, multi = this.multiPicked();
+    if (multi) return this.mergePicked(multi);
     if (isFolder(n)) return this.mergeFolder(n);
     const parent = n.parent, i = parent.children.indexOf(n), lower = parent.children[i - 1];
     if (!lower) return toast('There is no layer below this one (in the same folder) to merge into.');
@@ -202,6 +285,23 @@ export const layerMethods = {
     this.structural('Merge folder',
       () => { removeNode(f); insertNode(parent, i, layer); d.active = layer; },
       () => { removeNode(layer); insertNode(parent, i, f); d.active = f; },
+      d.width * d.height * 4);
+  },
+
+  /**
+   * Merges several picked nodes into one layer where the top one was. They are drawn in stacking order with their
+   * own opacity, blend and masks (clipping only onto the picked node below); folders around them are left out.
+   */
+  mergePicked(nodes) {
+    const d = this.doc, n = d.active;
+    if (nodes.some(m => !m.visible)) return toast('Show all the selected layers before merging them.');
+    const top = nodes[nodes.length - 1], parent = top.parent, index = parent.children.indexOf(top) + 1;
+    const layer = new Layer(d.width, d.height, { name: top.name });
+    renderFolder(layer.ctx, { children: nodes }, { x: 0, y: 0, w: d.width, h: d.height });
+    let recs;
+    this.structural('Merge layers',
+      () => { insertNode(parent, index, layer); recs = removeNodes(nodes); d.active = layer; },
+      () => { restoreNodes(recs); removeNode(layer); d.active = n; this.picked = new Set(nodes); },
       d.width * d.height * 4);
   },
 
