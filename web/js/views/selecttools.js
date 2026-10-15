@@ -2,11 +2,13 @@
 // These are Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
 import { floodMask } from '../fill.js';
+import { hexToRgb, rgbToHex } from '../color.js';
+import { colorRangeMask } from '../maskops.js';
 import { Layer } from '../doc.js';
 import { icon } from '../icons.js';
-import { maskBounds, modeFor, rectBetween } from '../selection.js';
+import { maskBounds, modeFor, rectBetween, SELECT_MODES } from '../selection.js';
 import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES } from '../transform.js';
-import { esc, modal, toast } from '../ui.js';
+import { esc, modal, store, toast } from '../ui.js';
 import { matrix, toDoc, toScreen } from '../view.js';
 
 const HANDLE_PX = 9;  // grab distance and drawn size of transform handles, in screen pixels
@@ -54,6 +56,81 @@ export const selectionMethods = {
     if (!n) return;
     this.lastMorph[kind] = n;
     this.changeSelection(title, () => (kind === 'feather' ? this.sel.feather(n) : kind === 'border' ? this.sel.border(n) : this.sel.morph(kind, n)));
+  },
+
+  /**
+   * Select → Color range…: selects by closeness to a colour (the main colour, or one clicked on the canvas while
+   * the dialog is open), softly at the edge of the range (colorRangeMask). The selection previews live; OK keeps
+   * it as one undo step, Cancel puts the old one back.
+   */
+  async colorRangeDialog() {
+    if (this.xf || this.colorRange) return;
+    this.finishText();
+    const d = this.doc, before = this.sel.snapshot();
+    const saved = store('colorRange') || {};
+    const job = this.colorRange = {
+      color: hexToRgb(this.colors.main), fuzziness: Math.max(0, Math.min(255, +saved.fuzziness || 40)),
+      sample: saved.sample === 'layer' ? 'layer' : 'all', mode: SELECT_MODES.some(([m]) => m === saved.mode) ? saved.mode : 'replace', data: null, raf: 0,
+    };
+    const sampled = () => {
+      if (!job.data) {
+        const t = job.sample === 'layer' ? this.target('select from', { read: true }) : null;
+        job.data = this.sampleData(t ? 'layer' : 'all', t);
+      }
+      return job.data;
+    };
+    const preview = () => {
+      const m = colorRangeMask(sampled(), job.color, job.fuzziness);
+      const img = new ImageData(d.width, d.height);
+      for (let i = 0; i < m.length; i++) img.data[i * 4 + 3] = m[i];
+      const tmp = document.createElement('canvas');
+      tmp.width = d.width; tmp.height = d.height;
+      tmp.getContext('2d').putImageData(img, 0, 0);
+      this.sel.restore(before);
+      this.sel.combine(job.mode, ctx => ctx.drawImage(tmp, 0, 0));
+      this.drawOverlay();
+    };
+    const later = () => { cancelAnimationFrame(job.raf); job.raf = requestAnimationFrame(preview); };
+    let swatch = null;
+    this.colorRangePick = dp => {
+      const x = Math.floor(dp.x), y = Math.floor(dp.y);
+      if (x < 0 || y < 0 || x >= d.width || y >= d.height) return;
+      const data = sampled(), i = (y * d.width + x) * 4;
+      job.color = [data[i], data[i + 1], data[i + 2]];
+      if (swatch) swatch.style.background = rgbToHex(...job.color);
+      later();
+    };
+    preview();
+    const ok = await modal({
+      title: 'Color range',
+      body: `<p class="small"><span class="range-swatch"></span> <span class="muted">Click the canvas to pick another colour.</span></p>
+        <div class="filter-fields"><label class="slider"><span>Fuzziness</span><input type="range" name="fuzz" min="0" max="255" step="1" value="${job.fuzziness}"><output>${job.fuzziness}</output></label></div>
+        <label class="field"><span>Look at</span><select name="sample"><option value="all">The visible picture</option><option value="layer">The current layer</option></select></label>
+        <label class="field"><span>Selection</span><select name="mode">${SELECT_MODES.map(([v, l]) => `<option value="${v}">${esc(l.replace(/ \(.*\)$/, ''))}</option>`).join('')}</select></label>`,
+      buttons: [{ label: 'Cancel', value: null }, { label: 'OK', value: true, primary: true }],
+      live: true,
+      passClicks: true,
+      onOpen: root => {
+        swatch = root.querySelector('.range-swatch');
+        swatch.style.background = rgbToHex(...job.color);
+        const fuzz = root.querySelector('[name=fuzz]'), sample = root.querySelector('[name=sample]'), mode = root.querySelector('[name=mode]');
+        sample.value = job.sample;
+        mode.value = job.mode;
+        fuzz.oninput = () => { job.fuzziness = +fuzz.value; fuzz.nextElementSibling.textContent = fuzz.value; later(); };
+        sample.onchange = () => { job.sample = sample.value; job.data = null; later(); };
+        mode.onchange = () => { job.mode = mode.value; later(); };
+      },
+    });
+    cancelAnimationFrame(job.raf);
+    this.colorRange = null;
+    this.colorRangePick = null;
+    if (!ok) { this.sel.restore(before); this.drawOverlay(); return; }
+    preview();
+    store('colorRange', { fuzziness: job.fuzziness, sample: job.sample, mode: job.mode });
+    const after = this.sel.snapshot();
+    this.sel.restore(before);
+    this.changeSelection('Color range', () => this.sel.restore(after));
+    if (!this.sel.active) toast('No pixels are close enough to that colour. Try a higher fuzziness.');
   },
 
   // ---------- selection tools ----------

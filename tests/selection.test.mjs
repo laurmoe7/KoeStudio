@@ -91,3 +91,13 @@ test('rotate, move, hit test', () => {
   const b = toBox(r, boxPoint(r, 0.5, -0.25));
   near(b.x, 0.5); near(b.y, -0.25, 'toBox undoes boxPoint');
 });
+
+test('color range: full within half the fuzziness, fading out to the fuzziness', async () => {
+  const { colorRangeMask } = await import('../web/js/maskops.js');
+  const px = [[100, 100, 100, 255], [110, 110, 110, 255], [130, 130, 130, 255], [140, 140, 140, 255], [100, 100, 100, 128], [100, 100, 100, 0], [100, 130, 100, 255]];
+  const m = colorRangeMask(new Uint8ClampedArray(px.flat()), [100, 100, 100], 40);
+  assert.deepEqual([...m], [255, 255, 128, 0, 128, 0, 255],
+    'd = 0 and 10 (within 20): full; d = 30: (40 - 30) / 20 = half; d = 40: none; half alpha: half; clear: none; ' +
+    'one channel 30 off: d = sqrt(900 / 3) = 17.3, full');
+  assert.deepEqual([...colorRangeMask(new Uint8ClampedArray(px.flat()), [100, 100, 100], 0)], [255, 0, 0, 0, 128, 0, 0], 'fuzziness 0: exact colour only');
+});

@@ -82,6 +82,25 @@ export function borderMask(alpha, w, h, n) {
   return out;
 }
 
+/**
+ * Select → Color range: how much each pixel is selected (0-255) by its closeness to colour [r, g, b]. The distance
+ * is the RMS of the three channel differences (0-255); within half the fuzziness a pixel is fully selected, from
+ * there it fades out linearly to nothing at the fuzziness (0 = only that exact colour). Clear pixels count by their
+ * alpha, so an empty part of a layer is never selected.
+ */
+export function colorRangeMask(data, [r, g, b], fuzziness) {
+  const n = data.length / 4, out = new Uint8ClampedArray(n), f = Math.max(0, fuzziness), half = f / 2;
+  for (let i = 0; i < n; i++) {
+    const a = data[i * 4 + 3];
+    if (!a) continue;
+    const dr = data[i * 4] - r, dg = data[i * 4 + 1] - g, db = data[i * 4 + 2] - b;
+    const d = Math.sqrt((dr * dr + dg * dg + db * db) / 3);
+    const k = d <= half ? 1 : d >= f ? 0 : (f - d) / half;
+    out[i] = Math.round(k * a);
+  }
+  return out;
+}
+
 /** Softens the mask's edges over about `radius` pixels each way (a Gaussian blur of the alpha). */
 export function featherMask(alpha, w, h, radius) {
   const plane = new Float32Array(alpha.length);

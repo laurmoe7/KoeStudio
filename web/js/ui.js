@@ -25,11 +25,12 @@ export function toast(text, { error = false, action = null, ms = 3500 } = {}) {
  * (or null on Escape / backdrop). onOpen(root, close) runs after it is in the page (close(value) ends the dialog); collect(root) runs before resolving
  * the primary button and its result is returned instead of the value (return undefined to keep the dialog open).
  * live: the dialog previews its effect on the canvas, so it sits at the bottom and does not dim the screen.
+ * passClicks (with live): clicks outside the dialog reach the page (to pick a colour on the canvas) instead of cancelling.
  */
-export function modal({ title, body, buttons = [{ label: 'OK', value: true, primary: true }], onOpen, collect, wide = false, live = false }) {
+export function modal({ title, body, buttons = [{ label: 'OK', value: true, primary: true }], onOpen, collect, wide = false, live = false, passClicks = false }) {
   return new Promise(resolve => {
     const back = document.createElement('div');
-    back.className = 'modal-back' + (live ? ' live' : '');
+    back.className = 'modal-back' + (live ? ' live' : '') + (passClicks ? ' pass' : '');
     back.innerHTML = `<div class="modal${wide ? ' wide' : ''}" role="dialog" aria-label="${esc(title)}">
       <h2>${esc(title)}</h2><div class="modal-body">${body}</div>
       <div class="modal-buttons">${buttons.map((b, i) => `<button data-i="${i}" class="${b.primary ? 'primary' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
