@@ -1,7 +1,7 @@
 // Figure tool geometry. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { constrain, figurePoints, figureBounds, linePoints, FIGURE_SHAPES } from '../web/js/figure.js';
+import { constrain, figurePoints, figureBounds, linePoints, FIGURE_SHAPES, POLY_SHAPES, pointsBounds, polyCorners } from '../web/js/figure.js';
 
 const near = (a, b, eps = 1e-6, msg) => assert.ok(Math.abs(a - b) < eps, `${msg || ''} ${a} ≈ ${b}`);
 
@@ -15,7 +15,7 @@ test('Shift constrains a line to 45° steps and a box to a square', () => {
 });
 
 test('figure outlines', () => {
-  assert.equal(FIGURE_SHAPES.length, 3);
+  assert.equal(FIGURE_SHAPES.length, 5);
   assert.deepEqual(figurePoints('line', { x: 1, y: 2 }, { x: 3, y: 4 }), { points: [{ x: 1, y: 2 }, { x: 3, y: 4 }], closed: false });
   assert.deepEqual(figurePoints('rect', { x: 5, y: 5 }, { x: 1, y: 2 }), { points: [{ x: 1, y: 2 }, { x: 5, y: 2 }, { x: 5, y: 5 }, { x: 1, y: 5 }], closed: true }, 'normalised corners');
   const e = figurePoints('ellipse', { x: 0, y: 0 }, { x: 20, y: 20 }, 1);
@@ -30,4 +30,17 @@ test('bounds and straight-line points', () => {
   const pts = linePoints({ x: 0, y: 0, p: 1 }, { x: 10, y: 0, p: 0 }, 2.5);
   assert.deepEqual(pts.map(q => [q.x, q.p]), [[2.5, 0.75], [5, 0.5], [7.5, 0.25], [10, 0]], 'four steps, pressure blended, end included');
   assert.equal(linePoints({ x: 0, y: 0, p: 1 }, { x: 0, y: 0, p: 1 }, 2).length, 1, 'a zero-length line still gives its end');
+});
+
+test('clicked shapes: corners without repeats, and their bounds', () => {
+  assert.deepEqual(POLY_SHAPES, { polyline: false, polygon: true });
+  const P = (x, y) => ({ x, y });
+  assert.deepEqual(polyCorners([P(0, 0), P(10, 0), P(10.2, 0.1), P(10, 10)], false), [P(0, 0), P(10, 0), P(10, 10)],
+    'the second corner of the double click (0.22 px away) is dropped');
+  assert.deepEqual(polyCorners([P(0, 0), P(10, 0), P(10, 10), P(0.3, 0)], true), [P(0, 0), P(10, 0), P(10, 10)],
+    'a closed shape drops a last corner on its first');
+  assert.deepEqual(polyCorners([P(0, 0), P(10, 0), P(0, 0)], false), [P(0, 0), P(10, 0), P(0, 0)], 'an open one keeps it');
+  assert.deepEqual(polyCorners([P(0, 0), P(0, 0.4)], true), [P(0, 0)]);
+  assert.deepEqual(pointsBounds([P(10, 20), P(30, 5), P(15, 25)], 6), { x: 5, y: 0, w: 30, h: 30 },
+    'box 10..30 x 5..25 grown by 3 + 2 px');
 });

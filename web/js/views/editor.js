@@ -71,6 +71,7 @@ export class Editor {
     this.showRulers = store('edgeRulers') !== false;  // pixel rulers along the view edges (rulertools.js)
     this.maskOverlay = store('maskOverlay') === true;  // tint what a mask hides while painting on it
     this.poly = null;  // polygon selection being drawn (selecttools.js)
+    this.figPoly = null;  // polyline/polygon figure being clicked (figuretool.js)
     this.onKey = this.onKey.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onPaste = this.onPaste.bind(this);
@@ -513,6 +514,7 @@ export class Editor {
     this.drawRulerOverlay(ctx);
     this.drawSymmetryOverlay(ctx);
     this.drawGradientOverlay(ctx);
+    this.drawFigurePoly(ctx);
     this.placeTextEditor();
     const brush = this.updateCursor();
     if (brush) this.drawBrushOutline(ctx, brush);
@@ -576,6 +578,7 @@ export class Editor {
     if (this.tool === 'crop' && id !== 'crop') this.cancelCrop();
     if (id !== 'text') this.finishText();
     this.cancelPolygon();
+    this.cancelFigurePoly();
     this.tool = id;
     if (id === 'crop' && !this.crop) this.startCrop();
     store('tool', id);
@@ -692,7 +695,7 @@ export class Editor {
       else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId, e.shiftKey);
       else if (tool.kind === 'smudge') this.beginSmudge(dp, e.pointerId);
       else if (tool.kind === 'lassofill') this.beginLassoFill(dp, e.pointerId);
-      else if (tool.kind === 'figure') this.beginFigure(dp, e.pointerId, e.shiftKey);
+      else if (tool.kind === 'figure') this.beginFigure(dp, e.pointerId, e.shiftKey, e.detail >= 2);
       else if (tool.kind === 'fill') this.fillAt(dp);
       else if (tool.kind === 'gradient') this.beginGradient(dp, e.pointerId);
       else if (tool.kind === 'text') { e.preventDefault(); this.textClick(dp); }
@@ -703,6 +706,7 @@ export class Editor {
     el.addEventListener('pointermove', e => {
       const p = pos(e);
       this.pointer = p;
+      this.pointerShift = e.shiftKey;
       const g = this.gesture;
       if (g && g.id === e.pointerId) {
         if (g.type === 'paint' || g.type === 'smudge') {
@@ -974,6 +978,7 @@ export class Editor {
   undo() {
     if (this.gesture) return;
     this.finishText();  // the undo button while typing undoes the whole text edit
+    if (this.figPoly) return this.cancelFigurePoly();
     if (this.xf) return this.cancelTransform();
     if (this.history.undo()) this.layerPanel.render();
   }
@@ -1082,6 +1087,7 @@ export class Editor {
     }
     if (this.xf) return this.onTransformKey(e, c);
     if (this.poly && !this.gesture && this.onPolygonKey(c)) { e.preventDefault(); return; }
+    if (this.figPoly && !this.gesture && this.onFigurePolyKey(c)) { e.preventDefault(); return; }
     if (this.crop && (c === 'enter' || c === 'escape')) {
       e.preventDefault();
       if (!this.gesture) c === 'enter' ? this.applyCrop() : this.selectTool('pen');

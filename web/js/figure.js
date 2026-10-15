@@ -1,7 +1,11 @@
 // Figure tool geometry (pure, tested): the outline of a line, rectangle or ellipse dragged from a to b,
 // as a polyline the brush is stamped along. Shift constrains: 45° steps for a line, a square / circle otherwise.
+// Polyline and polygon are clicked corner by corner instead of dragged (POLY_SHAPES).
 
-export const FIGURE_SHAPES = [['line', 'Straight line'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse']];
+export const FIGURE_SHAPES = [['line', 'Straight line'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['polyline', 'Polyline'], ['polygon', 'Polygon']];
+
+/** Shapes made of clicked corners: whether each one closes back to its first corner. */
+export const POLY_SHAPES = { polyline: false, polygon: true };
 
 /** The second corner of the shape after Shift: the drag snapped to 45° (line) or to a square (rect, ellipse). */
 export function constrain(shape, a, b) {
@@ -50,6 +54,30 @@ export function figureBounds(a, b, size) {
   const m = size / 2 + 2;
   const x0 = Math.floor(Math.min(a.x, b.x) - m), y0 = Math.floor(Math.min(a.y, b.y) - m);
   return { x: x0, y: y0, w: Math.ceil(Math.max(a.x, b.x) + m) - x0, h: Math.ceil(Math.max(a.y, b.y) + m) - y0 };
+}
+
+/** Where a list of points lands with a brush of the given size (their box grown as in figureBounds). */
+export function pointsBounds(points, size) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of points) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+  return figureBounds({ x: x0, y: y0 }, { x: x1, y: y1 }, size);
+}
+
+/**
+ * The corners of a clicked shape without repeats: a corner on (within `eps` of) the one before it is dropped, as
+ * is a last corner on the first of a closed shape (a double click or a click on the first corner adds one).
+ */
+export function polyCorners(points, closed, eps = 0.5) {
+  const out = [];
+  for (const p of points) {
+    const q = out[out.length - 1];
+    if (!q || Math.hypot(p.x - q.x, p.y - q.y) > eps) out.push({ x: p.x, y: p.y });
+  }
+  if (closed && out.length > 2) {
+    const a = out[0], z = out[out.length - 1];
+    if (Math.hypot(a.x - z.x, a.y - z.y) <= eps) out.pop();
+  }
+  return out;
 }
 
 /** Points along a line from a to b every `step` px (b included), for Shift+click straight strokes. */
