@@ -12,8 +12,11 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 
 ## Where your work goes
 
-- Artwork saves automatically to **Pictures\KoeStudio** as `.koe` files. Deleted artwork goes to the `.deleted` subfolder, so you can get it back.
-- Exports go to **Pictures\KoeStudio\Exports**: PNG with Ctrl+Shift+S, or File → Export as other format… for JPEG, WebP, GIF, TGA and BMP. File → Save project file (.koe)… writes the whole layered artwork there too; open it again from the gallery with **Open image or project…**, or double-click the file in Explorer (run `tools\register_koe.ps1` once to set that up; it uses the bundled `KoeStudio.exe` launcher, which needs Python installed).
+- Artwork saves automatically to **Pictures\KoeStudio** as `.koe` files. If a save fails (disk full, file busy), KoeStudio says so and keeps retrying.
+- **Earlier versions:** while you work, a copy is kept every 10 minutes (the newest five per artwork, in `.backups`). Open one from the card's **⋯** menu in the gallery or File → Earlier versions…; it opens as a copy, so the artwork itself is never changed.
+- **Deleted artwork** goes to the `.deleted` subfolder; put it back with **Deleted** at the top of the gallery.
+- The **⋯** menu on each gallery card also renames and duplicates artwork.
+- Exports go to **Pictures\KoeStudio\Exports** and never overwrite an older file: PNG straight away with Ctrl+Shift+S, or **File → Export…** (Ctrl+Alt+Shift+S) to choose PNG, JPEG, WebP, GIF, TGA or BMP, the size (in percent; whole-number enlargements stay pixel-sharp), the JPEG/WebP quality, with or without the paper colour, only the selected area, and the file name. Your choices are remembered. File → Save project file (.koe)… writes the whole layered artwork there too; open it again from the gallery with **Open image or project…**, or double-click the file in Explorer (run `tools\register_koe.ps1` once to set that up; it uses the bundled `KoeStudio.exe` launcher, which needs Python installed).
 - Tool settings and colours are kept in `%LOCALAPPDATA%\KoeStudio`.
 
 ## Features
@@ -38,10 +41,11 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 - **Folders:** new folder, Put in new folder (Ctrl+G), open/close, opacity and blending ("Through" by default, so the layers inside blend as if there were no folder), hide, duplicate, Merge folder (into one layer). The Move tool moves everything in a folder.
 - **Layer masks:** add a mask to a layer or folder (with a selection, everything outside it is hidden). Click the mask thumbnail to paint on it: painting hides and erasing shows again, as in Clip Studio Paint. "Painting on mask" shows in the top bar. Turn masks off, apply them or delete them from the Layer menu. View → Show mask area tints what the mask hides in red while you paint on it.
 - **Screentone:** Layer → New screentone makes a tone layer (in the selection, if there is one) with a density, dot spacing, angle, shape (dots, lines, squares, diamonds, noise) and dot colour, previewed in the dialog. Paint on a tone layer in gray: darker gives denser dots, white or erasing removes them. Layer → Screentone settings turns any layer into tone (or back) and changes its dots; Rasterize screentone turns the dots into ordinary pixels. Merging a tone layer down keeps its dots.
-- **Filters (Filter menu):** Gaussian blur, Sharpen, Mosaic, Brightness/Contrast, Hue/Saturation/Lightness, Levels, Posterize, Threshold (black and white) and Invert colors. The canvas shows the result live while you drag the sliders; OK keeps it as one undo step, and Ctrl+F repeats the last filter with the same settings. Filters work on the current layer inside the selection, and on a layer mask while you are painting on it (blur a mask to soften its edge).
+- **Filters (Filter menu):** Gaussian blur, Sharpen, Mosaic, Motion blur (any angle), Add noise (gray or colour grain), Brightness/Contrast, Hue/Saturation/Lightness, Color balance, Levels, Posterize, Threshold (black and white) and Invert colors. The canvas shows the result live while you drag the sliders; OK keeps it as one undo step, and Ctrl+F repeats the last filter with the same settings. Filters work on the current layer inside the selection, and on a layer mask while you are painting on it (blur a mask to soften its edge).
 - **Layer colour labels:** mark layers and folders with a colour in the Layers panel, shown as a dot next to the name.
 - **Colour:** HSV square and hue bar, main and sub colour, hex entry, recently used colours.
 - **View:** zoom at the cursor (wheel), rotate (Shift+wheel, 4/5/6), mirror (Shift+M), fit (Ctrl+0), 100% (Ctrl+1); pixel-sharp when zoomed in.
+- **Grid:** View → Grid (Ctrl+') shows a grid over the canvas; Grid settings… sets the spacing and divisions and can make strokes started on a grid line follow it.
 - **Rulers and perspective:** pixel rulers along the canvas edges (View → Edge rulers). Drag out of them to add horizontal or vertical guides, and drag a guide back to remove it. The Ruler tool (U) adds a 1-, 2- or 3-point perspective ruler and moves its vanishing points and the guides. With snapping on (Ctrl+2, or the magnet in the status bar), each stroke follows the guide it starts on or the perspective line closest to the direction you draw.
 - **Undo/redo** for every change, flip layer or canvas, clear or fill a layer.
 
@@ -62,6 +66,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first).
 | Ctrl+G | Put in new folder | Ctrl+E | Merge down / merge folder |
 | Del | Clear selection or layer | | |
 | Alt+Del | Fill selection or layer | Ctrl+S / Ctrl+Shift+S | Save / export PNG |
+| Ctrl+Alt+Shift+S | Export… (format, size, quality) | Ctrl+' | Show grid |
 | Shift+M | Mirror view | Enter / Esc | Apply / cancel transform or crop |
 | C | Crop | Ctrl+Alt+C / Ctrl+Alt+I | Canvas size / Image size |
 | T | Text | G (again) | Fill / Gradient |
