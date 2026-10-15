@@ -105,7 +105,10 @@ export const SETTING_FIELDS = [
   ['contiguous', 'Connected only', 'check'],
 ];
 
-/** Which group of the tool panel a paint setting belongs to (paint tools only; other tools show one flat list). */
+/** The paint settings the tool panel shows; the rest are in the Brush settings window (as Clip Studio Paint's Sub Tool Detail). */
+export const BASIC_PAINT = ['size', 'opacity', 'flow', 'hardness', 'smoothing'];
+
+/** The pages of the Brush settings window, and which settings each holds (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
   ['Paint', ['size', 'opacity', 'flow', 'hardness']],
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow']],

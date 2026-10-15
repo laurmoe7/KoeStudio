@@ -146,6 +146,19 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .seg button.on { background: var(--accent-2); border-color: var(--accent-2); color: #fff; position: relative; }
 .tool-props .field { margin-bottom: 4px; }
 .tool-props .btn-row { margin-top: 4px; }
+.tool-props [data-brush-win] { display: inline-flex; align-items: center; gap: 6px; }
+.tool-props [data-brush-win].on { color: var(--accent); border-color: rgba(110, 168, 255, 0.45); }
+/* Brush settings: a floating window beside the canvas, a page per group */
+.brush-win { position: fixed; z-index: 40; width: 340px; max-height: calc(100vh - 80px); display: flex; flex-direction: column; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 14px 36px rgba(0,0,0,.55); }
+.bw-head { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border-bottom: 1px solid var(--line); cursor: move; user-select: none; touch-action: none; }
+.bw-title { flex: 1; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bw-main { display: flex; min-height: 0; flex: 1; }
+.bw-nav { display: flex; flex-direction: column; gap: 2px; padding: 6px; border-right: 1px solid var(--line); flex: none; }
+.bw-nav button { text-align: left; padding: 4px 8px; font-size: 12px; background: transparent; border-color: transparent; white-space: nowrap; }
+.bw-nav button:hover { background: var(--panel-2); }
+.bw-nav button.on { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.bw-body { flex: 1; min-width: 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; overflow: auto; }
 
 /* colour panel */
 .cp-row { display: flex; gap: 8px; }

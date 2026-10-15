@@ -13,7 +13,7 @@ import { comboOf, isTyping } from '../keys.js';
 import { Painter, textureFor, hasTipImage } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { Selection } from '../selection.js';
-import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, SETTING_GROUPS, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
+import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
 import { esc, toast, menu, modal, promptBox, fileToDataUrl, store } from '../ui.js';
 import { exportMethods } from './exporttools.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize } from '../view.js';
@@ -609,9 +609,8 @@ export class Editor {
     const t = TOOL_BY_ID[this.tool], s = this.settings[t.id];
     this.root.querySelector('.tool-title').textContent = t.label;
     const box = this.root.querySelector('.tool-props');
-    // the grain settings only matter with a texture chosen; curves show only when a brush has them
-    const fields = SETTING_FIELDS.filter(f => f[0] in s && f[2] !== 'id' && !(f[2] === 'curve' && !s[f[0]])
-      && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureInvert'].includes(f[0])));
+    this.renderBrushWindow();
+    const fields = this.visibleFields(s);
     if (t.kind === 'ruler') return this.renderRulerProps(box);
     if (!fields.length) {
       box.innerHTML = `<p class="hint">${t.kind === 'picker' ? 'Click the canvas to pick a color. Hold Alt with a brush to pick quickly.'
@@ -619,25 +618,13 @@ export class Editor {
         : t.kind === 'crop' ? 'Drag the edges or corners of the box (Shift keeps proportions), drag inside to move it, or drag outside to draw a new box. Enter crops, Esc leaves.' : 'Drag to move the view. Hold Space with any tool to do the same.'}</p>`;
       return;
     }
-    const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
-    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'texture' ? this.textureChoices() : list;
-    const row = ([key, label, type, min, max, step]) => type === 'curve'
-      ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="Remove the curve (use the Pressure setting instead)">✕</button></div>`
-      : type === 'choice'
-      ? `<label class="slider"${tip(key)}><span>${esc(label)}</span><select data-k="${key}">${options(key, min).map(([v, l]) => `<option value="${esc(v)}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
-      : `<label class="slider"${tip(key)}><span>${esc(label)}</span><input type="range" data-k="${key}" min="${key === 'size' ? 0 : min}" max="${key === 'size' ? 1000 : max}" step="${key === 'size' ? 1 : step}" value="${key === 'size' ? sizeToSlider(s.size) : s[key]}"><output>${fmt(key, s[key])}</output></label>`;
-    const check = ([key, label]) => `<label class="check"${tip(key)}><input type="checkbox" data-k="${key}" ${s[key] ? 'checked' : ''}> ${esc(label)}</label>`;
-    const block = fs => {  // sliders and choices first, the check boxes together under them
-      const checks = fs.filter(f => f[2] === 'check');
-      return fs.filter(f => f[2] !== 'check').map(row).join('') + (checks.length ? `<div class="checks">${checks.map(check).join('')}</div>` : '');
-    };
-    if (t.kind === 'paint') {  // paint tools have many settings: in named groups, under the saved-brush row
-      box.innerHTML = this.presetRowHtml(s) + SETTING_GROUPS.map(([name, keys]) => {
-        const fs = keys.map(k => fields.find(f => f[0] === k)).filter(Boolean);
-        return fs.length ? `<div class="prop-group">${esc(name)}</div>${block(fs)}` : '';
-      }).join('');
+    if (t.kind === 'paint') {  // paint tools: the saved-brush row and the basics; everything else is in the Brush settings window
+      const basic = BASIC_PAINT.map(k => fields.find(f => f[0] === k)).filter(Boolean);
+      box.innerHTML = this.presetRowHtml(s) + this.settingsHtml(basic, s) +
+        `<div class="btn-row"><button data-brush-win class="${this.brushWin ? 'on' : ''}" title="Tip, pen pressure, stroke, variation and texture settings">${icon('sliders', 14)} Brush settings…</button></div>`;
       this.bindPresetRow(box);
-    } else box.innerHTML = block(fields);
+      box.querySelector('[data-brush-win]').onclick = () => this.toggleBrushWindow();
+    } else box.innerHTML = this.settingsHtml(fields, s);
     if (t.kind === 'select') {
       box.insertAdjacentHTML('beforeend', `<div class="btn-row">
         <button data-sel="all" title="Ctrl+A">All</button><button data-sel="none" title="Ctrl+D">Deselect</button>
@@ -646,6 +633,32 @@ export class Editor {
       const acts = { all: () => this.selectAll(), none: () => this.deselect(), invert: () => this.invertSelection(), xf: () => this.beginTransform() };
       box.querySelectorAll('[data-sel]').forEach(b => { b.onclick = () => acts[b.dataset.sel](); });
     }
+    this.bindSettings(box);
+  }
+
+  /** The settings of a tool worth showing: the grain settings only with a texture chosen, curves only when set. */
+  visibleFields(s) {
+    return SETTING_FIELDS.filter(f => f[0] in s && f[2] !== 'id' && !(f[2] === 'curve' && !s[f[0]])
+      && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureInvert'].includes(f[0])));
+  }
+
+  /** Rows for some settings: sliders and choices first, the check boxes together under them. */
+  settingsHtml(fs, s) {
+    const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
+    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'texture' ? this.textureChoices() : list;
+    const row = ([key, label, type, min, max, step]) => type === 'curve'
+      ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="Remove the curve (use the Pressure setting instead)">✕</button></div>`
+      : type === 'choice'
+      ? `<label class="slider"${tip(key)}><span>${esc(label)}</span><select data-k="${key}">${options(key, min).map(([v, l]) => `<option value="${esc(v)}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
+      : `<label class="slider"${tip(key)}><span>${esc(label)}</span><input type="range" data-k="${key}" min="${key === 'size' ? 0 : min}" max="${key === 'size' ? 1000 : max}" step="${key === 'size' ? 1 : step}" value="${key === 'size' ? sizeToSlider(s.size) : s[key]}"><output>${fmt(key, s[key])}</output></label>`;
+    const check = ([key, label]) => `<label class="check"${tip(key)}><input type="checkbox" data-k="${key}" ${s[key] ? 'checked' : ''}> ${esc(label)}</label>`;
+    const checks = fs.filter(f => f[2] === 'check');
+    return fs.filter(f => f[2] !== 'check').map(row).join('') + (checks.length ? `<div class="checks">${checks.map(check).join('')}</div>` : '');
+  }
+
+  /** Makes the setting controls in box change the current tool; the same setting shown elsewhere follows. */
+  bindSettings(box) {
+    const t = TOOL_BY_ID[this.tool], s = this.settings[t.id];
     box.querySelectorAll('input[data-k], select[data-k]').forEach(inp => {
       inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
         const k = inp.dataset.k;
@@ -655,9 +668,32 @@ export class Editor {
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged();
         if (k === 'texture') this.renderToolProps();
+        else this.showSetting(k, inp);
         this.drawOverlay();
       });
     });
+    box.querySelectorAll('[data-clear-curve]').forEach(b => {
+      b.onclick = e => {
+        e.preventDefault();
+        s[b.dataset.clearCurve] = null;
+        store('tools', this.settings);
+        this.renderToolProps();
+      };
+    });
+  }
+
+  /** Puts a setting's current value into its other controls (the tool panel and the Brush settings window), except `from`. */
+  showSetting(k, from = null) {
+    const s = this.settings[this.tool];
+    for (const box of [this.root.querySelector('.tool-props'), this.brushWin?.querySelector('.bw-body')]) {
+      box?.querySelectorAll(`[data-k="${k}"]`).forEach(inp => {
+        if (inp === from) return;
+        if (inp.type === 'checkbox') inp.checked = !!s[k];
+        else inp.value = k === 'size' ? sizeToSlider(s.size) : s[k];
+        const out = inp.parentElement.querySelector('output');
+        if (out) out.textContent = fmt(k, s[k]);
+      });
+    }
   }
 
   setSize(size) {

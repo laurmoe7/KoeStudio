@@ -13,7 +13,7 @@ import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE
 import { loadImage } from '../doc.js';
 import { registerTip, registerTexture, forgetBrushImage } from '../painter.js';
 import { TEXTURES } from '../textures.js';
-import { TIPS, TOOL_BY_ID, BRUSH_KEYS, applySettings } from '../tools.js';
+import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 
 const newId = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -101,14 +101,78 @@ export const brushMethods = {
     if (sel) sel.onchange = () => { if (sel.value) this.applyPreset(sel.value); };
     const btn = box.querySelector('[data-brush-menu]');
     if (btn) btn.onclick = () => this.brushMenu(btn);
-    box.querySelectorAll('[data-clear-curve]').forEach(b => {
-      b.onclick = e => {
-        e.preventDefault();
-        this.settings[this.tool][b.dataset.clearCurve] = null;
-        store('tools', this.settings);
-        this.renderToolProps();
-      };
+  },
+
+  // ---------- the Brush settings window ----------
+
+  /**
+   * Opens or closes the Brush settings window: every setting of the current paint tool, a page per group
+   * (SETTING_GROUPS), in a floating window you can paint beside (as Clip Studio Paint's Sub Tool Detail). The tool
+   * panel keeps only the basics (BASIC_PAINT). Whether it is open, where it is and the page are remembered.
+   */
+  toggleBrushWindow(open = !this.brushWinState().open) {
+    store('brushWin', { ...this.brushWinState(), open });
+    this.renderToolProps();
+  },
+
+  brushWinState() {
+    const st = store('brushWin');
+    return { open: !!st?.open, x: Number.isFinite(st?.x) ? st.x : 300, y: Number.isFinite(st?.y) ? st.y : 70,
+      page: SETTING_GROUPS.some(([g]) => g === st?.page) ? st.page : SETTING_GROUPS[0][0] };
+  },
+
+  /** Shows the window for the current tool (paint tools only; it comes back when a paint tool is picked again). */
+  renderBrushWindow() {
+    const t = TOOL_BY_ID[this.tool], st = this.brushWinState();
+    if (!st.open || t.kind !== 'paint' || this.destroyed) { this.brushWin?.remove(); this.brushWin = null; return; }
+    let w = this.brushWin;
+    if (!w) {
+      w = this.brushWin = document.createElement('div');
+      w.className = 'brush-win';
+      w.setAttribute('role', 'dialog');
+      w.innerHTML = `<div class="bw-head"><span class="bw-title"></span><button class="icon-btn" data-bw-close title="Close">✕</button></div>
+        <div class="bw-main"><nav class="bw-nav"></nav><div class="bw-body"></div></div>`;
+      this.root.append(w);
+      w.querySelector('[data-bw-close]').onclick = () => this.toggleBrushWindow(false);
+      this.placeBrushWindow(st.x, st.y);
+      const head = w.querySelector('.bw-head');
+      head.addEventListener('pointerdown', e => {
+        if (e.target.closest('button')) return;
+        const r = w.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+        try { head.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+        const move = ev => this.placeBrushWindow(ev.clientX - dx, ev.clientY - dy);
+        const up = () => {
+          head.removeEventListener('pointermove', move);
+          head.removeEventListener('pointerup', up);
+          const b = w.getBoundingClientRect();
+          store('brushWin', { ...this.brushWinState(), x: Math.round(b.left), y: Math.round(b.top) });
+        };
+        head.addEventListener('pointermove', move);
+        head.addEventListener('pointerup', up);
+      });
+    }
+    const s = this.settings[t.id], fields = this.visibleFields(s);
+    const preset = this.brushLib?.presets.find(p => p.id === s.preset);
+    w.querySelector('.bw-title').textContent = `Brush settings · ${t.label}${preset ? ` · ${preset.name}` : ''}`;
+    const pages = SETTING_GROUPS.map(([name, keys]) => [name, keys.map(k => fields.find(f => f[0] === k)).filter(Boolean)]).filter(([, fs]) => fs.length);
+    const page = pages.find(([name]) => name === st.page) || pages[0];
+    const nav = w.querySelector('.bw-nav');
+    nav.innerHTML = pages.map(([name]) => `<button data-page="${esc(name)}" class="${name === page[0] ? 'on' : ''}">${esc(name)}</button>`).join('');
+    nav.querySelectorAll('[data-page]').forEach(b => {
+      b.onclick = () => { store('brushWin', { ...this.brushWinState(), page: b.dataset.page }); this.renderBrushWindow(); };
     });
+    const body = w.querySelector('.bw-body');
+    body.innerHTML = this.settingsHtml(page[1], s);
+    this.bindSettings(body);
+  },
+
+  /** Moves the window to x, y (screen px), kept on screen with its title bar reachable. */
+  placeBrushWindow(x, y) {
+    const w = this.brushWin;
+    if (!w) return;
+    const W = w.offsetWidth || 340;
+    w.style.left = Math.max(0, Math.min(window.innerWidth - W, x)) + 'px';
+    w.style.top = Math.max(0, Math.min(window.innerHeight - 40, y)) + 'px';
   },
 
   brushMenu(button) {
