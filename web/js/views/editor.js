@@ -29,6 +29,7 @@ import { toneMethods } from './tonetools.js';
 import { filterMethods } from './filtertools.js';
 import { figureMethods } from './figuretool.js';
 import { quickMaskMethods } from './quickmask.js';
+import { navMethods } from './navpanels.js';
 import { smudgeMethods } from './smudgetool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -61,7 +62,7 @@ export class Editor {
     this.settings = sanitizeSettings(store('tools'));
     this.tool = TOOL_BY_ID[store('tool')] ? store('tool') : 'pen';
     this.history = new History();
-    this.history.onChange = () => this.updateUndoButtons();
+    this.history.onChange = () => { this.updateUndoButtons(); this.scheduleHistory(); };
     this.view = newView();
     this.gesture = null;
     this.live = null;
@@ -156,6 +157,8 @@ export class Editor {
           </nav>
           <aside class="ed-left">
             <section class="panel grow" data-panel="tool"><h3><button class="panel-head" title="Tool property: the settings of the current tool">${icon('chevron', 12)}<span class="tool-title">Tool</span></button></h3><div class="tool-props"></div></section>
+            <section class="panel" data-panel="history"><h3><button class="panel-head" title="Every step you can undo: click one to go back to it">${icon('chevron', 12)}<span>History</span></button></h3><div class="history-list"></div></section>
+            <section class="panel" data-panel="navigator"><h3><button class="panel-head" title="The whole picture: click or drag to move the view, scroll to zoom">${icon('chevron', 12)}<span>Navigator</span></button></h3><canvas class="nav-canvas"></canvas></section>
           </aside>
           <div class="ed-viewport">
             <canvas class="ed-view"></canvas>
@@ -228,6 +231,7 @@ export class Editor {
         const f = store('folded') || {};
         f[sec.dataset.panel] = sec.classList.contains('folded');
         store('folded', f);
+        if (sec.dataset.panel === 'navigator') { this.navStale = true; this.scheduleNav(); }
       };
     });
     $('.mask-chip:not(.qmask-chip)').onclick = () => this.editMask(false);
@@ -235,6 +239,8 @@ export class Editor {
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
     this.bindPointer();
+    this.bindNavigator();
+    this.renderHistory();
     this.updateUndoButtons();
     this.updateSnapButton();
     this.root.querySelector('[data-act="rulers"]').classList.toggle('on', this.showRulers);
@@ -430,6 +436,7 @@ export class Editor {
     const tint = this.maskTint();
     if (tint) { ctx.globalAlpha = 0.45; ctx.drawImage(tint, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); ctx.globalAlpha = 1; }
     ctx.restore();
+    this.scheduleNav();
     if (r) return;
     this.zoomLabel.textContent = Math.round(this.view.zoom * 1000) / 10 + '%';
     const deg = Math.round(((this.view.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
@@ -1220,7 +1227,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, exportMethods, smudgeMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, exportMethods, smudgeMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

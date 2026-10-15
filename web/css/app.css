@@ -101,9 +101,10 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ed-side { width: 268px; background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 /* tool property panel, next to the tools; folds to a thin strip */
 .ed-left { width: 236px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.ed-left:has(.panel.folded) { width: 28px; }
-.ed-left .panel.folded { padding: 4px 2px; }
-.ed-left .panel.folded .panel-head span { display: none; }
+/* the left column shrinks to a strip only when all its panels are folded */
+.ed-left:not(:has(.panel:not(.folded))) { width: 28px; }
+.ed-left:not(:has(.panel:not(.folded))) .panel.folded { padding: 4px 2px; }
+.ed-left:not(:has(.panel:not(.folded))) .panel.folded .panel-head span { display: none; }
 .ed-left .panel.grow:not(.folded) { min-height: 0; }
 .ed-left .tool-props { max-height: none; flex: 1; }
 .prop-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 10px 0 3px; font-weight: 600; }
@@ -146,6 +147,13 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .seg button.on { background: var(--accent-2); border-color: var(--accent-2); color: #fff; position: relative; }
 .tool-props .field { margin-bottom: 4px; }
 .tool-props .btn-row { margin-top: 4px; }
+.history-list { display: flex; flex-direction: column; max-height: 150px; overflow-y: auto; }
+.hs-row { text-align: left; padding: 2px 8px; font-size: 12px; background: transparent; border-color: transparent; border-radius: 4px; flex: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; justify-content: flex-start; }
+.hs-row:hover { background: var(--panel-2); }
+.hs-row.current { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.hs-row.undone { color: var(--muted); font-style: italic; }
+.nav-canvas { display: block; margin: 0 auto; border-radius: 4px; background: #17181c; cursor: crosshair; touch-action: none; }
 .tool-props [data-brush-win] { display: inline-flex; align-items: center; gap: 6px; }
 .tool-props [data-brush-win].on { color: var(--accent); border-color: rgba(110, 168, 255, 0.45); }
 /* Brush settings: a floating window beside the canvas, a page per group */

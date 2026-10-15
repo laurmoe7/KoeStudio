@@ -2,7 +2,7 @@
 // selection, or the whole layer, through the stroke canvas, so opacity, alpha lock, masks and undo work as for
 // painting. Editor methods (mixed into Editor.prototype in editor.js).
 
-import { gradientStops, snapEnd } from '../gradient.js';
+import { gradientStops, snapEnd, gradientReach, repeatStops } from '../gradient.js';
 import { clip } from '../rect.js';
 import { matrix } from '../view.js';
 
@@ -29,12 +29,21 @@ export const gradientMethods = {
     const len = Math.hypot(end.x - start.x, end.y - start.y);
     if (len < 0.5) { this.updateComp(area); this.requestRender(); return; }
     // on a mask only coverage counts: the main colour end hides fully, the other end hides nothing
-    const stops = g.t.kind === 'mask'
+    let stops = g.t.kind === 'mask'
       ? (s.colors.startsWith('main') ? [[0, '#000000'], [1, 'rgba(0,0,0,0)']] : [[0, 'rgba(0,0,0,0)'], [1, '#000000']])
       : gradientStops(s.colors, this.colors.main, this.colors.sub);
+    let a = start, b = end, r = len;
+    if (s.repeat === 'repeat' || s.repeat === 'mirror') {  // stretch the gradient over the area, with copies of the stops
+      const { before, after } = gradientReach(s.shape, start, end, area), dx = end.x - start.x, dy = end.y - start.y;
+      const reps = before + 1 + after;
+      stops = repeatStops(stops, s.repeat, reps, before, 1 / (len * reps));
+      a = { x: start.x - before * dx, y: start.y - before * dy };
+      b = { x: end.x + after * dx, y: end.y + after * dy };
+      r = len * (1 + after);
+    }
     const grad = s.shape === 'radial'
-      ? ctx.createRadialGradient(start.x, start.y, 0, start.x, start.y, len)
-      : ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+      ? ctx.createRadialGradient(start.x, start.y, 0, start.x, start.y, r)
+      : ctx.createLinearGradient(a.x, a.y, b.x, b.y);
     for (const [o, c] of stops) grad.addColorStop(o, c);
     ctx.fillStyle = grad;
     ctx.fillRect(area.x, area.y, area.w, area.h);

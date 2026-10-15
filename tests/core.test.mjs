@@ -167,3 +167,21 @@ test('Smoother.distanceTo shrinks to the pen: a strength-20 stroke catches up in
   assert.equal(steps, 67);
   near(new Smoother(0).add({ x: 5, y: 5, p: 1 }).x, 5);
 });
+
+test('history jumps to any step', () => {
+  const h = new History();
+  let v = 0, notices = 0;
+  const step = n => h.push({ label: 'set ' + n, undo: () => { v = n - 1; }, redo: () => { v = n; } });
+  for (let n = 1; n <= 4; n++) { v = n; step(n); }
+  h.onChange = () => notices++;
+  h.goTo(1);
+  assert.equal(v, 1);
+  assert.deepEqual(h.steps, { labels: ['set 1', 'set 2', 'set 3', 'set 4'], done: 1 }, 'undone steps stay listed, in order');
+  h.goTo(3);
+  assert.equal(v, 3);
+  assert.equal(notices, 2, 'one notice per jump');
+  h.goTo(0);
+  assert.equal(v, 0);
+  h.goTo(99);
+  assert.equal(v, 4, 'past the end stops at the newest step');
+});

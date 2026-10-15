@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { layoutText, sanitizeText, fontCss } from '../web/js/textlayer.js';
-import { gradientStops, snapEnd } from '../web/js/gradient.js';
+import { gradientStops, snapEnd, gradientReach, repeatStops } from '../web/js/gradient.js';
 import { toolForKey, sanitizeSettings } from '../web/js/tools.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
@@ -55,6 +55,19 @@ test('gradients', () => {
   near(e.y, 0, '5.7 degrees snaps to 0');
   const d = snapEnd({ x: 0, y: 0 }, { x: 50, y: 52 });
   near(d.x, d.y, '46 degrees snaps to 45');
+});
+
+test('repeating and mirrored gradients', () => {
+  assert.deepEqual(repeatStops([[0, 'a'], [1, 'b']], 'mirror', 3, 1), [[0, 'b'], [1 / 3, 'a'], [1 / 3, 'a'], [2 / 3, 'b'], [2 / 3, 'b'], [1, 'a']],
+    'the copy before the start and the one after the end are turned round');
+  assert.deepEqual(repeatStops([[0, 'a'], [1, 'b']], 'repeat', 2), [[0, 'a'], [0.5, 'b'], [0.5, 'a'], [1, 'b']], 'repeat: hard step between copies');
+  assert.deepEqual(repeatStops([[0, 'a'], [1, 'b']], 'repeat', 2, 0, 0.01), [[0, 'a'], [0.5, 'b'], [0.51, 'a'], [1, 'b']], 'with edge: the next copy starts a pixel late');
+  assert.deepEqual(gradientReach('linear', { x: 10, y: 0 }, { x: 20, y: 0 }, { x: 0, y: 0, w: 35, h: 5 }), { before: 1, after: 2 },
+    'corners fall at -1 and 2.5 lengths along the line');
+  assert.deepEqual(gradientReach('radial', { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 0, w: 30, h: 40 }), { before: 0, after: 4 },
+    'the far corner is 50 px away: five rings of 10 px');
+  const tiny = gradientReach('linear', { x: 0, y: 0 }, { x: 0.01, y: 0 }, { x: 0, y: 0, w: 100, h: 1 });
+  assert.equal(tiny.before + tiny.after + 1, 1000, 'never more than 1000 copies');
 });
 
 test('tools sharing a key take turns', () => {

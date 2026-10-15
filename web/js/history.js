@@ -37,6 +37,22 @@ export class History {
     this.onChange?.();
     return e;
   }
+  /** Undoes or redoes until n steps are done (0 = back to the oldest kept state), for the History panel. */
+  goTo(n) {
+    const quiet = this.onChange;
+    this.onChange = null;  // one notice at the end, not one per step
+    try {
+      while (this.done.length > n && this.undo());
+      while (this.done.length < n && this.redo());
+    } finally {
+      this.onChange = quiet;
+    }
+    this.onChange?.();
+  }
+  /** Every step's label, oldest first, and how many of them are done (the rest are undone, ready to redo). */
+  get steps() {
+    return { labels: [...this.done.map(e => e.label), ...this.undone.slice().reverse().map(e => e.label)], done: this.done.length };
+  }
   get canUndo() { return this.done.length > 0; }
   get canRedo() { return this.undone.length > 0; }
   clear() {

@@ -1,7 +1,7 @@
 // Tool list and per-tool settings (pure, tested). Each tool remembers its own settings, as in other painting programs.
 
 import { SELECT_MODES } from './selection.js';
-import { GRADIENT_COLORS, GRADIENT_SHAPES } from './gradient.js';
+import { GRADIENT_COLORS, GRADIENT_SHAPES, GRADIENT_REPEATS } from './gradient.js';
 import { FONTS, ALIGNS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
 import { FIGURE_SHAPES } from './figure.js';
@@ -36,7 +36,7 @@ export const TOOLS = [
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
     defaults: { opacity: 1, tolerance: 12, grow: 1, sample: 'all', contiguous: true } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
-    defaults: { colors: 'main-sub', shape: 'linear', opacity: 1 } },
+    defaults: { colors: 'main-sub', shape: 'linear', repeat: 'none', opacity: 1 } },
   { id: 'lassofill', label: 'Lasso fill', key: 'g', kind: 'lassofill', icon: 'lassoFill', group: 'draw', defaults: { opacity: 1 } },
   { id: 'figure', label: 'Figure', key: 'u', kind: 'figure', icon: 'figure', group: 'draw',
     defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, fill: false } },
@@ -62,6 +62,7 @@ export const SETTING_FIELDS = [
   ['figure', 'Shape', 'choice', FIGURE_SHAPES],
   ['colors', 'Colors', 'choice', GRADIENT_COLORS],
   ['shape', 'Shape', 'choice', GRADIENT_SHAPES],
+  ['repeat', 'Repeat', 'choice', GRADIENT_REPEATS],
   ['font', 'Font', 'choice', FONTS],
   ['align', 'Align', 'choice', ALIGNS],
   ['size', 'Size', 'range', 1, 1000, 1],
@@ -133,6 +134,7 @@ export const SETTING_HINTS = {
   strength: 'How far each dab drags the colour along (pen pressure makes it stronger when Pressure → density is on)',
   colors: 'Main and sub are the two colour squares in the Color panel',
   shape: 'Straight: along the line you drag. Circle: outwards from where you start',
+  repeat: 'Once: the end colours fill the rest. Repeat: the gradient starts over and over. Mirror: it goes back and forth',
   align: 'Which side lines line up on (for vertical text: top, middle or bottom of the columns)',
   leading: 'Distance between lines (or columns), as a multiple of the text size',
   vertical: 'Write top to bottom, with columns from right to left, as in manga',
