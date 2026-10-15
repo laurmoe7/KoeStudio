@@ -323,6 +323,20 @@ export const layerMethods = {
     this.structural(label, () => { node[key] = value; }, () => { node[key] = old; });
   },
 
+  /** The nodes the layer panel's settings change: every picked one, or the selected one. */
+  propNodes() { return this.multiPicked() || [this.doc.active]; },
+
+  /** A layer panel setting for every picked node (or the selected one), as one undo step; they stay picked. */
+  setPickedProp(key, value, label) {
+    const multi = this.multiPicked();
+    if (!multi) return this.setLayerProp(this.doc.active, key, value, label);
+    const nodes = multi.filter(n => key !== 'alphaLock' || !isFolder(n));  // folders have no alpha lock
+    const blendOk = n => key !== 'blend' || value !== PASS_THROUGH[0] || isFolder(n);  // "Through" is for folders
+    const olds = nodes.map(n => n[key]);
+    const set = vals => { nodes.forEach((n, k) => { if (blendOk(n)) n[key] = vals[k]; }); this.picked = new Set(multi); };
+    this.structural(label, () => set(nodes.map(() => value)), () => set(olds));
+  },
+
   // ---------- masks ----------
 
   /** Adds a mask to the selected layer or folder. With a selection, everything outside it is hidden. */
@@ -370,8 +384,10 @@ export const layerMethods = {
   /** The Move tool: the layer and its mask, everything in a folder, or only the mask while editing it. */
   beginMove(pt, id) {
     const d = this.doc, n = d.active;
-    if (!this.quickMask && !n.visible) return toast('This layer is hidden. Show it to move it.');
-    if (!this.quickMask && lockedNode(n)) return toast(`"${lockedNode(n).name}" is locked. Untick Lock in the Layers panel to move it.`);
+    for (const m of this.quickMask ? [] : this.multiPicked() || [n]) {
+      if (!m.visible) return toast(`"${m.name}" is hidden. Show it to move it.`);
+      if (lockedNode(m)) return toast(`"${lockedNode(m).name}" is locked. Untick Lock in the Layers panel to move it.`);
+    }
     const rasters = this.layerRasters();
     const parts = rasters.map(r => {
       const copy = document.createElement('canvas');
@@ -473,7 +489,9 @@ export const layerMethods = {
   layerRasters() {
     const n = this.doc.active;
     if (this.quickMask) return [this.quickMask];
-    return this.maskEdit && n.mask ? [n.mask] : nodeRasters(n);
+    if (this.maskEdit && n.mask) return [n.mask];
+    const multi = this.multiPicked();  // several picked: all of them (the Move tool, flips)
+    return multi ? multi.flatMap(m => nodeRasters(m)) : nodeRasters(n);
   },
 
   /** Mirrors rasters' pixels. Mirroring twice gives the original back, so undo is the same operation. */

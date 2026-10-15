@@ -119,7 +119,7 @@ export const GUIDE = [
       <li>The coloured dots label layers so you can find them.</li>
       <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click picks more layers, <kbd>Shift</kbd>+click picks a run of
       them. Then drag, the up/down buttons, the eye, delete, duplicate, <kbd>Ctrl+G</kbd> and <kbd>Ctrl+E</kbd> (merge
-      them into one) work on all of them.</li>
+      them into one), the settings above the list, flips and the Move tool work on all of them.</li>
       <li><b>Vector layers</b> keep lines as lines, for erasing whole lines (see Vector layers).</li>
       <li>Double-click a name (or <kbd>F2</kbd>) to rename. <kbd>Ctrl+G</kbd> puts the layer in a new folder,
       <kbd>Ctrl+E</kbd> merges down.</li>

@@ -51,40 +51,42 @@ export class LayerPanel {
     };
     root.querySelectorAll('.lp-buttons button').forEach(b => { b.onclick = () => ops[b.dataset.op](); });
     const blend = root.querySelector('.lp-blend');
-    blend.onchange = () => editor.setLayerProp(editor.doc.active, 'blend', blend.value, 'Blending mode');
+    // with several layers picked, every setting here changes all of them (setPickedProp)
+    blend.onchange = () => editor.setPickedProp('blend', blend.value, 'Blending mode');
     const op = root.querySelector('.lp-opacity input');
-    let start = null;
+    let start = null;  // opacities before dragging, put back before the one undo step
     op.addEventListener('input', () => {
-      const n = editor.doc.active;
-      if (start === null) start = n.opacity;
-      n.opacity = op.value / 100;
+      const nodes = editor.propNodes();
+      if (start === null) start = nodes.map(n => n.opacity);
+      for (const n of nodes) n.opacity = op.value / 100;
       root.querySelector('.lp-opacity span').textContent = op.value + '%';
       editor.changed(null, { save: false });
     });
     op.addEventListener('change', () => {
-      const n = editor.doc.active, v = op.value / 100;
-      if (start !== null) n.opacity = start;
+      const nodes = editor.propNodes(), v = op.value / 100;
+      if (start !== null) nodes.forEach((n, k) => { n.opacity = start[k] ?? n.opacity; });
       start = null;
-      editor.setLayerProp(n, 'opacity', v, 'Opacity');
+      editor.setPickedProp('opacity', v, 'Opacity');
     });
-    root.querySelector('.lp-lock').onchange = e => editor.setLayerProp(editor.doc.active, 'alphaLock', e.target.checked, 'Lock alpha');
-    root.querySelector('.lp-clip').onchange = e => editor.setLayerProp(editor.doc.active, 'clip', e.target.checked, 'Clip to layer below');
-    root.querySelector('.lp-locked').onchange = e => editor.setLayerProp(editor.doc.active, 'locked', e.target.checked, e.target.checked ? 'Lock layer' : 'Unlock layer');
-    root.querySelector('.lp-ref').onchange = e => editor.setLayerProp(editor.doc.active, 'reference', e.target.checked, 'Reference layer');
-    root.querySelectorAll('.lp-label-btn').forEach(b => { b.onclick = () => editor.setLayerProp(editor.doc.active, 'label', b.dataset.label || null, 'Color label'); });
+    root.querySelector('.lp-lock').onchange = e => editor.setPickedProp('alphaLock', e.target.checked, 'Lock alpha');
+    root.querySelector('.lp-clip').onchange = e => editor.setPickedProp('clip', e.target.checked, 'Clip to layer below');
+    root.querySelector('.lp-locked').onchange = e => editor.setPickedProp('locked', e.target.checked, e.target.checked ? 'Lock layer' : 'Unlock layer');
+    root.querySelector('.lp-ref').onchange = e => editor.setPickedProp('reference', e.target.checked, 'Reference layer');
+    root.querySelectorAll('.lp-label-btn').forEach(b => { b.onclick = () => editor.setPickedProp('label', b.dataset.label || null, 'Color label'); });
     this.bindDrag();
   }
 
   render() {
     const ed = this.ed, n = ed.doc.active, folder = isFolder(n);
     const blend = this.root.querySelector('.lp-blend');
-    blend.innerHTML = (folder ? [PASS_THROUGH, ...BLEND_MODES] : BLEND_MODES).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+    const multi = ed.multiPicked();
+    blend.innerHTML = (folder || multi?.some(isFolder) ? [PASS_THROUGH, ...BLEND_MODES] : BLEND_MODES).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
     blend.value = n.blend;
     this.root.querySelector('.lp-opacity input').value = Math.round(n.opacity * 100);
     this.root.querySelector('.lp-opacity span').textContent = Math.round(n.opacity * 100) + '%';
     const lock = this.root.querySelector('.lp-lock');
     lock.checked = !!n.alphaLock;
-    lock.disabled = folder;
+    lock.disabled = multi ? multi.every(isFolder) : folder;
     this.root.querySelector('.lp-clip').checked = n.clip;
     this.root.querySelector('.lp-locked').checked = !!n.locked;
     this.root.querySelector('.lp-ref').checked = !!n.reference;
