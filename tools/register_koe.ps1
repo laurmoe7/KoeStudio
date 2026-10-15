@@ -8,6 +8,8 @@ $classes = 'HKCU:\Software\Classes'
 
 if ($Remove) {
     Remove-Item "$classes\.koe", "$classes\KoeStudio.Project" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item 'HKCU:\Software\KoeStudio' -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-ItemProperty 'HKCU:\Software\RegisteredApplications' -Name 'KoeStudio' -ErrorAction SilentlyContinue
     Write-Host 'Removed the .koe association'
 } else {
     $pyw = Get-Command pythonw.exe -All -ErrorAction SilentlyContinue |
@@ -26,6 +28,18 @@ if ($Remove) {
     Set-ItemProperty "$classes\KoeStudio.Project\DefaultIcon" -Name '(default)' -Value ((Join-Path $root 'web\icon.ico') + ',0')
     Set-ItemProperty "$classes\KoeStudio.Project\shell\open\command" -Name '(default)' `
         -Value ('"{0}" "{1}" "%1"' -f $pyw.Source, (Join-Path $root 'app.py'))
+    # Make "KoeStudio" a named choice in Open with and Settings > Default apps, so nobody has to browse to pythonw.exe
+    # (picking that runs the .koe file as a script, which fails).
+    New-Item "$classes\.koe\OpenWithProgids" -Force | Out-Null
+    New-ItemProperty "$classes\.koe\OpenWithProgids" -Name 'KoeStudio.Project' -Value '' -PropertyType String -Force | Out-Null
+    Set-ItemProperty "$classes\KoeStudio.Project" -Name 'FriendlyTypeName' -Value 'KoeStudio project'
+    Set-ItemProperty "$classes\KoeStudio.Project\shell\open" -Name 'FriendlyAppName' -Value 'KoeStudio'
+    New-Item 'HKCU:\Software\KoeStudio\Capabilities\FileAssociations' -Force | Out-Null
+    Set-ItemProperty 'HKCU:\Software\KoeStudio\Capabilities' -Name 'ApplicationName' -Value 'KoeStudio'
+    Set-ItemProperty 'HKCU:\Software\KoeStudio\Capabilities' -Name 'ApplicationDescription' -Value 'Drawing and painting program'
+    Set-ItemProperty 'HKCU:\Software\KoeStudio\Capabilities\FileAssociations' -Name '.koe' -Value 'KoeStudio.Project'
+    New-Item 'HKCU:\Software\RegisteredApplications' -Force | Out-Null
+    Set-ItemProperty 'HKCU:\Software\RegisteredApplications' -Name 'KoeStudio' -Value 'Software\KoeStudio\Capabilities'
     Write-Host 'Registered .koe files to open with KoeStudio'
 }
 # tell Explorer the associations changed
