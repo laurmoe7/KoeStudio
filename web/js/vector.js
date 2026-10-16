@@ -18,6 +18,8 @@ import { tipReach } from './brushtip.js';
 
 export const MAX_STROKES = 20000;
 export const MAX_POINTS = 50000;
+/** Range of a line's own width factor `w` (Line edit tool); 1 (the brush as drawn) is not saved. */
+export const MIN_WIDTH = 0.1, MAX_WIDTH = 5;
 
 /** Brush settings a vector line keeps, with [default, min, max] for numbers, or a default for the rest. */
 const NUM = {
@@ -49,6 +51,12 @@ export function sanitizeBrush(raw) {
 
 export const emptyVector = () => ({ brushes: [], strokes: [] });
 
+/** The brush a line is drawn with: its brush entry, made wider or thinner by the line's own width factor `w`. */
+export function brushOf(v, s) {
+  const b = v.brushes[s.b];
+  return s.w && s.w !== 1 ? { ...b, size: b.size * s.w } : b;
+}
+
 /** Cleans a vector layer's data from a file; null when it is not one. Strokes with no points are dropped. */
 export function sanitizeVector(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -68,6 +76,7 @@ export function sanitizeVector(raw) {
       color: /^#[0-9a-f]{6}$/i.test(s.color) ? s.color.toLowerCase() : '#000000',
       opacity: Number.isFinite(+s.opacity) ? Math.max(0.01, Math.min(1, +s.opacity)) : 1,
       seed: Number.isFinite(+s.seed) ? Math.abs(Math.round(+s.seed)) % 2147483647 : 1,
+      ...(Number.isFinite(+s.w) && +s.w !== 1 ? { w: Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, +s.w)) } : {}),
     });
   }
   return { brushes, strokes };
@@ -136,7 +145,7 @@ export function changedBounds(a, b) {
   const inA = new Set(a.strokes), inB = new Set(b.strokes);
   let r = null;
   const add = (s, v) => {
-    const q = strokeBounds(s, v.brushes[s.b]);
+    const q = strokeBounds(s, brushOf(v, s));
     if (!r) { r = q; return; }
     const x = Math.min(r.x, q.x), y = Math.min(r.y, q.y);
     r = { x, y, w: Math.max(r.x + r.w, q.x + q.w) - x, h: Math.max(r.y + r.h, q.y + q.h) - y };
@@ -269,7 +278,7 @@ export function eraseVector(v, mode, a, b, r) {
   let changed = false;
   const out = [];
   for (const s of v.strokes) {
-    const br = v.brushes[s.b];
+    const br = brushOf(v, s);
     if (!boxesMeet(ebox, pathBox(s.pts, br.size + 2))) { out.push(s); continue; }
     if (mode === 'area') {
       // cut where the eraser covers the path itself, so a thick line is trimmed back to the eraser's edge
@@ -293,4 +302,49 @@ export function eraseVector(v, mode, a, b, r) {
     if (after) out.push({ ...s, pts: after });
   }
   return changed ? { brushes: v.brushes, strokes: out } : v;
+}
+
+// ---------- editing lines (Line edit tool) ----------
+
+/** The line whose painted edge is nearest to (x, y), within r of it: its index in v.strokes, or -1. */
+export function nearestStroke(v, x, y, r) {
+  let best = -1, bestD = r;
+  v.strokes.forEach((s, i) => {
+    const b = brushOf(v, s), box = pathBox(s.pts, b.size + r);
+    if (x < box.x0 || x > box.x1 || y < box.y0 || y > box.y1) return;
+    for (let k = 0; k < s.pts.length; k++) {
+      const q = s.pts[k], prev = s.pts[k - 1] || q;
+      const d = segDist(x, y, prev[0], prev[1], q[0], q[1]) - halfWidth(b, q[2]);
+      if (d <= bestD) { bestD = d; best = i; }
+    }
+  });
+  return best;
+}
+
+/**
+ * A line pulled from `grab` to `to`: every point moves by that offset, fully at the grab point and less further
+ * away, to nothing at `radius` ((1 - (d/r)^2)^2, d measured from the grab point). Then resampled to `step` so a
+ * stretched part keeps its points close. Pressure stays.
+ */
+export function pullStroke(s, grab, to, radius, step = 2) {
+  const dx = to.x - grab.x, dy = to.y - grab.y, r2 = radius * radius;
+  const pts = s.pts.map(([x, y, p]) => {
+    const d2 = (x - grab.x) ** 2 + (y - grab.y) ** 2;
+    if (d2 >= r2) return [x, y, p];
+    const f = (1 - d2 / r2) ** 2;
+    return [x + dx * f, y + dy * f, p];
+  });
+  return { ...s, pts: resample(pts, step) };
+}
+
+/** The vector object with line i changed (color, opacity, w, pts...); a factor w of 1 is dropped. */
+export function editStroke(v, i, props) {
+  const s = { ...v.strokes[i], ...props };
+  if (s.w === 1) delete s.w;
+  return { brushes: v.brushes, strokes: v.strokes.map((o, k) => (k === i ? s : o)) };
+}
+
+/** The vector object without line i. */
+export function removeStroke(v, i) {
+  return { brushes: v.brushes, strokes: v.strokes.filter((_, k) => k !== i) };
 }

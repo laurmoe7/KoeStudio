@@ -1,11 +1,46 @@
 // Figure tool geometry (pure, tested): the outline of a line, rectangle or ellipse dragged from a to b,
 // as a polyline the brush is stamped along. Shift constrains: 45° steps for a line, a square / circle otherwise.
-// Polyline and polygon are clicked corner by corner instead of dragged (POLY_SHAPES).
+// Polyline, polygon and the curves are clicked point by point instead of dragged (POLY_SHAPES); a curve passes
+// smoothly through its points (splinePoints).
 
-export const FIGURE_SHAPES = [['line', 'Straight line'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['polyline', 'Polyline'], ['polygon', 'Polygon']];
+export const FIGURE_SHAPES = [['line', 'Straight line'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['polyline', 'Polyline'], ['polygon', 'Polygon'],
+  ['curve', 'Curve'], ['closedcurve', 'Closed curve']];
 
 /** Shapes made of clicked corners: whether each one closes back to its first corner. */
-export const POLY_SHAPES = { polyline: false, polygon: true };
+export const POLY_SHAPES = { polyline: false, polygon: true, curve: false, closedcurve: true };
+
+/** Clicked shapes drawn as a smooth curve through their points rather than straight between them. */
+export const SMOOTH_SHAPES = new Set(['curve', 'closedcurve']);
+
+/**
+ * A smooth curve through the clicked points (a centripetal Catmull-Rom spline, which never loops or overshoots
+ * between points close together), as points no more than about `step` apart. An open curve starts and ends at
+ * its first and last point; a closed one runs on from the last point back to the first (not repeated at the
+ * end). Two points give a straight line.
+ */
+export function splinePoints(pts, closed, step = 1) {
+  const n = pts.length;
+  if (n < 3) return pts.map(p => ({ x: p.x, y: p.y }));
+  const mirror = (a, b) => ({ x: 2 * a.x - b.x, y: 2 * a.y - b.y });  // an extra point past an open end
+  const P = i => (closed ? pts[((i % n) + n) % n] : i < 0 ? mirror(pts[0], pts[1]) : i >= n ? mirror(pts[n - 1], pts[n - 2]) : pts[i]);
+  const out = [];
+  for (let i = 0; i < (closed ? n : n - 1); i++) {
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+    const m = Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / Math.max(0.25, step)));
+    for (let k = 0; k < m; k++) out.push(catmullRom(p0, p1, p2, p3, k / m));
+  }
+  if (!closed) out.push({ x: pts[n - 1].x, y: pts[n - 1].y });
+  return out;
+}
+
+/** The point a share u of the way from p1 to p2 on a centripetal Catmull-Rom curve (Barry and Goldman's form). */
+function catmullRom(p0, p1, p2, p3, u) {
+  const knot = (a, b) => Math.max(1e-6, Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)));
+  const t0 = 0, t1 = knot(p0, p1), t2 = t1 + knot(p1, p2), t3 = t2 + knot(p2, p3), t = t1 + (t2 - t1) * u;
+  const mix = (a, b, ta, tb) => ({ x: (a.x * (tb - t) + b.x * (t - ta)) / (tb - ta), y: (a.y * (tb - t) + b.y * (t - ta)) / (tb - ta) });
+  const a1 = mix(p0, p1, t0, t1), a2 = mix(p1, p2, t1, t2), a3 = mix(p2, p3, t2, t3);
+  return mix(mix(a1, a2, t0, t2), mix(a2, a3, t1, t3), t1, t2);
+}
 
 /** The second corner of the shape after Shift: the drag snapped to 45° (line) or to a square (rect, ellipse). */
 export function constrain(shape, a, b) {

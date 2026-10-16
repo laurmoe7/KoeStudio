@@ -1,11 +1,12 @@
 // The Figure tool: drag to draw a straight line, rectangle or ellipse with the brush settings (size, opacity,
 // hardness), filled or outlined. The shape is stamped into the stroke canvas on every move and committed like a
 // stroke on pen-up, so opacity, the selection, alpha lock, masks and undo behave as for painting.
-// Polyline and polygon are clicked corner by corner (this.figPoly holds them between clicks, drawn as a thin line
-// on the overlay) and stamped when finished: a double click, Enter, or for a polygon a click on the first corner.
+// Polyline, polygon and the curves are clicked point by point (this.figPoly holds them between clicks, drawn as a
+// thin line on the overlay) and stamped when finished: a double click, Enter, or for a closed shape a click on the
+// first point. A curve runs smoothly through its points (splinePoints).
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
-import { constrain, figurePoints, figureBounds, pointsBounds, polyCorners, POLY_SHAPES } from '../figure.js';
+import { constrain, figurePoints, figureBounds, pointsBounds, polyCorners, splinePoints, POLY_SHAPES, SMOOTH_SHAPES } from '../figure.js';
 import { Painter } from '../painter.js';
 import { union } from '../rect.js';
 import { toast } from '../ui.js';
@@ -97,7 +98,8 @@ export const figureMethods = {
     const p = this.figPoly;
     if (!p) {
       const layer = this.figureTarget();
-      if (layer) this.figPoly = { layer, closed: POLY_SHAPES[this.settings.figure.figure], points: [{ x: dp.x, y: dp.y }] };
+      const shape = this.settings.figure.figure;
+      if (layer) this.figPoly = { layer, closed: POLY_SHAPES[shape], smooth: SMOOTH_SHAPES.has(shape), points: [{ x: dp.x, y: dp.y }] };
       return;
     }
     const last = p.points[p.points.length - 1], q = shift ? constrain('line', last, dp) : { x: dp.x, y: dp.y };
@@ -112,9 +114,10 @@ export const figureMethods = {
     const p = this.figPoly;
     if (!p) return;
     this.figPoly = null;
-    const pts = polyCorners(p.points, p.closed);
-    if (pts.length < 2) return this.drawOverlay();
-    const s = this.settings.figure, closed = p.closed && pts.length > 2;
+    const corners = polyCorners(p.points, p.closed);
+    if (corners.length < 2) return this.drawOverlay();
+    const s = this.settings.figure, closed = p.closed && corners.length > 2;
+    const pts = p.smooth ? splinePoints(corners, closed, Math.max(0.5, s.size * SPACING)) : corners;
     if (p.layer.vector) { this.commitVectorFigure(p.layer, pts, closed, s); this.colors.used(); this.drawOverlay(); return; }
     this.resetStroke();
     const ctx = this.strokeCtx;
@@ -155,11 +158,12 @@ export const figureMethods = {
     if (!p) return;
     const dpr = this.dpr || 1, [a, b, c, d, e, f] = matrix(this.view);
     const sx = (x, y) => (a * x + c * y + e) * dpr, sy = (x, y) => (b * x + d * y + f) * dpr;
-    const pts = p.points.slice();
+    let pts = p.points.slice();
     if (this.pointer && !this.gesture) {
       const q = toDoc(this.view, this.pointer.x, this.pointer.y), last = pts[pts.length - 1];
       pts.push(this.pointerShift ? constrain('line', last, q) : q);
     }
+    if (p.smooth) pts = splinePoints(polyCorners(pts, false), p.closed && pts.length > 2, 2 / this.view.zoom);  // the curve as it will be
     ctx.save();
     ctx.lineJoin = 'round';
     for (const [color, w] of [['rgba(0,0,0,.6)', 3 * dpr], ['#6ea8ff', 1.5 * dpr]]) {

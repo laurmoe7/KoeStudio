@@ -15,7 +15,7 @@ test('Shift constrains a line to 45° steps and a box to a square', () => {
 });
 
 test('figure outlines', () => {
-  assert.equal(FIGURE_SHAPES.length, 5);
+  assert.equal(FIGURE_SHAPES.length, 7);
   assert.deepEqual(figurePoints('line', { x: 1, y: 2 }, { x: 3, y: 4 }), { points: [{ x: 1, y: 2 }, { x: 3, y: 4 }], closed: false });
   assert.deepEqual(figurePoints('rect', { x: 5, y: 5 }, { x: 1, y: 2 }), { points: [{ x: 1, y: 2 }, { x: 5, y: 2 }, { x: 5, y: 5 }, { x: 1, y: 5 }], closed: true }, 'normalised corners');
   const e = figurePoints('ellipse', { x: 0, y: 0 }, { x: 20, y: 20 }, 1);
@@ -33,7 +33,7 @@ test('bounds and straight-line points', () => {
 });
 
 test('clicked shapes: corners without repeats, and their bounds', () => {
-  assert.deepEqual(POLY_SHAPES, { polyline: false, polygon: true });
+  assert.deepEqual(POLY_SHAPES, { polyline: false, polygon: true, curve: false, closedcurve: true });
   const P = (x, y) => ({ x, y });
   assert.deepEqual(polyCorners([P(0, 0), P(10, 0), P(10.2, 0.1), P(10, 10)], false), [P(0, 0), P(10, 0), P(10, 10)],
     'the second corner of the double click (0.22 px away) is dropped');
@@ -43,4 +43,30 @@ test('clicked shapes: corners without repeats, and their bounds', () => {
   assert.deepEqual(polyCorners([P(0, 0), P(0, 0.4)], true), [P(0, 0)]);
   assert.deepEqual(pointsBounds([P(10, 20), P(30, 5), P(15, 25)], 6), { x: 5, y: 0, w: 30, h: 30 },
     'box 10..30 x 5..25 grown by 3 + 2 px');
+});
+
+test('curves through clicked points', async () => {
+  const { splinePoints, POLY_SHAPES, SMOOTH_SHAPES } = await import('../web/js/figure.js');
+  const pts = [{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }];
+  const out = splinePoints(pts, false, 1);
+  // segments of length sqrt(200) = 14.14 need 15 steps each: 30 samples plus the last point
+  assert.equal(out.length, 31);
+  assert.deepEqual(out[0], { x: 0, y: 0 }, 'starts at the first point');
+  const mid = out[15];
+  assert.ok(Math.abs(mid.x - 10) < 1e-9 && Math.abs(mid.y - 10) < 1e-9, 'passes through the middle point');
+  assert.deepEqual(out[30], { x: 20, y: 0 }, 'ends at the last point');
+  assert.ok(out.every(p => p.y <= 10 + 1e-9 && p.y >= -1e-9), 'no overshoot above the peak or below the ends');
+  assert.ok(out.slice(1, 15).every((p, i) => p.x > out[i].x), 'keeps going right on the way up');
+  // points on a straight line give a straight curve
+  assert.ok(splinePoints([{ x: 0, y: 5 }, { x: 4, y: 5 }, { x: 9, y: 5 }], false, 1).every(p => Math.abs(p.y - 5) < 1e-9));
+  // closed: runs back to the first point without repeating it
+  const sq = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+  const loop = splinePoints(sq, true, 1);
+  assert.equal(loop.length, 40, 'four 10 px sides of 10 steps');
+  assert.deepEqual([loop[0], loop[10], loop[20], loop[30]].map(p => [Math.round(p.x * 1e9) / 1e9, Math.round(p.y * 1e9) / 1e9]),
+    [[0, 0], [10, 0], [10, 10], [0, 10]], 'through every corner');
+  assert.ok(loop.some(p => p.y < -0.5), 'rounded: bulges out past the straight side');
+  assert.deepEqual(splinePoints([{ x: 1, y: 2 }, { x: 3, y: 4 }], false), [{ x: 1, y: 2 }, { x: 3, y: 4 }], 'two points: a straight line');
+  assert.equal(POLY_SHAPES.closedcurve, true);
+  assert.ok(SMOOTH_SHAPES.has('curve') && !SMOOTH_SHAPES.has('polygon'));
 });

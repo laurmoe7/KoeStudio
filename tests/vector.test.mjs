@@ -107,3 +107,35 @@ test('vector lines repeat their colour jitter', () => {
   assert.ok(once.every(st => !('c' in st)), 'per stroke: the line colour is already varied');
   assert.ok(strokeStamps(line, sanitizeBrush({ size: 10 })).every(st => !('c' in st)), 'no jitter, no colours');
 });
+
+test('editing lines: pick, pull, width, colour, remove', async () => {
+  const { nearestStroke, pullStroke, editStroke, removeStroke, brushOf } = await import('../web/js/vector.js');
+  const v = vec(line(0, 0, 10, 0, 10), line(0, 10, 10, 10, 10));
+  // (5, 3) is 3 from the first path (1 past its 2 px half width) and 7 from the second (5 past it)
+  assert.equal(nearestStroke(v, 5, 3, 4), 0);
+  assert.equal(nearestStroke(v, 5, 8.5, 4), 1, 'inside the second line counts as distance below zero');
+  assert.equal(nearestStroke(v, 5, 50, 4), -1, 'nothing within reach');
+  assert.equal(nearestStroke(v, 5, 6.5, 0.4), -1, '4.5 and 1.5 past the edges are both beyond 0.4');
+
+  const s = { pts: line(0, 0, 20, 0, 20), b: 0, color: '#000000', opacity: 1, seed: 1 };
+  const p = pullStroke(s, { x: 10, y: 0 }, { x: 10, y: 4 }, 5);
+  assert.deepEqual(p.pts[10], [10, 4, 1], 'the grabbed point moves all the way');
+  assert.deepEqual(p.pts[13], [13, 1.64, 1], '3 px away: (1 - 9/25)^2 = 0.4096 of the way, rounded to 1/100');
+  assert.deepEqual(p.pts[16], [16, 0, 1], 'beyond the radius nothing moves');
+  assert.equal(p.pts.length, 21, 'no gap grew past the 2 px step');
+  const far = pullStroke(s, { x: 10, y: 0 }, { x: 10, y: 30 }, 3);
+  assert.ok(far.pts.length > 21, 'a long pull adds points so the stretched part stays smooth');
+  assert.equal(s.pts[10][1], 0, 'the original line is left as it was');
+
+  const wide = editStroke(v, 0, { w: 2, color: '#ff0000' });
+  assert.equal(brushOf(wide, wide.strokes[0]).size, 8, 'twice as wide');
+  assert.equal(brushOf(wide, wide.strokes[1]).size, 4, 'the other line keeps its brush');
+  assert.equal(wide.strokes[0].color, '#ff0000');
+  assert.equal(v.strokes[0].w, undefined, 'the old object is unchanged');
+  assert.ok(!('w' in editStroke(wide, 0, { w: 1 }).strokes[0]), 'back to 1: not stored');
+  assert.deepEqual(removeStroke(v, 0).strokes, [v.strokes[1]]);
+  assert.ok(strokeBounds(wide.strokes[0], brushOf(wide, wide.strokes[0])).h > strokeBounds(v.strokes[0], B).h, 'wider bounds');
+
+  const loaded = sanitizeVector({ brushes: [B], strokes: [{ pts: [[0, 0, 1]], w: 9 }, { pts: [[0, 0, 1]], w: 'x' }, { pts: [[0, 0, 1]] }] });
+  assert.deepEqual(loaded.strokes.map(x => x.w), [5, undefined, undefined], 'clamped; missing or broken means 1');
+});

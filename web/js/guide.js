@@ -78,7 +78,8 @@ export const GUIDE = [
     <p>Drag for a straight line, rectangle or ellipse, outlined with the brush settings or filled. Shift makes a 45°
     line, a square or a circle. <b>Polyline</b> and <b>Polygon</b> are clicked corner by corner: double-click or
     <kbd>Enter</kbd> finishes, a click on the first corner closes a polygon, <kbd>Backspace</kbd> takes back the last
-    corner, <kbd>Esc</kbd> drops it.</p>
+    corner, <kbd>Esc</kbd> drops it. <b>Curve</b> and <b>Closed curve</b> work the same way, but the line runs
+    smoothly through the points you click instead of straight between them.</p>
     <h4>Text <kbd>T</kbd></h4>
     <p>Click to type; click a text again to edit it. Font, size, bold, italic, alignment, line spacing and
     <b>vertical writing</b> (as in manga). Text stays editable on its own layer; to paint on it, use
@@ -135,6 +136,9 @@ export const GUIDE = [
         <b>Touched area</b> cuts away only what the eraser passes over;
         <b>Up to intersection</b> removes the stretch of a line between the lines it crosses, so overshoots
         disappear in one stroke; <b>Whole line</b> removes every line it touches.</li>
+      <li><b>Line edit</b> <kbd>Y</kbd>: click a line to pick it, then drag along it to bend it (the pull range sets
+      how much of the line follows). The tool panel changes the picked line's width, opacity and colour (to the main
+      colour), or deletes it (also <kbd>Del</kbd>).</li>
       <li>The Move tool moves the lines, <kbd>Del</kbd> clears them all, and undo works as everywhere.</li>
       <li>Tools that need pixels (Fill, filters, Transform, Smudge) ask you to <b>rasterize</b> the layer first
       (Layer → Rasterize vector layer). Flipping, resizing the canvas or merging into it rasterizes it too.</li>

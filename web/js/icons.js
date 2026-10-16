@@ -35,6 +35,7 @@ const P = {
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
   liquify: '<path d="M3 7c3-3 6 3 9 0s6-3 9 0"/><path d="M3 12c3-3 6 3 9 0s6-3 9 0"/><path d="M3 17c3-3 6 3 9 0s6-3 9 0"/>',
+  lineEdit: '<path d="M4 18c4-10 8 2 16-10"/><circle cx="11" cy="11" r="2.4"/><path d="M15 17l3 3"/>',
   smudge: '<path d="M8 21c-2-3 0-6 2-8l6-7a2 2 0 013 3l-7 6c-2 2-5 3-4 6z"/><path d="M4 9c2-1 4-1 5 1M3 13c2-1 3-1 4 0"/>',
   lassoFill: '<path d="M12 4c5 0 9 2.5 9 6s-4 6-9 6c-1.5 0-3-.2-4-.6" fill="currentColor" fill-opacity=".35"/><path d="M12 4C7 4 3 6.5 3 10c0 1.8 1 3.3 2.7 4.4"/><path d="M6 15c-1 2 0 4 2 5"/>',
   ref: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',

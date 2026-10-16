@@ -5,7 +5,7 @@
 import { liveSource } from './doc.js';
 import { Painter, textureFor } from './painter.js';
 import { stampAt } from './brush.js';
-import { strokeBounds, strokeStamps, seeded } from './vector.js';
+import { strokeBounds, strokeStamps, seeded, brushOf } from './vector.js';
 import { clip } from './rect.js';
 
 let scratch = null;
@@ -24,7 +24,7 @@ export function renderVector(layer, rect = null) {
   ctx.clip();
   ctx.clearRect(r.x, r.y, r.w, r.h);
   for (const s of v.strokes) {
-    const b = v.brushes[s.b], q = clip(strokeBounds(s, b), W, H);
+    const b = brushOf(v, s), q = clip(strokeBounds(s, b), W, H);
     const a = q && clip({ x: Math.max(q.x, r.x), y: Math.max(q.y, r.y), w: Math.min(q.x + q.w, r.x + r.w) - Math.max(q.x, r.x), h: Math.min(q.y + q.h, r.y + r.h) - Math.max(q.y, r.y) }, W, H);
     if (!a || a.w <= 0 || a.h <= 0) continue;
     sctx.setTransform(1, 0, 0, 1, 0, 0);

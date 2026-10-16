@@ -161,6 +161,8 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
   border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 14px 36px rgba(0,0,0,.55); }
 .bw-head { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border-bottom: 1px solid var(--line); cursor: move; user-select: none; touch-action: none; }
 .bw-title { flex: 1; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.le-head { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 12px; font-weight: 600; }
+.le-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); }
 .grad-strip { display: block; width: 100%; height: 18px; border-radius: 3px; margin-bottom: 4px; }
 .bw-preview { display: block; width: calc(100% - 16px); height: 76px; margin: 8px 8px 0; border-radius: 4px; background: #fff; flex: none; }
 .bw-main { display: flex; min-height: 0; flex: 1; }

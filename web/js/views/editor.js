@@ -35,6 +35,7 @@ import { vectorMethods } from './vectortools.js';
 import { refMethods } from './reftools.js';
 import { smudgeMethods } from './smudgetool.js';
 import { liquifyMethods } from './liquifytool.js';
+import { lineEditMethods } from './lineedittool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
 import { symmetryStamps } from '../symmetry.js';
@@ -67,7 +68,7 @@ export class Editor {
     this.settings = sanitizeSettings(store('tools'));
     this.tool = TOOL_BY_ID[store('tool')] ? store('tool') : 'pen';
     this.history = new History();
-    this.history.onChange = () => { this.updateUndoButtons(); this.scheduleHistory(); };
+    this.history.onChange = () => { this.updateUndoButtons(); this.scheduleHistory(); if (this.tool === 'lineedit') this.renderToolProps(); };
     this.view = newView();
     this.gesture = null;
     this.live = null;
@@ -545,6 +546,7 @@ export class Editor {
     this.drawSymmetryOverlay(ctx);
     this.drawGradientOverlay(ctx);
     this.drawFigurePoly(ctx);
+    this.drawLineEditOverlay(ctx);
     this.placeTextEditor();
     const brush = this.updateCursor();
     if (brush) this.drawBrushOutline(ctx, brush);
@@ -562,7 +564,7 @@ export class Editor {
     }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
-    set({ paint: 'none', smudge: 'none', liquify: 'none', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+    set({ paint: 'none', smudge: 'none', liquify: 'none', lineedit: 'crosshair', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
     return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge' || tool.kind === 'liquify') ? tool : null;
   }
@@ -646,6 +648,7 @@ export class Editor {
       this.bindPresetRow(box);
       box.querySelector('[data-brush-win]').onclick = () => this.toggleBrushWindow();
     } else box.innerHTML = this.settingsHtml(fields, s);
+    if (t.kind === 'lineedit') this.renderLineEditProps(box);
     if (t.kind === 'select') {
       box.insertAdjacentHTML('beforeend', `<div class="btn-row">
         <button data-sel="all" title="Ctrl+A">All</button><button data-sel="none" title="Ctrl+D">Deselect</button>
@@ -766,6 +769,7 @@ export class Editor {
       else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId, e.shiftKey);
       else if (tool.kind === 'smudge') this.beginSmudge(dp, e.pointerId);
       else if (tool.kind === 'liquify') this.beginLiquify(dp, e.pointerId);
+      else if (tool.kind === 'lineedit') this.beginLineEdit(dp, e.pointerId);
       else if (tool.kind === 'lassofill') this.beginLassoFill(dp, e.pointerId);
       else if (tool.kind === 'figure') this.beginFigure(this.gridPoint(dp), e.pointerId, e.shiftKey, e.detail >= 2);
       else if (tool.kind === 'fill') this.fillAt(dp);
@@ -812,6 +816,8 @@ export class Editor {
           this.rulerDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'gradient') {
           this.gradientDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
+        } else if (g.type === 'lineedit') {
+          this.lineEditDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'figure') {
           this.figureDrag(this.gridPoint(toDoc(this.view, p.x, p.y)), e.shiftKey);
         }
@@ -827,6 +833,7 @@ export class Editor {
       if (g.type === 'paint') this.endPaint();
       else if (g.type === 'smudge') this.endSmudge();
       else if (g.type === 'liquify') this.endLiquify();
+      else if (g.type === 'lineedit') this.endLineEdit();
       else if (g.type === 'verase') this.endVectorErase();
       else if (g.type === 'lassofill') this.endLassoFill();
       else if (g.type === 'guide' || g.type === 'vp') this.rulerEnd(this.pointer);
@@ -1214,7 +1221,8 @@ export class Editor {
       'ctrl+2': () => this.toggleSnap(), 'ctrl+;': () => this.toggleRulerVisibility(), "ctrl+'": () => this.toggleGrid(),
       'ctrl+c': () => this.copySelection(), 'ctrl+x': () => this.copySelection(true),
       '4': () => this.rotate(-15), '6': () => this.rotate(15), '5': () => this.rotate(null),
-      'delete': () => this.clearLayer(), 'backspace': () => this.clearLayer(),
+      'delete': () => (this.tool === 'lineedit' && this.deleteLine()) || this.clearLayer(),
+      'backspace': () => (this.tool === 'lineedit' && this.deleteLine()) || this.clearLayer(),
       'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
       'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
       'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'), 'ctrl+alt+shift+s': () => this.exportAs(),
@@ -1264,11 +1272,11 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, lineEditMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
-  if (key === 'corner') return Math.round(v) + ' px';
+  if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
