@@ -243,3 +243,50 @@ export function shapeHandleAt(shapes, pt, tol) {
   });
   return best;
 }
+
+/**
+ * The rulers after the canvas changed shape: m = [a, b, c, d, e, f] takes an old doc point to its new place
+ * (x' = a x + c y + e, y' = b x + d y + f; a crop or canvas size moves, Image size scales, Rotate canvas turns by
+ * quarter turns, Flip canvas mirrors). Guides stay guides (a quarter turn makes horizontal ones vertical);
+ * vanishing points, line ends and ellipse centres move; a symmetry centre coordinate left at the canvas middle
+ * (null) stays at the middle.
+ */
+export function mapRulers(r, m, oldW, oldH, newW, newH) {
+  const [a, b, c, d, e, f] = m;
+  const pt = (x, y) => ({ x: a * x + c * y + e, y: b * x + d * y + f });
+  const vec = (x, y) => ({ x: a * x + c * y, y: b * x + d * y });
+  const round = v => Math.round(v * 100) / 100 || 0;
+  const turned = Math.abs(a) < 1e-9 && Math.abs(d) < 1e-9;  // a quarter turn swaps the axes
+  const guides = r.guides.map(g => {
+    const p = g.axis === 'h' ? pt(0, g.pos) : pt(g.pos, 0);
+    const axis = turned ? (g.axis === 'h' ? 'v' : 'h') : g.axis;
+    return { axis, pos: Math.round(axis === 'h' ? p.y : p.x) };
+  });
+  const perspective = r.perspective && { points: r.perspective.points.map(p => { const q = pt(p.x, p.y); return { x: round(q.x), y: round(q.y) }; }) };
+  const shapes = r.shapes.map(s => {
+    if (s.type === 'line') {
+      const p = pt(s.x1, s.y1), q = pt(s.x2, s.y2);
+      return sanitizeShape({ type: 'line', x1: p.x, y1: p.y, x2: q.x, y2: q.y });
+    }
+    const cos = Math.cos(s.angle), sin = Math.sin(s.angle), o = pt(s.x, s.y);
+    const u = vec(s.rx * cos, s.rx * sin), v = vec(-s.ry * sin, s.ry * cos);
+    return sanitizeShape({ type: 'ellipse', x: o.x, y: o.y, rx: Math.hypot(u.x, u.y), ry: Math.hypot(v.x, v.y), angle: Math.atan2(u.y, u.x) });
+  }).filter(Boolean);
+  const sym = { ...r.symmetry };
+  const q = pt(sym.x ?? oldW / 2, sym.y ?? oldH / 2), [sx, sy] = turned ? [sym.y, sym.x] : [sym.x, sym.y];
+  sym.x = sx === null ? null : Math.round(q.x);  // a coordinate left at the middle (null) stays at the new middle
+  sym.y = sy === null ? null : Math.round(q.y);
+  if (turned && (sym.kind === 'vertical' || sym.kind === 'horizontal')) sym.kind = sym.kind === 'vertical' ? 'horizontal' : 'vertical';
+  return { ...r, guides, perspective, shapes, symmetry: sym };
+}
+
+/** pt moved onto the nearest horizontal and vertical guide, each only when it is within tol (corners of selections,
+ *  figures and crops). */
+export function snapToGuides(guides, pt, tol) {
+  let x = pt.x, y = pt.y, bx = tol, by = tol;
+  for (const g of guides) {
+    if (g.axis === 'v' && Math.abs(pt.x - g.pos) <= bx) { x = g.pos; bx = Math.abs(pt.x - g.pos); }
+    if (g.axis === 'h' && Math.abs(pt.y - g.pos) <= by) { y = g.pos; by = Math.abs(pt.y - g.pos); }
+  }
+  return { ...pt, x, y };
+}

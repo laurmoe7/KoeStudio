@@ -298,8 +298,8 @@ export class Editor {
         { label: 'Rotate canvas 90° right', run: () => this.rotateCanvas(1) },
         { label: 'Rotate canvas 90° left', run: () => this.rotateCanvas(-1) },
         { label: 'Rotate canvas 180°', run: () => this.rotateCanvas(2) },
-        { label: 'Flip canvas horizontally', run: () => this.flipPixels(d.rasters(), 'h', 'Flip canvas') },
-        { label: 'Flip canvas vertically', run: () => this.flipPixels(d.rasters(), 'v', 'Flip canvas') },
+        { label: 'Flip canvas horizontally', run: () => this.flipPixels(d.rasters(), 'h', 'Flip canvas', true) },
+        { label: 'Flip canvas vertically', run: () => this.flipPixels(d.rasters(), 'v', 'Flip canvas', true) },
       ],
       select: [
         { label: 'Select all', key: 'Ctrl+A', run: () => this.selectAll() },

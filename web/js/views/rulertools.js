@@ -5,7 +5,7 @@
 // the artwork (doc.rulers); the edge rulers themselves are a view setting.
 
 import { icon } from '../icons.js';
-import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, snapToGrid, sanitizeGrid, MAX_GUIDES,
+import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, snapToGrid, snapToGuides, sanitizeGrid, MAX_GUIDES,
   MAX_SHAPES, sanitizeShape, shapeHandles, shapeHandleAt, dragShapeHandle, shapeFromDrag } from '../rulers.js';
 import { modal, store, toast } from '../ui.js';
 import { matrix, toScreen, toDoc } from '../view.js';
@@ -152,10 +152,15 @@ export const rulerMethods = {
     this.drawOverlay();
   },
 
-  /** A selection, figure or crop corner moved onto the grid, when the grid is shown and snaps (and snapping is on). */
+  /** A selection, figure or crop corner moved onto the grid (when it is shown and snaps) and onto guides (when they
+   *  are shown), while snapping is on. A nearby guide wins over the grid. */
   gridPoint(dp) {
-    const r = this.doc.rulers;
-    return r.snap && r.grid.show && r.grid.snap ? snapToGrid(r.grid, dp, GRID_SNAP_PX / this.view.zoom) : dp;
+    const r = this.doc.rulers, tol = GRID_SNAP_PX / this.view.zoom;
+    if (!r.snap) return dp;
+    const p = r.grid.show && r.grid.snap ? snapToGrid(r.grid, dp, tol) : dp;
+    if (!r.visible || !r.guides.length) return p;
+    const g = snapToGuides(r.guides, dp, tol);
+    return { ...p, x: g.x !== dp.x ? g.x : p.x, y: g.y !== dp.y ? g.y : p.y };
   },
 
   updateSnapButton() {

@@ -348,3 +348,19 @@ export function editStroke(v, i, props) {
 export function removeStroke(v, i) {
   return { brushes: v.brushes, strokes: v.strokes.filter((_, k) => k !== i) };
 }
+
+/** The points evened out by `passes` rounds of a [1, 2, 1] / 4 average of each point with its neighbours (all from
+ *  the previous round); the ends and the pressure stay. */
+export function smoothPoints(pts, passes) {
+  let cur = pts;
+  for (let n = 0; n < passes; n++) {
+    cur = cur.map((q, i) => (i === 0 || i === cur.length - 1 ? q : [
+      (cur[i - 1][0] + 2 * q[0] + cur[i + 1][0]) / 4, (cur[i - 1][1] + 2 * q[1] + cur[i + 1][1]) / 4, q[2]]));
+  }
+  return cur;
+}
+
+/** A shaky line evened out (Line edit → Smooth): `passes` rounds of smoothPoints, resampled to `step` px. */
+export function smoothStroke(s, passes, step = 2) {
+  return { ...s, pts: resample(smoothPoints(resample(s.pts, step), passes), step) };
+}

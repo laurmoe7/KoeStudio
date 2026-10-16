@@ -1,14 +1,15 @@
 // The Line edit tool (Y): changes finished lines on a vector layer. Click a line to pick it (the nearest one under
 // the pointer); drag from anywhere on it to pull that part along, softly out to the Pull range; the tool panel
-// changes the picked line's width, opacity and colour, or deletes it. Every change is one vector undo step.
+// changes the picked line's width, opacity and colour, smooths it, or deletes it. Every change is one vector undo step.
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
-import { nearestStroke, pullStroke, editStroke, removeStroke, MIN_WIDTH, MAX_WIDTH } from '../vector.js';
+import { nearestStroke, pullStroke, editStroke, removeStroke, smoothStroke, MIN_WIDTH, MAX_WIDTH } from '../vector.js';
 import { esc, toast } from '../ui.js';
 import { toDoc, matrix } from '../view.js';
 
 const PICK_PX = 8;  // a click this close (screen px) to a line's edge picks it
 const DRAG_PX = 2;  // the pointer must move this far before a click turns into a pull
+const SMOOTH_PASSES = 16;  // one click of Smooth (points 2 px apart): evens out wobbles over about 6 px; click again for more
 
 export const lineEditMethods = {
   /** The vector layer the tool works on, or null after saying why not. */
@@ -92,7 +93,7 @@ export const lineEditMethods = {
         <input type="range" data-l="w" min="${MIN_WIDTH}" max="${MAX_WIDTH}" step="0.05" value="${w}"><output>${Math.round(w * 100)}%</output></label>
       <label class="slider"><span>Opacity</span>
         <input type="range" data-l="opacity" min="0.01" max="1" step="0.01" value="${op}"><output>${Math.round(op * 100)}%</output></label>
-      <div class="btn-row"><button data-l="color" title="Give the line the main colour">Main colour</button><button data-l="delete" title="Delete the line (Del)">Delete line</button></div>`);
+      <div class="btn-row"><button data-l="smooth" title="Even out wobbles in the line (click again for smoother)">Smooth</button><button data-l="color" title="Give the line the main colour">Main colour</button><button data-l="delete" title="Delete the line (Del)">Delete</button></div>`);
     box.querySelectorAll('input[data-l]').forEach(inp => {
       const k = inp.dataset.l, label = k === 'w' ? 'Line width' : 'Line opacity';
       inp.addEventListener('input', () => {
@@ -103,6 +104,7 @@ export const lineEditMethods = {
     });
     box.querySelector('[data-l="color"]').onclick = () => { this.setLineProps({ color: this.colors.main }, 'Line colour'); this.renderToolProps(); };
     box.querySelector('[data-l="delete"]').onclick = () => this.deleteLine();
+    box.querySelector('[data-l="smooth"]').onclick = () => this.setLineProps({ pts: smoothStroke(this.pickedLine().s, SMOOTH_PASSES).pts }, 'Smooth line');
   },
 
   /** On the overlay: the line under the pointer (thin), the picked line (accent) and the pull range. */

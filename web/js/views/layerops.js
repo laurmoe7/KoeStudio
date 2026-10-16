@@ -494,8 +494,9 @@ export const layerMethods = {
     return multi ? multi.flatMap(m => nodeRasters(m)) : nodeRasters(n);
   },
 
-  /** Mirrors rasters' pixels. Mirroring twice gives the original back, so undo is the same operation. */
-  flipPixels(rasters, axis, label) {
+  /** Mirrors rasters' pixels. Mirroring twice gives the original back, so undo is the same operation. With
+   *  canvas = true (Flip canvas) the guides and rulers turn round too. */
+  flipPixels(rasters, axis, label, canvas = false) {
     const d = this.doc;
     const flip = () => {
       const tmp = document.createElement('canvas');
@@ -514,6 +515,8 @@ export const layerMethods = {
       }
     };
     const tx = this.textsIn(rasters);  // flipped pixels no longer match the text, so text layers become pixels
-    this.structural(label, () => { flip(); tx.drop(); }, () => { flip(); tx.restore(); });
+    const m = !canvas ? null : axis === 'h' ? [-1, 0, 0, 1, d.width, 0] : [1, 0, 0, -1, 0, d.height];
+    const rl = this.rulersAlong(m, d.width, d.height, d.width, d.height);
+    this.structural(label, () => { flip(); tx.drop(); rl.apply(); }, () => { flip(); tx.restore(); rl.revert(); });
   },
 };

@@ -139,7 +139,7 @@ export const GUIDE = [
         disappear in one stroke; <b>Whole line</b> removes every line it touches.</li>
       <li><b>Line edit</b> <kbd>Y</kbd>: click a line to pick it, then drag along it to bend it (the pull range sets
       how much of the line follows). The tool panel changes the picked line's width, opacity and colour (to the main
-      colour), or deletes it (also <kbd>Del</kbd>).</li>
+      colour), evens out a shaky line (<b>Smooth</b>, click again for smoother), or deletes it (also <kbd>Del</kbd>).</li>
       <li>The Move tool moves the lines, <kbd>Del</kbd> clears them all, and undo works as everywhere.</li>
       <li>Tools that need pixels (Fill, filters, Transform, Smudge) ask you to <b>rasterize</b> the layer first
       (Layer → Rasterize vector layer). Flipping, resizing the canvas or merging into it rasterizes it too.</li>
@@ -177,6 +177,8 @@ export const GUIDE = [
       (Shift: 15° steps, or a circle); <kbd>Del</kbd> removes the picked one.</li>
       <li><b>Symmetry</b> (View → Symmetry settings…) mirrors what you draw, or repeats it round a centre.</li>
       <li><b>Grid</b> <kbd>Ctrl+'</kbd>, with its spacing in View → Grid settings…. Tick Snap there and strokes follow grid lines, while rectangle, ellipse and polygon selections, figures and crops put their corners on them.</li>
+      <li>Those corners also snap to <b>guides</b> they come near (while guides are shown and snapping is on).</li>
+      <li>Guides and rulers move along with Crop, Canvas size, Image size, Rotate canvas and Flip canvas.</li>
     </ul>`],
 
   ['canvas', 'Canvas size, cropping and turning', `

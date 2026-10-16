@@ -163,3 +163,45 @@ test('a line the stroke started on wins over a concentric ruler when the stroke 
   assert.equal(pickLine(cands, start, { x: 10, y: 106.5 }).kind, 'ellipse', '33° off the guide (14.6° off the circle): the circle');
   assert.equal(pickLine(cands, start, { x: -30, y: 80 }).kind, 'ellipse', 'backwards, 33.7° off the guide and 15.3° off the circle');
 });
+
+test('rulers follow crops, resizes, turns and flips of the canvas', async () => {
+  const { mapRulers } = await import('../web/js/rulers.js');
+  const r = sanitizeRulers({
+    guides: [{ axis: 'h', pos: 200 }, { axis: 'v', pos: 300 }],
+    perspective: { points: [{ x: 500, y: 100 }] },
+    shapes: [{ type: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }, { type: 'ellipse', x: 100, y: 200, rx: 30, ry: 10, angle: 0 }],
+    symmetry: { kind: 'vertical', x: 300, y: null },
+  });
+  // crop at (100, 50) to 800 x 600: everything moves up-left by (100, 50)
+  const c = mapRulers(r, [1, 0, 0, 1, -100, -50], 1000, 800, 800, 600);
+  assert.deepEqual(c.guides, [{ axis: 'h', pos: 150 }, { axis: 'v', pos: 200 }]);
+  assert.deepEqual(c.perspective.points, [{ x: 400, y: 50 }]);
+  assert.deepEqual(c.shapes[0], { type: 'line', x1: -100, y1: -50, x2: -90, y2: -50 });
+  assert.deepEqual(c.shapes[1], { type: 'ellipse', x: 0, y: 150, rx: 30, ry: 10, angle: 0 });
+  assert.deepEqual([c.symmetry.x, c.symmetry.y], [200, null], 'y stays at the middle');
+
+  // 90° right, 1000 x 800 -> 800 x 1000: (x, y) goes to (800 - y, x)
+  const t = mapRulers(r, [0, 1, -1, 0, 800, 0], 1000, 800, 800, 1000);
+  assert.deepEqual(t.guides, [{ axis: 'v', pos: 600 }, { axis: 'h', pos: 300 }], 'horizontal guides become vertical');
+  const e = t.shapes[1];
+  assert.deepEqual([e.x, e.y, e.rx, e.ry], [600, 100, 30, 10]);
+  assert.ok(Math.abs(e.angle - Math.PI / 2) < 1e-6, 'the long axis now points down');
+  assert.deepEqual([t.symmetry.kind, t.symmetry.x, t.symmetry.y], ['horizontal', null, 300], 'the mirror line x = 300 becomes y = 300');
+
+  const s = mapRulers(r, [0.5, 0, 0, 0.5, 0, 0], 1000, 800, 500, 400);
+  assert.deepEqual(s.guides, [{ axis: 'h', pos: 100 }, { axis: 'v', pos: 150 }]);
+  assert.deepEqual([s.shapes[1].rx, s.shapes[1].ry], [15, 5], 'half size');
+
+  const f = mapRulers(r, [-1, 0, 0, 1, 1000, 0], 1000, 800, 1000, 800);
+  assert.deepEqual(f.guides, [{ axis: 'h', pos: 200 }, { axis: 'v', pos: 700 }], 'mirrored across');
+  assert.equal(f.symmetry.x, 700);
+  assert.equal(r.guides[0].pos, 200, 'the original is left alone');
+});
+
+test('selection and figure corners snap to nearby guides', async () => {
+  const { snapToGuides } = await import('../web/js/rulers.js');
+  const guides = [{ axis: 'v', pos: 100 }, { axis: 'v', pos: 104 }, { axis: 'h', pos: 50 }];
+  assert.deepEqual(snapToGuides(guides, { x: 103, y: 47, p: 1 }, 5), { x: 104, y: 50, p: 1 }, 'the nearer of two guides: 1 px from 104, 3 from 100');
+  assert.deepEqual(snapToGuides(guides, { x: 90, y: 60 }, 5), { x: 90, y: 60 }, '10 px away: left alone');
+  assert.deepEqual(snapToGuides([], { x: 1, y: 2 }, 5), { x: 1, y: 2 });
+});

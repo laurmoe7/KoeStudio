@@ -3,6 +3,7 @@
 // Every one goes through reshapeCanvas(): each layer (and the quick mask, while it is on) gets a new canvas, and
 // one undo step swaps them back.
 
+import { mapRulers } from '../rulers.js';
 import { ANCHORS, anchorOffset, validSide, keepRatio, rotatedSize, cropRect } from '../canvasmath.js';
 import { MAX_SIDE, renderFolder } from '../doc.js';
 import { icon } from '../icons.js';
@@ -13,8 +14,9 @@ import { matrix, toDoc } from '../view.js';
 import { HANDLE_PX } from './selecttools.js';
 
 export const canvasMethods = {
-  /** Gives every layer and mask (the quick mask too) a new w x h canvas drawn by paint(ctx, oldCanvas), as one undo step. */
-  reshapeCanvas(label, w, h, paint) {
+  /** Gives every layer and mask (the quick mask too) a new w x h canvas drawn by paint(ctx, oldCanvas), as one undo step.
+   *  m ([a, b, c, d, e, f], old doc point to new) carries the guides and rulers along (mapRulers). */
+  reshapeCanvas(label, w, h, paint, m = null) {
     this.finishTransform();
     this.finishText();
     if (!validSide(w) || !validSide(h)) return toast(`Width and height must be between 1 and ${MAX_SIDE} pixels.`, { error: true });
@@ -32,7 +34,16 @@ export const canvasMethods = {
     }
     const bytes = rasters.length * (before.w * before.h + w * h) * 4;
     const tx = this.textsIn(rasters);  // resized or moved pixels no longer match the text: text layers become pixels
-    this.structural(label, () => { this.setCanvasState(after); tx.drop(); }, () => { this.setCanvasState(before); tx.restore(); }, bytes);
+    const rl = this.rulersAlong(m, d.width, d.height, w, h);
+    this.structural(label, () => { this.setCanvasState(after); tx.drop(); rl.apply(); }, () => { this.setCanvasState(before); tx.restore(); rl.revert(); }, bytes);
+  },
+
+  /** apply/revert for moving the rulers with a change of the canvas (see reshapeCanvas); nothing without m. */
+  rulersAlong(m, oldW, oldH, newW, newH) {
+    if (!m) return { apply() {}, revert() {} };
+    const before = JSON.stringify(this.doc.rulers), after = JSON.stringify(mapRulers(this.doc.rulers, m, oldW, oldH, newW, newH));
+    const set = json => { this.doc.rulers = JSON.parse(json); this.rulerPick = -1; this.updateSnapButton(); this.drawOverlay(); };
+    return { apply: () => set(after), revert: () => set(before) };
   },
 
   setCanvasState(s) {
@@ -82,7 +93,7 @@ export const canvasMethods = {
     });
     if (!res || (res.w === d.width && res.h === d.height)) return;
     const { dx, dy } = anchorOffset(d.width, d.height, res.w, res.h, res.anchor);
-    this.reshapeCanvas('Canvas size', res.w, res.h, (ctx, old) => ctx.drawImage(old, dx, dy));
+    this.reshapeCanvas('Canvas size', res.w, res.h, (ctx, old) => ctx.drawImage(old, dx, dy), [1, 0, 0, 1, dx, dy]);
   },
 
   async imageSizeDialog() {
@@ -125,7 +136,7 @@ export const canvasMethods = {
     this.reshapeCanvas('Image size', res.w, res.h, (ctx, old) => {
       ctx.imageSmoothingEnabled = res.smooth;
       ctx.drawImage(old, 0, 0, res.w, res.h);
-    });
+    }, [res.w / d.width, 0, 0, res.h / d.height, 0, 0]);
   },
 
   cropToSelection() {
@@ -148,7 +159,7 @@ export const canvasMethods = {
   },
 
   cropTo(r) {
-    this.reshapeCanvas('Crop', r.w, r.h, (ctx, old) => ctx.drawImage(old, -r.x, -r.y));
+    this.reshapeCanvas('Crop', r.w, r.h, (ctx, old) => ctx.drawImage(old, -r.x, -r.y), [1, 0, 0, 1, -r.x, -r.y]);
   },
 
   /** Turns the canvas by quarter turns: 1 = 90° right, -1 = 90° left, 2 = 180°. */
@@ -161,7 +172,7 @@ export const canvasMethods = {
       else ctx.translate(w, h);
       ctx.rotate(q * Math.PI / 2);
       ctx.drawImage(old, 0, 0);
-    });
+    }, q === 1 ? [0, 1, -1, 0, w, 0] : q === -1 ? [0, -1, 1, 0, 0, h] : [-1, 0, 0, -1, w, h]);
   },
 
   // ---------- crop tool ----------

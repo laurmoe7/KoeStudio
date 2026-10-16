@@ -139,3 +139,15 @@ test('editing lines: pick, pull, width, colour, remove', async () => {
   const loaded = sanitizeVector({ brushes: [B], strokes: [{ pts: [[0, 0, 1]], w: 9 }, { pts: [[0, 0, 1]], w: 'x' }, { pts: [[0, 0, 1]] }] });
   assert.deepEqual(loaded.strokes.map(x => x.w), [5, undefined, undefined], 'clamped; missing or broken means 1');
 });
+
+test('smoothing a shaky line keeps its ends and pressure', async () => {
+  const { smoothPoints, smoothStroke } = await import('../web/js/vector.js');
+  const zig = [[0, 0, 0.2], [2, 2, 0.4], [4, 0, 0.6], [6, 2, 0.8], [8, 0, 1]];
+  // one round: (2,2) -> ((0 + 4 + 4) / 4, (0 + 4 + 0) / 4) = (2, 1); (4,0) -> (4, 1); (6,2) -> (6, 1)
+  assert.deepEqual(smoothPoints(zig, 1), [[0, 0, 0.2], [2, 1, 0.4], [4, 1, 0.6], [6, 1, 0.8], [8, 0, 1]]);
+  assert.deepEqual(smoothPoints(zig, 0), zig);
+  const s = smoothStroke({ pts: zig, color: '#000' }, 20);
+  assert.deepEqual(s.pts[0], [0, 0, 0.2]); assert.deepEqual(s.pts.at(-1), [8, 0, 1]);
+  assert.ok(s.pts.every(([, y]) => y <= 1.1), 'the zigzag is nearly flat after many rounds');
+  assert.equal(s.color, '#000');
+});
