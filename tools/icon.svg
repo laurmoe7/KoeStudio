@@ -12,16 +12,16 @@
   <!-- ears, sticking out sideways -->
   <path d="M22 46 Q9 39 3 46 Q9 58 26 58 Z" fill="#f6e6dc"/><path d="M20 49 Q11 45 8 49 Q13 55 22 55 Z" fill="#ffb7bd"/>
   <path d="M98 46 Q111 39 117 46 Q111 58 94 58 Z" fill="#f6e6dc"/><path d="M100 49 Q109 45 112 49 Q107 55 98 55 Z" fill="#ffb7bd"/>
-  <!-- body and head in one, with soft brown patches -->
+  <!-- body and head in one, with soft gray patches -->
   <ellipse cx="60" cy="70" rx="52" ry="40" fill="#fff8f2" stroke="#ecd6c8" stroke-width="2.4"/>
-  <g clip-path="url(#body)" fill="#a58273">
+  <g clip-path="url(#body)" fill="#86858f">
     <path d="M70 28 Q90 26 104 40 Q110 52 102 58 Q92 60 86 52 Q76 50 74 42 Q66 38 70 28 Z"/>
     <path d="M6 74 Q18 66 26 76 Q28 90 16 94 Q6 92 6 74 Z"/>
     <ellipse cx="44" cy="36" rx="7" ry="5"/>
   </g>
   <ellipse cx="60" cy="86" rx="34" ry="20" fill="#ffffff" opacity=".6"/>
   <!-- tuft -->
-  <path d="M52 32 Q55 22 60 30 Q63 20 68 30" fill="none" stroke="#a58273" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M52 32 Q55 22 60 30 Q63 20 68 30" fill="none" stroke="#86858f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
   <!-- eyes and cheeks, as on the pigs -->
   <ellipse cx="43" cy="60" rx="5.8" ry="6.6" fill="#3a1a22"/><circle cx="41.4" cy="57.6" r="2.3" fill="#fff"/><circle cx="45" cy="62.6" r="1.1" fill="#fff" opacity=".85"/>
   <ellipse cx="77" cy="60" rx="5.8" ry="6.6" fill="#3a1a22"/><circle cx="75.4" cy="57.6" r="2.3" fill="#fff"/><circle cx="79" cy="62.6" r="1.1" fill="#fff" opacity=".85"/>
