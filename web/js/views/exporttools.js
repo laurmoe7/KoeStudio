@@ -6,7 +6,7 @@ import { api } from '../api.js';
 import { composite } from '../doc.js';
 import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, exportSize, sanitizeExportOptions } from '../imageformats.js';
 import { esc, toast, modal, store, confirmBox } from '../ui.js';
-import { versionsDialog } from './gallery.js';
+import { versionsDialog, newCanvasDialog, importImage } from './gallery.js';
 import { browseFile } from './filebrowser.js';
 
 const showFolder = folder => ({ label: 'Show folder', run: () => api.openFolder('', folder).catch(e => toast(e.message, { error: true })) });
@@ -174,6 +174,19 @@ export const exportMethods = {
     if (!this.doc.id) return;
     const doc = await versionsDialog(this.doc.id, this.doc.title);
     if (doc) this.onOpen({ newDoc: doc });
+  },
+
+  /** File → New canvas…: the gallery's dialog; this artwork is saved before the new one opens (app.js). */
+  async newCanvas() {
+    this.finishText?.();
+    const doc = await newCanvasDialog();
+    if (doc) this.onOpen({ newDoc: doc });
+  },
+
+  /** File → Open image or project…: as in the gallery, the file opens as a new artwork. */
+  openOther() {
+    this.finishText?.();
+    importImage(this.onOpen);
   },
 
   /**

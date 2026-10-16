@@ -94,7 +94,7 @@ export const brushMethods = {
     const presets = this.brushLib?.presets || [];
     const cur = presets.some(p => p.id === s.preset) ? s.preset : '';
     return `<div class="preset-row"><label class="slider" title="Saved brushes: pick one to load its settings"><span>Brush</span>
-      <select data-preset><option value="">${presets.length ? 'Custom' : 'None yet'}</option>${presets.map(p =>
+      <select data-preset><option value="">Custom</option>${presets.map(p =>
         `<option value="${esc(p.id)}" ${p.id === cur ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
       <button class="icon-btn" data-brush-menu title="Save, import and manage brushes">⋯</button></div>`;
   },

@@ -262,6 +262,9 @@ export class Editor {
     const d = this.doc, multi = !!this.multiPicked();
     return {
       file: [
+        { label: 'New canvas…', run: () => this.newCanvas() },
+        { label: 'Open image or project…', run: () => this.openOther() },
+        '-',
         { label: 'Save now', key: 'Ctrl+S', run: () => this.save() },
         { label: 'Export as PNG', key: 'Ctrl+Shift+S', run: () => this.exportAs('png') },
         { label: 'Export…', key: 'Ctrl+Alt+Shift+S', run: () => this.exportAs() },
@@ -361,10 +364,11 @@ export class Editor {
         { label: 'Grid settings…', run: () => this.gridDialog() },
         { label: 'Edge rulers', checked: this.showRulers, run: () => this.toggleEdgeRulers() },
         '-',
-        { label: 'Guides and perspective', key: 'Ctrl+;', checked: d.rulers.visible, run: () => this.toggleRulerVisibility() },
+        { label: 'Show rulers and guides', key: 'Ctrl+;', checked: d.rulers.visible, run: () => this.toggleRulerVisibility() },
         { label: 'Snap to rulers', key: 'Ctrl+2', checked: d.rulers.snap, run: () => this.toggleSnap() },
-        { label: 'Perspective ruler…', key: 'U', run: () => this.selectTool('ruler') },
+        { label: 'Ruler tool…', key: 'U', run: () => this.selectTool('ruler') },
         { label: 'Clear guides', run: () => this.clearGuides(), disabled: !d.rulers.guides.length },
+        { label: 'Clear line and concentric rulers', run: () => this.clearShapes(), disabled: !d.rulers.shapes.length },
         '-',
         { label: 'Symmetry ruler', checked: d.rulers.symmetry.kind !== 'off', run: () => this.toggleSymmetry() },
         { label: 'Symmetry settings…', run: () => this.symmetryDialog() },

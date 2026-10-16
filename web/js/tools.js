@@ -107,7 +107,7 @@ export const SETTING_FIELDS = [
   ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
   ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
   ['leading', 'Line spacing', 'range', 0.5, 4, 0.05],
-  ['corner', 'Round corners', 'range', 0, 500, 1],
+  ['corner', 'Rounding', 'range', 0, 500, 1],
   ['bold', 'Bold', 'check'],
   ['italic', 'Italic', 'check'],
   ['vertical', 'Vertical', 'check'],

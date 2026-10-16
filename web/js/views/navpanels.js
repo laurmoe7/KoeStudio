@@ -7,7 +7,8 @@ import { esc } from '../ui.js';
 import { toDoc, toScreen } from '../view.js';
 
 const NAV_MAX_H = 160;         // tallest the navigator picture gets, in CSS px
-const NAV_CONTENT_MS = 300;    // the picture is redrawn at most this often while painting
+const NAV_PAD = 6;             // dark rim around the picture, CSS px
+const NAV_CONTENT_MS = 300;   // the picture is redrawn at most this often while painting
 
 export const navMethods = {
   // ---------- History ----------
@@ -73,7 +74,7 @@ export const navMethods = {
     const w = c?.parentElement.clientWidth - 20;
     if (!(w > 0)) return null;
     const h = Math.min(NAV_MAX_H, Math.round((w * d.height) / d.width));
-    const scale = Math.min(w / d.width, h / d.height);
+    const scale = Math.min((w - 2 * NAV_PAD) / d.width, (h - 2 * NAV_PAD) / d.height);  // a dark rim shows the paper's edge
     return { w, h, scale, x: (w - d.width * scale) / 2, y: (h - d.height * scale) / 2 };
   },
 
@@ -123,11 +124,16 @@ export const navMethods = {
     // the window's corners on the picture (a turned view outlines a turned box)
     const pts = [[0, 0], [this.vw, 0], [this.vw, this.vh], [0, this.vh]].map(([x, y]) => toDoc(this.view, x, y))
       .map(p => [dpr * (L.x + p.x * L.scale), dpr * (L.y + p.y * L.scale)]);
+    // dim what lies outside the window, so a view showing the whole picture leaves it clear
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(10, 11, 14, 0.45)';
+    ctx.fill('evenodd');
     ctx.beginPath();
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();
-    ctx.fillStyle = 'rgba(110, 168, 255, 0.12)';
-    ctx.fill();
     ctx.lineWidth = 1.5 * dpr;
     ctx.strokeStyle = '#ff5a5a';
     ctx.stroke();

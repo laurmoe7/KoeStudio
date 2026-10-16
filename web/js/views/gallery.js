@@ -232,7 +232,8 @@ export function newCanvasDialog() {
   });
 }
 
-function importImage(onOpen) {
+/** Open image or project…: a .koe file or a picture becomes a new artwork, handed to onOpen({newDoc}). */
+export function importImage(onOpen) {
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = 'image/*,.koe';

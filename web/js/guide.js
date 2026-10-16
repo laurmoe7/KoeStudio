@@ -7,7 +7,8 @@ export const GUIDE = [
   ['start', 'Getting started', `
     <p>KoeStudio opens on the <b>gallery</b>: every artwork you have made, newest first. <b>New canvas</b> starts a
     picture (pick a preset such as Full HD or A4, or type any size up to 10,000 px). <b>Open image or project…</b>
-    turns a picture file into a new artwork, or opens a <code>.koe</code> project file.</p>
+    turns a picture file into a new artwork, or opens a <code>.koe</code> project file. Both are in the editor's
+    File menu too.</p>
     <p>Your work <b>saves by itself</b> a moment after every change; the top right of the window says when. There is
     no Save button to forget. Click the arrow at the top left to go back to the gallery.</p>
     <h4>The screen</h4>
