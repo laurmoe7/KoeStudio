@@ -9,8 +9,6 @@ export const EXPORT_FORMATS = [
   { id: 'gif', label: 'GIF', ext: 'gif', mime: 'image/gif', note: 'Up to 256 colours, on/off transparency.' },
   { id: 'tga', label: 'TGA (Targa)', ext: 'tga', mime: 'image/x-tga', note: 'Uncompressed, keeps transparency.' },
   { id: 'bmp', label: 'BMP', ext: 'bmp', mime: 'image/bmp', note: 'Uncompressed, keeps transparency.' },
-  { id: 'psd', label: 'PSD (Photoshop, with layers)', ext: 'psd', mime: 'image/vnd.adobe.photoshop', layered: true,
-    note: 'Keeps layers, folders, blend modes, opacity, clipping and masks, for Photoshop, Clip Studio Paint, Krita or GIMP. Always the whole canvas at full size.' },
 ];
 export const EXPORT_BY_ID = Object.fromEntries(EXPORT_FORMATS.map(f => [f.id, f]));
 for (const f of EXPORT_FORMATS) f.quality = f.id === 'jpg' || f.id === 'webp';  // canvas.toBlob takes a quality for these

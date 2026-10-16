@@ -232,21 +232,15 @@ export function newCanvasDialog() {
   });
 }
 
-/** Open image or project…: a .koe file, a Photoshop .psd (with its layers) or a picture becomes a new artwork, handed to onOpen({newDoc}). */
+/** Open image or project…: a .koe file or a picture becomes a new artwork, handed to onOpen({newDoc}). */
 export function importImage(onOpen) {
   const inp = document.createElement('input');
   inp.type = 'file';
-  inp.accept = 'image/*,.koe,.psd';
+  inp.accept = 'image/*,.koe';
   inp.onchange = async () => {
     const f = inp.files[0];
     if (!f) return;
     try {
-      if (/\.psd$/i.test(f.name)) {  // a Photoshop file: its layers become a new artwork
-        const { decodePsd } = await import('../psd.js');
-        const { docFromPsd } = await import('../psddoc.js');
-        onOpen({ newDoc: docFromPsd(decodePsd(new Uint8Array(await f.arrayBuffer())), f.name.replace(/\.psd$/i, '')) });
-        return;
-      }
       if (/\.koe$/i.test(f.name)) {  // a project file: becomes a new artwork in the gallery
         const doc = await Doc.fromJSON(JSON.parse(await f.text()));
         if (!doc.title || doc.title === 'Untitled') doc.title = f.name.replace(/\.koe$/i, '');
