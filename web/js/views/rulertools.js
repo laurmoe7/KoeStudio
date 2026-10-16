@@ -5,7 +5,8 @@
 // the artwork (doc.rulers); the edge rulers themselves are a view setting.
 
 import { icon } from '../icons.js';
-import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, snapToGrid, sanitizeGrid, MAX_GUIDES } from '../rulers.js';
+import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, snapToGrid, sanitizeGrid, MAX_GUIDES,
+  MAX_SHAPES, sanitizeShape, shapeHandles, shapeHandleAt, dragShapeHandle, shapeFromDrag } from '../rulers.js';
 import { modal, store, toast } from '../ui.js';
 import { matrix, toScreen, toDoc } from '../view.js';
 
@@ -14,6 +15,11 @@ const GRAB_PX = 6;            // how close (screen px) the pointer must be to a 
 const VP_PX = 10;             // ... or to a vanishing point
 const GRID_SNAP_PX = 10;      // corners of selections, figures and crops this close (on screen) to a grid line go onto it
 const SNAP_PX = 6;            // how far the pen moves before a stroke picks its snap line
+const LINE_SNAP_PX = 24;      // a stroke starting this close (on screen) to a straight-line ruler follows it
+const HANDLE_PX = 8;          // grab distance of straight-line and concentric ruler handles
+const MAKE_PX = 6;            // a drag on empty canvas shorter than this makes no new ruler
+const SHAPE_COLOR = 'rgba(70, 220, 160, 0.9)';
+const SHAPE_FAINT = 'rgba(70, 220, 160, 0.3)';
 const LINE_COLOR = 'rgba(64, 200, 255, 0.85)';
 const PERSPECTIVE_COLOR = 'rgba(190, 120, 255, 0.35)';
 const HORIZON_COLOR = 'rgba(190, 120, 255, 0.9)';
@@ -54,6 +60,39 @@ export const rulerMethods = {
 
   clearGuides() {
     this.editRulers('Clear guides', () => { this.doc.rulers.guides = []; });
+  },
+
+  clearShapes() {
+    this.rulerPick = -1;
+    this.editRulers('Clear rulers', () => { this.doc.rulers.shapes = []; });
+  },
+
+  /** The picked straight-line or concentric ruler's index, or -1 (undo may have removed it). */
+  pickedShape() {
+    const i = this.rulerPick ?? -1;
+    return i >= 0 && i < this.doc.rulers.shapes.length ? i : -1;
+  },
+
+  /** Removes the picked ruler (Del with the Ruler tool); false when none is picked. */
+  deleteShape() {
+    const i = this.pickedShape();
+    if (i < 0) return false;
+    this.rulerPick = -1;
+    this.editRulers('Remove ruler', () => { this.doc.rulers.shapes.splice(i, 1); });
+    return true;
+  },
+
+  /** Adds a straight-line or concentric ruler in the middle of what is on screen. */
+  addShape(kind) {
+    const r = this.doc.rulers;
+    if (r.shapes.length >= MAX_SHAPES) return toast(`There can be at most ${MAX_SHAPES} rulers.`);
+    const box = this.viewport.getBoundingClientRect();
+    const c = toDoc(this.view, box.width / 2, box.height / 2), reach = Math.min(box.width, box.height) / 4 / this.view.zoom;
+    const shape = sanitizeShape(shapeFromDrag(kind, c, { x: c.x + reach, y: c.y }));
+    if (kind === 'line') { shape.x1 = c.x - reach; shape.x2 = c.x + reach; }
+    this.editRulers(kind === 'line' ? 'Straight-line ruler' : 'Concentric ruler', () => { r.shapes.push(shape); r.visible = true; });
+    this.rulerPick = r.shapes.length - 1;
+    this.renderToolProps();
   },
 
   /** Showing/hiding and snapping are settings, not undo steps, but they are saved with the artwork. */
@@ -123,7 +162,7 @@ export const rulerMethods = {
     const b = this.root.querySelector('[data-act="snap"]');
     if (!b) return;
     const r = this.doc.rulers;
-    const on = r.snap && ((r.visible && (r.guides.length || r.perspective)) || (r.grid.show && r.grid.snap));
+    const on = r.snap && ((r.visible && (r.guides.length || r.perspective || r.shapes.length)) || (r.grid.show && r.grid.snap));
     b.classList.toggle('on', !!this.doc.rulers.snap);
     b.title = `Snap strokes to rulers: ${this.doc.rulers.snap ? 'on' : 'off'} (Ctrl+2)${on ? '' : ' — add a guide or perspective ruler to use it'}`;
   },
@@ -146,18 +185,31 @@ export const rulerMethods = {
     this.gesture = { type: 'guide', tool: 'ruler', id, index: -1, axis, pos: Math.round(axis === 'h' ? dp.y : dp.x), before: clone(this.doc.rulers) };
   },
 
-  /** The Ruler tool grabs a vanishing point or a guide under the pointer. */
+  /** The Ruler tool grabs a ruler handle, vanishing point or guide under the pointer; on empty canvas it drags out a
+   *  new straight-line or concentric ruler (the kind picked in the tool panel). */
   beginRulerTool(dp, id) {
     const r = this.doc.rulers;
     if (this.symAt(dp)) { this.gesture = { type: 'vp', tool: 'ruler', id, index: 'sym', before: clone(r) }; return; }
-    if (!r.visible) return toast('Guides and perspective are hidden. Turn them on in the Ruler tool settings.');
+    if (!r.visible) return toast('Rulers are hidden. Turn them on in the Ruler tool settings.');
+    const sh = shapeHandleAt(r.shapes, dp, HANDLE_PX / this.view.zoom);
+    if (sh) {
+      const hd = shapeHandles(r.shapes[sh.index]).find(x => x.h === sh.h);
+      this.rulerPick = sh.index;
+      this.gesture = { type: 'shape', tool: 'ruler', id, index: sh.index, h: sh.h, off: { x: dp.x - hd.x, y: dp.y - hd.y }, before: clone(r) };
+      this.renderToolProps();
+      return;
+    }
     const vp = this.vpAt(dp);
     if (vp >= 0) { this.gesture = { type: 'vp', tool: 'ruler', id, index: vp, before: clone(r) }; return; }
     const gi = guideAt(r.guides, dp, GRAB_PX / this.view.zoom);
     if (gi >= 0) {
       const g = r.guides[gi];
       this.gesture = { type: 'guide', tool: 'ruler', id, index: gi, axis: g.axis, pos: g.pos, before: clone(r) };
+      return;
     }
+    if (this.rulerPick >= 0) { this.rulerPick = -1; this.renderToolProps(); }
+    if (r.shapes.length >= MAX_SHAPES) return;
+    this.gesture = { type: 'shape', tool: 'ruler', id, index: -1, start: { x: dp.x, y: dp.y }, kind: this.rulerMake || 'line', before: clone(r) };
   },
 
   vpAt(dp) {
@@ -166,9 +218,14 @@ export const rulerMethods = {
     return pts.findIndex(p => { const q = toScreen(this.view, p.x, p.y); return Math.hypot(q.x - s.x, q.y - s.y) <= VP_PX; });
   },
 
-  rulerDrag(dp) {
+  rulerDrag(dp, shift = false) {
     const g = this.gesture, r = this.doc.rulers;
-    if (g.type === 'vp' && g.index === 'sym') r.symmetry = { ...r.symmetry, x: Math.round(dp.x), y: Math.round(dp.y) };
+    if (g.type === 'shape' && g.index < 0) {  // dragging out a new ruler: shown once the drag is long enough
+      const far = Math.hypot(dp.x - g.start.x, dp.y - g.start.y) * this.view.zoom >= MAKE_PX;
+      g.shape = far ? sanitizeShape(shapeFromDrag(g.kind, g.start, dp, shift)) : null;
+    } else if (g.type === 'shape') {
+      r.shapes[g.index] = dragShapeHandle(r.shapes[g.index], g.h, { x: dp.x - g.off.x, y: dp.y - g.off.y }, shift);
+    } else if (g.type === 'vp' && g.index === 'sym') r.symmetry = { ...r.symmetry, x: Math.round(dp.x), y: Math.round(dp.y) };
     else if (g.type === 'vp') r.perspective.points[g.index] = { x: Math.round(dp.x), y: Math.round(dp.y) };
     else {
       g.pos = Math.round(g.axis === 'h' ? dp.y : dp.x);
@@ -180,6 +237,16 @@ export const rulerMethods = {
   /** Ends a guide or vanishing point drag; a guide dropped on an edge ruler is removed. */
   rulerEnd(p) {
     const g = this.gesture, r = this.doc.rulers;
+    if (g.type === 'shape') {
+      if (g.index >= 0) {
+        const s = sanitizeShape(r.shapes[g.index]);
+        return this.editRulers('Move ruler', () => { if (s) r.shapes[g.index] = s; else r.shapes.splice(g.index, 1); }, g.before);
+      }
+      if (!g.shape) return;
+      this.editRulers(g.kind === 'line' ? 'Straight-line ruler' : 'Concentric ruler', () => { r.shapes.push(g.shape); }, g.before);
+      this.rulerPick = r.shapes.length - 1;
+      return this.renderToolProps();
+    }
     const dropped = this.rulerBand(p) && g.type === 'guide';
     this.editRulers(g.index === 'sym' ? 'Move symmetry centre' : g.type === 'vp' ? 'Move vanishing point' : dropped ? 'Remove guide' : g.index < 0 ? 'Add guide' : 'Move guide', () => {
       if (g.type !== 'guide') return;
@@ -193,14 +260,15 @@ export const rulerMethods = {
     if (band) return band === 'corner' ? 'default' : band === 'top' ? 'row-resize' : 'col-resize';
     const g = this.gesture;
     if (g?.type === 'guide') return g.axis === 'h' ? 'row-resize' : 'col-resize';
-    if (g?.type === 'vp') return 'grabbing';
+    if (g?.type === 'vp' || (g?.type === 'shape' && g.index >= 0)) return 'grabbing';
+    if (g?.type === 'shape') return 'crosshair';
     if (this.effectiveTool() === 'ruler' && p && this.symAt(toDoc(this.view, p.x, p.y))) return 'grab';
     if (this.effectiveTool() !== 'ruler' || !p || !this.doc.rulers.visible) return null;
     const dp = toDoc(this.view, p.x, p.y);
-    if (this.vpAt(dp) >= 0) return 'grab';
+    if (shapeHandleAt(this.doc.rulers.shapes, dp, HANDLE_PX / this.view.zoom) || this.vpAt(dp) >= 0) return 'grab';
     const gi = guideAt(this.doc.rulers.guides, dp, GRAB_PX / this.view.zoom);
     if (gi >= 0) return this.doc.rulers.guides[gi].axis === 'h' ? 'row-resize' : 'col-resize';
-    return 'default';
+    return 'crosshair';
   },
 
   // ---------- snapping strokes ----------
@@ -209,7 +277,7 @@ export const rulerMethods = {
   snapFor(pt) {
     const r = this.doc.rulers;
     if (!r.snap) return null;
-    const cands = snapCandidates(r, pt, (GRAB_PX * 2) / this.view.zoom);
+    const cands = snapCandidates(r, pt, (GRAB_PX * 2) / this.view.zoom, LINE_SNAP_PX / this.view.zoom);
     return cands.length ? { start: pt, cands, line: null, held: [] } : null;
   },
 
@@ -288,7 +356,49 @@ export const rulerMethods = {
       else { ctx.moveTo(...sp(gd.pos, -FAR)); ctx.lineTo(...sp(gd.pos, FAR)); }
     }
     ctx.stroke();
+    const shapes = r.visible ? r.shapes.slice() : [];
+    if (g?.type === 'shape' && g.shape) shapes.push(g.shape);
+    this.drawShapes(ctx, sp, dpr, shapes);
     ctx.restore();
+  },
+
+  /** Straight-line rulers (solid between the ends, faint beyond) and concentric rulers (with their handles while the
+   *  Ruler tool is in use; the picked one filled). */
+  drawShapes(ctx, sp, dpr, shapes) {
+    if (!shapes.length) return;
+    const tool = this.effectiveTool() === 'ruler', pick = this.pickedShape(), FAR = 1e5;
+    shapes.forEach((s, i) => {
+      ctx.lineWidth = (i === pick ? 2 : 1.5) * dpr;
+      ctx.beginPath();
+      if (s.type === 'line') {
+        const l = Math.hypot(s.x2 - s.x1, s.y2 - s.y1) || 1, ux = (s.x2 - s.x1) / l, uy = (s.y2 - s.y1) / l;
+        ctx.strokeStyle = SHAPE_FAINT;
+        ctx.moveTo(...sp(s.x1 - ux * FAR, s.y1 - uy * FAR)); ctx.lineTo(...sp(s.x2 + ux * FAR, s.y2 + uy * FAR));
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(...sp(s.x1, s.y1)); ctx.lineTo(...sp(s.x2, s.y2));
+      } else {
+        const cos = Math.cos(s.angle), sin = Math.sin(s.angle), n = 96;
+        for (let k = 0; k <= n; k++) {
+          const t = (k / n) * Math.PI * 2, ox = s.rx * Math.cos(t), oy = s.ry * Math.sin(t);
+          const q = sp(s.x + ox * cos - oy * sin, s.y + ox * sin + oy * cos);
+          k ? ctx.lineTo(...q) : ctx.moveTo(...q);
+        }
+      }
+      ctx.strokeStyle = SHAPE_COLOR;
+      ctx.stroke();
+      if (!tool) return;
+      for (const hd of shapeHandles(s)) {
+        const [x, y] = sp(hd.x, hd.y), big = hd.h === 'mid' || hd.h === 'c';
+        ctx.fillStyle = i === pick ? SHAPE_COLOR : '#fff';
+        ctx.strokeStyle = '#1d8f66';
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        if (big) ctx.arc(x, y, 5 * dpr, 0, Math.PI * 2);
+        else ctx.rect(x - 4 * dpr, y - 4 * dpr, 8 * dpr, 8 * dpr);
+        ctx.fill(); ctx.stroke();
+      }
+    });
   },
 
   /** The grid over the canvas: main lines every grid.size, thinner ones between; too dense lines are left out. */
@@ -375,24 +485,39 @@ export const rulerMethods = {
   // ---------- tool panel ----------
 
   renderRulerProps(box) {
-    const r = this.doc.rulers, n = r.perspective?.points.length || 0;
+    const r = this.doc.rulers, n = r.perspective?.points.length || 0, pick = this.pickedShape();
+    const make = this.rulerMake === 'ellipse' ? 'ellipse' : 'line';
     box.innerHTML = `
       <div class="field"><span>Perspective ruler</span>
         <div class="seg">${[1, 2, 3].map(k => `<button data-r="p${k}" class="${n === k ? 'on' : ''}">${k}-point</button>`).join('')}
         <button data-r="p0" ${n ? '' : 'disabled'} title="Remove the perspective ruler">${icon('trash', 14)}</button></div>
       </div>
+      <div class="field"><span>Drag on the canvas for</span>
+        <div class="seg">${[['line', 'Straight line'], ['ellipse', 'Concentric']].map(([k, label]) =>
+          `<button data-make="${k}" class="${make === k ? 'on' : ''}" title="${k === 'line' ? 'Strokes started near the line follow it' : 'Every stroke follows a circle (or ellipse) around the same centre'}">${label}</button>`).join('')}</div>
+      </div>
+      <div class="btn-row">
+        <button data-r="addline" title="Add a straight-line ruler in the middle of the view">+ Line</button>
+        <button data-r="addellipse" title="Add a concentric ruler in the middle of the view">+ Concentric</button>
+        <button data-r="delshape" ${pick >= 0 ? '' : 'disabled'} title="Remove the picked ruler (Del)">${icon('trash', 14)}</button>
+      </div>
       <div class="checks">
-        <label class="check"><input type="checkbox" data-r="visible" ${r.visible ? 'checked' : ''}> Show guides and perspective</label>
+        <label class="check"><input type="checkbox" data-r="visible" ${r.visible ? 'checked' : ''}> Show rulers and guides</label>
         <label class="check"><input type="checkbox" data-r="snap" ${r.snap ? 'checked' : ''}> Snap strokes to them (Ctrl+2)</label>
         <label class="check"><input type="checkbox" data-r="edge" ${this.showRulers ? 'checked' : ''}> Rulers along the edges</label>
       </div>
-      <div class="btn-row"><button data-r="clear" ${r.guides.length ? '' : 'disabled'}>Clear ${r.guides.length || ''} guide${r.guides.length === 1 ? '' : 's'}</button></div>
-      <p class="hint">Drag out of an edge ruler to add a guide, drag a guide back onto it to remove it. With this tool, drag guides and the round vanishing points to move them.</p>`;
+      <div class="btn-row"><button data-r="clear" ${r.guides.length ? '' : 'disabled'}>Clear ${r.guides.length || ''} guide${r.guides.length === 1 ? '' : 's'}</button>
+        <button data-r="clearshapes" ${r.shapes.length ? '' : 'disabled'}>Clear ${r.shapes.length || ''} ruler${r.shapes.length === 1 ? '' : 's'}</button></div>
+      <p class="hint">Drag out of an edge ruler to add a guide, drag a guide back onto it to remove it. With this tool, drag guides, vanishing points and ruler handles to move them (Shift: 15° steps, or a circle). Ctrl+2 turns snapping off for free strokes.</p>`;
     const acts = {
       p1: () => this.setPerspective(1), p2: () => this.setPerspective(2), p3: () => this.setPerspective(3), p0: () => this.setPerspective(0),
-      clear: () => this.clearGuides(),
+      clear: () => this.clearGuides(), clearshapes: () => this.clearShapes(),
+      addline: () => this.addShape('line'), addellipse: () => this.addShape('ellipse'), delshape: () => this.deleteShape(),
     };
     box.querySelectorAll('button[data-r]').forEach(bt => { bt.onclick = () => acts[bt.dataset.r](); });
+    box.querySelectorAll('button[data-make]').forEach(bt => {
+      bt.onclick = () => { this.rulerMake = bt.dataset.make; store('rulerMake', this.rulerMake); this.renderToolProps(); };
+    });
     box.querySelector('[data-r="visible"]').onchange = () => this.toggleRulerVisibility();
     box.querySelector('[data-r="snap"]').onchange = () => this.toggleSnap();
     box.querySelector('[data-r="edge"]').onchange = () => this.toggleEdgeRulers();

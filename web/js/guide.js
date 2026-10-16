@@ -170,6 +170,10 @@ export const GUIDE = [
       <li>The <b>Ruler tool</b> (<kbd>U</kbd> twice) adds a 1-, 2- or 3-point perspective ruler and moves its points.</li>
       <li>With <b>snapping</b> on (<kbd>Ctrl+2</kbd>, or the magnet at the bottom) strokes follow the guide or
       perspective line they start along.</li>
+      <li><b>Straight-line and concentric rulers</b>: with the Ruler tool, pick Straight line or Concentric and drag on
+      the canvas (or use + Line / + Concentric). Strokes started near a straight ruler follow it; with a concentric ruler
+      every stroke follows a circle or ellipse around its centre. Drag the handles to move, turn or reshape them
+      (Shift: 15° steps, or a circle); <kbd>Del</kbd> removes the picked one.</li>
       <li><b>Symmetry</b> (View → Symmetry settings…) mirrors what you draw, or repeats it round a centre.</li>
       <li><b>Grid</b> <kbd>Ctrl+'</kbd>, with its spacing in View → Grid settings…. Tick Snap there and strokes follow grid lines, while rectangle, ellipse and polygon selections, figures and crops put their corners on them.</li>
     </ul>`],

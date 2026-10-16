@@ -78,6 +78,8 @@ export class Editor {
     this.picked = new Set();  // layers/folders picked together with Ctrl/Shift+click, doc.active among them (layerops.js multiPicked)
     this.maskEdit = false;  // tools paint on the selected layer's mask instead of the layer (layerops.js)
     this.showRulers = store('edgeRulers') !== false;  // pixel rulers along the view edges (rulertools.js)
+    this.rulerMake = store('rulerMake') === 'ellipse' ? 'ellipse' : 'line';  // what a drag with the Ruler tool makes
+    this.rulerPick = -1;  // the picked straight-line or concentric ruler (rulertools.js)
     this.maskOverlay = store('maskOverlay') === true;  // tint what a mask hides while painting on it
     this.poly = null;  // polygon selection being drawn (selecttools.js)
     this.figPoly = null;  // polyline/polygon figure being clicked (figuretool.js)
@@ -812,8 +814,8 @@ export class Editor {
           this.xfDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         } else if (g.type === 'crop') {
           this.cropDrag(this.gridPoint(toDoc(this.view, p.x, p.y)), e.shiftKey);
-        } else if (g.type === 'guide' || g.type === 'vp') {
-          this.rulerDrag(toDoc(this.view, p.x, p.y));
+        } else if (g.type === 'guide' || g.type === 'vp' || g.type === 'shape') {
+          this.rulerDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         } else if (g.type === 'gradient') {
           this.gradientDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         } else if (g.type === 'lineedit') {
@@ -836,7 +838,7 @@ export class Editor {
       else if (g.type === 'lineedit') this.endLineEdit();
       else if (g.type === 'verase') this.endVectorErase();
       else if (g.type === 'lassofill') this.endLassoFill();
-      else if (g.type === 'guide' || g.type === 'vp') this.rulerEnd(this.pointer);
+      else if (g.type === 'guide' || g.type === 'vp' || g.type === 'shape') this.rulerEnd(this.pointer);
       else if (g.type === 'gradient') this.endGradient();
       else if (g.type === 'figure') this.endFigure();
       else if (g.type === 'move') this.endMove();
@@ -1221,8 +1223,8 @@ export class Editor {
       'ctrl+2': () => this.toggleSnap(), 'ctrl+;': () => this.toggleRulerVisibility(), "ctrl+'": () => this.toggleGrid(),
       'ctrl+c': () => this.copySelection(), 'ctrl+x': () => this.copySelection(true),
       '4': () => this.rotate(-15), '6': () => this.rotate(15), '5': () => this.rotate(null),
-      'delete': () => (this.tool === 'lineedit' && this.deleteLine()) || this.clearLayer(),
-      'backspace': () => (this.tool === 'lineedit' && this.deleteLine()) || this.clearLayer(),
+      'delete': () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
+      'backspace': () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
       'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
       'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
       'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'), 'ctrl+alt+shift+s': () => this.exportAs(),

@@ -15,7 +15,7 @@ test('sanitizing', () => {
   assert.equal(sanitizeRulers({ guides: Array.from({ length: 150 }, () => ({ axis: 'h', pos: 1 })) }).guides.length, MAX_GUIDES);
   assert.equal(sanitizeRulers(null).perspective, null);
   assert.deepEqual(sanitizeDoc({}).rulers, { guides: [], perspective: null, visible: true, snap: true,
-    grid: { show: false, size: 100, div: 4, snap: false }, symmetry: { kind: 'off', lines: 6, x: null, y: null } },
+    grid: { show: false, size: 100, div: 4, snap: false }, symmetry: { kind: 'off', lines: 6, x: null, y: null }, shapes: [] },
     'old files get empty rulers, a hidden grid and no symmetry');
 });
 
@@ -85,4 +85,81 @@ test('selection and figure corners snap to the grid', async () => {
   assert.deepEqual(snapToGrid(g, { x: 47, y: 61 }, 4), { x: 50, y: 61 }, 'x is 3 from 50; y is 11 from 50 and 14 from 75');
   assert.deepEqual(snapToGrid(g, { x: 12, y: 99, p: 0.5 }, 4), { x: 12, y: 100, p: 0.5 }, '12 is halfway between lines; pressure kept');
   assert.deepEqual(snapToGrid(g, { x: -2, y: 0 }, 4), { x: 0, y: 0 }, 'the edge is a line too');
+});
+
+test('straight-line and concentric rulers are sanitized', async () => {
+  const { sanitizeShape, MAX_SHAPES } = await import('../web/js/rulers.js');
+  assert.equal(sanitizeShape({ type: 'line', x1: 5, y1: 5, x2: 5, y2: 5 }), null, 'a line needs two different ends');
+  assert.equal(sanitizeShape({ type: 'line', x1: 'a', y1: 0, x2: 1, y2: 1 }), null);
+  assert.equal(sanitizeShape({ type: 'ellipse', x: 0, y: 0, rx: 0.5, ry: 4 }), null, 'radii of at least 1');
+  assert.equal(sanitizeShape({ type: 'star' }), null);
+  assert.deepEqual(sanitizeShape({ type: 'line', x1: 1.234, y1: 0, x2: 9, y2: 9, extra: 1 }), { type: 'line', x1: 1.23, y1: 0, x2: 9, y2: 9 });
+  const e = sanitizeShape({ type: 'ellipse', x: 1, y: 2, rx: 3, ry: 4, angle: 4 });
+  assert.ok(Math.abs(e.angle - (4 - 2 * Math.PI)) < 1e-6, 'turned back into -pi..pi (kept to 6 decimals)');
+  assert.equal(sanitizeShape({ type: 'ellipse', x: 1, y: 2, rx: 3, ry: 4 }).angle, 0, 'no angle = level');
+  const many = sanitizeRulers({ shapes: [...Array.from({ length: 60 }, () => ({ type: 'line', x1: 0, y1: 0, x2: 1, y2: 0 })), null] });
+  assert.equal(many.shapes.length, MAX_SHAPES);
+});
+
+test('strokes snap to a straight-line ruler they start near', () => {
+  const r = { visible: true, guides: [], perspective: null, shapes: [{ type: 'line', x1: 0, y1: 0, x2: 100, y2: 100 }] };
+  const c = snapCandidates(r, { x: 50, y: 60 }, 3, 10);  // the nearest point on the line is (55, 55), 7.07 away
+  assert.equal(c.length, 1);
+  near(c[0].p.x, 55); near(c[0].p.y, 55);
+  near(c[0].d.x, Math.SQRT1_2); near(c[0].d.y, Math.SQRT1_2);
+  const q = project(c[0], { x: 0, y: 20 });
+  near(q.x, 10); near(q.y, 10, '(0, 20) lands on (10, 10)');
+  assert.equal(snapCandidates(r, { x: 50, y: 60 }, 3, 5).length, 0, 'too far away');
+  assert.equal(snapCandidates(r, { x: 300, y: 296 }, 3, 5).length, 1, 'the line reaches past its ends');
+  assert.equal(snapCandidates({ ...r, visible: false }, { x: 50, y: 60 }, 3, 10).length, 0, 'hidden rulers do not snap');
+});
+
+test('strokes follow concentric circles and ellipses', () => {
+  const circle = { type: 'ellipse', x: 0, y: 0, rx: 10, ry: 10, angle: 0 };
+  const [c] = snapCandidates({ visible: true, guides: [], perspective: null, shapes: [circle] }, { x: 30, y: 40 }, 3);
+  assert.equal(c.kind, 'ellipse', 'anywhere on the canvas');
+  near(c.d.x, -0.8); near(c.d.y, 0.6, 'the tangent at (30, 40)');
+  let q = project(c, { x: 3, y: 4 }); near(q.x, 30); near(q.y, 40, 'radius 50 in the same direction');
+  q = project(c, { x: -100, y: 0 }); near(q.x, -50); near(q.y, 0);
+  assert.equal(snapCandidates({ visible: true, guides: [], shapes: [circle] }, { x: 0, y: 0 }, 3).length, 0, 'not from the centre');
+
+  const wide = pickLine(snapCandidates({ visible: true, guides: [], shapes: [{ ...circle, rx: 20 }] }, { x: 0, y: 20 }, 3), { x: 0, y: 20 }, { x: -5, y: 20 });
+  near(wide.d.x, -1); near(wide.d.y, 0);
+  q = project(wide, { x: 100, y: 0 }); near(q.x, 40); near(q.y, 0, 'twice the ruler: 40 wide, 20 high');
+  q = project(wide, { x: 0, y: -1 }); near(q.x, 0); near(q.y, -20);
+
+  const upright = snapCandidates({ visible: true, guides: [], shapes: [{ ...circle, rx: 20, angle: Math.PI / 2 }] }, { x: 0, y: 40 }, 3)[0];
+  q = project(upright, { x: 5, y: 0 }); near(q.x, 20); near(q.y, 0, 'turned a quarter: the short axis lies across');
+});
+
+test('dragging ruler handles', async () => {
+  const { shapeHandles, dragShapeHandle, shapeFromDrag, shapeHandleAt } = await import('../web/js/rulers.js');
+  const line = { type: 'line', x1: 0, y1: 0, x2: 100, y2: 0 };
+  assert.deepEqual(shapeHandles(line).map(h => [h.h, h.x, h.y]), [['a', 0, 0], ['b', 100, 0], ['mid', 50, 0]]);
+  assert.deepEqual(dragShapeHandle(line, 'mid', { x: 60, y: 10 }), { type: 'line', x1: 10, y1: 10, x2: 110, y2: 10 });
+  assert.deepEqual(dragShapeHandle(line, 'a', { x: 7, y: 8 }), { ...line, x1: 7, y1: 8 });
+  const level = dragShapeHandle(line, 'b', { x: 52, y: 3 }, true);
+  near(level.x2, Math.hypot(52, 3)); near(level.y2, 0, 'Shift: 3.3 degrees rounds to level, length kept');
+  const ell = { type: 'ellipse', x: 0, y: 0, rx: 20, ry: 10, angle: 0 };
+  const turned = dragShapeHandle(ell, 'rx', { x: 0, y: 30 });
+  assert.equal(turned.rx, 30); near(turned.angle, Math.PI / 2); assert.equal(turned.ry, 10);
+  assert.equal(dragShapeHandle({ ...ell, rx: 30 }, 'ry', { x: 5, y: -12 }).ry, 12, 'only the distance along the second axis counts');
+  assert.deepEqual(dragShapeHandle(ell, 'ry', { x: 5, y: -12 }, true), { ...ell, rx: 12, ry: 12 }, 'Shift: a circle');
+  assert.deepEqual(dragShapeHandle(ell, 'c', { x: 4, y: 5 }), { ...ell, x: 4, y: 5 });
+  assert.deepEqual(shapeFromDrag('ellipse', { x: 10, y: 10 }, { x: 13, y: 14 }), { type: 'ellipse', x: 10, y: 10, rx: 5, ry: 5, angle: 0 });
+  assert.deepEqual(shapeFromDrag('line', { x: 1, y: 2 }, { x: 3, y: 4 }), { type: 'line', x1: 1, y1: 2, x2: 3, y2: 4 });
+  assert.deepEqual(shapeHandleAt([line], { x: 98, y: 2 }, 5), { index: 0, h: 'b' });
+  assert.deepEqual(shapeHandleAt([line], { x: 50, y: 1 }, 5), { index: 0, h: 'mid' });
+  assert.equal(shapeHandleAt([line], { x: 30, y: 0 }, 5), null);
+});
+
+test('a line the stroke started on wins over a concentric ruler when the stroke heads along it', () => {
+  // centre (100, -200), start (0, 100): from the centre (-100, 300), so the circle's tangent is along (3, 1), 18.4° from level
+  const r = { visible: true, guides: [{ axis: 'h', pos: 100 }], perspective: null, shapes: [{ type: 'ellipse', x: 100, y: -200, rx: 10, ry: 10, angle: 0 }] };
+  const start = { x: 0, y: 100 };
+  const cands = snapCandidates(r, start, 5);
+  assert.deepEqual(cands.map(c => c.kind), ['guide', 'ellipse']);
+  assert.equal(pickLine(cands, start, { x: 10, y: 105 }).kind, 'guide', '26.6° off the guide (8.1° off the circle): still the guide');
+  assert.equal(pickLine(cands, start, { x: 10, y: 106.5 }).kind, 'ellipse', '33° off the guide (14.6° off the circle): the circle');
+  assert.equal(pickLine(cands, start, { x: -30, y: 80 }).kind, 'ellipse', 'backwards, 33.7° off the guide and 15.3° off the circle');
 });
