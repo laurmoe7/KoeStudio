@@ -95,6 +95,7 @@ export const GUIDE = [
     <ul>
       <li><b>Color range…</b> selects every pixel close to a colour; click the canvas to pick it, and set how close with Fuzziness.</li>
       <li><b>Expand, shrink, feather</b> (soft edge) and <b>border</b> (a band along the edge).</li>
+      <li>Edit → <b>Stroke selection…</b> draws the main colour along the selection's edge: inside, centred or outside, as wide as you like.</li>
       <li><b>Quick mask</b> <kbd>Q</kbd>: the selection turns red and every tool paints it. Painting selects,
       erasing deselects, a blur softens it. Press <kbd>Q</kbd> again to get the selection back.</li>
     </ul>`],
@@ -104,7 +105,8 @@ export const GUIDE = [
       <li><b>Move</b> <kbd>V</kbd>: drag the layer, or only the selected pixels if there is a selection.</li>
       <li><b>Transform</b> <kbd>Ctrl+T</kbd>: drag the handles to scale (Shift keeps proportions), outside the box to
       rotate (Shift snaps to 15°), inside to move. Flip and turn 90° from its panel. <kbd>Enter</kbd> applies,
-      <kbd>Esc</kbd> cancels.</li>
+      <kbd>Esc</kbd> cancels. <b>Distort</b> (or <kbd>Ctrl</kbd>+drag a corner) frees the four corners: drag each
+      on its own to put a picture in perspective, onto a wall or a screen.</li>
       <li><kbd>Ctrl+C</kbd>, <kbd>Ctrl+X</kbd>, <kbd>Ctrl+V</kbd> copy, cut and paste onto a new layer in the same place;
       pictures copied in other programs paste too, and you can drop image files onto the canvas.</li>
     </ul>`],
@@ -118,6 +120,7 @@ export const GUIDE = [
       <li><b>Lock alpha</b> paints only where there already is paint. <b>Clip below</b> shows a layer only inside the
       one under it (great for shading).</li>
       <li><b>Lock</b> protects a layer from changes; <b>Reference</b> marks line art for Fill and the wand.</li>
+      <li><b>Copy to new layer</b> <kbd>Ctrl+J</kbd> and <b>Cut to new layer</b> <kbd>Ctrl+Shift+J</kbd> lift the selection (or the whole layer) onto a layer of its own. <b>Flatten image</b> puts everything visible on one layer.</li>
       <li>The coloured dots label layers so you can find them.</li>
       <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click picks more layers, <kbd>Shift</kbd>+click picks a run of
       them. Then drag, the up/down buttons, the eye, delete, duplicate, <kbd>Ctrl+G</kbd> and <kbd>Ctrl+E</kbd> (merge
@@ -162,6 +165,7 @@ export const GUIDE = [
       <li>Blurs: Gaussian, motion, zoom and spin (click the canvas to put their centre there). Sharpen, mosaic and noise.</li>
       <li>Colour: brightness/contrast, hue/saturation, colour balance, curves, levels, posterize, threshold and invert.</li>
       <li><b>Extract lines</b> keeps only lines darker than their surroundings, as black ink (or their own colour) on a clear layer: use it on a scanned sketch or photo. Set <b>Line width</b> to at least your widest lines (wider lines keep only their edges). Duplicate the layer first to keep the original.</li>
+      <li><b>Gradient map</b> recolours by lightness: dark parts take the first colour of the Gradient tool's Colors choice, light parts the last (try Sunset or Night, or main → sub).</li>
       <li><kbd>Ctrl+F</kbd> repeats the last filter with the same settings.</li>
     </ul>`],
 
@@ -221,7 +225,7 @@ export const SHORTCUTS = [
   ['Selection', [['Ctrl+A / Ctrl+D', 'Select all / deselect'], ['Ctrl+Shift+I', 'Invert the selection'], ['Q', 'Quick mask'],
     ['Shift / Alt (while dragging)', 'Add to / subtract from the selection']]],
   ['Layers', [['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],
-    ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['F2', 'Rename the layer'],
+    ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['Ctrl+J / Ctrl+Shift+J', 'Copy / cut to a new layer'], ['F2', 'Rename the layer'],
     ['Ctrl+click / Shift+click', 'Pick several layers']]],
   ['View', [['Space (hold)', 'Move the view'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
     ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'],

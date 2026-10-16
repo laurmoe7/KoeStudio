@@ -43,6 +43,9 @@ export const FILTERS = [
     f('softness', 'Softness', 1, 255, 1, 48), f('color', 'Keep color', 0, 100, 1, 0, '%')],
     margin: p => Math.ceil(p.radius) + 4, apply: (d, w, h, p) => extractLines(d, w, h, p) },
   { id: 'invert', label: 'Invert colors', fields: [], margin: () => 0, apply: d => invert(d) },
+  { id: 'gradmap', label: 'Gradient map…', fields: [f('mix', 'Strength', 0, 100, 1, 100, '%')], gradient: true,
+    note: 'Dark parts take the first colour of the Gradient tool’s Colors choice, light parts the last.',
+    margin: () => 0, apply: (d, w, h, p) => gradientMap(d, p.stops || [[0, [0, 0, 0, 255]], [1, [255, 255, 255, 255]]], p.mix / 100) },
 ];
 
 export const FILTER_BY_ID = Object.fromEntries(FILTERS.filter(x => x !== '-').map(x => [x.id, x]));
@@ -560,4 +563,37 @@ export function mixByMask(orig, filtered, mask) {
     for (let c = 0; c < 4; c++) orig[i + c] = orig[i + c] + (filtered[i + c] - orig[i + c]) * t;
   }
   return orig;
+}
+
+/** A CSS colour as used in gradient stops ('#rrggbb' or 'rgba(r,g,b,a)') to [r, g, b, a] (0-255). */
+export function parseStopColor(css) {
+  const m = /^rgba?\(([^)]+)\)$/.exec(css.trim());
+  if (m) {
+    const [r, g, b, a = 1] = m[1].split(',').map(Number);
+    return [r, g, b, Math.round(a * 255)];
+  }
+  const hex = css.replace('#', '');
+  return [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) || 0).concat(255);
+}
+
+/**
+ * Gradient map: each pixel's lightness (0-255) picks a colour along stops [[offset 0-1, [r, g, b, a]], ...]
+ * (dark = offset 0). A stop's alpha thins the pixel out. mix (0-1) blends the result over the original.
+ */
+export function gradientMap(data, stops, mix = 1) {
+  const lut = new Float32Array(256 * 4);
+  for (let v = 0; v < 256; v++) {
+    const t = v / 255;
+    let k = 0;
+    while (k < stops.length - 2 && t > stops[k + 1][0]) k++;
+    const [o0, c0] = stops[k], [o1, c1] = stops[Math.min(k + 1, stops.length - 1)];
+    const f = o1 > o0 ? Math.min(1, Math.max(0, (t - o0) / (o1 - o0))) : 0;
+    for (let c = 0; c < 4; c++) lut[v * 4 + c] = c0[c] + (c1[c] - c0[c]) * f;
+  }
+  for (let i = 0; i < data.length; i += 4) {
+    const v = Math.round(luminance(data[i], data[i + 1], data[i + 2])) * 4;
+    for (let c = 0; c < 3; c++) data[i + c] += (lut[v + c] - data[i + c]) * mix;
+    data[i + 3] += (data[i + 3] * lut[v + 3] / 255 - data[i + 3]) * mix;
+  }
+  return data;
 }

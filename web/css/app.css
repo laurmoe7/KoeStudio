@@ -381,3 +381,7 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
   .cp-sv { width: 150px; height: 150px; }
   .cp-hue { height: 150px; }
 }
+
+/* Free transform in Distort mode: the box has four free corners, so Keep aspect has no meaning */
+.xf-bar.distort .xf-aspect { display: none; }
+.xf-bar.distort [data-xf="distort"] { background: var(--accent-2); border-color: var(--accent-2); color: #fff; pointer-events: none; }

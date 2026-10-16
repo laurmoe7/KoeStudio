@@ -334,3 +334,19 @@ test('max filter and thick lines', async () => {
   assert.equal(out[(4 * w + 20) * 4 + 3], 255, 'the middle of the band');
   assert.equal(out[(4 * w + 5) * 4 + 3], 0, 'the paper');
 });
+
+test('gradient map: lightness picks a colour along the stops', async () => {
+  const { gradientMap, parseStopColor } = await import('../web/js/filters.js');
+  assert.deepEqual(parseStopColor('#ff8000'), [255, 128, 0, 255]);
+  assert.deepEqual(parseStopColor('rgba(10,20,30,0)'), [10, 20, 30, 0]);
+  const stops = [[0, [0, 0, 255, 255]], [1, [255, 255, 0, 255]]];  // dark -> blue, light -> yellow
+  const d = new Uint8ClampedArray([0, 0, 0, 255, 255, 255, 255, 255, 128, 128, 128, 100]);
+  gradientMap(d, stops);
+  assert.deepEqual([...d], [0, 0, 255, 255, 255, 255, 0, 255, 128, 128, 127, 100], 'gray 128 lands halfway: 128/255 of the way; alpha kept');
+  const half = new Uint8ClampedArray([0, 0, 0, 255]);
+  gradientMap(half, stops, 0.5);
+  assert.deepEqual([...half], [0, 0, 128, 255], 'Strength 50%: halfway from black to blue');
+  const fade = new Uint8ClampedArray([255, 255, 255, 200]);
+  gradientMap(fade, [[0, [0, 0, 0, 255]], [1, [0, 0, 0, 0]]]);
+  assert.equal(fade[3], 0, 'a transparent stop clears the light parts');
+});

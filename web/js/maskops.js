@@ -110,3 +110,20 @@ export function featherMask(alpha, w, h, radius) {
   for (let i = 0; i < alpha.length; i++) out[i] = Math.round(plane[i]);
   return out;
 }
+
+/**
+ * Edit → Stroke selection: a band n pixels wide along the mask's edge, 'inside' it (the mask minus the mask shrunk
+ * by n), 'outside' it (grown by n, minus the mask) or 'center' (borderMask: half each way).
+ */
+export function strokeBand(alpha, w, h, n, where) {
+  if (where === 'center') return borderMask(alpha, w, h, n);
+  const out = new Uint8ClampedArray(alpha.length);
+  if (where === 'inside') {
+    const inner = shrinkMask(alpha, w, h, n);
+    for (let i = 0; i < alpha.length; i++) out[i] = alpha[i] - inner[i];
+  } else {
+    const outer = expandMask(alpha, w, h, n);
+    for (let i = 0; i < alpha.length; i++) out[i] = outer[i] - alpha[i];
+  }
+  return out;
+}

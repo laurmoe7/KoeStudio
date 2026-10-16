@@ -2,7 +2,8 @@
 // dialog whose sliders change the layer live; OK records one undo step, Cancel puts the pixels back.
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
-import { FILTERS, FILTER_BY_ID, CURVE_CHANNELS, defaultParams, sanitizeParams, mixByMask } from '../filters.js';
+import { FILTERS, FILTER_BY_ID, CURVE_CHANNELS, defaultParams, sanitizeParams, mixByMask, parseStopColor } from '../filters.js';
+import { gradientStops } from '../gradient.js';
 import { curveAt } from '../brush.js';
 import { clip } from '../rect.js';
 import { esc, modal, store, toast } from '../ui.js';
@@ -37,6 +38,9 @@ export const filterMethods = {
     const orig = t.ctx.getImageData(0, 0, W, H);
     const selData = this.sel.active ? this.sel.ctx.getImageData(0, 0, W, H).data : null;
     const job = { filter, t, orig, selData, area, params: sanitizeParams(filter, defaultParams(filter)) };
+    if (filter.gradient) {  // Gradient map: the Gradient tool's colours, as they are now
+      job.stops = gradientStops(this.settings.gradient.colors, this.colors.main, this.colors.sub).map(([o, c]) => [o, parseStopColor(c)]);
+    }
     this.filtering = job;
     let params;
     if (fixed) {
@@ -90,7 +94,7 @@ export const filterMethods = {
     const src = new Uint8ClampedArray(r.w * r.h * 4);
     for (let y = 0; y < r.h; y++) src.set(orig.data.subarray(((r.y + y) * W + r.x) * 4, ((r.y + y) * W + r.x + r.w) * 4), y * r.w * 4);
     const out = new Uint8ClampedArray(src);
-    filter.apply(out, r.w, r.h, params, r.x, r.y, W, H);
+    filter.apply(out, r.w, r.h, job.stops ? { ...params, stops: job.stops } : params, r.x, r.y, W, H);
     // the mask: the selection inside the area, nothing in the margin
     const mask = new Uint8Array(r.w * r.h);
     for (let y = 0; y < r.h; y++) {
@@ -123,7 +127,7 @@ function filterDialog(filter, params, onChange, pick = null) {
         <input type="range" data-k="${x.key}" min="${x.min}" max="${x.max}" step="${x.step}" value="${params[x.key]}"><output>${fmt(x, params[x.key])}</output></label>`).join('')}
       </div>
       <div class="btn-row"><button type="button" data-reset>Reset</button></div>
-      <p class="muted small">The canvas shows the result as you drag.${pick ? ' Click the canvas to put the centre there.' : ''}</p>`,
+      <p class="muted small">${filter.note ? esc(filter.note) + ' ' : ''}The canvas shows the result as you drag.${pick ? ' Click the canvas to put the centre there.' : ''}</p>`,
     buttons: [{ label: 'Cancel', value: null }, { label: 'OK', primary: true }],
     live: true,
     passClicks: !!pick,

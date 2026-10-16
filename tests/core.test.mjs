@@ -220,3 +220,28 @@ test('colour palette', async () => {
   assert.deepEqual(sanitizePalette(['#FFFFFF', 'red', '#ffffff', 5, '#000000']), ['#ffffff', '#000000']);
   assert.deepEqual(sanitizePalette(null), []);
 });
+
+test('distort: a homography puts the source corners on the quad', async () => {
+  const { homography, project, invertHomography, quadHit, quadBounds, warpImage } = await import('../web/js/transform.js');
+  const quad = [{ x: 10, y: 20 }, { x: 110, y: 10 }, { x: 130, y: 90 }, { x: 0, y: 120 }];
+  const m = homography(50, 40, quad);
+  [[0, 0], [50, 0], [50, 40], [0, 40]].forEach(([u, v], i) => {
+    const p = project(m, u, v);
+    assert.ok(Math.abs(p.x - quad[i].x) < 1e-9 && Math.abs(p.y - quad[i].y) < 1e-9, `corner ${i}`);
+  });
+  const back = project(invertHomography(m), ...Object.values(project(m, 17, 23)));
+  assert.ok(Math.abs(back.x - 17) < 1e-9 && Math.abs(back.y - 23) < 1e-9, 'the inverse takes it back');
+  // a plain rectangle twice the size is just a scale
+  assert.deepEqual(homography(10, 10, [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }]), [2, 0, 0, 0, 2, 0, 0, 0]);
+  assert.equal(homography(10, 10, [{ x: 0, y: 0 }, { x: 5, y: 5 }, { x: 10, y: 10 }, { x: 15, y: 15 }]), null, 'folded flat');
+  assert.equal(quadHit(quad, { x: 108, y: 12 }, 5), 1);
+  assert.equal(quadHit(quad, { x: 60, y: 60 }, 5), 'move');
+  assert.equal(quadHit(quad, { x: 200, y: 60 }, 5), null);
+  assert.deepEqual(quadBounds(quad), { x: 0, y: 10, w: 130, h: 110 });
+  // nearest-pixel warp of a 2 x 1 image (red, blue) onto a 4 x 2 rectangle: each source pixel covers 2 x 2
+  const src = new Uint8ClampedArray([255, 0, 0, 255, 0, 0, 255, 255]);
+  const out = warpImage(src, 2, 1, [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 2 }, { x: 0, y: 2 }], new Uint8ClampedArray(4 * 2 * 4), 0, 0, 4, 2, false);
+  assert.deepEqual([...out.slice(0, 16)], [255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 255]);
+  const smooth = warpImage(src, 2, 1, [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }, { x: 0, y: 1 }], new Uint8ClampedArray(8), 0, 0, 2, 1, true);
+  assert.deepEqual([...smooth], [255, 0, 0, 255, 0, 0, 255, 255], 'unchanged size: the same pixels');
+});

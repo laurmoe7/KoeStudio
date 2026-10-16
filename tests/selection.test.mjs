@@ -101,3 +101,14 @@ test('color range: full within half the fuzziness, fading out to the fuzziness',
     'one channel 30 off: d = sqrt(900 / 3) = 17.3, full');
   assert.deepEqual([...colorRangeMask(new Uint8ClampedArray(px.flat()), [100, 100, 100], 0)], [255, 0, 0, 0, 128, 0, 0], 'fuzziness 0: exact colour only');
 });
+
+test('stroke selection bands', async () => {
+  const { strokeBand } = await import('../web/js/maskops.js');
+  // a 9 x 1 strip, selected from x = 2 to 6 (the canvas edge is outside, so it counts as an edge too)
+  const w = 9, h = 5, alpha = new Uint8ClampedArray(w * h);
+  for (let y = 0; y < h; y++) for (let x = 2; x <= 6; x++) alpha[y * w + x] = 255;
+  const row = (m, y = 2) => [...m.slice(y * w, y * w + w)].map(v => (v ? 1 : 0)).join('');
+  assert.equal(row(strokeBand(alpha, w, h, 1, 'inside')), '001000100', 'the selection\'s own edge pixels');
+  assert.equal(row(strokeBand(alpha, w, h, 1, 'outside')), '010000010', 'one pixel outside each side');
+  assert.equal(row(strokeBand(alpha, w, h, 2, 'center')), '011000110', 'one out, one in');
+});

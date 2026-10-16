@@ -317,6 +317,54 @@ export const layerMethods = {
       d.width * d.height * 4);
   },
 
+  /**
+   * Layer → Copy to new layer (Ctrl+J) / Cut to new layer (Ctrl+Shift+J): the selected pixels (or the whole layer)
+   * on a new layer just above, with the same opacity and blend mode, as one undo step.
+   */
+  layerViaCopy(cut = false) {
+    const d = this.doc, W = d.width, H = d.height;
+    const t = this.target(cut ? 'cut from' : 'copy from', cut ? {} : { read: true });
+    if (!t) return;
+    if (t.kind === 'mask') return toast('That copies layer pixels: turn off mask editing first.');
+    const layer = new Layer(W, H, { name: `${t.name} ${cut ? 'cut' : 'copy'}` });
+    layer.opacity = t.opacity;
+    layer.blend = t.blend;
+    layer.ctx.drawImage(t.canvas, 0, 0);
+    if (this.sel.active) {
+      layer.ctx.globalCompositeOperation = 'destination-in';
+      layer.ctx.drawImage(this.sel.canvas, 0, 0);
+      layer.ctx.globalCompositeOperation = 'source-over';
+    }
+    let before = null, after = null;
+    if (cut) {
+      before = t.ctx.getImageData(0, 0, W, H);
+      if (this.sel.active) {
+        t.ctx.save();
+        t.ctx.globalCompositeOperation = 'destination-out';
+        t.ctx.drawImage(this.sel.canvas, 0, 0);
+        t.ctx.restore();
+      } else t.ctx.clearRect(0, 0, W, H);
+      after = t.ctx.getImageData(0, 0, W, H);
+    }
+    const parent = t.parent, index = parent.children.indexOf(t) + 1, prev = d.active, prevMask = this.maskEdit;
+    this.structural(cut ? 'Cut to new layer' : 'Copy to new layer',
+      () => { if (cut) { t.ctx.putImageData(after, 0, 0); t.touch(); } insertNode(parent, index, layer); d.active = layer; this.maskEdit = false; },
+      () => { removeNode(layer); if (cut) { t.ctx.putImageData(before, 0, 0); t.touch(); } d.active = prev; this.maskEdit = prevMask; },
+      W * H * 4 * (cut ? 3 : 1));
+  },
+
+  /** Layer → Flatten image: everything visible on one layer; hidden layers are left out. The paper stays the paper. */
+  flattenImage() {
+    const d = this.doc, W = d.width, H = d.height;
+    const layer = new Layer(W, H, { name: 'Flattened' });
+    renderFolder(layer.ctx, d.root, { x: 0, y: 0, w: W, h: H });
+    const old = [...d.root.children], prev = d.active, prevMask = this.maskEdit;
+    this.structural('Flatten image',
+      () => { for (const n of [...d.root.children]) removeNode(n); insertNode(d.root, 0, layer); d.active = layer; this.maskEdit = false; },
+      () => { removeNode(layer); old.forEach((n, i) => insertNode(d.root, i, n)); d.active = prev; this.maskEdit = prevMask; },
+      W * H * 4);
+  },
+
   setLayerProp(node, key, value, label) {
     const old = node[key];
     if (old === value) return this.layerPanel.render();

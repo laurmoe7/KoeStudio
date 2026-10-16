@@ -283,6 +283,7 @@ export class Editor {
         { label: 'Cut', key: 'Ctrl+X', run: () => this.copySelection(true) },
         { label: 'Copy', key: 'Ctrl+C', run: () => this.copySelection() },
         { label: 'Paste', key: 'Ctrl+V', run: () => this.pasteInternal(), disabled: !this.clipboard },
+        { label: 'Stroke selection…', run: () => this.strokeSelectionDialog(), disabled: !this.sel.active },
         '-',
         { label: 'Transform…', key: 'Ctrl+T', run: () => this.beginTransform() },
         { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', key: 'Del', run: () => this.clearLayer() },
@@ -323,6 +324,8 @@ export class Editor {
         { label: 'New vector layer', run: () => this.newVectorLayer() },
         { label: 'New folder', run: () => this.folderAdd() },
         { label: multi ? 'Duplicate selected layers' : 'Duplicate layer', run: () => this.layerDuplicate() },
+        { label: 'Copy to new layer', key: 'Ctrl+J', run: () => this.layerViaCopy() },
+        { label: 'Cut to new layer', key: 'Ctrl+Shift+J', run: () => this.layerViaCopy(true) },
         { label: 'Rename…', key: 'F2', run: () => this.renameLayer() },
         { label: multi ? 'Delete selected layers' : 'Delete layer', run: () => this.layerDelete() },
         '-',
@@ -332,6 +335,7 @@ export class Editor {
           ? { label: 'Merge folder', key: 'Ctrl+E', run: () => this.mergeFolder(d.active) }
           : { label: 'Merge with layer below', key: 'Ctrl+E', run: () => this.mergeDown() },
         { label: 'Merge visible to new layer', key: 'Ctrl+Shift+Alt+E', run: () => this.mergeVisible() },
+        { label: 'Flatten image', run: () => this.flattenImage() },
         '-',
         d.active.mask
           ? { label: d.active.mask.enabled ? 'Turn mask off' : 'Turn mask on', run: () => this.toggleMask() }
@@ -771,7 +775,7 @@ export class Editor {
       if (this.canvasPick) { this.canvasPick(dp); return; }  // a dialog takes canvas clicks (Color range, blur centre)
       const band = this.xf ? null : this.rulerBand(p);
       if (band) { if (band !== 'corner') this.beginNewGuide(band, dp, e.pointerId); this.drawOverlay(); return; }
-      if (this.xf && !this.held.space) { this.xfPointerDown(dp, e.pointerId); this.drawOverlay(); return; }
+      if (this.xf && !this.held.space) { this.xfPointerDown(dp, e.pointerId, e.ctrlKey); this.drawOverlay(); return; }
       const penEraser = e.pointerType === 'pen' && (e.button === 5 || (e.buttons & 32));
       const toolId = penEraser ? 'eraser' : this.effectiveTool();
       const tool = TOOL_BY_ID[toolId];
@@ -1239,6 +1243,7 @@ export class Editor {
       'ctrl+alt+c': () => this.canvasSizeDialog(), 'ctrl+alt+i': () => this.imageSizeDialog(),
       'ctrl+2': () => this.toggleSnap(), 'ctrl+;': () => this.toggleRulerVisibility(), "ctrl+'": () => this.toggleGrid(),
       'ctrl+c': () => this.copySelection(), 'ctrl+x': () => this.copySelection(true),
+      'ctrl+j': () => this.layerViaCopy(), 'ctrl+shift+j': () => this.layerViaCopy(true),
       '4': () => this.rotate(-15), '6': () => this.rotate(15), '5': () => this.rotate(null),
       'delete': () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
       'backspace': () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
