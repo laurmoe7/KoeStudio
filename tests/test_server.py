@@ -199,7 +199,8 @@ class Storage(unittest.TestCase):
 
     def test_export_other_formats(self):
         samples = {'gif': b'GIF89a....', 'bmp': b'BM....', 'jpg': b'\xff\xd8\xff....',
-                   'webp': b'RIFF\x00\x00\x00\x00WEBPVP8 ', 'tga': b'\x00' * 18 + b'TRUEVISION-XFILE.\x00'}
+                   'webp': b'RIFF\x00\x00\x00\x00WEBPVP8 ', 'tga': b'\x00' * 18 + b'TRUEVISION-XFILE.\x00',
+                   'psd': b'8BPS\x00\x01' + b'\x00' * 20}
         for fmt, data in samples.items():
             path = app.export_image('pic', data, fmt)['path']
             self.assertEqual(os.path.basename(path), f'pic.{fmt}')
@@ -209,6 +210,8 @@ class Storage(unittest.TestCase):
             app.export_image('x', b'GIF89a', 'bmp')
         with self.assertRaises(ValueError):
             app.export_image('x', b'GIF89a', 'exe')
+        with self.assertRaises(ValueError):
+            app.export_image('x', b'8BPS\x00\x02', 'psd')  # a large-document PSB is not what was asked for
 
 
 class WindowState(unittest.TestCase):

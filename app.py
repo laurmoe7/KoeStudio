@@ -419,6 +419,7 @@ EXPORT_TYPES = {
     'bmp': lambda d: d[:2] == b'BM',
     'koe': lambda d: d.lstrip()[:1] == b'{' and b'"format":"koe"' in d[:2000].replace(b' ', b''),
     'tga': lambda d: d.endswith(b'TRUEVISION-XFILE.\x00'),
+    'psd': lambda d: d[:6] == b'8BPS\x00\x01',
 }
 
 
@@ -456,7 +457,7 @@ def export_image(name, data, fmt='png', folder='', mode='number'):
 
 # ---------- file browser (choosing where exports go) ----------
 
-LISTED_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tga', '.koe')
+LISTED_EXT = ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tga', '.koe', '.psd')
 
 
 def places():

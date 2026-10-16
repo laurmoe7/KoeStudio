@@ -106,3 +106,10 @@ test('gradient presets and dithering', async () => {
   assert.ok(Math.abs(sum / (w * h - 128)) < 0.05, 'on average the colour stays the same');
   assert.deepEqual([...out.slice(0, 4)], [0, 0, 0, 0], 'empty pixels stay empty');
 });
+
+test('text outlines are kept in range', async () => {
+  const { sanitizeText } = await import('../web/js/textlayer.js');
+  assert.deepEqual([sanitizeText({}).outline, sanitizeText({}).outlineColor], [0, '#ffffff'], 'old text layers: no outline');
+  assert.deepEqual([sanitizeText({ outline: 300, outlineColor: '#12abEF' }).outline, sanitizeText({ outlineColor: '#12abEF' }).outlineColor], [100, '#12abEF']);
+  assert.equal(sanitizeText({ outlineColor: 'red; x' }).outlineColor, '#ffffff', 'only #rrggbb');
+});

@@ -9,7 +9,7 @@ import { allLayers, insertNode, removeNode, contains } from '../tree.js';
 import { toast } from '../ui.js';
 import { matrix } from '../view.js';
 
-const TEXT_KEYS = ['font', 'size', 'bold', 'italic', 'align', 'leading', 'vertical'];
+const TEXT_KEYS = ['font', 'size', 'bold', 'italic', 'align', 'leading', 'vertical', 'outline'];
 
 export const textMethods = {
   /** The text tool was clicked at dp: finish any edit, then edit the text there or start a new one. */
@@ -23,7 +23,7 @@ export const textMethods = {
     const hit = this.textLayerAt(dp);
     if (hit) return this.editText(hit);
     const s = this.settings.text;
-    this.editText(null, sanitizeText({ ...pick(s), content: '', x: dp.x, y: dp.y, color: this.colors.main }));
+    this.editText(null, sanitizeText({ ...pick(s), outlineColor: this.outlineHex(s), content: '', x: dp.x, y: dp.y, color: this.colors.main }));
   },
 
   /** The topmost visible text layer whose text covers dp. */
@@ -53,7 +53,7 @@ export const textMethods = {
       isNew = true;
     } else {
       // the panel shows (and edits) this text's settings
-      Object.assign(this.settings.text, pick(layer.text));
+      Object.assign(this.settings.text, pick(layer.text), { outlineColor: { '#ffffff': 'white', '#000000': 'black' }[layer.text.outlineColor] || 'sub' });
       this.renderToolProps();
     }
     this.textEdit = { layer, isNew, before: isNew ? null : { ...layer.text } };
@@ -149,9 +149,14 @@ export const textMethods = {
   /** Tool panel or colour changes while editing apply to the text being edited. */
   textSettingsChanged() {
     if (!this.textEdit) return;
-    Object.assign(this.textEdit.layer.text, sanitizeText({ ...this.textEdit.layer.text, ...pick(this.settings.text) }));
+    Object.assign(this.textEdit.layer.text, sanitizeText({ ...this.textEdit.layer.text, ...pick(this.settings.text), outlineColor: this.outlineHex(this.settings.text) }));
     this.renderEditingText();
     this.viewport.querySelector('.text-edit textarea')?.focus();
+  },
+
+  /** The outline colour a Text tool setting stands for ('sub' is the sub colour now). */
+  outlineHex(s) {
+    return s.outlineColor === 'black' ? '#000000' : s.outlineColor === 'sub' ? this.colors.sub : '#ffffff';
   },
 
   textColorChanged() {

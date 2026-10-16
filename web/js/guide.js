@@ -7,7 +7,7 @@ export const GUIDE = [
   ['start', 'Getting started', `
     <p>KoeStudio opens on the <b>gallery</b>: every artwork you have made, newest first. <b>New canvas</b> starts a
     picture (pick a preset such as Full HD or A4, or type any size up to 10,000 px). <b>Open image or project…</b>
-    turns a picture file into a new artwork, or opens a <code>.koe</code> project file. Both are in the editor's
+    turns a picture file into a new artwork, or opens a <code>.koe</code> project or a Photoshop <code>.psd</code> file. Both are in the editor's
     File menu too.</p>
     <p>Your work <b>saves by itself</b> a moment after every change; the top right of the window says when. There is
     no Save button to forget. Click the arrow at the top left to go back to the gallery.</p>
@@ -83,7 +83,8 @@ export const GUIDE = [
     smoothly through the points you click instead of straight between them.</p>
     <h4>Text <kbd>T</kbd></h4>
     <p>Click to type; click a text again to edit it. Font, size, bold, italic, alignment, line spacing and
-    <b>vertical writing</b> (as in manga). Text stays editable on its own layer; to paint on it, use
+    <b>vertical writing</b> (as in manga). <b>Outline</b> puts a border round the letters, in white, black or the
+    sub colour. Text stays editable on its own layer; to paint on it, use
     Layer → Rasterize text.</p>`],
 
   ['selection', 'Selections', `
@@ -212,6 +213,9 @@ export const GUIDE = [
       <li>Deleted artwork can be put back with <b>Deleted</b> at the top of the gallery.</li>
       <li><b>File → Export…</b> <kbd>Ctrl+Alt+Shift+S</kbd> saves a PNG, JPEG, WebP, GIF, TGA or BMP, at any size,
       wherever you choose. <kbd>Ctrl+Shift+S</kbd> exports a PNG straight away.</li>
+      <li><b>PSD</b> in the Export dialog keeps the layers, folders, blend modes, opacity, clipping and masks, so the
+      picture opens layered in Photoshop, Clip Studio Paint, Krita or GIMP. <b>Open image or project…</b> reads PSD
+      files too (8-bit RGB), each layer as a layer.</li>
       <li><b>File → Save project file (.koe)…</b> saves the whole layered artwork to share or keep elsewhere.</li>
     </ul>`],
 ];

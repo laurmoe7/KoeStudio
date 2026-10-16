@@ -46,6 +46,7 @@ input[type=text], input[type=number], input[type=search], select {
   padding: 5px 8px;
   min-width: 0;
 }
+input:disabled, select:disabled { opacity: 0.45; cursor: default; }
 input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
 input[type=text], input[type=search] { user-select: text; }
 

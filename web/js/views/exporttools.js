@@ -5,6 +5,8 @@
 import { api } from '../api.js';
 import { composite } from '../doc.js';
 import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, exportSize, sanitizeExportOptions } from '../imageformats.js';
+import { encodePsd } from '../psd.js';
+import { docToPsd } from '../psddoc.js';
 import { esc, toast, modal, store, confirmBox } from '../ui.js';
 import { versionsDialog, newCanvasDialog, importImage } from './gallery.js';
 import { browseFile } from './filebrowser.js';
@@ -51,10 +53,14 @@ export const exportMethods = {
       store('exportDir', dir);
     }
     const fmt = EXPORT_BY_ID[o.format];
+    if (fmt.layered) o = { ...o, scale: 100, area: 'canvas' };  // layers are always the whole canvas at full size
     try {
       const canvas = this.exportCanvas(o, fmt);
       let blob;
-      if (['gif', 'tga', 'bmp'].includes(fmt.id)) {
+      if (fmt.layered) {
+        const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        blob = new Blob([encodePsd(docToPsd(this.doc, { paper: o.paper, composite: data }))]);
+      } else if (['gif', 'tga', 'bmp'].includes(fmt.id)) {
         const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
         blob = new Blob([encodePixels(fmt.id, data, canvas.width, canvas.height)]);
       } else {
@@ -109,7 +115,7 @@ export const exportMethods = {
   /** The Export dialog. Resolves to {opts, name, dir}, or null when cancelled. */
   exportDialog(o, dir) {
     const d = this.doc, hasSel = this.sel.active;
-    const areaOf = a => (a === 'selection' && hasSel ? this.sel.bounds : { w: d.width, h: d.height });
+    const areaOf = (a, fmt) => (a === 'selection' && hasSel && !fmt?.layered ? this.sel.bounds : { w: d.width, h: d.height });
     const read = root => {
       const f = n => root.querySelector(`[name="${n}"]`);
       return sanitizeExportOptions({
@@ -138,8 +144,10 @@ export const exportMethods = {
       buttons: [{ label: 'Cancel', value: null }, { label: 'Export', primary: true }],
       onOpen: root => {
         const show = () => {
-          const p = read(root), fmt = EXPORT_BY_ID[p.format], a = areaOf(p.area), size = exportSize(a.w, a.h, p.scale);
+          const p = read(root), fmt = EXPORT_BY_ID[p.format], a = areaOf(p.area, fmt), size = exportSize(a.w, a.h, fmt.layered ? 100 : p.scale);
           root.querySelector('[data-note]').textContent = fmt.note;
+          root.querySelector('[name="scale"]').disabled = !!fmt.layered;  // a layered file is the whole canvas at full size
+          root.querySelector('[name="area"]').disabled = !hasSel || !!fmt.layered;
           root.querySelector('[data-quality]').hidden = !fmt.quality;
           root.querySelector('[data-quality] output').textContent = p.quality + '%';
           const clear = !p.paper || !d.paper;
@@ -161,8 +169,8 @@ export const exportMethods = {
         show();
       },
       collect: root => {
-        const opts = read(root), a = areaOf(opts.area);
-        if (exportSize(a.w, a.h, opts.scale).tooBig) return undefined;
+        const opts = read(root), fmt = EXPORT_BY_ID[opts.format], a = areaOf(opts.area, fmt);
+        if (exportSize(a.w, a.h, fmt.layered ? 100 : opts.scale).tooBig) return undefined;
         return { opts, dir, name: root.querySelector('[name="name"]').value.trim() || d.title };
       },
     });

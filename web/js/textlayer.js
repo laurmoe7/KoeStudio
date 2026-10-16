@@ -13,6 +13,8 @@ export const FONTS = [
   ['MS Gothic', 'MS Gothic (Japanese)'],
 ];
 export const ALIGNS = [['left', 'Left / top'], ['center', 'Centre'], ['right', 'Right / bottom']];
+/** Outline colours the Text tool offers; 'sub' is the sub colour at the time it is chosen. */
+export const OUTLINE_COLORS = [['white', 'White'], ['black', 'Black'], ['sub', 'Sub colour']];
 const ALIGN_IDS = new Set(ALIGNS.map(a => a[0]));
 
 /** Cleans text properties from a file or the tool panel (pure, tested). */
@@ -32,6 +34,8 @@ export function sanitizeText(raw) {
     leading: num(t.leading, 0.5, 4, 1.2),
     color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#000000',
     vertical: !!t.vertical,
+    outline: num(t.outline, 0, 100, 0),  // px around the letters (0 = none)
+    outlineColor: /^#[0-9a-f]{6}$/i.test(t.outlineColor) ? t.outlineColor : '#ffffff',
   };
 }
 
@@ -80,6 +84,12 @@ export function renderTextLayer(layer) {
   ctx.fillStyle = t.color;
   ctx.textBaseline = 'top';
   const { glyphs } = layoutText(t, s => ctx.measureText(s).width);
+  if (t.outline > 0) {  // under the letters, twice as wide, so `outline` px show around them
+    ctx.strokeStyle = t.outlineColor;
+    ctx.lineWidth = t.outline * 2;
+    ctx.lineJoin = 'round';
+    for (const g of glyphs) { ctx.textAlign = g.center ? 'center' : 'left'; ctx.strokeText(g.str, g.x, g.y); }
+  }
   for (const g of glyphs) {
     ctx.textAlign = g.center ? 'center' : 'left';
     ctx.fillText(g.str, g.x, g.y);
@@ -94,5 +104,6 @@ export function textBounds(t, ctx) {
   ctx.font = fontCss(t);
   const b = layoutText(t, s => ctx.measureText(s).width).bounds;
   ctx.restore();
-  return b;
+  const o = t.outline || 0;
+  return o ? { x: b.x - o, y: b.y - o, w: b.w + 2 * o, h: b.h + 2 * o } : b;
 }

@@ -2,7 +2,7 @@
 
 import { SELECT_MODES } from './selection.js';
 import { GRADIENT_COLORS, GRADIENT_SHAPES, GRADIENT_REPEATS } from './gradient.js';
-import { FONTS, ALIGNS } from './textlayer.js';
+import { FONTS, ALIGNS, OUTLINE_COLORS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
 import { FIGURE_SHAPES } from './figure.js';
 import { LIQUIFY_MODES } from './liquify.js';
@@ -47,7 +47,7 @@ export const TOOLS = [
   { id: 'figure', label: 'Figure', key: 'u', kind: 'figure', icon: 'figure', group: 'draw',
     defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, fill: false } },
   { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',
-    defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, vertical: false } },
+    defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, vertical: false, outline: 0, outlineColor: 'white' } },
   { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', group: 'draw', defaults: {} },
   { id: 'select', label: 'Rectangle selection', key: 'm', kind: 'select', icon: 'rectSel', group: 'select', defaults: { mode: 'replace' } },
   { id: 'ellipse', label: 'Ellipse selection', key: 'm', kind: 'select', icon: 'ellipseSel', group: 'select', defaults: { mode: 'replace' } },
@@ -107,6 +107,8 @@ export const SETTING_FIELDS = [
   ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
   ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
   ['leading', 'Line spacing', 'range', 0.5, 4, 0.05],
+  ['outline', 'Outline', 'range', 0, 50, 1],
+  ['outlineColor', 'Outline in', 'choice', OUTLINE_COLORS],
   ['corner', 'Rounding', 'range', 0, 500, 1],
   ['bold', 'Bold', 'check'],
   ['italic', 'Italic', 'check'],
@@ -164,6 +166,8 @@ export const SETTING_HINTS = {
   figure: 'Drag to draw it; hold Shift for a 45° line, a square or a circle. Polyline and polygon: click each corner; Curve and Closed curve: click points the curve passes through. Double-click or Enter to finish',
   fill: 'Fill the rectangle, ellipse or polygon, not only its outline',
   corner: 'Corner radius of rectangles, in pixels (0 = sharp corners)',
+  outline: 'A border round the letters, in pixels (0 = none)',
+  outlineColor: 'Colour of the outline; Sub colour takes the sub colour as it is now',
   contiguous: 'Only the area connected to where you click (on), or every pixel of that colour in the picture (off)',
   tip: 'The shape of each dab: round, or a tip image (Brush ⋯ → Add tip image…)',
   thickness: 'Squashes the tip: 100% keeps its shape, lower makes it flatter',
