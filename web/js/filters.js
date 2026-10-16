@@ -151,10 +151,42 @@ export function blurPlane(plane, w, h, radius) {
   for (const box of boxesForGauss(radius / 2)) {
     const r = (box - 1) / 2;
     if (r < 1) continue;
-    for (let y = 0; y < h; y++) boxLine(plane, tmp, y * w, 1, w, r);
-    for (let x = 0; x < w; x++) boxLine(tmp, plane, x, w, h, r);
+    boxRows(plane, tmp, w, h, r);
+    boxCols(tmp, plane, w, h, r);
   }
   return plane;
+}
+
+/** boxLine along every row (edges repeated), without the per-sample clamping inside the run. */
+function boxRows(src, dst, w, h, r) {
+  const inv = 1 / (2 * r + 1), last = w - 1;
+  for (let y = 0, o = 0; y < h; y++, o += w) {
+    let sum = 0;
+    for (let i = -r; i <= r; i++) sum += src[o + (i < 0 ? 0 : i > last ? last : i)];
+    for (let x = 0; x < w; x++) {
+      dst[o + x] = sum * inv;
+      const add = x + r + 1, sub = x - r;
+      sum += src[o + (add > last ? last : add)] - src[o + (sub < 0 ? 0 : sub)];
+    }
+  }
+}
+
+/** boxLine down every column (edges repeated), done a whole row at a time with one running sum per column: walking
+ *  memory in order is several times faster than stepping down each column. */
+function boxCols(src, dst, w, h, r) {
+  const inv = 1 / (2 * r + 1), last = h - 1, sum = new Float64Array(w);
+  for (let i = -r; i <= r; i++) {
+    const o = (i < 0 ? 0 : i > last ? last : i) * w;
+    for (let x = 0; x < w; x++) sum[x] += src[o + x];
+  }
+  for (let y = 0; y < h; y++) {
+    const o = y * w, add = y + r + 1, sub = y - r;
+    const ao = (add > last ? last : add) * w, so = (sub < 0 ? 0 : sub) * w;
+    for (let x = 0; x < w; x++) {
+      dst[o + x] = sum[x] * inv;
+      sum[x] += src[ao + x] - src[so + x];
+    }
+  }
 }
 
 /** The four channels as premultiplied float planes, so transparent pixels never bleed their colour into a blur. */

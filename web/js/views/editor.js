@@ -401,14 +401,24 @@ export class Editor {
   }
 
   /**
-   * Recomposites a doc region (all of it when r is null) into the composite canvas and remembers it as the part
-   * of the screen that needs redrawing (this.dirty: a rect, or 'all').
+   * Marks a doc region (all of it when r is null) as needing recompositing and as part of the screen to redraw
+   * (this.dirty: a rect, or 'all'). The compositing itself waits for flushComp(), which runs once before the
+   * composite is drawn or read: a pen sends several moves per frame, and each used to recomposite the layers.
    */
   updateComp(r) {
     const d = this.doc;
     const area = clip(r || { x: 0, y: 0, w: d.width, h: d.height }, d.width, d.height);
-    if (area) composite(this.compCtx, d, area, this.live);
+    if (area) this.compQueue = this.compQueue ? union(this.compQueue, area) : area;
     this.dirty = !r || this.dirty === 'all' ? 'all' : union(this.dirty, area);
+  }
+
+  /** Brings the composite canvas up to date (see updateComp); call before drawing or reading this.comp. */
+  flushComp() {
+    const q = this.compQueue, d = this.doc;
+    if (!q) return;
+    this.compQueue = null;
+    const area = clip(q, d.width, d.height);  // the canvas may have shrunk since
+    if (area) composite(this.compCtx, d, area, this.live);
   }
 
   /** Redraws the screen on the next frame, only the dirty region when nothing else changed. */
@@ -423,6 +433,7 @@ export class Editor {
    * renders) and copied exactly for partial ones; clipping to whole pixels keeps the edges free of blending.
    */
   render(region = 'all') {
+    this.flushComp();
     const ctx = this.vctx, d = this.doc, dpr = this.dpr || 1;
     const r = region !== 'all' && region ? clip(region, d.width, d.height) : null;
     this.dirty = null;
@@ -1046,12 +1057,14 @@ export class Editor {
       }
       toast('No layer is marked as reference, so everything visible counts. Tick Reference in the Layers panel.');
     }
+    this.flushComp();
     return this.compCtx.getImageData(0, 0, d.width, d.height).data;
   }
 
   pickAt(pt) {
     const x = Math.floor(pt.x), y = Math.floor(pt.y);
     if (x < 0 || y < 0 || x >= this.doc.width || y >= this.doc.height) return;
+    this.flushComp();
     const p = this.compCtx.getImageData(x, y, 1, 1).data;
     if (p[3] === 0) return;
     this.colors.set(rgbToHex(p[0], p[1], p[2]));

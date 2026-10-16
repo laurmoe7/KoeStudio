@@ -114,6 +114,7 @@ export const navMethods = {
       t.fillStyle = d.paper ? '#fff' : '#e4e4ea';  // transparent paper: light gray (a checker this small is noise)
       t.fillRect(0, 0, d.width, d.height);
       t.imageSmoothingQuality = 'high';
+      this.flushComp();
       t.drawImage(this.comp, 0, 0);
       this.navStale = false;
     }
