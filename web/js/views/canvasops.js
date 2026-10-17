@@ -56,6 +56,7 @@ export const canvasMethods = {
       layer.touch();
     }
     for (const c of [this.comp, this.stroke]) { c.width = s.w; c.height = s.h; }
+    this.mips = [this.comp];
     this.sel = new Selection(s.w, s.h);  // a selection does not survive a change of canvas size
     this.root.querySelector('.doc-size').textContent = `${s.w} × ${s.h} px`;
     if (this.crop) this.startCrop();

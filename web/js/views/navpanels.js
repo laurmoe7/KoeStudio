@@ -3,6 +3,7 @@
 // Navigator shows the whole picture with the part in the window outlined; clicking or dragging in it moves the view.
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
+import { mipLevel } from '../mips.js';
 import { esc } from '../ui.js';
 import { toDoc, toScreen } from '../view.js';
 
@@ -113,9 +114,10 @@ export const navMethods = {
       t.setTransform(dpr * L.scale, 0, 0, dpr * L.scale, dpr * L.x, dpr * L.y);
       t.fillStyle = d.paper ? '#fff' : '#e4e4ea';  // transparent paper: light gray (a checker this small is noise)
       t.fillRect(0, 0, d.width, d.height);
-      t.imageSmoothingQuality = 'high';
-      this.flushComp();
-      t.drawImage(this.comp, 0, 0);
+      // from the editor's downscaled copies: smooth downscaling of the whole composite would build mipmaps each time
+      const k = mipLevel(dpr * L.scale), src = k ? this.updateMips(k) : (this.flushComp(), this.comp), f = 2 ** k;
+      t.imageSmoothingQuality = 'low';
+      t.drawImage(src, 0, 0, src.width, src.height, 0, 0, src.width * f, src.height * f);
       this.navStale = false;
     }
     const ctx = c.getContext('2d');

@@ -1,13 +1,12 @@
 // The Smudge tool (J) and Lasso fill (G, after Fill and Gradient), as Editor methods.
 //
-// Smudge changes the layer directly dab by dab (it has to read what earlier dabs left), keeping a copy of the
-// layer from pen-down; on pen-up the changed rectangle becomes one undo step, and outside the selection the old
+// Smudge changes the layer directly dab by dab (it has to read what earlier dabs left), through a pixel cache
+// (directpaint.js); on pen-up the changed rectangle becomes one undo step, and outside the selection the old
 // pixels are put back (softly where it is feathered). Lasso fill draws the enclosed shape into the stroke canvas
 // and commits it like a stroke, so opacity, alpha lock, masks and undo behave as for painting.
 
 import { Smoother, StampPath, stampAt, stampBounds } from '../brush.js';
-import { mixByMask } from '../filters.js';
-import { union, clip } from '../rect.js';
+import { union } from '../rect.js';
 import { smudgeDab } from '../smudge.js';
 import { symmetryStamps } from '../symmetry.js';
 
@@ -16,11 +15,8 @@ export const smudgeMethods = {
     const s = this.settings.smudge, layer = this.target('smudge');
     if (!layer) return;
     const d = this.doc;
-    const before = document.createElement('canvas');
-    before.width = d.width; before.height = d.height;
-    before.getContext('2d').drawImage(layer.canvas, 0, 0);
     const sizeAt = p => stampAt({ ...s, flow: s.strength }, p).size;
-    this.gesture = { type: 'smudge', tool: 'smudge', id, s, layer, before, bounds: null, sizeAt, last: pt,
+    this.gesture = { type: 'smudge', tool: 'smudge', id, s, layer, cache: this.pixelCache(layer.canvas), bounds: null, sizeAt, last: pt,
       smoother: new Smoother(s.smoothing), path: new StampPath(sizeAt, s.spacing), bufs: null };
     this.smudgePoint(pt);
   },
@@ -34,45 +30,25 @@ export const smudgeMethods = {
     const per = symmetryStamps(this.doc.rulers.symmetry, [stamps[0]], d.width, d.height).length;
     const all = symmetryStamps(this.doc.rulers.symmetry, stamps, d.width, d.height);
     g.bufs ||= Array(per).fill(null);
-    const ctx = g.layer.ctx;
     all.forEach((st, k) => {
       const copy = k % per;
       const { size, flow } = stampAt({ ...s, flow: s.strength }, st.p);
       const dd = Math.max(2, Math.round(size)), x0 = Math.round(st.x - dd / 2), y0 = Math.round(st.y - dd / 2);
-      const img = ctx.getImageData(x0, y0, dd, dd);
+      const img = g.cache.get(x0, y0, dd, dd);
       let buf = g.bufs[copy];
       if (!buf || buf.d !== dd) {  // first dab (or the size changed with pressure): pick up what is here
-        buf = g.bufs[copy] = { d: dd, data: new Uint8ClampedArray(img.data) };
+        buf = g.bufs[copy] = { d: dd, data: new Uint8ClampedArray(img) };
         return;
       }
-      smudgeDab(img.data, buf.data, dd, flow, s.hardness, g.layer.alphaLock);
-      ctx.putImageData(img, x0, y0);
+      smudgeDab(img, buf.data, dd, flow, s.hardness, g.layer.alphaLock);
+      g.cache.set(x0, y0, dd, dd, img);
     });
     const r = stampBounds(all, g.sizeAt);
     g.bounds = union(g.bounds, r);
-    g.layer.touch();
-    this.updateComp(r);
+    this.flushDirect(g, r);
   },
 
-  endSmudge() {
-    const g = this.gesture, d = this.doc;
-    const r = clip(g.bounds, d.width, d.height);
-    if (!r) return;
-    const bctx = g.before.getContext('2d');
-    const before = bctx.getImageData(r.x, r.y, r.w, r.h);
-    const after = g.layer.ctx.getImageData(r.x, r.y, r.w, r.h);
-    if (this.sel.active) {  // only inside the selection
-      const sel = this.sel.ctx.getImageData(r.x, r.y, r.w, r.h).data, mask = new Uint8Array(r.w * r.h);
-      for (let i = 0; i < mask.length; i++) mask[i] = sel[i * 4 + 3];
-      const mixed = new Uint8ClampedArray(before.data);
-      mixByMask(mixed, after.data, mask);
-      after.data.set(mixed);
-      g.layer.ctx.putImageData(after, r.x, r.y);
-    }
-    this.pushPatch(g.layer, r, before, after, 'Smudge');
-    g.layer.touch();
-    this.changed(r);
-  },
+  endSmudge() { this.endDirect(this.gesture, 'Smudge'); },
 
   // ---------- lasso fill ----------
 

@@ -1,15 +1,14 @@
 // The retouch tools, as Editor methods: Blur (J, after Smudge and Liquify), Dodge and Burn (O) and Clone stamp (S).
 //
-// Like Smudge they change the layer directly dab by dab (each dab reads what the last one left), keep a copy of the
-// layer from pen-down and on pen-up make the changed rectangle one undo step, putting the old pixels back outside
+// Like Smudge they change the layer directly dab by dab (each dab reads what the last one left), through a pixel
+// cache (directpaint.js), and on pen-up make the changed rectangle one undo step, putting the old pixels back outside
 // the selection. Blur, Dodge and Burn follow the symmetry ruler. Clone stamp copies from where you Ctrl+clicked:
 // it reads the picture as it was at pen-down (this layer, or everything visible), so it never copies its own dabs;
 // with Aligned on, the distance between source and brush stays the same from stroke to stroke.
 
 import { Smoother, StampPath, stampAt, stampBounds } from '../brush.js';
-import { mixByMask } from '../filters.js';
-import { union, clip } from '../rect.js';
-import { mixDab, toneDab, copyRegion, blurredPatch, blurRadius } from '../retouch.js';
+import { union } from '../rect.js';
+import { mixDab, toneDab, blurredPatch, blurRadius } from '../retouch.js';
 import { symmetryStamps } from '../symmetry.js';
 import { toast } from '../ui.js';
 import { matrix } from '../view.js';
@@ -27,17 +26,15 @@ export const retouchMethods = {
     const s = this.settings[toolId], layer = this.target(toolId === 'clone' ? 'clone onto' : 'retouch');
     if (!layer) return;
     const d = this.doc;
-    const before = document.createElement('canvas');
-    before.width = d.width; before.height = d.height;
-    before.getContext('2d').drawImage(layer.canvas, 0, 0);
     const brush = { ...s, flow: s.strength }, sizeAt = p => stampAt(brush, p).size;
-    const g = this.gesture = { type: 'retouch', tool: toolId, id, s, brush, layer, before, bounds: null, sizeAt,
+    const g = this.gesture = { type: 'retouch', tool: toolId, id, s, brush, layer, cache: this.pixelCache(layer.canvas), bounds: null, sizeAt,
       smoother: new Smoother(s.smoothing), path: new StampPath(sizeAt, s.spacing) };
     if (toolId === 'clone') {
       const src = this.cloneSrc;
       if (!s.aligned || !src.offset) src.offset = { x: src.x - pt.x, y: src.y - pt.y };
       g.offset = src.offset;
-      g.source = this.sampleData(s.sample, layer);
+      // this layer as it was at pen-down (the cache keeps that), or a copy of what is visible now
+      g.source = s.sample === 'layer' ? null : this.pixelCache(this.sampleCanvas(s.sample));
     }
     this.retouchPoint(pt);
   },
@@ -48,52 +45,36 @@ export const retouchMethods = {
     const stamps = g.path.add(g.smoother.add(pt));
     if (!stamps.length) return;
     const all = g.tool === 'clone' ? stamps : symmetryStamps(d.rulers.symmetry, stamps, d.width, d.height);
-    const ctx = g.layer.ctx, lock = !!g.layer.alphaLock;
+    const c = g.cache, lock = !!g.layer.alphaLock;
     for (const st of all) {
       const { size, flow } = stampAt(g.brush, st.p);
       const dd = Math.max(2, Math.round(size)), x0 = Math.round(st.x - dd / 2), y0 = Math.round(st.y - dd / 2);
       if (g.tool === 'blur') {
         const m = blurRadius(dd) * 2, w = dd + 2 * m;
-        const big = ctx.getImageData(x0 - m, y0 - m, w, w);
-        const src = blurredPatch(big.data, w, w, m, m, dd);
-        const img = ctx.getImageData(x0, y0, dd, dd);
-        mixDab(img.data, src, dd, flow, g.s.hardness, lock);
-        ctx.putImageData(img, x0, y0);
+        const src = blurredPatch(c.get(x0 - m, y0 - m, w, w), w, w, m, m, dd);
+        const img = c.get(x0, y0, dd, dd);
+        mixDab(img, src, dd, flow, g.s.hardness, lock);
+        c.set(x0, y0, dd, dd, img);
       } else if (g.tool === 'clone') {
-        const src = copyRegion(g.source, d.width, d.height, x0 + Math.round(g.offset.x), y0 + Math.round(g.offset.y), dd, dd);
-        const img = ctx.getImageData(x0, y0, dd, dd);
-        mixDab(img.data, src, dd, flow, g.s.hardness, lock);
-        ctx.putImageData(img, x0, y0);
+        const sx = x0 + Math.round(g.offset.x), sy = y0 + Math.round(g.offset.y);
+        const src = g.source ? g.source.get(sx, sy, dd, dd) : c.getBefore(sx, sy, dd, dd);
+        const img = c.get(x0, y0, dd, dd);
+        mixDab(img, src, dd, flow, g.s.hardness, lock);
+        c.set(x0, y0, dd, dd, img);
       } else {
-        const img = ctx.getImageData(x0, y0, dd, dd);
-        toneDab(img.data, dd, flow, g.s.hardness, g.tool === 'burn');
-        ctx.putImageData(img, x0, y0);
+        const img = c.get(x0, y0, dd, dd);
+        toneDab(img, dd, flow, g.s.hardness, g.tool === 'burn');
+        c.set(x0, y0, dd, dd, img);
       }
     }
     const r = stampBounds(all, g.sizeAt);
     g.bounds = union(g.bounds, r);
-    g.layer.touch();
-    this.updateComp(r);
+    this.flushDirect(g, r);
   },
 
   endRetouch() {
-    const g = this.gesture, d = this.doc;
-    const r = clip(g.bounds, d.width, d.height);
-    if (!r) return;
-    const before = g.before.getContext('2d').getImageData(r.x, r.y, r.w, r.h);
-    const after = g.layer.ctx.getImageData(r.x, r.y, r.w, r.h);
-    if (this.sel.active) {  // only inside the selection
-      const sel = this.sel.ctx.getImageData(r.x, r.y, r.w, r.h).data, mask = new Uint8Array(r.w * r.h);
-      for (let i = 0; i < mask.length; i++) mask[i] = sel[i * 4 + 3];
-      const mixed = new Uint8ClampedArray(before.data);
-      mixByMask(mixed, after.data, mask);
-      after.data.set(mixed);
-      g.layer.ctx.putImageData(after, r.x, r.y);
-    }
     const labels = { blur: 'Blur', dodge: 'Dodge', burn: 'Burn', clone: 'Clone stamp' };
-    this.pushPatch(g.layer, r, before, after, labels[g.tool]);
-    g.layer.touch();
-    this.changed(r);
+    this.endDirect(this.gesture, labels[this.gesture.tool]);
   },
 
   /** The Clone stamp's source: a crosshair where it copies from (following the brush while painting). */

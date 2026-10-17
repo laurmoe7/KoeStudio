@@ -1,11 +1,10 @@
 // The Liquify tool (J, after Smudge), as Editor methods. Like Smudge it changes the layer directly dab by dab
-// (each dab reads what the last one left), keeps a copy of the layer from pen-down and on pen-up makes the changed
+// (each dab reads what the last one left), through a pixel cache (directpaint.js), and on pen-up makes the changed
 // rectangle one undo step, putting the old pixels back outside the selection. Push dabs follow the pen; Pinch,
 // Bloat and Twirl also keep working while the pen is held still. With the symmetry ruler every copy bends too
 // (each pushed its own way; mirrored copies twirl the other way round).
 
 import { Smoother, StampPath, stampAt, stampBounds } from '../brush.js';
-import { mixByMask } from '../filters.js';
 import { liquifyDab, liquifyReach } from '../liquify.js';
 import { union, clip } from '../rect.js';
 import { symmetryPoints, symmetryFlips } from '../symmetry.js';
@@ -17,11 +16,8 @@ export const liquifyMethods = {
     const s = this.settings.liquify, layer = this.target('liquify');
     if (!layer) return;
     const d = this.doc;
-    const before = document.createElement('canvas');
-    before.width = d.width; before.height = d.height;
-    before.getContext('2d').drawImage(layer.canvas, 0, 0);
     const brush = { ...s, flow: s.strength }, sizeAt = p => stampAt(brush, p).size;
-    this.gesture = { type: 'liquify', tool: 'liquify', id, s, brush, layer, before, bounds: null, sizeAt, last: pt, prev: null,
+    this.gesture = { type: 'liquify', tool: 'liquify', id, s, brush, layer, cache: this.pixelCache(layer.canvas), bounds: null, sizeAt, last: pt, prev: null,
       smoother: new Smoother(s.smoothing), path: new StampPath(sizeAt, s.spacing), timer: 0 };
     if (s.liquify !== 'push') this.gesture.timer = setInterval(() => { const g = this.gesture; if (g?.prev) { this.liquifyAt(g.prev, 0, 0); this.requestRender(); } }, HOLD_MS);
     this.liquifyPoint(pt);
@@ -56,32 +52,17 @@ export const liquifyMethods = {
     const reach = r + liquifyReach(mode, r, flow, dx, dy);
     const area = clip({ x: Math.floor(st.x - reach), y: Math.floor(st.y - reach), w: Math.ceil(2 * reach) + 1, h: Math.ceil(2 * reach) + 1 }, d.width, d.height);
     if (!area) return;
-    const img = g.layer.ctx.getImageData(area.x, area.y, area.w, area.h);
-    liquifyDab(img.data, area.w, area.h, st.x - area.x, st.y - area.y, r, mode, flow, dx, dy);
-    g.layer.ctx.putImageData(img, area.x, area.y);
+    const img = g.cache.get(area.x, area.y, area.w, area.h);
+    liquifyDab(img, area.w, area.h, st.x - area.x, st.y - area.y, r, mode, flow, dx, dy);
+    g.cache.set(area.x, area.y, area.w, area.h, img);
     const changed = stampBounds([st], g.sizeAt);
     g.bounds = union(g.bounds, changed);
-    g.layer.touch();
-    this.updateComp(changed);
+    this.flushDirect(g, changed);
   },
 
   endLiquify() {
-    const g = this.gesture, d = this.doc;
-    clearInterval(g.timer);
-    const r = clip(g.bounds, d.width, d.height);
-    if (!r) return;
-    const before = g.before.getContext('2d').getImageData(r.x, r.y, r.w, r.h);
-    const after = g.layer.ctx.getImageData(r.x, r.y, r.w, r.h);
-    if (this.sel.active) {  // only inside the selection
-      const sel = this.sel.ctx.getImageData(r.x, r.y, r.w, r.h).data, mask = new Uint8Array(r.w * r.h);
-      for (let i = 0; i < mask.length; i++) mask[i] = sel[i * 4 + 3];
-      const mixed = new Uint8ClampedArray(before.data);
-      mixByMask(mixed, after.data, mask);
-      after.data.set(mixed);
-      g.layer.ctx.putImageData(after, r.x, r.y);
-    }
-    this.pushPatch(g.layer, r, before, after, 'Liquify');
-    g.layer.touch();
-    this.changed(r);
+    clearInterval(this.gesture.timer);
+    this.endDirect(this.gesture, 'Liquify');
   },
+
 };

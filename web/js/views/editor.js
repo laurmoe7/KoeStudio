@@ -12,6 +12,7 @@ import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
 import { Painter, textureFor, hasTipImage } from '../painter.js';
 import { union, clip } from '../rect.js';
+import { mipLevel, mipSize, mipRect } from '../mips.js';
 import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
 import { esc, toast, menu, modal, promptBox, fileToDataUrl, store } from '../ui.js';
@@ -36,6 +37,7 @@ import { refMethods } from './reftools.js';
 import { smudgeMethods } from './smudgetool.js';
 import { liquifyMethods } from './liquifytool.js';
 import { retouchMethods } from './retouchtool.js';
+import { directPaintMethods } from './directpaint.js';
 import { effectMethods } from './effecttools.js';
 import { lineEditMethods } from './lineedittool.js';
 import { symmetryMethods } from './symmetrytools.js';
@@ -101,6 +103,8 @@ export class Editor {
     this.comp.width = doc.width;
     this.comp.height = doc.height;
     this.compCtx = this.comp.getContext('2d');  // stays on the GPU: it is drawn every frame and read only by the eyedropper, wand and fill
+    this.mips = [this.comp];  // the composite at 1/2, 1/4, ... for drawing it zoomed out (updateMips)
+    this.mipDirty = null;
     this.stroke = document.createElement('canvas');
     this.stroke.width = doc.width;
     this.stroke.height = doc.height;
@@ -429,7 +433,41 @@ export class Editor {
     if (!q) return;
     this.compQueue = null;
     const area = clip(q, d.width, d.height);  // the canvas may have shrunk since
-    if (area) composite(this.compCtx, d, area, this.live);
+    if (area) {
+      composite(this.compCtx, d, area, this.live);
+      this.mipDirty = this.mipDirty ? union(this.mipDirty, area) : area;
+    }
+  }
+
+  /**
+   * The composite at 1 / 2^n, brought up to date: levels 1..n (and any kept from before) redraw only what changed
+   * since, each from the level above it, halving with plain bilinear filtering (an exact 2 x 2 average). The
+   * browser's own smooth downscaling would rebuild mipmaps of the whole picture on every change instead.
+   */
+  updateMips(n) {
+    this.flushComp();
+    const d = this.doc, W = d.width, H = d.height, dirty = this.mipDirty;
+    this.mipDirty = null;
+    let full = false;  // once a level is redrawn whole, the ones below it must be too
+    const top = Math.max(n, this.mips.length - 1);
+    for (let k = 1; k <= top; k++) {
+      const { w, h } = mipSize(W, H, k), src = this.mips[k - 1];
+      let c = this.mips[k];
+      if (!c || c.width !== w || c.height !== h) {
+        if (!c) c = this.mips[k] = document.createElement('canvas');
+        c.width = w; c.height = h;
+        full = true;
+      }
+      const r = full ? { x: 0, y: 0, w, h } : dirty && mipRect(dirty, k, W, H);
+      if (!r) continue;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'low';
+      ctx.clearRect(r.x, r.y, r.w, r.h);
+      const sw = Math.min(2 * r.w, src.width - 2 * r.x), sh = Math.min(2 * r.h, src.height - 2 * r.y);
+      if (sw > 0 && sh > 0) ctx.drawImage(src, 2 * r.x, 2 * r.y, sw, sh, r.x, r.y, sw / 2, sh / 2);
+    }
+    return this.mips[n];
   }
 
   /** Redraws the screen on the next frame, only the dirty region when nothing else changed. */
@@ -473,9 +511,21 @@ export class Editor {
     }
     ctx.drawImage(this.paperLayer, 0, 0);
     ctx.setTransform(...m);
-    ctx.imageSmoothingEnabled = this.view.zoom < 2;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(this.comp, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h);
+    const scale = this.view.zoom * dpr, n = mipLevel(scale);
+    if (n) {  // zoomed out: from a downscaled copy (see updateMips), never through the browser's mipmaps
+      const src = this.updateMips(n), f = 2 ** n, e = 2 * f;  // e: the bilinear edge of the source rect stays outside the clip
+      const s = mipRect({ x: box.x - e, y: box.y - e, w: box.w + 2 * e, h: box.h + 2 * e }, n, d.width, d.height);
+      ctx.beginPath();
+      ctx.rect(0, 0, d.width, d.height);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'low';
+      ctx.drawImage(src, s.x, s.y, s.w, s.h, s.x * f, s.y * f, s.w * f, s.h * f);
+    } else {
+      ctx.imageSmoothingEnabled = this.view.zoom < 2;
+      ctx.imageSmoothingQuality = scale >= 1 ? 'high' : 'low';  // 'high' downscaling would build mipmaps of the whole composite
+      ctx.drawImage(this.comp, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h);
+    }
     const tint = this.maskTint();
     if (tint) { ctx.globalAlpha = 0.45; ctx.drawImage(tint, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); ctx.globalAlpha = 1; }
     ctx.restore();
@@ -1012,21 +1062,64 @@ export class Editor {
     this.live = null;
     r = clip(r, this.doc.width, this.doc.height);
     if (!live || !r) { this.updateComp(r); this.requestRender(); return; }
-    const before = layer.ctx.getImageData(r.x, r.y, r.w, r.h);
+    // GPU copies, not getImageData: a readback would wait for all the drawing the GPU still has queued
+    const before = this.snapshot(layer, r);
     const ctx = layer.ctx;
     ctx.save();
     ctx.globalAlpha = live.alpha;
     ctx.globalCompositeOperation = live.mode;
     ctx.drawImage(...liveSource(live, r), r.w, r.h, r.x, r.y, r.w, r.h);
     ctx.restore();
-    const after = layer.ctx.getImageData(r.x, r.y, r.w, r.h);
+    const after = this.snapshot(layer, r);
     this.pushPatch(layer, r, before, after, label);
     layer.touch();
     this.changed(r);
   }
 
+  /**
+   * A copy of rect r of a layer for undo, taken on the GPU (no waiting): {canvas}. When the editor is idle it is read
+   * into memory ({data}) so undo history does not hold GPU memory (readSnapshots).
+   */
+  snapshot(layer, r) {
+    const c = document.createElement('canvas');
+    c.width = r.w; c.height = r.h;
+    c.getContext('2d').drawImage(layer.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    const snap = { canvas: c, data: null };
+    (this.snapQueue ||= []).push(snap);
+    if (!this.snapIdle) this.snapIdle = requestIdleCallback(dl => this.readSnapshots(dl), { timeout: 4000 });
+    return snap;
+  }
+
+  /** Turns queued GPU snapshots into ImageData while nothing is being drawn. */
+  readSnapshots(deadline) {
+    this.snapIdle = 0;
+    const q = this.snapQueue || [];
+    while (q.length && !this.gesture && (deadline.didTimeout || deadline.timeRemaining() > 4)) {
+      const s = q.shift();
+      if (!s.canvas) continue;
+      s.data = s.canvas.getContext('2d').getImageData(0, 0, s.canvas.width, s.canvas.height);
+      s.canvas = null;
+    }
+    if (q.length && !this.destroyed) this.snapIdle = requestIdleCallback(dl => this.readSnapshots(dl), { timeout: 4000 });
+  }
+
+  /** Records a pixel change of rect r for undo; before/after are ImageData or snapshots. */
   pushPatch(layer, r, before, after, label) {
-    const put = img => { layer.ctx.putImageData(img, r.x, r.y); layer.touch(); this.changed(r); };
+    const put = img => {
+      const data = img instanceof ImageData ? img : img.data;
+      if (data) layer.ctx.putImageData(data, r.x, r.y);
+      else {
+        const ctx = layer.ctx;
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'copy';
+        ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
+        ctx.drawImage(img.canvas, r.x, r.y);
+        ctx.restore();
+      }
+      layer.touch(); this.changed(r);
+    };
     this.history.push({ label, bytes: r.w * r.h * 8, undo: () => put(before), redo: () => put(after) });
   }
 
@@ -1063,20 +1156,34 @@ export class Editor {
   sampleData(sample, t) {
     const d = this.doc;
     if (sample === 'layer' && t?.ctx) return t.ctx.getImageData(0, 0, d.width, d.height).data;
-    if (sample === 'reference') {
-      const refs = referenceLayers(d.root);
-      if (refs.length) {
-        const c = document.createElement('canvas');
-        c.width = d.width; c.height = d.height;
-        const ctx = c.getContext('2d', { willReadFrequently: true });
-        for (const l of refs) { ctx.globalAlpha = l.opacity; ctx.drawImage(l.canvas, 0, 0); }
-        return ctx.getImageData(0, 0, d.width, d.height).data;
-      }
-      toast('No layer is marked as reference, so everything visible counts. Tick Reference in the Layers panel.');
-    }
+    const c = sample === 'reference' ? this.referenceCanvas() : null;
+    if (c) return c.getContext('2d').getImageData(0, 0, d.width, d.height).data;
     this.flushComp();
     return this.compCtx.getImageData(0, 0, d.width, d.height).data;
   }
+
+  /** The visible reference layers on one canvas (null, with a note, when none is marked). */
+  referenceCanvas() {
+    const d = this.doc, refs = referenceLayers(d.root);
+    if (!refs.length) { toast('No layer is marked as reference, so everything visible counts. Tick Reference in the Layers panel.'); return null; }
+    const c = document.createElement('canvas');
+    c.width = d.width; c.height = d.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    for (const l of refs) { ctx.globalAlpha = l.opacity; ctx.drawImage(l.canvas, 0, 0); }
+    return c;
+  }
+
+  /** As sampleData ('all' or 'reference'), but as a canvas copy, read later only where needed (Clone stamp). */
+  sampleCanvas(sample) {
+    const ref = sample === 'reference' ? this.referenceCanvas() : null;
+    if (ref) return ref;
+    this.flushComp();
+    const c = document.createElement('canvas');
+    c.width = this.comp.width; c.height = this.comp.height;
+    c.getContext('2d').drawImage(this.comp, 0, 0);
+    return c;
+  }
+
 
   pickAt(pt) {
     const x = Math.floor(pt.x), y = Math.floor(pt.y);
@@ -1309,7 +1416,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, effectMethods, lineEditMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, lineEditMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
