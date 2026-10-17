@@ -275,6 +275,62 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .guide-page kbd, .keys kbd.key { display: inline-block; font: 12px "Segoe UI", sans-serif; color: var(--text); background: var(--panel-2);
   border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; line-height: 18px; }
 .guide-page code { font-size: 12.5px; background: var(--panel-2); border-radius: 3px; padding: 0 4px; }
+.guide-page figure { margin: 10px 0 14px; }
+.guide-page figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.guide-page .lead { font-size: 15px; }
+.guide-page .tip { background: var(--panel-2); border-left: 3px solid var(--accent); border-radius: 4px; padding: 6px 10px; margin: 10px 0; }
+.guide-page ol { padding-left: 22px; margin: 6px 0; }
+/* guide pictures (guidepics.js) */
+.gp { display: block; width: 100%; max-width: 520px; height: auto; }
+.gp text { font: 12px "Segoe UI", sans-serif; fill: var(--text); }
+.gp text.small { font-size: 10px; fill: var(--muted); }
+.gp text.badge-text { font-size: 11px; font-weight: 600; fill: #fff; }
+.gp text.big { font: 800 44px "Segoe UI", sans-serif; text-anchor: middle; fill: #e5484d; }
+.gp text.big.shadow { fill: #000; opacity: .5; }
+.gp text.big.border { fill: #fff; stroke: #fff; stroke-width: 10; stroke-linejoin: round; }
+.gp text.sym { font-size: 22px; font-weight: 600; }
+.gp text.dark { font-size: 11px; fill: #55565e; }
+.gp .leader { fill: none; stroke: var(--muted); stroke-width: 1; }
+.gp .paper { fill: #fff; }
+.gp .paper-patch { fill: #fff; }
+.gp .frame { fill: var(--bg); stroke: var(--line); }
+.gp .bar { fill: var(--panel); }
+.gp .panel { fill: var(--panel); stroke: var(--line); }
+.gp .canvasbg { fill: var(--canvas-bg); }
+.gp .icon { fill: var(--panel-2); stroke: var(--line); }
+.gp .slider { fill: var(--accent-2); }
+.gp .hue { fill: #3e8fe0; opacity: .7; }
+.gp .badge { fill: var(--accent-2); stroke: #fff; stroke-width: 1.5; }
+.gp .ink { fill: none; stroke: #1b1b1f; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.gp .ink.thin { stroke-width: 2; }
+.gp .wide { fill: none; stroke: #1b1b1f; stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; }
+.gp .dab { fill: #1b1b1f; fill-opacity: .14; }
+.gp .hard { fill: #1b1b1f; }
+.gp .solid { fill: #1b1b1f; }
+.gp .arrow { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.gp .arrow.thin { stroke-width: 2; }
+.gp .arrow.dark { stroke: #1b1b1f; }
+.gp .dot-dark { fill: #1b1b1f; }
+.gp .dot { fill: var(--accent-2); }
+.gp .ring { fill: none; stroke: #fff; stroke-width: 2; }
+.gp .swatch { stroke: #111; stroke-width: 2; }
+.gp .fill-leak { fill: #3e8fe0; opacity: .55; }
+.gp .fill-ok { fill: #3e8fe0; opacity: .55; }
+.gp .sel { fill: var(--accent); opacity: .35; }
+.gp g.sel rect { opacity: 1; }
+.gp .ants { fill: none; stroke: #1b1b1f; stroke-width: 1.5; stroke-dasharray: 5 4; }
+.gp .ghost { fill: none; stroke: #9a9ba5; stroke-width: 1.2; stroke-dasharray: 3 3; }
+.gp .qm { fill: #e5484d; opacity: .5; }
+.gp .box { fill: none; stroke: var(--accent-2); stroke-width: 1.5; }
+.gp .handle { fill: #fff; stroke: var(--accent-2); stroke-width: 1.5; }
+.gp .sheet { fill: #fff; fill-opacity: .92; stroke: #9a9ba5; stroke-width: 1.2; }
+.gp .ghostline { fill: none; stroke: #c9cad1; stroke-width: 3; stroke-dasharray: 2 4; stroke-linecap: round; }
+.gp .eraser { fill: #e5484d; fill-opacity: .15; stroke: #e5484d; stroke-width: 1.5; }
+.gp .cross { fill: none; stroke: #1b1b1f; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.gp .brush { fill: none; stroke: #1b1b1f; stroke-width: 1.5; }
+.gp .guide { fill: none; stroke: #3e8fe0; stroke-width: 1.5; stroke-dasharray: 6 4; }
+.gp .ray { fill: none; stroke: #9a9ba5; stroke-width: 1; }
+.gp .vp { fill: #e5484d; }
 .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 4px 28px; align-items: start; max-height: 70vh; overflow-y: auto; }
 .keys-group { margin-bottom: 12px; }
 .keys-group h4 { margin: 0 0 6px; font-size: 13px; color: var(--accent); }

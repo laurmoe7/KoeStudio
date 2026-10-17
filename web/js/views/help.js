@@ -3,6 +3,7 @@
 
 import { api } from '../api.js';
 import { GUIDE, SHORTCUTS, toolShortcuts, searchGuide } from '../guide.js';
+import { PICS } from '../guidepics.js';
 import { TOOLS } from '../tools.js';
 import { esc, modal, store, toast } from '../ui.js';
 
@@ -43,6 +44,7 @@ export async function guideDialog(topic = null) {
           store('guideTopic', id);
           const [, title, html] = GUIDE.find(g => g[0] === id);
           page.innerHTML = `<h3>${esc(title)}</h3>${html}`;
+          page.querySelectorAll('figure[data-pic]').forEach(f => f.insertAdjacentHTML('afterbegin', PICS[f.dataset.pic] || ''));
           page.scrollTop = 0;
           nav.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === id));
         };

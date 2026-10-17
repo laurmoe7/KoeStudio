@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GUIDE, SHORTCUTS, toolShortcuts, plainText, searchGuide } from '../web/js/guide.js';
 import { TOOLS } from '../web/js/tools.js';
+import { PICS } from '../web/js/guidepics.js';
 
 test('guide pages', () => {
   const ids = GUIDE.map(([id]) => id);
@@ -29,4 +30,16 @@ test('shortcut list', () => {
   const all = toolShortcuts(TOOLS).map(([, l]) => l).join(' ');
   for (const t of TOOLS) assert.ok(all.includes(t.label), `${t.label} has its key listed`);
   for (const [group, list] of SHORTCUTS) assert.ok(group && list.length && list.every(([k, w]) => k && w));
+});
+
+test('guide pictures', () => {
+  const used = GUIDE.flatMap(([, , html]) => [...html.matchAll(/data-pic="([^"]+)"/g)].map(m => m[1]));
+  for (const name of used) assert.ok(PICS[name], `picture ${name} exists`);
+  for (const name of Object.keys(PICS)) {
+    assert.ok(used.includes(name), `picture ${name} is used on a page`);
+    assert.match(PICS[name], /^<svg class="gp" viewBox="0 0 \d+ \d+" role="img" aria-label="[^"]+">/, `${name} is a labelled svg`);
+    assert.doesNotMatch(PICS[name], /<(script|image|foreignObject)\b|\son\w+=/i, `${name} has only shapes and text`);
+  }
+  const ids = Object.values(PICS).flatMap(p => [...p.matchAll(/ id="([^"]+)"/g)].map(m => m[1]));
+  assert.equal(new Set(ids).size, ids.length, 'gradient and filter ids are unique across pictures');
 });

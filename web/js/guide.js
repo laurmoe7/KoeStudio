@@ -1,234 +1,355 @@
 // The guidebook (Help → Guide, F1) and the shortcut list (Help → Keyboard shortcuts), as data, plus the search
-// used by the Guide window (pure, tested). Topics are short HTML pages: <p>, <ul>, <b>, <kbd>, <h4> only.
+// used by the Guide window (pure, tested). Topics are short HTML pages: <p> (class lead / tip), <ul>, <ol>, <b>,
+// <kbd>, <code>, <h4>, and <figure data-pic="name"> for a picture from guidepics.js (help.js draws it in).
 // Keep them in step with the features (README.md has the same facts in longer form).
 
 /** [id, title, html] for each page of the guide, in reading order. */
 export const GUIDE = [
   ['start', 'Getting started', `
-    <p>KoeStudio opens on the <b>gallery</b>: every artwork you have made, newest first. <b>New canvas</b> starts a
-    picture (pick a preset such as Full HD or A4, or type any size up to 10,000 px). <b>Open image or project…</b>
-    turns a picture file into a new artwork, or opens a <code>.koe</code> project file. Both are in the editor's
-    File menu too.</p>
-    <p>Your work <b>saves by itself</b> a moment after every change; the top right of the window says when. There is
-    no Save button to forget. Click the arrow at the top left to go back to the gallery.</p>
-    <h4>The screen</h4>
+    <p class="lead">KoeStudio opens on the <b>gallery</b>: all your artwork, newest first.</p>
     <ul>
-      <li><b>Tool bar</b> (far left): pick a tool, or press its key (shown in its tooltip).</li>
-      <li><b>Tool property</b>: the settings of the tool you hold. Below it, <b>History</b> and <b>Navigator</b>.</li>
-      <li><b>Color</b> and <b>Layers</b> on the right.</li>
-      <li>Click a panel's heading to fold it away.</li>
+      <li><b>New canvas</b> starts a picture. Pick a size (Full HD, A4, square…) or type your own.</li>
+      <li><b>Open image or project…</b> turns a picture file into a new artwork, or opens a <code>.koe</code> file.</li>
+      <li>Click a card to keep working on it. Its <b>⋯</b> menu renames, copies or deletes it.</li>
     </ul>
-    <p>Hover over any button or setting to see what it does. <kbd>F5</kbd> reloads the screen (your work is saved first).</p>`],
+    <h4>The drawing screen</h4>
+    <figure data-pic="screen"><figcaption>1 Tools · 2 Settings of the tool you hold · 3 History and Navigator ·
+    4 Canvas · 5 Colour · 6 Layers</figcaption></figure>
+    <ul>
+      <li>Click a tool, or press its key. Hover over any button to see what it does and its key.</li>
+      <li>Click a panel's heading to fold it away.</li>
+      <li>The arrow at the top left takes you back to the gallery.</li>
+    </ul>
+    <p class="tip">Your work <b>saves by itself</b> a moment after every change; there is no Save button to forget.
+    <kbd>Ctrl+Z</kbd> undoes anything.</p>`],
 
   ['drawing', 'Drawing and erasing', `
-    <p>Pen <kbd>P</kbd>, Pencil <kbd>N</kbd>, Brush <kbd>B</kbd> and Airbrush <kbd>A</kbd> all paint with the main
-    colour; Eraser <kbd>E</kbd> takes paint away (so does the eraser end of a pen).</p>
+    <p class="lead">Pick a pen, choose a colour, and draw.</p>
     <ul>
-      <li><b>Size</b>: <kbd>[</kbd> and <kbd>]</kbd> make the brush smaller and bigger.</li>
-      <li><b>Opacity</b> caps the whole stroke; <b>Density</b> is how much paint each dab lays down, so it builds up within a stroke.</li>
-      <li><b>Hardness</b>: a crisp edge at 100%, softer below.</li>
-      <li><b>Stabilization</b> smooths shaky lines; higher values trail further behind the pen.</li>
-      <li><b>Shift+click</b> draws a straight line from where your last stroke on that layer ended.</li>
+      <li><b>Pen</b> <kbd>P</kbd> for clean lines, <b>Pencil</b> <kbd>N</kbd> for sketching, <b>Brush</b> <kbd>B</kbd> for
+      soft paint, <b>Airbrush</b> <kbd>A</kbd> for gentle shading.</li>
+      <li><b>Eraser</b> <kbd>E</kbd> takes paint away. The eraser end of your pen does too.</li>
+      <li><kbd>[</kbd> and <kbd>]</kbd> make the brush smaller and bigger.</li>
+      <li><b>Shift+click</b> draws a straight line from where your last stroke ended.</li>
     </ul>
-    <p>Each tool remembers its own settings. <b>Smudge</b> <kbd>J</kbd> drags paint along like a wet finger; press <kbd>J</kbd> again for <b>Liquify</b>, which bends the picture: Push drags it with the pen, Pinch, Bloat and Twirl work where you hold the pen (and keep going while it stays still). It follows the symmetry ruler.</p>
-    <h4>Retouching</h4>
+    <h4>The main settings</h4>
+    <figure data-pic="strokes"><figcaption>Opacity and density both make paint lighter, but only density builds up
+    where the stroke crosses itself.</figcaption></figure>
     <ul>
-      <li><b>Blur</b> (<kbd>J</kbd> until it shows) softens what you paint over.</li>
-      <li><b>Dodge</b> lightens and <b>Burn</b> darkens (<kbd>O</kbd>, press again to switch); a low strength builds up gently.</li>
-      <li><b>Clone stamp</b> <kbd>S</kbd>: <kbd>Ctrl</kbd>+click where to copy from, then paint to copy it where the brush is.
-      A crosshair shows where it copies from. <b>Aligned</b> keeps the same distance for every stroke; <b>Look at</b> copies from this layer or from everything you see.</li>
-      <li>All of them stay inside the selection; Blur, Dodge and Burn follow the symmetry ruler.</li>
-    </ul>`],
+      <li><b>Opacity</b>: how see-through the whole stroke is. It never gets darker where the stroke overlaps itself.</li>
+      <li><b>Density</b>: how much paint each little dab lays down, so it builds up as you go over it.</li>
+      <li><b>Hardness</b>: a crisp edge at 100%, softer and softer below.</li>
+      <li><b>Stabilization</b> smooths a shaky hand. Higher numbers smooth more, but the line trails a little behind the pen.</li>
+    </ul>
+    <figure data-pic="stabilize"></figure>
+    <p class="tip">Each tool remembers its own settings, so the pen and the eraser each keep their own size.</p>`],
 
   ['brushes', 'Brush settings and saved brushes', `
-    <p>The tool panel shows only the basics. <b>Brush settings…</b> opens a window with everything else, on pages, under a preview stroke that shows each change at once (light to full pressure and back):</p>
+    <p class="lead">The tool panel shows only the basics. <b>Brush settings…</b> opens a window with everything else.</p>
+    <p>A preview stroke at the top of that window shows every change straight away. You can keep painting while it is
+    open; drag it by its title bar.</p>
     <ul>
-      <li><b>Tip</b>: round, or any picture as the tip; squash it, turn it, turn it at random or with the stroke.</li>
-      <li><b>Pen pressure</b>: what pressure changes (size, density) and how much.</li>
-      <li><b>Stroke</b>: spacing between dabs, stabilization, and <b>Start / End taper</b> to begin or end strokes thin
-      (the tapered end appears when you lift the pen).</li>
-      <li><b>Variation</b>: scatter dabs around the stroke, make them randomly smaller or lighter, or vary their hue, saturation and brightness (per dab, or once per stroke).</li>
-      <li><b>Texture</b>: a paper grain fixed to the canvas, so overlapping strokes share it.</li>
+      <li><b>Paint</b>: size, opacity, density, hardness.</li>
+      <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke.</li>
+      <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
+      <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>
+      <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.</li>
+      <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.</li>
     </ul>
-    <p>You can keep painting with the window open; drag it by its title bar.</p>
+    <figure data-pic="taper"><figcaption>Start and End taper make a stroke begin and end thin, even with a mouse.
+    The thin end appears when you lift the pen.</figcaption></figure>
     <h4>Saved brushes</h4>
-    <p>The <b>Brush</b> row loads a saved brush. Its <b>⋯</b> menu saves your current settings as a brush, updates,
-    renames or deletes one, adds tip and texture pictures, and <b>imports Procreate and Photoshop brushes</b>
-    (<code>.brush</code>, <code>.brushset</code>, <code>.abr</code>).</p>`],
+    <ol>
+      <li>Set up a brush you like.</li>
+      <li>Click <b>⋯</b> next to the <b>Brush</b> row and choose save.</li>
+      <li>Pick it from the Brush row whenever you want it back.</li>
+    </ol>
+    <p>The same <b>⋯</b> menu updates, renames and deletes brushes, adds your own tip and texture pictures, and
+    <b>imports Procreate and Photoshop brushes</b> (<code>.brush</code>, <code>.brushset</code>, <code>.abr</code>).</p>`],
+
+  ['retouch', 'Smudge, blur and retouching', `
+    <p class="lead">These tools change paint that is already on the layer, instead of adding new paint.</p>
+    <ul>
+      <li><b>Smudge</b> <kbd>J</kbd> drags paint along like a wet finger.</li>
+      <li><b>Liquify</b> (<kbd>J</kbd> again) bends the picture: <b>Push</b> drags it with the pen; <b>Pinch</b>,
+      <b>Bloat</b> and <b>Twirl</b> work where you hold the pen still.</li>
+      <li><b>Blur</b> (<kbd>J</kbd> until it shows) softens what you paint over.</li>
+      <li><b>Dodge</b> lightens and <b>Burn</b> darkens (<kbd>O</kbd>, press again to switch). Keep the strength low
+      and go over it a few times.</li>
+    </ul>
+    <h4>Clone stamp <kbd>S</kbd></h4>
+    <figure data-pic="clone"></figure>
+    <ol>
+      <li>Hold <kbd>Ctrl</kbd> and click the part you want to copy. A crosshair marks it.</li>
+      <li>Paint somewhere else: the copy appears under the brush, and the crosshair moves along with it.</li>
+    </ol>
+    <p><b>Aligned</b> keeps the same distance for every stroke; turn it off to start from the crosshair each time.
+    <b>Look at</b> copies from this layer only, or from everything you see.</p>
+    <p class="tip">All of these stay inside the selection, if there is one. Smudge, Liquify, Blur, Dodge and Burn
+    follow the symmetry ruler.</p>`],
 
   ['color', 'Colour', `
-    <p>The Color panel has a saturation/brightness square, a hue bar, the <b>main</b> and <b>sub</b> colour squares,
-    a hex field and your recent colours.</p>
+    <figure data-pic="color"></figure>
     <ul>
-      <li><b>Sliders</b> under the square set the colour by hue, saturation and brightness (<b>HSV</b>) or red, green and blue
-      (<b>RGB</b>); type a number in the box beside a slider for an exact value. <b>Hide</b> folds them away.</li>
-      <li><kbd>X</kbd> swaps main and sub.</li>
-      <li>Hold <kbd>Alt</kbd> with a painting tool to pick a colour from the canvas, or use the Eyedropper <kbd>I</kbd>.</li>
-      <li><b>Palette</b>: <b>+</b> keeps the main colour there for good; click a swatch to use it, right-click to remove it.</li>
-      <li>The <b>Reference window</b> (View menu) shows pictures beside the canvas: scroll to zoom, drag to move,
-      click to pick a colour from it, double-click to fit. <b>+</b> adds pictures (or drop them on it); they stay there
-      for every artwork.</li>
-    </ul>`],
-
-  ['fill', 'Fill, gradient and lasso fill', `
-    <p><kbd>G</kbd> picks the Fill tool; press it again for Gradient, then Lasso fill.</p>
-    <ul>
-      <li><b>Fill</b>: click an area to fill it. <b>Look at</b> chooses whether the outline comes from everything you
-      see, the current layer, or the layers ticked <b>Reference</b> (handy for colouring under line art).
-      <b>Margin</b> allows nearby colours, <b>Expand</b> tucks the fill under the lines, and untick
-      <b>Connected only</b> to fill every pixel of that colour. <b>Close gaps</b> stops the fill running out through
-      small openings in the lines (up to about twice that many pixels wide).</li>
-      <li><b>Gradient</b>: drag from where it starts to where it ends (Shift snaps the angle). Straight or circle;
-      <b>Repeat</b> and <b>Mirror</b> make stripes and rings. Besides main and sub colour, Colors has ready-made gradients (rainbow, sunset, sky, fire, night); <b>Dither</b> adds a faint grain so smooth gradients show no bands.</li>
-      <li><b>Lasso fill</b>: draw round an area to fill it with the main colour.</li>
+      <li>Pick the colour in the <b>hue bar</b>, then how light and strong it is in the <b>square</b>.</li>
+      <li>You paint with the <b>main</b> colour. The <b>sub</b> colour waits behind it; <kbd>X</kbd> swaps them.</li>
+      <li><b>Sliders</b> under the square: <b>HSV</b> (hue, saturation, brightness) or <b>RGB</b> (red, green, blue).
+      Type a number in the box beside a slider for an exact value; <b>Hide</b> folds them away. A colour code such as
+      <code>#ff8800</code> goes in the box next to the colour squares.</li>
+      <li>Hold <kbd>Alt</kbd> while painting to pick a colour from the canvas, or use the <b>Eyedropper</b> <kbd>I</kbd>.</li>
+      <li><b>Recent</b> colours appear by themselves. For colours you want to keep, press <b>+</b> next to
+      <b>Palette</b>. Click a swatch to use it, right-click to remove it.</li>
     </ul>
-    <p>All of them stay inside the selection, if there is one.</p>`],
+    <h4>Reference window</h4>
+    <p>View → Reference window shows pictures beside your canvas while you draw. Press <b>+</b> (or drop pictures on it)
+    to add some. Scroll to zoom, drag to move, click to pick a colour, double-click to fit. They stay there for every
+    artwork.</p>`],
 
-  ['shapes', 'Figures and text', `
+  ['fill', 'Fill and gradients', `
+    <p class="lead"><kbd>G</kbd> picks the Fill tool. Press <kbd>G</kbd> again for Gradient, then Lasso fill.</p>
+    <h4>Fill</h4>
+    <p>Click inside an area to fill it with the main colour.</p>
+    <figure data-pic="gaps"><figcaption>Lines with small gaps? Raise <b>Close gaps</b> so the fill stays inside.</figcaption></figure>
+    <ul>
+      <li><b>Look at</b>: where the fill finds its edges. <b>All layers</b> uses everything you see, so you can fill on
+      a colour layer under your line art. <b>Reference layers</b> uses only the layers ticked <b>Reference</b>.</li>
+      <li><b>Margin</b>: how different a colour can be and still get filled.</li>
+      <li><b>Expand</b> grows the fill a little, under the lines, so no white rim is left.</li>
+      <li>Untick <b>Connected only</b> to fill every spot of that colour in the picture at once.</li>
+    </ul>
+    <h4>Gradient</h4>
+    <figure data-pic="gradient"></figure>
+    <ul>
+      <li>Drag from where the gradient starts to where it ends. Hold Shift for a straight angle.</li>
+      <li><b>Colors</b>: main to sub, or a ready-made one (rainbow, sunset, sky, fire, night).</li>
+      <li><b>Shape</b>: straight or circle. <b>Repeat</b> and <b>Mirror</b> make stripes and rings.</li>
+      <li><b>Dither</b> adds a faint grain so smooth gradients show no bands.</li>
+    </ul>
+    <h4>Lasso fill</h4>
+    <p>Draw round an area and it fills with the main colour, like colouring in with a marker.</p>
+    <p class="tip">With a selection, every fill stays inside it.</p>`],
+
+  ['shapes', 'Shapes and text', `
     <h4>Figure <kbd>U</kbd></h4>
-    <p>Drag for a straight line, rectangle or ellipse, outlined with the brush settings or filled. Shift makes a 45°
-    line, a square or a circle. <b>Polyline</b> and <b>Polygon</b> are clicked corner by corner: double-click or
-    <kbd>Enter</kbd> finishes, a click on the first corner closes a polygon, <kbd>Backspace</kbd> takes back the last
-    corner, <kbd>Esc</kbd> drops it. <b>Curve</b> and <b>Closed curve</b> work the same way, but the line runs
-    smoothly through the points you click instead of straight between them.</p>
+    <p>Drag to draw a <b>line</b>, <b>rectangle</b> or <b>ellipse</b>. Hold Shift for a straight line, a square or a
+    circle. Tick <b>Fill the shape</b> for a solid shape; <b>Rounding</b> rounds a rectangle's corners.</p>
+    <figure data-pic="polygon"></figure>
+    <ul>
+      <li><b>Polyline</b> and <b>Polygon</b>: click each corner. Double-click or <kbd>Enter</kbd> to finish.</li>
+      <li><b>Curve</b> and <b>Closed curve</b>: click points, and a smooth line runs through them.</li>
+      <li><kbd>Backspace</kbd> takes back the last point; <kbd>Esc</kbd> drops the shape.</li>
+    </ul>
     <h4>Text <kbd>T</kbd></h4>
-    <p>Click to type; click a text again to edit it. Font, size, bold, italic, alignment, line spacing and
-    <b>vertical writing</b> (as in manga). <b>Outline</b> puts a border round the letters, in white, black or the
-    sub colour. Text stays editable on its own layer; to paint on it, use
-    Layer → Rasterize text.</p>`],
+    <ol>
+      <li>Click the canvas and type.</li>
+      <li>Click somewhere else, or press <kbd>Esc</kbd>, when you are done.</li>
+      <li>Click the text again any time to change it.</li>
+    </ol>
+    <p>Choose the font, size, bold, italic, alignment and line spacing in the tool panel. <b>Vertical</b> writes top to
+    bottom, as in manga. <b>Outline</b> puts a border round the letters.</p>
+    <p class="tip">Text stays editable on its own layer. To paint on it, use Layer → Rasterize text first.</p>`],
 
   ['selection', 'Selections', `
-    <p>Selection tools: rectangle <kbd>M</kbd> (again for ellipse), lasso <kbd>L</kbd> (again for polygon) and magic
-    wand <kbd>W</kbd>. While dragging, <b>Shift</b> adds, <b>Alt</b> subtracts and <b>Shift+Alt</b> keeps the overlap.</p>
-    <p>Painting, fills, filters and <kbd>Del</kbd> stay inside the selection. <kbd>Ctrl+A</kbd> selects all,
-    <kbd>Ctrl+D</kbd> deselects, <kbd>Ctrl+Shift+I</kbd> inverts.</p>
+    <p class="lead">A selection fences off part of the picture. Painting, fills, filters and <kbd>Del</kbd> then only
+    change what is inside it.</p>
+    <ul>
+      <li><b>Rectangle</b> <kbd>M</kbd> (press again for <b>Ellipse</b>): drag a box.</li>
+      <li><b>Lasso</b> <kbd>L</kbd>: draw round it freehand. Press again for <b>Polygon</b>: click the corners.</li>
+      <li><b>Magic wand</b> <kbd>W</kbd>: click an area of one colour.</li>
+    </ul>
+    <figure data-pic="selmodes"><figcaption>Hold a key while you drag to change the selection you already have.</figcaption></figure>
+    <p><kbd>Ctrl+A</kbd> selects everything, <kbd>Ctrl+D</kbd> deselects, <kbd>Ctrl+Shift+I</kbd> swaps inside and outside.</p>
     <h4>Select menu</h4>
     <ul>
-      <li><b>Color range…</b> selects every pixel close to a colour; click the canvas to pick it, and set how close with Fuzziness.</li>
-      <li><b>Expand, shrink, feather</b> (soft edge) and <b>border</b> (a band along the edge).</li>
-      <li>Edit → <b>Stroke selection…</b> draws the main colour along the selection's edge: inside, centred or outside, as wide as you like.</li>
-      <li><b>Quick mask</b> <kbd>Q</kbd>: the selection turns red and every tool paints it. Painting selects,
-      erasing deselects, a blur softens it. Press <kbd>Q</kbd> again to get the selection back.</li>
-    </ul>`],
+      <li><b>Color range…</b> selects every pixel close to a colour. Click the canvas to choose it.</li>
+      <li><b>Expand</b> and <b>Shrink</b> grow or shrink it; <b>Feather</b> gives it a soft edge; <b>Border</b>
+      selects a band along its edge.</li>
+      <li>Edit → <b>Stroke selection…</b> draws a line along the edge of the selection.</li>
+    </ul>
+    <h4>Quick mask <kbd>Q</kbd></h4>
+    <figure data-pic="quickmask"></figure>
+    <p>Paint the selection with any tool: <b>painting</b> takes away from it, <b>erasing</b> adds to it, a blur softens
+    its edge. Press <kbd>Q</kbd> again to go back to a normal selection.</p>`],
 
   ['transform', 'Moving and transforming', `
     <ul>
-      <li><b>Move</b> <kbd>V</kbd>: drag the layer, or only the selected pixels if there is a selection.</li>
-      <li><b>Transform</b> <kbd>Ctrl+T</kbd>: drag the handles to scale (Shift keeps proportions), outside the box to
-      rotate (Shift snaps to 15°), inside to move. Flip and turn 90° from its panel. <kbd>Enter</kbd> applies,
-      <kbd>Esc</kbd> cancels. <b>Distort</b> (or <kbd>Ctrl</kbd>+drag a corner) frees the four corners: drag each
-      on its own to put a picture in perspective, onto a wall or a screen.</li>
-      <li><kbd>Ctrl+C</kbd>, <kbd>Ctrl+X</kbd>, <kbd>Ctrl+V</kbd> copy, cut and paste onto a new layer in the same place;
-      pictures copied in other programs paste too, and you can drop image files onto the canvas.</li>
-    </ul>`],
+      <li><b>Move</b> <kbd>V</kbd>: drag the whole layer. With a selection, only the selected part moves.</li>
+      <li><b>Transform</b> <kbd>Ctrl+T</kbd>: resize, turn or flip the layer or the selection.</li>
+    </ul>
+    <figure data-pic="transform"></figure>
+    <ul>
+      <li>Hold Shift to keep the proportions while resizing, or to turn in 15° steps.</li>
+      <li>The tool panel has buttons to flip and turn by 90°.</li>
+      <li><b>Distort</b> (or <kbd>Ctrl</kbd>+drag a corner) moves each corner on its own: use it to lay a picture onto a
+      wall or a screen in perspective.</li>
+      <li>The arrow keys nudge it by one pixel (with Shift, ten).</li>
+    </ul>
+    <h4>Copy and paste</h4>
+    <p><kbd>Ctrl+C</kbd>, <kbd>Ctrl+X</kbd> and <kbd>Ctrl+V</kbd> copy, cut and paste onto a new layer, in the same
+    place. Pictures copied in other programs paste too, and you can drop picture files onto the canvas.</p>`],
 
   ['layers', 'Layers and folders', `
-    <p>Each layer is a sheet of its own: paint on one without touching the others. Click a layer to work on it, drag
-    it to reorder, drag it onto a folder to put it inside.</p>
+    <p class="lead">Layers are like clear sheets stacked on top of each other. Paint on one without touching the
+    others: keep line art on top and colours underneath, and you can fix either one on its own.</p>
+    <figure data-pic="layers"></figure>
     <ul>
-      <li>The buttons under the list add a layer or folder, add a mask, duplicate, move, merge down and delete.</li>
-      <li><b>Blending mode</b> and <b>opacity</b> for each layer and folder; folders blend as "Through" by default.</li>
-      <li><b>Lock alpha</b> paints only where there already is paint. <b>Clip below</b> shows a layer only inside the
-      one under it (great for shading).</li>
-      <li><b>Lock</b> protects a layer from changes; <b>Reference</b> marks line art for Fill and the wand.</li>
-      <li><b>Copy to new layer</b> <kbd>Ctrl+J</kbd> and <b>Cut to new layer</b> <kbd>Ctrl+Shift+J</kbd> lift the selection (or the whole layer) onto a layer of its own. <b>Flatten image</b> puts everything visible on one layer.</li>
-      <li><b>Layer effects</b> (Layer menu): a <b>Border</b> round everything on the layer (in any colour and width,
-      great for stickers and lettering) and a <b>Drop shadow</b>. They follow as you paint and never change the layer's
-      pixels; Rasterize layer effects makes them pixels.</li>
-      <li>The coloured dots label layers so you can find them.</li>
-      <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click picks more layers, <kbd>Shift</kbd>+click picks a run of
-      them. Then drag, the up/down buttons, the eye, delete, duplicate, <kbd>Ctrl+G</kbd> and <kbd>Ctrl+E</kbd> (merge
-      them into one), the settings above the list, flips and the Move tool work on all of them.</li>
-      <li><b>Vector layers</b> keep lines as lines, for erasing whole lines (see Vector layers).</li>
-      <li>Double-click a name (or <kbd>F2</kbd>) to rename. <kbd>Ctrl+G</kbd> puts the layer in a new folder,
-      <kbd>Ctrl+E</kbd> merges down.</li>
+      <li>Click a layer to paint on it. Drag it up or down the list to change the order.</li>
+      <li>The buttons under the list add a layer, a folder or a mask, copy, move, merge and delete.</li>
+      <li>The <b>eye</b> hides a layer. Double-click its name (or press <kbd>F2</kbd>) to rename it.</li>
+      <li><b>Opacity</b> makes the whole layer see-through. <b>Blending</b> modes such as Multiply (for shadows) and
+      Screen (for light) change how it mixes with what is below.</li>
+    </ul>
+    <h4>Handy switches</h4>
+    <figure data-pic="clip"></figure>
+    <ul>
+      <li><b>Clip below</b> shows a layer only where the layer under it has paint: shade without going over the edges.</li>
+      <li><b>Lock alpha</b> paints only where this layer already has paint.</li>
+      <li><b>Lock</b> protects the layer from any change. <b>Reference</b> marks line art for Fill and the wand.</li>
+      <li>The coloured dots are labels, to help you find layers.</li>
+    </ul>
+    <h4>More</h4>
+    <ul>
+      <li><b>Folders</b> keep layers together; drag a layer onto a folder to put it inside. <kbd>Ctrl+G</kbd> puts the
+      layer in a new folder.</li>
+      <li><kbd>Ctrl+E</kbd> merges a layer into the one below. <b>Flatten image</b> puts everything on one layer.</li>
+      <li><b>Copy to new layer</b> <kbd>Ctrl+J</kbd> and <b>Cut to new layer</b> <kbd>Ctrl+Shift+J</kbd> lift the
+      selection onto its own layer.</li>
+      <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click or <kbd>Shift</kbd>+click more layers, then move, hide, delete,
+      merge or change them together.</li>
     </ul>`],
 
+  ['effects', 'Layer effects', `
+    <p class="lead">Give everything on a layer an outline or a shadow, without changing what you drew.</p>
+    <figure data-pic="effects"></figure>
+    <ol>
+      <li>Select the layer, then open Layer → <b>Layer effects (border, shadow)…</b></li>
+      <li>Tick <b>Border</b> and set its width and colour, and/or tick <b>Drop shadow</b> and set how far it falls,
+      how soft it is, its colour and opacity. The canvas shows it as you change it.</li>
+      <li>Press <b>OK</b>.</li>
+    </ol>
+    <p>The effects follow along while you keep drawing on the layer. The Layers panel shows "border" or "shadow" under
+    the layer's name.</p>
+    <p class="tip">Great for stickers, lettering and logos. Layer → <b>Rasterize layer effects</b> turns them into
+    ordinary paint (merging the layer down does too).</p>`],
+
   ['vector', 'Vector layers', `
-    <p>A <b>vector layer</b> (Layer → New vector layer) keeps every line you draw as a line, not as pixels. That is
-    what makes cleaning up line art quick: the Eraser can remove a line, or cut it back to where it crosses another.</p>
+    <p class="lead">A <b>vector layer</b> remembers every line as a line, not as pixels. That makes cleaning up line
+    art fast.</p>
+    <p>Make one with Layer → New vector layer, then draw on it with the Pen, Pencil, Brush, Airbrush or Figure tool.</p>
+    <figure data-pic="vector"><figcaption>The Eraser's <b>Vector</b> setting: the red circle is where the eraser
+    went.</figcaption></figure>
     <ul>
-      <li>Draw on it with the Pen, Pencil, Brush and Airbrush, and with the Figure tool (outlines, not filled shapes).
-      Each line keeps the brush, colour and opacity it was drawn with.</li>
-      <li>The <b>Eraser</b>'s <b>Vector</b> setting chooses how it works on vector layers:
-        <b>Touched area</b> cuts away only what the eraser passes over;
-        <b>Up to intersection</b> removes the stretch of a line between the lines it crosses, so overshoots
-        disappear in one stroke; <b>Whole line</b> removes every line it touches.</li>
-      <li><b>Line edit</b> <kbd>Y</kbd>: click a line to pick it, then drag along it to bend it (the pull range sets
-      how much of the line follows). The tool panel changes the picked line's width, opacity and colour (to the main
-      colour), evens out a shaky line (<b>Smooth</b>, click again for smoother), or deletes it (also <kbd>Del</kbd>).</li>
-      <li>The Move tool moves the lines, <kbd>Del</kbd> clears them all, and undo works as everywhere.</li>
-      <li>Tools that need pixels (Fill, filters, Transform, Smudge) ask you to <b>rasterize</b> the layer first
-      (Layer → Rasterize vector layer). Flipping, resizing the canvas or merging into it rasterizes it too.</li>
-    </ul>`],
+      <li><b>Touched area</b> erases only what the eraser passes over, as on a normal layer.</li>
+      <li><b>Up to intersection</b> removes a line back to where it crosses another one: overshoots vanish in one
+      stroke.</li>
+      <li><b>Whole line</b> removes every line the eraser touches.</li>
+    </ul>
+    <h4>Line edit <kbd>Y</kbd></h4>
+    <p>Click a line to pick it, then drag it to bend it. The tool panel changes its width, opacity or colour,
+    <b>Smooth</b> evens out a shaky line, and <kbd>Del</kbd> deletes it.</p>
+    <p class="tip">Fill, filters, Transform and Smudge need pixels: they ask to <b>rasterize</b> the layer first
+    (Layer → Rasterize vector layer).</p>`],
 
   ['masks', 'Masks and screentone', `
     <h4>Layer masks</h4>
-    <p>A mask hides part of a layer without erasing it. Add one from the Layers panel (with a selection, everything
-    outside it is hidden), then click the mask thumbnail to paint on it: <b>painting hides, erasing shows again</b>.
-    "Painting on mask" shows in the top bar; click it to paint on the layer again. View → Show mask area tints the
-    hidden part red.</p>
+    <p class="lead">A mask hides part of a layer without erasing it, so you can always bring it back.</p>
+    <figure data-pic="mask"></figure>
+    <ol>
+      <li>Press the mask button under the Layers list. With a selection, everything outside it is hidden at once.</li>
+      <li>Click the mask's small picture next to the layer. "Painting on mask" shows in the top bar.</li>
+      <li><b>Paint</b> to hide, <b>erase</b> to show again.</li>
+      <li>Click the layer's own picture to paint on the layer again.</li>
+    </ol>
+    <p>View → Show mask area tints the hidden part red while you paint on the mask. The Layer menu turns a mask off,
+    applies it, or deletes it.</p>
     <h4>Screentone</h4>
-    <p>Layer → New screentone makes a layer that turns gray into dots, as in printed manga. Paint in gray: darker
-    gives denser dots, erasing removes them. Change the dots with Layer → Screentone settings.</p>`],
+    <p>Layer → <b>New screentone</b> makes a layer that shows gray as dots, like printed manga. Paint in gray: darker
+    gives bigger dots, erasing removes them. Layer → Screentone settings changes the dot size, angle and shape.</p>`],
 
   ['filters', 'Filters', `
-    <p>The Filter menu changes the current layer (or the mask you are painting on), inside the selection. Drag the
-    sliders and the canvas shows the result; <b>OK</b> keeps it, <b>Cancel</b> puts it back.</p>
+    <p class="lead">The Filter menu changes the current layer, inside the selection if there is one.</p>
+    <ol>
+      <li>Pick a filter.</li>
+      <li>Move the sliders: the canvas shows the result as you go.</li>
+      <li><b>OK</b> keeps it; <b>Cancel</b> puts everything back.</li>
+    </ol>
     <ul>
-      <li>Blurs: Gaussian, motion, zoom and spin (click the canvas to put their centre there). Sharpen, mosaic and noise.</li>
-      <li>Colour: brightness/contrast, hue/saturation, colour balance, curves, levels, posterize, threshold and invert.</li>
-      <li><b>Extract lines</b> keeps only lines darker than their surroundings, as black ink (or their own colour) on a clear layer: use it on a scanned sketch or photo. Set <b>Line width</b> to at least your widest lines (wider lines keep only their edges). Duplicate the layer first to keep the original.</li>
-      <li><b>Gradient map</b> recolours by lightness: dark parts take the first colour of the Gradient tool's Colors choice, light parts the last (try Sunset or Night, or main → sub).</li>
-      <li><b>Change color to main color</b> repaints everything on the layer (or in the selection) in the main colour, keeping its shape and softness: recolour line art in one step.</li>
-      <li><b>Brightness to opacity</b> makes white clear and keeps everything else as it looks over white: a scanned pencil drawing becomes lines on a clear layer.</li>
-      <li><kbd>Ctrl+F</kbd> repeats the last filter with the same settings.</li>
-    </ul>`],
+      <li><b>Blurs</b>: Gaussian (soft all over), Motion (a streak in one direction), Zoom and Spin (click the canvas to
+      set the centre).</li>
+      <li><b>Sharpen</b>, <b>Mosaic</b> (big pixels) and <b>Add noise</b> (grain).</li>
+      <li><b>Colour fixes</b>: Brightness/Contrast, Hue/Saturation, Color balance, Curves, Levels, Posterize,
+      Threshold (black and white only) and Invert.</li>
+      <li><b>Gradient map</b> recolours by lightness, using the Gradient tool's colours: try Sunset or Night.</li>
+    </ul>
+    <h4>For line art</h4>
+    <ul>
+      <li><b>Change color to main color</b> recolours a layer's lines in one step, keeping their soft edges.</li>
+      <li><b>Brightness to opacity</b> makes white see-through: a scanned pencil drawing becomes lines on a clear layer.</li>
+      <li><b>Extract lines</b> keeps only lines darker than their surroundings, for a photo of a sketch. Set
+      <b>Line width</b> to at least your thickest line.</li>
+    </ul>
+    <p class="tip"><kbd>Ctrl+F</kbd> repeats the last filter with the same settings. Filters work on a mask too, while
+    you paint on it (blur a mask for a soft edge).</p>`],
 
-  ['rulers', 'Rulers, guides, perspective and symmetry', `
+  ['rulers', 'Rulers, perspective and symmetry', `
+    <p class="lead">Rulers help you draw straight lines, perspective and mirrored drawings by hand.</p>
+    <h4>Perspective</h4>
+    <figure data-pic="perspective"></figure>
+    <ol>
+      <li>Choose the <b>Ruler</b> tool (<kbd>U</kbd> twice) and add a 1-, 2- or 3-point perspective ruler.</li>
+      <li>Drag its points to match your scene.</li>
+      <li>With <b>snapping</b> on (<kbd>Ctrl+2</kbd>, or the magnet at the bottom), each stroke follows the
+      perspective line closest to the way you draw.</li>
+    </ol>
+    <h4>Symmetry</h4>
+    <figure data-pic="symmetry"></figure>
+    <p>View → <b>Symmetry settings…</b> mirrors everything you draw (left–right, top–bottom or four ways), or repeats
+    it round a centre for flowers and mandalas. Drag the round centre with the Ruler tool.</p>
+    <h4>Guides, lines and the grid</h4>
     <ul>
-      <li><b>Edge rulers</b> (View menu): drag out of them to add guides; drag a guide back to remove it.</li>
-      <li>The <b>Ruler tool</b> (<kbd>U</kbd> twice) adds a 1-, 2- or 3-point perspective ruler and moves its points.</li>
-      <li>With <b>snapping</b> on (<kbd>Ctrl+2</kbd>, or the magnet at the bottom) strokes follow the guide or
-      perspective line they start along.</li>
-      <li><b>Straight-line and concentric rulers</b>: with the Ruler tool, pick Straight line or Concentric and drag on
-      the canvas (or use + Line / + Concentric). Strokes started near a straight ruler follow it; with a concentric ruler
-      every stroke follows a circle or ellipse around its centre. Drag the handles to move, turn or reshape them
-      (Shift: 15° steps, or a circle); <kbd>Del</kbd> removes the picked one.</li>
-      <li><b>Symmetry</b> (View → Symmetry settings…) mirrors what you draw, or repeats it round a centre.</li>
-      <li><b>Grid</b> <kbd>Ctrl+'</kbd>, with its spacing in View → Grid settings…. Tick Snap there and strokes follow grid lines, while rectangle, ellipse and polygon selections, figures and crops put their corners on them.</li>
-      <li>Those corners also snap to <b>guides</b> they come near (while guides are shown and snapping is on).</li>
-      <li>Guides and rulers move along with Crop, Canvas size, Image size, Rotate canvas and Flip canvas.</li>
+      <li><b>Edge rulers</b> (View menu): drag out of them to add a guide; drag it back to remove it.</li>
+      <li>The Ruler tool also makes <b>straight-line</b> rulers and <b>concentric</b> rulers (strokes go round in
+      circles or ellipses). Drag their handles to change them; <kbd>Del</kbd> removes one.</li>
+      <li><b>Grid</b> <kbd>Ctrl+'</kbd>. In View → Grid settings… tick Snap so lines, shapes and selections follow it.</li>
     </ul>`],
 
   ['canvas', 'Canvas size, cropping and turning', `
     <ul>
-      <li>Image → <b>Canvas size</b> adds or removes space around the picture; <b>Image size</b> stretches everything.</li>
-      <li>The <b>Crop</b> tool <kbd>C</kbd>: drag the box's edges, then <kbd>Enter</kbd>. Image → Crop to selection and
-      Trim to content do it in one step.</li>
-      <li>Rotate the canvas by 90° or 180°, or flip it, from the Image menu.</li>
-    </ul>`],
+      <li>Image → <b>Canvas size</b> adds or removes space round the picture without stretching it.</li>
+      <li>Image → <b>Image size</b> makes the whole picture bigger or smaller.</li>
+      <li>The <b>Crop</b> tool <kbd>C</kbd>: drag the edges of the box, then press <kbd>Enter</kbd>.</li>
+      <li>Image → <b>Crop to selection</b> crops in one step; <b>Trim to content</b> cuts away empty space round your
+      drawing.</li>
+      <li>The Image menu also turns the canvas by 90° or 180°, and flips it.</li>
+    </ul>
+    <p class="tip">Guides, rulers and symmetry move along when the canvas changes.</p>`],
 
   ['view', 'Zoom, view and undo', `
     <ul>
-      <li>Scroll to zoom at the cursor; hold <kbd>Space</kbd> and drag (or use the Hand <kbd>H</kbd>) to move around.</li>
-      <li><kbd>Shift</kbd>+scroll or <kbd>4</kbd> / <kbd>6</kbd> turns the view, <kbd>5</kbd> straightens it;
-      <kbd>Shift+M</kbd> mirrors it to check your drawing.</li>
-      <li><kbd>Ctrl+0</kbd> fits the picture in the window, <kbd>Ctrl+1</kbd> shows it at 100%.</li>
+      <li><b>Zoom</b>: scroll the mouse wheel. <kbd>Ctrl+0</kbd> fits the picture in the window, <kbd>Ctrl+1</kbd>
+      shows it at 100%.</li>
+      <li><b>Move around</b>: hold <kbd>Space</kbd> and drag, or use the Hand <kbd>H</kbd>.</li>
+      <li><b>Turn</b>: <kbd>Shift</kbd>+scroll, or <kbd>4</kbd> and <kbd>6</kbd>. <kbd>5</kbd> straightens it.</li>
+      <li><b>Mirror</b> <kbd>Shift+M</kbd>: a quick way to spot mistakes in your drawing.</li>
       <li>The <b>Navigator</b> shows the whole picture: click or drag in it to jump there.</li>
-      <li><kbd>Ctrl+Z</kbd> undoes, <kbd>Ctrl+Y</kbd> redoes. The <b>History</b> panel lists the steps: click one to go
-      straight back to it.</li>
-    </ul>`],
+    </ul>
+    <h4>Undo</h4>
+    <p><kbd>Ctrl+Z</kbd> undoes, <kbd>Ctrl+Y</kbd> redoes. The <b>History</b> panel lists every step: click one to
+    jump back to it, or click a grayed-out step to redo up to it.</p>`],
 
   ['files', 'Saving, versions and exporting', `
     <ul>
-      <li>Artwork is saved automatically in <b>Pictures\\KoeStudio</b>.</li>
-      <li><b>Earlier versions</b>: a copy is kept every 10 minutes (the newest five). Open one from File → Earlier
-      versions… or a gallery card's ⋯ menu; it opens as a copy, so nothing is overwritten.</li>
-      <li>Deleted artwork can be put back with <b>Deleted</b> at the top of the gallery.</li>
-      <li><b>File → Export…</b> <kbd>Ctrl+Alt+Shift+S</kbd> saves a PNG, JPEG, WebP, GIF, TGA or BMP, at any size,
-      wherever you choose. <kbd>Ctrl+Shift+S</kbd> exports a PNG straight away.</li>
-      <li><b>File → Save project file (.koe)…</b> saves the whole layered artwork to share or keep elsewhere.</li>
+      <li>Artwork saves by itself in <b>Pictures\\KoeStudio</b>.</li>
+      <li><b>Earlier versions</b>: every 10 minutes a copy is kept (the newest five). Open one from File → Earlier
+      versions… or a gallery card's ⋯ menu. It opens as a copy, so nothing is lost.</li>
+      <li>Deleted something by mistake? Press <b>Deleted</b> at the top of the gallery to put it back.</li>
+    </ul>
+    <h4>Sharing your picture</h4>
+    <ul>
+      <li><b>File → Export…</b> <kbd>Ctrl+Alt+Shift+S</kbd>: save as PNG, JPEG, WebP, GIF, TGA or BMP, at any size, in
+      any folder.</li>
+      <li><kbd>Ctrl+Shift+S</kbd> saves a PNG straight away, in the same folder as last time.</li>
+      <li><b>File → Save project file (.koe)…</b> keeps all the layers, to move to another computer or keep as a backup.</li>
     </ul>`],
 ];
 
