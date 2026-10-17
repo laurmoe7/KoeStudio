@@ -199,3 +199,126 @@ export function warpImage(src, sw, sh, quad, out, ox, oy, ow, oh, smooth = true)
   }
   return out;
 }
+
+// ---------- mesh transform ----------
+// In Mesh mode the box is a grid of (n + 1) x (n + 1) doc points (row by row, top left first), over n x n equal
+// cells of the source. The points are joined by a smooth (Catmull-Rom) surface, so dragging one bends the picture
+// softly instead of folding it along the grid lines. For drawing, the surface is cut into small quads, each mapped
+// with its own homography.
+
+/** A grid of (n + 1)^2 points spread over quad (corners nw, ne, se, sw), by bilinear interpolation. */
+export function meshFromQuad(quad, n) {
+  const [a, b, c, d] = quad, pts = [];
+  for (let j = 0; j <= n; j++) {
+    const v = j / n;
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      pts.push({ x: (1 - v) * ((1 - u) * a.x + u * b.x) + v * ((1 - u) * d.x + u * c.x),
+        y: (1 - v) * ((1 - u) * a.y + u * b.y) + v * ((1 - u) * d.y + u * c.y) });
+    }
+  }
+  return pts;
+}
+
+/** A point on the uniform Catmull-Rom curve through p1 and p2 at t (0..1). */
+function catmull(p0, p1, p2, p3, t) {
+  const t2 = t * t, t3 = t2 * t;
+  const f = k => 0.5 * (2 * p1[k] + (p2[k] - p0[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (3 * p1[k] - p0[k] - 3 * p2[k] + p3[k]) * t3);
+  return { x: f('x'), y: f('y') };
+}
+
+/** A smooth curve through the points of line (sub steps per span; the ends continue straight), as sub * (len - 1) + 1 points. */
+function smoothLine(line, sub) {
+  const L = line.length, at = i => (i < 0 ? { x: 2 * line[0].x - line[1].x, y: 2 * line[0].y - line[1].y }
+    : i >= L ? { x: 2 * line[L - 1].x - line[L - 2].x, y: 2 * line[L - 1].y - line[L - 2].y } : line[i]);
+  const out = [];
+  for (let i = 0; i < L - 1; i++) {
+    for (let s = 0; s < sub; s++) out.push(catmull(at(i - 1), at(i), at(i + 1), at(i + 2), s / sub));
+  }
+  out.push({ ...line[L - 1] });
+  return out;
+}
+
+/** The surface through a mesh's points, sampled sub times per cell: (n * sub + 1)^2 points, row by row. */
+export function meshSurface(pts, n, sub) {
+  const rows = [];
+  for (let j = 0; j <= n; j++) rows.push(smoothLine(pts.slice(j * (n + 1), (j + 1) * (n + 1)), sub));
+  const m = n * sub + 1, cols = [];
+  for (let i = 0; i < m; i++) cols.push(smoothLine(rows.map(r => r[i]), sub));
+  const out = [];
+  for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) out.push(cols[i][j]);
+  return out;
+}
+
+/** Doc-pixel bounds of a set of points, whole pixels. */
+export function pointsBounds(pts) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of pts) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+  const x = Math.floor(x0), y = Math.floor(y0);
+  return { x, y, w: Math.ceil(x1) - x, h: Math.ceil(y1) - y };
+}
+
+/** What a pointer at p grabs on a mesh: the nearest point within tol (its index), 'move' inside the outline, else null. */
+export function meshHit(pts, n, p, tol) {
+  let best = null, bestDist = tol;
+  pts.forEach((q, i) => { const dd = Math.hypot(q.x - p.x, q.y - p.y); if (dd <= bestDist) { best = i; bestDist = dd; } });
+  if (best !== null) return best;
+  const ring = [];
+  for (let i = 0; i <= n; i++) ring.push(pts[i]);
+  for (let j = 1; j <= n; j++) ring.push(pts[j * (n + 1) + n]);
+  for (let i = n - 1; i >= 0; i--) ring.push(pts[n * (n + 1) + i]);
+  for (let j = n - 1; j > 0; j--) ring.push(pts[j * (n + 1)]);
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside ? 'move' : null;
+}
+
+/**
+ * Draws the sw x sh RGBA image src onto a mesh surface (fine: (m + 1)^2 points from meshSurface, m = n * sub) into
+ * out (ow x oh RGBA whose (0, 0) is doc pixel (ox, oy)). Each small cell takes its own part of the source through its
+ * own homography; a pixel already drawn is left alone, so cells overlapping where the mesh folds keep the first.
+ * smooth: bilinear, with the outer edge anti-aliased; otherwise the nearest pixel.
+ */
+export function meshWarp(src, sw, sh, fine, m, out, ox, oy, ow, oh, smooth = true) {
+  const cw = sw / m, ch = sh / m, P = (i, j) => fine[j * (m + 1) + i];
+  const px = (x, y, c) => (x < 0 || y < 0 || x >= sw || y >= sh ? 0 : src[(y * sw + x) * 4 + c]);
+  for (let j = 0; j < m; j++) {
+    for (let i = 0; i < m; i++) {
+      const quad = [P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)];
+      const hm = homography(cw, ch, quad), inv = hm && invertHomography(hm);
+      if (!inv) continue;
+      // outer cells reach half a pixel further out, so the edge of the picture gets soft
+      // (inner sides overlap a hair, so no pixel falls between two cells through rounding; the first cell wins)
+      const e = 1e-6, l = i === 0 ? -0.5 : -e, r = i === m - 1 ? cw + 0.5 : cw + e, t = j === 0 ? -0.5 : -e, b = j === m - 1 ? ch + 0.5 : ch + e;
+      const bb = pointsBounds(quad), x0 = Math.max(0, bb.x - ox - 1), y0 = Math.max(0, bb.y - oy - 1);
+      const x1 = Math.min(ow, bb.x + bb.w - ox + 2), y1 = Math.min(oh, bb.y + bb.h - oy + 2);
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const o = (y * ow + x) * 4;
+          if (out[o + 3]) continue;
+          const q = project(inv, ox + x + 0.5, oy + y + 0.5);
+          if (!(q.x >= l && q.x < r && q.y >= t && q.y < b)) continue;
+          const su = i * cw + q.x, sv = j * ch + q.y;
+          if (!smooth) {
+            const u = Math.min(sw - 1, Math.max(0, Math.floor(su))), v = Math.min(sh - 1, Math.max(0, Math.floor(sv))), k = (v * sw + u) * 4;
+            out[o] = src[k]; out[o + 1] = src[k + 1]; out[o + 2] = src[k + 2]; out[o + 3] = src[k + 3];
+            continue;
+          }
+          const fx = su - 0.5, fy = sv - 0.5, u = Math.floor(fx), v = Math.floor(fy), tx = fx - u, ty = fy - v;
+          let R = 0, G = 0, B = 0, A = 0;
+          for (const [du, dv, w] of [[0, 0, (1 - tx) * (1 - ty)], [1, 0, tx * (1 - ty)], [0, 1, (1 - tx) * ty], [1, 1, tx * ty]]) {
+            const al = px(u + du, v + dv, 3) * w;
+            if (!al) continue;
+            R += px(u + du, v + dv, 0) * al; G += px(u + du, v + dv, 1) * al; B += px(u + du, v + dv, 2) * al; A += al;
+          }
+          if (A <= 0) continue;
+          out[o] = R / A; out[o + 1] = G / A; out[o + 2] = B / A; out[o + 3] = A;
+        }
+      }
+    }
+  }
+  return out;
+}

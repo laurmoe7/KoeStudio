@@ -15,7 +15,7 @@ test('Shift constrains a line to 45° steps and a box to a square', () => {
 });
 
 test('figure outlines', () => {
-  assert.equal(FIGURE_SHAPES.length, 7);
+  assert.equal(FIGURE_SHAPES.length, 9);
   assert.deepEqual(figurePoints('line', { x: 1, y: 2 }, { x: 3, y: 4 }), { points: [{ x: 1, y: 2 }, { x: 3, y: 4 }], closed: false });
   assert.deepEqual(figurePoints('rect', { x: 5, y: 5 }, { x: 1, y: 2 }), { points: [{ x: 1, y: 2 }, { x: 5, y: 2 }, { x: 5, y: 5 }, { x: 1, y: 5 }], closed: true }, 'normalised corners');
   const e = figurePoints('ellipse', { x: 0, y: 0 }, { x: 20, y: 20 }, 1);

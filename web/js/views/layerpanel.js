@@ -140,6 +140,10 @@ export class LayerPanel {
     for (const row of this.list.children) {
       const n = row._node;
       const thumb = row.querySelector('.lp-thumb');
+      // only rows whose pixels changed since their thumbnail was drawn (a stroke changes one layer)
+      const key = `${n.version}/${n.mask?.version}/${doc.width}x${doc.height}`;
+      if (row._thumbKey === key) continue;
+      row._thumbKey = key;
       if (thumb) {
         const ctx = thumb.getContext('2d');
         ctx.clearRect(0, 0, TW, TH);

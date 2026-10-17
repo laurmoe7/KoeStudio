@@ -7,13 +7,15 @@ import { colorRangeMask, strokeBand } from '../maskops.js';
 import { Layer } from '../doc.js';
 import { icon } from '../icons.js';
 import { maskBounds, modeFor, rectBetween, SELECT_MODES } from '../selection.js';
-import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES, quadHit, quadBounds, warpImage } from '../transform.js';
+import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds } from '../transform.js';
 import { clip } from '../rect.js';
 import { esc, modal, store, toast } from '../ui.js';
 import { matrix, toDoc, toScreen } from '../view.js';
 
 const HANDLE_PX = 9;  // grab distance and drawn size of transform handles, in screen pixels
 const CLOSE_PX = 8;   // clicking this close (screen px) to a polygon's first point closes it
+
+const MESH_N = 3, MESH_SUB = 8;  // a mesh of 4 x 4 points; each cell drawn as 8 x 8 small quads
 
 export const selectionMethods = {
   // ---------- selection commands ----------
@@ -351,7 +353,8 @@ export const selectionMethods = {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, d.width, d.height);
     ctx.drawImage(x.base, 0, 0);
-    if (x.quad) this.drawWarped(ctx, x.srcData, x.src.width, x.src.height, x.quad, x.smooth);
+    if (x.mesh) this.drawMeshed(ctx, x.srcData, x.src.width, x.src.height, x.mesh, x.smooth);
+    else if (x.quad) this.drawWarped(ctx, x.srcData, x.src.width, x.src.height, x.quad, x.smooth);
     else {
       ctx.setTransform(...xfMatrix(x.t));
       ctx.imageSmoothingEnabled = x.smooth;
@@ -372,7 +375,8 @@ export const selectionMethods = {
     this.xf = null;
     this.hideTransformBar();
     const start = corners(newTransform(x.r));
-    if (x.quad ? x.quad.every((p, i) => p.x === start[i].x && p.y === start[i].y) : isIdentity(x.t, x.r)) return this.cancelTransformState(x);
+    const same = (a, b) => a.every((p, i) => p.x === b[i].x && p.y === b[i].y);
+    if (x.mesh ? same(x.mesh.pts, x.mesh.start) : x.quad ? same(x.quad, start) : isIdentity(x.t, x.r)) return this.cancelTransformState(x);
     const d = this.doc, layer = x.layer;
     const after = layer.ctx.getImageData(0, 0, d.width, d.height);
     if (x.mask) {  // the selection follows the pixels
@@ -380,7 +384,8 @@ export const selectionMethods = {
       c.save();
       c.setTransform(1, 0, 0, 1, 0, 0);
       c.clearRect(0, 0, d.width, d.height);
-      if (x.quad) this.drawWarped(c, x.maskData, x.mask.width, x.mask.height, x.quad, true);
+      if (x.mesh) this.drawMeshed(c, x.maskData, x.mask.width, x.mask.height, x.mesh, true);
+      else if (x.quad) this.drawWarped(c, x.maskData, x.mask.width, x.mask.height, x.quad, true);
       else {
         c.setTransform(...xfMatrix(x.t));
         c.drawImage(x.mask, 0, 0);
@@ -417,7 +422,12 @@ export const selectionMethods = {
   xfPointerDown(dp, id, ctrl = false) {
     const x = this.xf, tol = HANDLE_PX / this.view.zoom;
     // Ctrl+drag on a corner handle switches to Distort, as in Photoshop
-    if (!x.quad && ctrl && ['nw', 'ne', 'se', 'sw'].includes(hitTest(x.t, dp, tol))) this.startDistort();
+    if (!x.quad && !x.mesh && ctrl && ['nw', 'ne', 'se', 'sw'].includes(hitTest(x.t, dp, tol))) this.startDistort();
+    if (x.mesh) {
+      const grab = meshHit(x.mesh.pts, x.mesh.n, dp, tol);
+      this.gesture = { type: 'xf', tool: 'xf', id, grab: grab ?? 'none', m0: x.mesh.pts.map(p => ({ ...p })), p0: dp };
+      return;
+    }
     if (x.quad) {
       const grab = quadHit(x.quad, dp, tol);
       this.gesture = { type: 'xf', tool: 'xf', id, grab: grab ?? 'none', q0: x.quad.map(p => ({ ...p })), p0: dp };
@@ -431,12 +441,55 @@ export const selectionMethods = {
    *  stays that way until the transform is applied or cancelled. */
   startDistort() {
     const x = this.xf;
-    if (!x || x.quad || x.moveOnly) return;
+    if (!x || x.quad || x.mesh || x.moveOnly) return;
     x.quad = corners(x.t);
-    x.srcData = x.src.getContext('2d').getImageData(0, 0, x.src.width, x.src.height).data;
-    x.maskData = x.mask ? x.mask.getContext('2d').getImageData(0, 0, x.mask.width, x.mask.height).data : null;
+    this.readTransformSource(x);
     this.viewport.querySelector('.xf-bar')?.classList.add('distort');
     this.renderTransform();
+  },
+
+  /** The lifted pixels (and selection) as data, for Distort and Mesh, which draw them pixel by pixel. */
+  readTransformSource(x) {
+    x.srcData ||= x.src.getContext('2d').getImageData(0, 0, x.src.width, x.src.height).data;
+    x.maskData ||= x.mask ? x.mask.getContext('2d').getImageData(0, 0, x.mask.width, x.mask.height).data : null;
+  },
+
+  /**
+   * Mesh: a 4 x 4 grid of points over the box (or the Distort corners); dragging a point bends the picture softly
+   * around it, dragging inside moves it all. It stays that way until the transform is applied or cancelled.
+   */
+  startMesh() {
+    const x = this.xf;
+    if (!x || x.mesh || x.moveOnly) return;
+    const pts = meshFromQuad(x.quad || corners(x.t), MESH_N);
+    x.mesh = { n: MESH_N, pts, start: pts.map(p => ({ ...p })) };
+    x.quad = null;
+    this.readTransformSource(x);
+    const bar = this.viewport.querySelector('.xf-bar');
+    bar?.classList.remove('distort');
+    bar?.classList.add('mesh');
+    this.renderTransform();
+  },
+
+  /** Draws RGBA data (sw x sh) bent onto a mesh into ctx (identity transform), clipped to the doc. */
+  drawMeshed(ctx, data, sw, sh, mesh, smooth) {
+    const d = this.doc, m = mesh.n * MESH_SUB, fine = meshSurface(mesh.pts, mesh.n, MESH_SUB);
+    const b = pointsBounds(fine), r = clip({ x: b.x - 1, y: b.y - 1, w: b.w + 2, h: b.h + 2 }, d.width, d.height);
+    if (!r) return;
+    const img = new ImageData(r.w, r.h);
+    meshWarp(data, sw, sh, fine, m, img.data, r.x, r.y, r.w, r.h, smooth);
+    const c = this.warpCanvas || (this.warpCanvas = document.createElement('canvas'));
+    if (c.width < r.w || c.height < r.h) { c.width = Math.max(c.width, r.w); c.height = Math.max(c.height, r.h); }
+    c.getContext('2d').putImageData(img, 0, 0);
+    ctx.drawImage(c, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+  },
+
+  /** In Mesh mode the bend is redrawn at most once per frame. */
+  setMesh(pts) {
+    const x = this.xf;
+    x.mesh = { ...x.mesh, pts };
+    this.drawOverlay();
+    if (!x.raf) x.raf = requestAnimationFrame(() => { x.raf = 0; if (this.xf === x) this.renderTransform(); });
   },
 
   /** Draws RGBA data (sw x sh) warped onto quad into ctx (identity transform), clipped to the doc. */
@@ -462,6 +515,11 @@ export const selectionMethods = {
 
   xfDrag(dp, shift) {
     const g = this.gesture, x = this.xf;
+    if (x.mesh) {
+      if (typeof g.grab === 'number') this.setMesh(g.m0.map((p, i) => (i === g.grab ? { x: dp.x, y: dp.y } : p)));
+      else if (g.grab === 'move') this.setMesh(g.m0.map(p => ({ x: p.x + dp.x - g.p0.x, y: p.y + dp.y - g.p0.y })));
+      return;
+    }
     if (x.quad) {
       if (typeof g.grab === 'number') this.setQuad(g.q0.map((p, i) => (i === g.grab ? { x: dp.x, y: dp.y } : p)));
       else if (g.grab === 'move') this.setQuad(g.q0.map(p => ({ x: p.x + dp.x - g.p0.x, y: p.y + dp.y - g.p0.y })));
@@ -479,6 +537,7 @@ export const selectionMethods = {
 
   /** Arrow keys while transforming: nudge by a pixel (10 with Shift). */
   xfNudge(dx, dy) {
+    if (this.xf.mesh) return this.setMesh(this.xf.mesh.pts.map(p => ({ x: p.x + dx, y: p.y + dy })));
     if (this.xf.quad) return this.setQuad(this.xf.quad.map(p => ({ x: p.x + dx, y: p.y + dy })));
     const t = this.xf.t;
     this.xf.t = { ...t, cx: t.cx + dx, cy: t.cy + dy };
@@ -492,6 +551,10 @@ export const selectionMethods = {
 
   /** Cursor for the transform handle or area under the pointer. */
   xfCursor(dp) {
+    if (this.xf.mesh) {
+      const g = meshHit(this.xf.mesh.pts, this.xf.mesh.n, dp, HANDLE_PX / this.view.zoom);
+      return g === 'move' ? 'move' : g === null ? 'default' : 'crosshair';
+    }
     if (this.xf.quad) {
       const g = quadHit(this.xf.quad, dp, HANDLE_PX / this.view.zoom);
       return g === 'move' ? 'move' : g === null ? 'default' : 'crosshair';
@@ -521,6 +584,7 @@ export const selectionMethods = {
       <button class="icon-btn" data-xf="rotL" title="Rotate 90° left">${icon('rotL', 16)}</button>
       <button class="icon-btn" data-xf="rotR" title="Rotate 90° right">${icon('rotR', 16)}</button>
       <button data-xf="distort" title="Drag each corner on its own, for perspective (or Ctrl+drag a corner)">Distort</button>
+      <button data-xf="mesh" title="A grid of points: drag one to bend the picture softly around it">Mesh</button>
       <label class="check xf-aspect" title="Corners keep the proportions (hold Shift to switch while dragging)"><input type="checkbox" data-xf="aspect"> Keep aspect</label>
       <label class="check" title="Smooth (on) or hard pixel (off) resampling"><input type="checkbox" data-xf="smooth" checked> Smooth</label>
       <button data-xf="cancel" title="Cancel (Esc)">Cancel</button>
@@ -530,13 +594,19 @@ export const selectionMethods = {
       const q = this.xf.quad, cx = q.reduce((s, p) => s + p.x, 0) / 4, cy = q.reduce((s, p) => s + p.y, 0) / 4;
       this.setQuad(q.map(p => fn(p.x - cx, p.y - cy, cx, cy)));
     };
-    const either = (affine, quad) => () => (this.xf.quad ? quadOp(quad) : this.xfSet(affine));
+    // in Mesh mode they move every point round the middle of the mesh
+    const meshOp = fn => {
+      const q = this.xf.mesh.pts, cx = q.reduce((s, p) => s + p.x, 0) / q.length, cy = q.reduce((s, p) => s + p.y, 0) / q.length;
+      this.setMesh(q.map(p => fn(p.x - cx, p.y - cy, cx, cy)));
+    };
+    const either = (affine, quad) => () => (this.xf.mesh ? meshOp(quad) : this.xf.quad ? quadOp(quad) : this.xfSet(affine));
     const acts = {
       flipH: either(t => ({ sx: -t.sx }), (dx, dy, cx, cy) => ({ x: cx - dx, y: cy + dy })),
       flipV: either(t => ({ sy: -t.sy }), (dx, dy, cx, cy) => ({ x: cx + dx, y: cy - dy })),
       rotL: either(t => ({ rot: t.rot - Math.PI / 2 }), (dx, dy, cx, cy) => ({ x: cx + dy, y: cy - dx })),
       rotR: either(t => ({ rot: t.rot + Math.PI / 2 }), (dx, dy, cx, cy) => ({ x: cx - dy, y: cy + dx })),
       distort: () => this.startDistort(),
+      mesh: () => this.startMesh(),
       cancel: () => this.cancelTransform(),
       ok: () => this.applyTransform(),
     };
@@ -549,6 +619,7 @@ export const selectionMethods = {
   updateTransformBar() {
     const el = this.viewport.querySelector('.xf-readout');
     if (!el || !this.xf) return;
+    if (this.xf.mesh) { el.textContent = 'Mesh: drag the points'; return; }
     if (this.xf.quad) { el.textContent = 'Distort: drag the corners'; return; }
     const t = this.xf.t;
     const deg = Math.round(((t.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
@@ -578,13 +649,31 @@ export const selectionMethods = {
       ctx.setLineDash([]);
     };
     if (this.sel.active && !this.xf) {
-      ants(() => {
-        ctx.beginPath();
+      // a selection can have 100,000+ edge segments: stroke them only when the selection, the view or the ants'
+      // phase changes, and copy that image on the many overlay redraws in between (every pointer move)
+      const W = ctx.canvas.width, H = ctx.canvas.height, v = this.view;
+      const key = [this.sel.version, v.zoom, v.panX, v.panY, v.rot, v.flip, W, H, dpr, this.antsPhase || 0].join();
+      let c = this.antsCache;
+      if (!c || c.key !== key) {
+        c = this.antsCache ||= { canvas: document.createElement('canvas') };
+        c.key = key;
+        if (c.canvas.width !== W || c.canvas.height !== H) { c.canvas.width = W; c.canvas.height = H; }
+        const cc = c.canvas.getContext('2d');
+        cc.clearRect(0, 0, W, H);
+        cc.lineWidth = 1;
+        const path = new Path2D();
         for (const [x1, y1, x2, y2] of this.sel.segments) {
-          ctx.moveTo(sx(x1, y1), sy(x1, y1));
-          ctx.lineTo(sx(x2, y2), sy(x2, y2));
+          path.moveTo(sx(x1, y1), sy(x1, y1));
+          path.lineTo(sx(x2, y2), sy(x2, y2));
         }
-      });
+        cc.strokeStyle = '#000';
+        cc.stroke(path);
+        cc.setLineDash([4 * dpr, 4 * dpr]);
+        cc.lineDashOffset = -(this.antsPhase || 0) * dpr;
+        cc.strokeStyle = '#fff';
+        cc.stroke(path);
+      }
+      ctx.drawImage(c.canvas, 0, 0);
     }
     const g = this.gesture;
     const outline = pts => ants(() => {
@@ -604,6 +693,25 @@ export const selectionMethods = {
       const f = this.poly.points[0];
       ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = dpr;
       ctx.beginPath(); ctx.arc(sx(f.x, f.y), sy(f.x, f.y), 3 * dpr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    if (this.xf?.mesh) {  // the grid lines as the surface runs, and a handle on every point
+      const { n, pts } = this.xf.mesh, m = n * 4, fine = meshSurface(pts, n, 4), F = (i, j) => fine[j * (m + 1) + i];
+      for (const [color, w] of [['rgba(0,0,0,.6)', 3 * dpr], ['#6ea8ff', 1.2 * dpr]]) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = w;
+        ctx.beginPath();
+        for (let k = 0; k <= n; k++) {
+          for (let s = 0; s <= m; s++) { const p = F(s, k * 4); s ? ctx.lineTo(sx(p.x, p.y), sy(p.x, p.y)) : ctx.moveTo(sx(p.x, p.y), sy(p.x, p.y)); }
+          for (let s = 0; s <= m; s++) { const p = F(k * 4, s); s ? ctx.lineTo(sx(p.x, p.y), sy(p.x, p.y)) : ctx.moveTo(sx(p.x, p.y), sy(p.x, p.y)); }
+        }
+        ctx.stroke();
+      }
+      const h = HANDLE_PX * dpr * 0.7;
+      for (const p of pts) {
+        ctx.fillStyle = '#fff'; ctx.strokeStyle = '#3d6fd1'; ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath(); ctx.arc(sx(p.x, p.y), sy(p.x, p.y), h / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+      return;
     }
     if (this.xf && !this.xf.moveOnly) {
       const t = this.xf.t, quad = this.xf.quad;

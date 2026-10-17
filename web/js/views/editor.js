@@ -1,7 +1,7 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld, adjustPressure } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor } from '../color.js';
 import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource, docEffectReach } from '../doc.js';
@@ -12,6 +12,7 @@ import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
 import { Painter, textureFor, hasTipImage } from '../painter.js';
 import { union, clip } from '../rect.js';
+import { gradientChoices } from '../gradient.js';
 import { mipLevel, mipSize, mipRect } from '../mips.js';
 import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
@@ -39,6 +40,8 @@ import { liquifyMethods } from './liquifytool.js';
 import { retouchMethods } from './retouchtool.js';
 import { directPaintMethods } from './directpaint.js';
 import { effectMethods } from './effecttools.js';
+import { gradientEditMethods } from './gradienteditor.js';
+import { pressureMethods } from './pressuretool.js';
 import { lineEditMethods } from './lineedittool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -70,6 +73,7 @@ export class Editor {
     this.onHome = onHome;
     this.onOpen = onOpen;  // opens another artwork in place of this one ({id} or {newDoc})
     this.settings = sanitizeSettings(store('tools'));
+    this.loadPressureCurve();  // File → Pen pressure settings (pressuretool.js)
     this.tool = TOOL_BY_ID[store('tool')] ? store('tool') : 'pen';
     this.history = new History();
     this.history.onChange = () => { this.updateUndoButtons(); this.scheduleHistory(); if (this.tool === 'lineedit') this.renderToolProps(); };
@@ -113,7 +117,7 @@ export class Editor {
     this.xf = null;  // free transform in progress (selecttools.js)
     this.clipboard = null;
     this.antsTimer = setInterval(() => {
-      if (!this.sel.active || this.xf) return;
+      if (!this.sel.active || this.xf || this.gesture) return;  // still while drawing: redrawing them costs frames
       this.antsPhase = ((this.antsPhase || 0) + 1) % 8;
       this.drawOverlay();
     }, 120);
@@ -279,6 +283,7 @@ export class Editor {
         { label: 'Import image as layer…', run: () => this.pickImage() },
         { label: 'Earlier versions…', run: () => this.openEarlierVersion(), disabled: !d.id },
         { label: 'Open artwork folder', run: () => api.openFolder() },
+        { label: 'Pen pressure settings…', run: () => this.pressureDialog() },
         '-',
         { label: 'Back to gallery', run: () => this.goHome() },
       ],
@@ -738,21 +743,28 @@ export class Editor {
       const acts = { all: () => this.selectAll(), none: () => this.deselect(), invert: () => this.invertSelection(), xf: () => this.beginTransform() };
       box.querySelectorAll('[data-sel]').forEach(b => { b.onclick = () => acts[b.dataset.sel](); });
     }
-    if (t.kind === 'gradient') box.insertAdjacentHTML('afterbegin', '<canvas class="grad-strip" title="The colours this gradient will use"></canvas>');
+    if (t.kind === 'gradient') {
+      box.insertAdjacentHTML('afterbegin', '<canvas class="grad-strip" title="The colours this gradient will use"></canvas>');
+      box.insertAdjacentHTML('beforeend', '<div class="btn-row"><button data-grad-edit title="Make your own gradient from any colours, or change one you made">Edit gradient…</button></div>');
+      box.querySelector('[data-grad-edit]').onclick = () => this.gradientEditor();
+    }
     this.bindSettings(box);
     this.drawGradientStrip();
   }
 
   /** The settings of a tool worth showing: the grain settings only with a texture chosen, curves only when set. */
   visibleFields(s) {
+    // the Figure tool shows only the settings of the shape it draws
+    const shapeOnly = { corner: ['rect'], sides: ['regpoly', 'star'], depth: ['star'] };
     return SETTING_FIELDS.filter(f => f[0] in s && f[2] !== 'id' && !(f[2] === 'curve' && !s[f[0]])
+      && !(shapeOnly[f[0]] && 'figure' in s && !shapeOnly[f[0]].includes(s.figure))
       && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureInvert'].includes(f[0])));
   }
 
   /** Rows for some settings: sliders and choices first, the check boxes together under them. */
   settingsHtml(fs, s) {
     const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
-    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'texture' ? this.textureChoices() : list;
+    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : list;
     const row = ([key, label, type, min, max, step]) => type === 'curve'
       ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="Remove the curve (use the Pressure setting instead)">✕</button></div>`
       : type === 'choice'
@@ -774,7 +786,7 @@ export class Editor {
         if (out) out.textContent = fmt(k, s[k]);
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged();
-        if (k === 'texture') this.renderToolProps();
+        if (k === 'texture' || k === 'figure') this.renderToolProps();  // which settings show depends on these
         else this.showSetting(k, inp);
         this.drawBrushPreview();
         this.drawGradientStrip();
@@ -822,7 +834,7 @@ export class Editor {
       const r = this.viewport.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
-    const pressure = e => e.pointerType === 'mouse' ? 1 : (e.pressure || (e.pointerType === 'touch' ? 1 : 0.01));
+    const pressure = e => e.pointerType === 'mouse' ? 1 : e.pointerType === 'pen' ? adjustPressure(this.pressureCurve, e.pressure || 0.01) : (e.pressure || 1);
     el.addEventListener('contextmenu', e => e.preventDefault());
     el.addEventListener('pointerdown', e => {
       if (this.gesture) return;
@@ -1185,13 +1197,22 @@ export class Editor {
   }
 
 
+  /** Picks the colour under pt; dragging reads it once per frame (each read waits for the GPU). */
   pickAt(pt) {
-    const x = Math.floor(pt.x), y = Math.floor(pt.y);
-    if (x < 0 || y < 0 || x >= this.doc.width || y >= this.doc.height) return;
-    this.flushComp();
-    const p = this.compCtx.getImageData(x, y, 1, 1).data;
-    if (p[3] === 0) return;
-    this.colors.set(rgbToHex(p[0], p[1], p[2]));
+    const first = !this.pickPt;
+    this.pickPt = pt;
+    if (!first) return;
+    requestAnimationFrame(() => {
+      const q = this.pickPt;
+      this.pickPt = null;
+      if (this.destroyed) return;
+      const x = Math.floor(q.x), y = Math.floor(q.y);
+      if (x < 0 || y < 0 || x >= this.doc.width || y >= this.doc.height) return;
+      this.flushComp();
+      const p = this.compCtx.getImageData(x, y, 1, 1).data;
+      if (p[3] === 0) return;
+      this.colors.set(rgbToHex(p[0], p[1], p[2]));
+    });
   }
 
   // ---------- importing images ----------
@@ -1277,7 +1298,8 @@ export class Editor {
 
   async save() {
     clearTimeout(this.saveTimer);
-    if (this.xf || this.textEdit) { this.saveTimer = setTimeout(() => this.save(), SAVE_DELAY); return; }  // never save a half-done edit
+    // never save a half-done edit, nor in the middle of a stroke (reading the layers back would stall the drawing)
+    if (this.xf || this.textEdit || this.gesture) { this.saveTimer = setTimeout(() => this.save(), SAVE_DELAY); return; }
     if (this.saving) { this.saveAgain = true; return this.saving; }
     const d = this.doc, v = d.version;
     if (v === this.savedVersion) return;
@@ -1416,12 +1438,13 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, lineEditMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
+  if (key === 'depth') return Math.round(v * 100) + '%';
   if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';

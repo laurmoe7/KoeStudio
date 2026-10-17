@@ -31,7 +31,7 @@ export const gradientMethods = {
     // on a mask only coverage counts: the main colour end hides fully, the other end hides nothing
     let stops = g.t.kind === 'mask'
       ? (!s.colors.startsWith('sub') && !s.colors.startsWith('clear') ? [[0, '#000000'], [1, 'rgba(0,0,0,0)']] : [[0, 'rgba(0,0,0,0)'], [1, '#000000']])
-      : gradientStops(s.colors, this.colors.main, this.colors.sub);
+      : gradientStops(s.colors, this.colors.main, this.colors.sub, this.userGrads());
     let a = start, b = end, r = len;
     if (s.repeat === 'repeat' || s.repeat === 'mirror') {  // stretch the gradient over the area, with copies of the stops
       const { before, after } = gradientReach(s.shape, start, end, area), dx = end.x - start.x, dy = end.y - start.y;
@@ -81,7 +81,7 @@ export const gradientMethods = {
       ctx.fillRect(x, y, cell, cell);
     }
     const grad = ctx.createLinearGradient(0, 0, w, 0);
-    for (const [o, col] of gradientStops(s.colors, this.colors.main, this.colors.sub)) grad.addColorStop(o, col);
+    for (const [o, col] of gradientStops(s.colors, this.colors.main, this.colors.sub, this.userGrads())) grad.addColorStop(o, col);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
   },

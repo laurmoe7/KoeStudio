@@ -24,8 +24,99 @@ const MAX_REPEATS = 1000;
 
 const clear = hex => { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},0)`; };
 
+// ---------- your own gradients ----------
+// Kept per machine (koe.gradients) as {id, name, stops: [{o, c, a}]}: offset 0-1, colour ('#rrggbb', or 'main' /
+// 'sub' for the colour squares as they are when used) and opacity 0-1. The Colors setting names one as 'user:<id>'.
+
+export const MAX_USER_GRADIENTS = 50;
+export const MAX_STOPS = 16;
+const USER_ID = /^[0-9a-z]{1,16}$/;
+
+/** A stop's colour as written: a hex colour, or 'main' / 'sub'. */
+const stopColor = c => (c === 'main' || c === 'sub' ? c : typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : null);
+
+/** Stops cleaned up: valid ones only, offsets and opacities clamped, sorted by offset, 2 to MAX_STOPS. */
+export function sanitizeStops(raw) {
+  const out = [];
+  for (const st of Array.isArray(raw) ? raw : []) {
+    const c = stopColor(st?.c);
+    if (!c || !Number.isFinite(+st.o)) continue;
+    out.push({ o: Math.max(0, Math.min(1, +st.o)), c, a: Number.isFinite(+st.a) && st.a !== null && st.a !== '' ? Math.max(0, Math.min(1, +st.a)) : 1 });
+  }
+  out.sort((p, q) => p.o - q.o);
+  if (out.length < 2) return null;
+  return out.slice(0, MAX_STOPS);
+}
+
+/** Your gradients from storage: valid ones only, unique ids, at most MAX_USER_GRADIENTS. */
+export function sanitizeUserGradients(raw) {
+  const out = [], ids = new Set();
+  for (const g of Array.isArray(raw) ? raw : []) {
+    const stops = sanitizeStops(g?.stops);
+    if (!stops || !USER_ID.test(g?.id) || ids.has(g.id)) continue;
+    ids.add(g.id);
+    out.push({ id: g.id, name: String(g.name || 'Gradient').slice(0, 40), stops });
+    if (out.length >= MAX_USER_GRADIENTS) break;
+  }
+  return out;
+}
+
+/** Whether a Colors setting names one of your gradients ('user:<id>'). */
+export function isUserGradient(kind) { return typeof kind === 'string' && kind.startsWith('user:') && USER_ID.test(kind.slice(5)); }
+
+/** The Colors choices: the built-in ones, then yours. */
+export function gradientChoices(user = []) { return [...GRADIENT_COLORS, ...user.map(g => [`user:${g.id}`, g.name])]; }
+
+/** A stop as a CSS colour, its 'main' / 'sub' filled in. */
+export function stopCss(st, main, sub) {
+  const [r, g, b] = hexToRgb(st.c === 'main' ? main : st.c === 'sub' ? sub : st.c) || [0, 0, 0];
+  return st.a >= 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${+st.a.toFixed(3)})`;
+}
+
+/**
+ * The stop to add at offset o: its colour and opacity are what the gradient shows there now (mixed between the
+ * stops on either side), so adding one changes nothing until you edit it. Returns the new stop list (sorted).
+ */
+export function addStopAt(stops, o, main, sub) {
+  const rgb = st => hexToRgb(st.c === 'main' ? main : st.c === 'sub' ? sub : st.c);
+  let i = stops.findIndex(st => st.o >= o);
+  let st;
+  if (i <= 0) st = { ...stops[i < 0 ? stops.length - 1 : 0], o };
+  else {
+    const p = stops[i - 1], q = stops[i], t = q.o > p.o ? (o - p.o) / (q.o - p.o) : 0;
+    const a = rgb(p), b = rgb(q), mix = a.map((v, k) => Math.round(v + (b[k] - v) * t));
+    st = { o, c: '#' + mix.map(v => v.toString(16).padStart(2, '0')).join(''), a: +(p.a + (q.a - p.a) * t).toFixed(3) };
+  }
+  return [...stops, st].sort((p, q) => p.o - q.o);
+}
+
+/** A Colors setting as editable stops ({o, c, a}), to start a new gradient of your own from. */
+export function stopsFor(kind, user = []) {
+  if (isUserGradient(kind)) {
+    const g = user.find(x => x.id === kind.slice(5));
+    if (g) return g.stops.map(st => ({ ...st }));
+  }
+  const S = (o, c, a = 1) => ({ o, c, a });
+  switch (kind) {
+    case 'main-clear': return [S(0, 'main'), S(1, 'main', 0)];
+    case 'sub-main': return [S(0, 'sub'), S(1, 'main')];
+    case 'clear-main': return [S(0, 'main', 0), S(1, 'main')];
+    case 'main-sub-main': return [S(0, 'main'), S(0.5, 'sub'), S(1, 'main')];
+    default: {
+      const preset = GRADIENT_PRESETS[kind];
+      if (preset) return preset.map((c, i) => S(+(i / (preset.length - 1)).toFixed(4), c));
+      return [S(0, 'main'), S(1, 'sub')];
+    }
+  }
+}
+
 /** Colour stops [[offset, css colour], ...] for a colour setting. Fading to transparent keeps the hue. */
-export function gradientStops(kind, main, sub) {
+export function gradientStops(kind, main, sub, user = []) {
+  if (isUserGradient(kind)) {
+    const g = user.find(x => x.id === kind.slice(5));
+    if (g) return g.stops.map(st => [st.o, stopCss(st, main, sub)]);
+    return [[0, main], [1, sub]];  // deleted since: main → sub
+  }
   switch (kind) {
     case 'main-clear': return [[0, main], [1, clear(main)]];
     case 'sub-main': return [[0, sub], [1, main]];

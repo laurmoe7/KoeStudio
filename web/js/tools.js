@@ -1,7 +1,7 @@
 // Tool list and per-tool settings (pure, tested). Each tool remembers its own settings, as in other painting programs.
 
 import { SELECT_MODES } from './selection.js';
-import { GRADIENT_COLORS, GRADIENT_SHAPES, GRADIENT_REPEATS } from './gradient.js';
+import { GRADIENT_COLORS, GRADIENT_SHAPES, GRADIENT_REPEATS, isUserGradient } from './gradient.js';
 import { FONTS, ALIGNS, OUTLINE_COLORS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
 import { FIGURE_SHAPES } from './figure.js';
@@ -53,7 +53,7 @@ export const TOOLS = [
     defaults: { colors: 'main-sub', shape: 'linear', repeat: 'none', dither: false, opacity: 1 } },
   { id: 'lassofill', label: 'Lasso fill', key: 'g', kind: 'lassofill', icon: 'lassoFill', group: 'draw', defaults: { opacity: 1 } },
   { id: 'figure', label: 'Figure', key: 'u', kind: 'figure', icon: 'figure', group: 'draw',
-    defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, fill: false } },
+    defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, sides: 5, depth: 0.5, fill: false } },
   { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',
     defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, vertical: false, outline: 0, outlineColor: 'white' } },
   { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', group: 'draw', defaults: {} },
@@ -118,6 +118,8 @@ export const SETTING_FIELDS = [
   ['outline', 'Outline', 'range', 0, 50, 1],
   ['outlineColor', 'Outline in', 'choice', OUTLINE_COLORS],
   ['corner', 'Rounding', 'range', 0, 500, 1],
+  ['sides', 'Corners', 'range', 3, 32, 1],
+  ['depth', 'Star depth', 'range', 0.1, 0.95, 0.01],
   ['bold', 'Bold', 'check'],
   ['italic', 'Italic', 'check'],
   ['vertical', 'Vertical', 'check'],
@@ -176,6 +178,8 @@ export const SETTING_HINTS = {
   figure: 'Drag to draw it; hold Shift for a 45° line, a square or a circle. Polyline and polygon: click each corner; Curve and Closed curve: click points the curve passes through. Double-click or Enter to finish',
   fill: 'Fill the rectangle, ellipse or polygon, not only its outline',
   corner: 'Corner radius of rectangles, in pixels (0 = sharp corners)',
+  sides: 'How many corners a regular polygon has, or how many points a star has',
+  depth: 'How far out the inner corners of a star sit: low gives thin, spiky points, high a fat star',
   outline: 'A border round the letters, in pixels (0 = none)',
   outlineColor: 'Colour of the outline; Sub colour takes the sub colour as it is now',
   contiguous: 'Only the area connected to where you click (on), or every pixel of that colour in the picture (off)',
@@ -220,7 +224,7 @@ export function applySettings(s, from) {
     if (!(key in s) || !(key in from)) continue;
     const v = from[key];
     if (type === 'check') s[key] = !!v;
-    else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture') && imageRef(v))) s[key] = v; }
+    else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture') && imageRef(v)) || (key === 'colors' && isUserGradient(v))) s[key] = v; }
     else if (type === 'curve') s[key] = sanitizeCurve(v);
     else if (type === 'id') s[key] = typeof v === 'string' && /^[0-9a-f]{0,32}$/.test(v) ? v : '';
     else if (Number.isFinite(+v) && v !== null && v !== '') s[key] = Math.max(min, Math.min(max, +v));

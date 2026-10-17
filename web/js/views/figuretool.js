@@ -45,7 +45,7 @@ export const figureMethods = {
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(area.x, area.y, area.w, area.h);
-    const { points, closed } = figurePoints(s.figure, g.start, b, s.size * SPACING, s.corner);
+    const { points, closed } = figurePoints(s.figure, g.start, b, s.size * SPACING, s.corner, s.sides, s.depth);
     g.points = points;
     g.closed = closed;
     this.stampOutline(g.painter, s, g.layer, points, closed);

@@ -62,6 +62,10 @@ export const GUIDE = [
       <li><b>Stabilization</b> smooths a shaky hand. Higher numbers smooth more, but the line trails a little behind the pen.</li>
     </ul>
     <figure data-pic="stabilize"></figure>
+    <h4>Pen pressure</h4>
+    <p>Lines too thin unless you press hard, or too thick at a light touch? File → <b>Pen pressure settings…</b> sets
+    one curve for every tool. Pick Soft, Normal or Firm, drag the curve, or draw a few strokes on the test pad the way
+    you usually draw and press <b>Fit to my strokes</b>.</p>
     <p class="tip">Each tool remembers its own settings, so the pen and the eraser each keep their own size.</p>`],
 
   ['brushes', 'Brush settings and saved brushes', `
@@ -144,6 +148,9 @@ export const GUIDE = [
       <li><b>Colors</b>: main to sub, or a ready-made one (rainbow, sunset, sky, fire, night).</li>
       <li><b>Shape</b>: straight or circle. <b>Repeat</b> and <b>Mirror</b> make stripes and rings.</li>
       <li><b>Dither</b> adds a faint grain so smooth gradients show no bands.</li>
+      <li><b>Edit gradient…</b> makes your own: click under the colour strip to add a colour, drag the markers to move
+      them, and give each one a colour (or "main colour" / "sub colour", so it follows the colour squares) and an
+      opacity. Saved gradients appear in the Colors list, and Gradient map uses them too.</li>
     </ul>
     <h4>Lasso fill</h4>
     <p>Draw round an area and it fills with the main colour, like colouring in with a marker.</p>
@@ -151,8 +158,10 @@ export const GUIDE = [
 
   ['shapes', 'Shapes and text', `
     <h4>Figure <kbd>U</kbd></h4>
-    <p>Drag to draw a <b>line</b>, <b>rectangle</b> or <b>ellipse</b>. Hold Shift for a straight line, a square or a
-    circle. Tick <b>Fill the shape</b> for a solid shape; <b>Rounding</b> rounds a rectangle's corners.</p>
+    <p>Drag to draw a <b>line</b>, <b>rectangle</b>, <b>ellipse</b>, <b>regular polygon</b> or <b>star</b>. Hold Shift
+    for a straight line, a square, a circle or an even shape. Tick <b>Fill the shape</b> for a solid shape;
+    <b>Rounding</b> rounds a rectangle's corners, <b>Corners</b> sets how many sides or points, and <b>Star depth</b>
+    how deep a star's points are cut.</p>
     <figure data-pic="polygon"></figure>
     <ul>
       <li><b>Polyline</b> and <b>Polygon</b>: click each corner. Double-click or <kbd>Enter</kbd> to finish.</li>
@@ -202,8 +211,11 @@ export const GUIDE = [
       <li>The tool panel has buttons to flip and turn by 90°.</li>
       <li><b>Distort</b> (or <kbd>Ctrl</kbd>+drag a corner) moves each corner on its own: use it to lay a picture onto a
       wall or a screen in perspective.</li>
+      <li><b>Mesh</b> puts a grid of points over it. Drag a point and the picture bends smoothly around it: wrap a
+      pattern round a sleeve, or nudge a face into shape. Drag between the points to move the whole thing.</li>
       <li>The arrow keys nudge it by one pixel (with Shift, ten).</li>
     </ul>
+    <figure data-pic="mesh"></figure>
     <h4>Copy and paste</h4>
     <p><kbd>Ctrl+C</kbd>, <kbd>Ctrl+X</kbd> and <kbd>Ctrl+V</kbd> copy, cut and paste onto a new layer, in the same
     place. Pictures copied in other programs paste too, and you can drop picture files onto the canvas.</p>`],

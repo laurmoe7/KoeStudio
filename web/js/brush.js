@@ -200,3 +200,36 @@ export function stampBounds(stamps, sizeAt) {
   x0 = Math.floor(x0); y0 = Math.floor(y0);
   return { x: x0, y: y0, w: Math.ceil(x1) - x0, h: Math.ceil(y1) - y0 };
 }
+
+// ---------- pen pressure adjustment ----------
+// One curve for the whole program (File → Pen pressure settings…, kept in koe.pressureCurve) that every pen
+// pressure passes through before any tool sees it, so a heavy or light hand can be matched once.
+
+/** Ready-made pressure curves: light pressure counts more (soft), as it comes (normal), or you press harder (firm). */
+export const PRESSURE_PRESETS = {
+  soft: [[0, 0], [0.3, 0.55], [1, 1]],
+  normal: [[0, 0], [1, 1]],
+  firm: [[0, 0], [0.6, 0.35], [1, 1]],
+};
+
+/** A pen's pressure through the curve (none: as it is); never 0, so a light touch still draws. */
+export function adjustPressure(curve, p) {
+  if (!curve) return p;
+  return Math.max(0.01, Math.min(1, curveAt(curve, p)));
+}
+
+/**
+ * A curve fitted to test strokes drawn the way you normally draw (their raw pressures): your usual pressure (the
+ * median) becomes one half, and your firm pressure (the 95th percentile) full strength. null with too few samples.
+ */
+export function pressureFromStrokes(samples) {
+  const s = samples.filter(p => p > 0 && p <= 1).sort((a, b) => a - b);
+  if (s.length < 20) return null;
+  const q = f => s[Math.min(s.length - 1, Math.floor(f * (s.length - 1)))];
+  const hi = Math.max(0.05, Math.min(1, q(0.95))), mid = Math.min(q(0.5), hi * 0.9);
+  const pts = [[0, 0]];
+  if (mid > 0.02) pts.push([+mid.toFixed(3), 0.5]);
+  pts.push([+hi.toFixed(3), 1]);
+  if (hi < 1) pts.push([1, 1]);
+  return sanitizeCurve(pts);
+}

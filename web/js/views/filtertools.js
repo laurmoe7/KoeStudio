@@ -40,7 +40,7 @@ export const filterMethods = {
     const selData = this.sel.active ? this.sel.ctx.getImageData(0, 0, W, H).data : null;
     const job = { filter, t, orig, selData, area, params: sanitizeParams(filter, defaultParams(filter)) };
     if (filter.gradient) {  // Gradient map: the Gradient tool's colours, as they are now
-      job.extra = { stops: gradientStops(this.settings.gradient.colors, this.colors.main, this.colors.sub).map(([o, c]) => [o, parseStopColor(c)]) };
+      job.extra = { stops: gradientStops(this.settings.gradient.colors, this.colors.main, this.colors.sub, this.userGrads()).map(([o, c]) => [o, parseStopColor(c)]) };
     }
     if (filter.mainColor) job.extra = { color: hexToRgb(this.colors.main) };  // Change color: the main colour, as it is now
     this.filtering = job;

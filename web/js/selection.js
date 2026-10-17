@@ -123,6 +123,7 @@ export class Selection {
     for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
     this.bounds = maskBounds(alpha, this.w, this.h);
     this.segments = this.bounds ? outlineSegments(alpha, this.w, this.h, this.bounds) : [];
+    this.version = (this.version || 0) + 1;  // the overlay's cached marching ants are redrawn when this changes
   }
 
   /** Cuts ctx's content down to the selection inside rect r (no-op without a selection). */

@@ -3,7 +3,8 @@
 // Polyline, polygon and the curves are clicked point by point instead of dragged (POLY_SHAPES); a curve passes
 // smoothly through its points (splinePoints).
 
-export const FIGURE_SHAPES = [['line', 'Straight line'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['polyline', 'Polyline'], ['polygon', 'Polygon'],
+export const FIGURE_SHAPES = [['line', 'Straight line'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['regpoly', 'Regular polygon'], ['star', 'Star'],
+  ['polyline', 'Polyline'], ['polygon', 'Polygon'],
   ['curve', 'Curve'], ['closedcurve', 'Closed curve']];
 
 /** Shapes made of clicked corners: whether each one closes back to its first corner. */
@@ -57,10 +58,21 @@ export function constrain(shape, a, b) {
  * The outline as points to stamp along: { points: [{x, y}], closed }. A line is its two ends, a rectangle its
  * four corners (closed), or with `corner` (radius in px, at most half the shorter side) rounded corners, each a
  * quarter circle in steps no longer than `spacing`; an ellipse enough points for the stamps to overlap (closed).
+ * A regular polygon has `sides` corners on the ellipse in the box, the first straight up; a star has as many
+ * points, with the corners between them pulled in to `depth` of the way out (closed).
  */
-export function figurePoints(shape, a, b, spacing = 1, corner = 0) {
+export function figurePoints(shape, a, b, spacing = 1, corner = 0, sides = 5, depth = 0.5) {
   if (shape === 'line') return { points: [{ ...a }, { ...b }], closed: false };
   const x0 = Math.min(a.x, b.x), y0 = Math.min(a.y, b.y), x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+  if (shape === 'regpoly' || shape === 'star') {
+    const n = Math.max(3, Math.round(sides)), k = shape === 'star' ? 2 * n : n;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, rx = (x1 - x0) / 2, ry = (y1 - y0) / 2, points = [];
+    for (let i = 0; i < k; i++) {
+      const t = -Math.PI / 2 + (i * 2 * Math.PI) / k, rr = shape === 'star' && i % 2 ? depth : 1;
+      points.push({ x: cx + Math.cos(t) * rx * rr, y: cy + Math.sin(t) * ry * rr });
+    }
+    return { points, closed: true };
+  }
   const r = Math.min(corner, (x1 - x0) / 2, (y1 - y0) / 2);
   if (shape === 'rect' && r > 0) {
     const n = Math.max(2, Math.ceil((Math.PI / 2) * r / Math.max(0.25, spacing)));

@@ -281,4 +281,16 @@ export const PICS = {
     ${['10:00', '10:10', '10:20', '10:30', '10:40'].map((time, i) => { const x = 50 + i * 90; return `<path class="doc" d="M${x - 14},${30} h20 l8,8 v24 h-28 z"/>${t(x, 84, time, 'middle', 'small')}`; }).join('')}
     ${t(230, 104, 'While you work, a copy is kept every 10 minutes (the newest five)')}
   `, 'A copy of the artwork every ten minutes, the newest five kept'),
+  // ---------- Transform: mesh ----------
+  mesh: svg(460, 140, `
+    ${paper(4, 4, 218, 110)}${paper(238, 4, 218, 110)}
+    ${[0, 1, 2, 3].map(k => `<path class="meshline" d="M${44 + k * 46},14 V104 M44,${14 + k * 30} H182"/>`).join('')}
+    ${[0, 1, 2, 3].flatMap(j => [0, 1, 2, 3].map(i => `<circle cx="${44 + i * 46}" cy="${14 + j * 30}" r="3.5" class="meshpt"/>`)).join('')}
+    <path class="meshline" d="M278,14 V104 M416,14 V104 M278,14 H416 M278,104 H416"/>
+    <path class="meshline" d="M324,14 C326,40 340,52 352,58 S372,88 370,104 M370,14 C372,34 384,48 392,56 S402,90 416,104"/>
+    <path class="meshline" d="M278,44 C300,46 330,50 352,58 S400,48 416,44 M278,74 C300,76 330,84 352,88 S400,76 416,74"/>
+    <circle cx="352" cy="58" r="5" class="meshpt on"/>
+    ${arrow(338, 42, 349, 55)}
+    ${t(113, 132, 'Mesh: a grid of points')}${t(347, 132, 'Drag one: the picture bends with it')}
+  `, 'Mesh transform: dragging a point of the grid bends the picture smoothly around it'),
 };

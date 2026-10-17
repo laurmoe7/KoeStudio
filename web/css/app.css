@@ -339,6 +339,9 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .gp .flat { fill: #f08c2e; }
 .gp .shade { fill: #8a3f12; opacity: .45; }
 .gp .pencil { fill: none; stroke: #55565e; stroke-width: 2; stroke-linecap: round; opacity: .85; }
+.gp .meshline { fill: none; stroke: #3d6fd1; stroke-width: 1.5; }
+.gp .meshpt { fill: #fff; stroke: #3d6fd1; stroke-width: 1.5; }
+.gp .meshpt.on { fill: var(--accent); }
 .gp .doc { fill: #fff; stroke: #9a9ba5; stroke-width: 1.2; }
 .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 4px 28px; align-items: start; max-height: 70vh; overflow-y: auto; }
 .keys-group { margin-bottom: 12px; }
@@ -460,3 +463,22 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 /* Free transform in Distort mode: the box has four free corners, so Keep aspect has no meaning */
 .xf-bar.distort .xf-aspect { display: none; }
 .xf-bar.distort [data-xf="distort"] { background: var(--accent-2); border-color: var(--accent-2); color: #fff; pointer-events: none; }
+.xf-bar.mesh .xf-aspect { display: none; }
+/* pen pressure settings */
+.modal.wide:has(.pp) { width: min(600px, 94vw); }
+.pp { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: start; }
+.pp-curve { width: 220px; height: 220px; border-radius: 4px; border: 1px solid var(--line); cursor: crosshair; touch-action: none; }
+.pp-axis { display: flex; justify-content: space-between; margin-top: 2px; }
+.pp-pad { width: 100%; max-width: 260px; aspect-ratio: 260 / 150; border-radius: 4px; border: 1px solid var(--line); cursor: crosshair; touch-action: none; }
+.pp-presets { margin-top: 8px; }
+/* gradient editor */
+.modal.wide:has(.ge) { width: min(520px, 94vw); }
+.ge-strip-wrap { position: relative; margin: 10px 0 26px; }
+.ge-strip { display: block; width: 100%; height: 30px; border-radius: 4px; border: 1px solid var(--line); }
+.ge-track { position: absolute; left: 0; right: 0; top: 30px; height: 22px; cursor: copy; }
+.ge-mark { position: absolute; top: 2px; width: 14px; height: 18px; margin-left: -7px; padding: 0; min-height: 0; border-radius: 3px;
+  background: var(--c); border: 2px solid #fff; box-shadow: 0 0 0 1px #000; cursor: ew-resize; }
+.ge-mark::before { content: ''; position: absolute; left: 50%; top: -7px; margin-left: -5px; border: 5px solid transparent; border-bottom-color: #fff; border-top: 0; }
+.ge-mark.on { border-color: var(--accent); box-shadow: 0 0 0 1px #000, 0 0 0 3px var(--accent-2); }
+.ge-stop .field input[type=number] { width: 70px; }
+.xf-bar.mesh [data-xf="mesh"] { background: var(--accent-2); border-color: var(--accent-2); color: #fff; pointer-events: none; }
