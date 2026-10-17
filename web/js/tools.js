@@ -39,6 +39,14 @@ export const TOOLS = [
     defaults: { size: 40, strength: 0.6, hardness: 0.3, spacing: 0.08, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
   { id: 'liquify', label: 'Liquify', key: 'j', kind: 'liquify', icon: 'liquify', group: 'draw',
     defaults: { liquify: 'push', size: 120, strength: 0.7, spacing: 0.08, pressureSize: false, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
+  { id: 'blur', label: 'Blur', key: 'j', kind: 'retouch', icon: 'blurTool', group: 'draw',
+    defaults: { size: 50, strength: 0.5, hardness: 0.3, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
+  { id: 'dodge', label: 'Dodge (lighten)', key: 'o', kind: 'retouch', icon: 'dodge', group: 'draw',
+    defaults: { size: 60, strength: 0.08, hardness: 0.2, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
+  { id: 'burn', label: 'Burn (darken)', key: 'o', kind: 'retouch', icon: 'burn', group: 'draw',
+    defaults: { size: 60, strength: 0.08, hardness: 0.2, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
+  { id: 'clone', label: 'Clone stamp', key: 's', kind: 'retouch', icon: 'clone', group: 'draw',
+    defaults: { size: 40, strength: 1, hardness: 0.6, spacing: 0.08, sample: 'layer', aligned: true, pressureSize: true, pressureOpacity: false, minSize: 0.3, smoothing: 2, gamma: 1 } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
     defaults: { opacity: 1, tolerance: 12, grow: 1, gap: 0, sample: 'all', contiguous: true } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
@@ -121,6 +129,7 @@ export const SETTING_FIELDS = [
   ['gap', 'Close gaps', 'range', 0, 20, 1],
   ['sample', 'Look at', 'choice', SAMPLE_FROM],
   ['contiguous', 'Connected only', 'check'],
+  ['aligned', 'Aligned', 'check'],
 ];
 
 /** The paint settings the tool panel shows; the rest are in the Brush settings window (as Clip Studio Paint's Sub Tool Detail). */
@@ -150,7 +159,8 @@ export const SETTING_HINTS = {
   grow: 'Grows the filled area by this many pixels, so it tucks under line edges',
   gap: 'Fills as if openings in the lines up to about twice this many pixels were closed, so the fill does not leak out (0 = off)',
   sample: 'Find the area from everything you see, the current layer only, or only layers marked as reference (Layer panel)',
-  strength: 'How strongly each dab smudges or bends the picture (pen pressure makes it stronger when Pressure → density is on)',
+  aligned: 'Keeps the same distance between where it copies from and the brush for every stroke (off: each stroke starts again at the point you Ctrl+clicked)',
+  strength: 'How strongly each dab smudges, blurs, lightens, darkens or bends the picture (pen pressure makes it stronger when Pressure → density is on)',
   reach: 'How far along the line (in pixels from where you grab it) the line follows when you drag it',
   liquify: 'Push drags the picture along with the pen; Pinch pulls it in, Bloat swells it, Twirl turns it (these keep working while you hold the pen still)',
   shape: 'Straight: along the line you drag. Circle: outwards from where you start',

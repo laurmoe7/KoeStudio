@@ -43,6 +43,8 @@ export const FILTERS = [
     f('softness', 'Softness', 1, 255, 1, 48), f('color', 'Keep color', 0, 100, 1, 0, '%')],
     margin: p => Math.ceil(p.radius) + 4, apply: (d, w, h, p) => extractLines(d, w, h, p) },
   { id: 'invert', label: 'Invert colors', fields: [], margin: () => 0, apply: d => invert(d) },
+  { id: 'recolor', label: 'Change color to main color', fields: [], mainColor: true, margin: () => 0, apply: (d, w, h, p) => recolor(d, p.color || [0, 0, 0]) },
+  { id: 'whitealpha', label: 'Brightness to opacity (white → clear)', fields: [], margin: () => 0, apply: d => whiteToAlpha(d) },
   { id: 'gradmap', label: 'Gradient map…', fields: [f('mix', 'Strength', 0, 100, 1, 100, '%')], gradient: true,
     note: 'Dark parts take the first colour of the Gradient tool’s Colors choice, light parts the last.',
     margin: () => 0, apply: (d, w, h, p) => gradientMap(d, p.stops || [[0, [0, 0, 0, 255]], [1, [255, 255, 255, 255]]], p.mix / 100) },
@@ -215,6 +217,28 @@ function fromPlanes(planes, data) {
     data[i * 4 + 2] = planes[2][i] * k;
     data[i * 4 + 3] = a;
   }
+}
+
+/** Every pixel takes the colour [r, g, b], keeping its alpha (line art in the main colour). */
+export function recolor(data, [r, g, b]) {
+  for (let i = 0; i < data.length; i += 4) { data[i] = r; data[i + 1] = g; data[i + 2] = b; }
+  return data;
+}
+
+/**
+ * White becomes clear and everything else keeps its look over white (GIMP's Color to alpha with white): the alpha
+ * is how far the darkest channel is from white, and the colour is what, laid over white with that alpha, gives the
+ * pixel back. Scanned pencil lines on paper become lines on a clear layer, shades of gray and colour included.
+ */
+export function whiteToAlpha(data) {
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2], a0 = data[i + 3] / 255;
+    const a = (255 - Math.min(r, g, b)) / 255;
+    if (a <= 0) { data[i + 3] = 0; continue; }
+    data[i] = 255 - (255 - r) / a; data[i + 1] = 255 - (255 - g) / a; data[i + 2] = 255 - (255 - b) / a;
+    data[i + 3] = a * a0 * 255;
+  }
+  return data;
 }
 
 /** Gaussian blur of RGBA pixels (radius in px; sigma = radius / 2). */

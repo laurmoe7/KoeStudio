@@ -6,6 +6,7 @@ import { defaultRulers, sanitizeRulers } from './rulers.js';
 import { sanitizeText } from './textlayer.js';
 import { sanitizeTone, applyTone } from './tone.js';
 import { sanitizeVector } from './vector.js';
+import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -61,6 +62,7 @@ export function sanitizeDoc(raw) {
       if (l?.text) out.text = sanitizeText(l.text);  // a text layer (textlayer.js); png holds its last rendering
       else if (l?.vector) out.vector = sanitizeVector(l.vector);  // a vector layer (vector.js); png holds its last rendering
       out.tone = sanitizeTone(l?.tone);
+      out.effects = sanitizeEffects(l?.effects);  // border and drop shadow (effects.js); null when none
     }
     return out;
   };
@@ -144,6 +146,7 @@ export class Layer extends Raster {
     this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
     this.vector = props.vector || null;  // set on vector layers: the lines (vector.js); never changed in place
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
+    this.effects = props.effects || null;  // border and drop shadow, drawn under the pixels (effects.js)
   }
 }
 
@@ -174,7 +177,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null });
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null, effects: n.effects });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -266,6 +269,7 @@ export class Doc {
         if (n.text) out.text = n.text;
         if (n.vector) out.vector = n.vector;
         if (n.tone) out.tone = n.tone;
+        if (n.effects) out.effects = n.effects;
       }
       if (n.mask) out.mask = { enabled: n.mask.enabled, png: await n.mask.toPng() };
       return out;
@@ -389,27 +393,67 @@ function drawChildren(ctx, nodes, r, live, depth) {
 /** Draws one node (with its mask and any live stroke) into ctx with the given alpha and blend. */
 function drawNode(ctx, node, r, live, alpha, blend, depth) {
   let src = node.canvas, sx = r.x, sy = r.y;
-  if (isFolder(node)) {
+  if (node.effects && !isFolder(node)) {
+    // the effects reach beyond r, so the layer is built for a bigger area R and the effects drawn under it there
+    const reach = effectReach(node.effects), W = node.canvas.width, H = node.canvas.height;
+    const x0 = Math.max(0, r.x - reach), y0 = Math.max(0, r.y - reach);
+    const R = { x: x0, y: y0, w: Math.min(W, r.x + r.w + reach) - x0, h: Math.min(H, r.y + r.h + reach) - y0 };
+    const [c, cctx] = layerImage(node, R, live, depth, `fxsrc${depth}`);
+    const img = cctx.getImageData(0, 0, R.w, R.h);
+    const [e, ectx] = scratchCanvas(`fx${depth}`, R);
+    ectx.putImageData(new ImageData(effectsImage(img.data, R.w, R.h, node.effects), R.w, R.h), 0, 0);
+    ectx.drawImage(c, 0, 0, R.w, R.h, 0, 0, R.w, R.h);
+    src = e; sx = r.x - R.x; sy = r.y - R.y;
+  } else if (isFolder(node)) {
     const [c, cctx] = scratchCanvas(`folder${depth}`, r);
     cctx.translate(-r.x, -r.y);
     drawChildren(cctx, node.children, r, live, depth + 1);
     if (maskOn(node)) applyMask(cctx, node, r, live, depth);
     src = c; sx = 0; sy = 0;
   } else if ((live && live.layer === node) || maskOn(node) || node.tone) {
-    const [c, cctx] = node.tone ? scratchCanvas(`tone${depth}`, r, { willReadFrequently: true }) : scratchCanvas(`node${depth}`, r);
-    cctx.drawImage(node.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-    if (live && live.layer === node) {
-      cctx.globalAlpha = live.alpha;
-      cctx.globalCompositeOperation = live.mode;
-      cctx.drawImage(...liveSource(live, r), r.w, r.h, 0, 0, r.w, r.h);
-    }
-    if (node.tone) toneRegion(cctx, node.tone, r);
-    if (maskOn(node)) applyMask(cctx, node, r, live, depth);
-    src = c; sx = 0; sy = 0;
+    [src] = layerImage(node, r, live, depth, node.tone ? `tone${depth}` : `node${depth}`);
+    sx = 0; sy = 0;
   }
   ctx.globalAlpha = alpha;
   ctx.globalCompositeOperation = blend;
   ctx.drawImage(src, sx, sy, r.w, r.h, r.x, r.y, r.w, r.h);
+}
+
+/** A layer's region r as shown (live stroke, screentone, mask), in a scratch canvas whose (0, 0) is r's corner. */
+function layerImage(node, r, live, depth, key) {
+  const [c, cctx] = scratchCanvas(key, r, node.tone || node.effects ? { willReadFrequently: true } : undefined);
+  cctx.drawImage(node.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  if (live && live.layer === node) {
+    cctx.globalAlpha = live.alpha;
+    cctx.globalCompositeOperation = live.mode;
+    cctx.drawImage(...liveSource(live, r), r.w, r.h, 0, 0, r.w, r.h);
+    cctx.globalAlpha = 1;
+    cctx.globalCompositeOperation = 'source-over';
+  }
+  if (node.tone) toneRegion(cctx, node.tone, r);
+  if (maskOn(node)) applyMask(cctx, node, r, live, depth);
+  return [c, cctx];
+}
+
+/** A layer's pixels with its effects drawn under them (for merging and rasterizing), as a new canvas. */
+export function effectsCanvas(layer, canvas = layer.canvas) {
+  const W = canvas.width, H = canvas.height;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  if (layer.effects) {
+    const src = canvas.getContext('2d').getImageData(0, 0, W, H);
+    ctx.putImageData(new ImageData(effectsImage(src.data, W, H, layer.effects), W, H), 0, 0);
+  }
+  ctx.drawImage(canvas, 0, 0);
+  return c;
+}
+
+/** How far outside a change any layer's effects reach (0 without effects), so redraws can cover them. */
+export function docEffectReach(doc) {
+  let r = 0;
+  for (const l of allLayers(doc.root)) if (l.effects && l.visible) r = Math.max(r, effectReach(l.effects));
+  return r;
 }
 
 /** Hides what the mask covers, in a scratch canvas whose (0, 0) is r's corner. */

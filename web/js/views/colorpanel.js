@@ -1,7 +1,8 @@
 // Colour panel: saturation/value square, hue bar, main and sub colour, hex box, recently used colours and a saved
 // palette (+ adds the main colour, a click picks one, right-click removes it; kept per machine in koe.palette).
+// Under the square, HSV or RGB sliders with number boxes (the mode, or hidden, is kept in koe.colorSliders).
 
-import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, paletteAdd, sanitizePalette } from '../color.js';
+import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, paletteAdd, sanitizePalette, SLIDER_CHANNELS, sliderValues, fromSlider, sliderStops } from '../color.js';
 import { icon } from '../icons.js';
 import { store, esc } from '../ui.js';
 
@@ -29,12 +30,18 @@ export class ColorPanel {
         <button class="icon-btn cp-swap" title="Swap main and sub color (X)">${icon('swap', 18)}</button>
         <input class="cp-hex" type="text" maxlength="7" spellcheck="false" aria-label="Hex color">
       </div>
+      <div class="cp-slider-head"><span>Sliders</span>
+        <span class="cp-modes">${['hsv', 'rgb', 'off'].map(m => `<button data-mode="${m}">${m === 'off' ? 'Hide' : m.toUpperCase()}</button>`).join('')}</span></div>
+      <div class="cp-sliders"></div>
       <div class="cp-recent" aria-label="Recent colors"></div>
       <div class="cp-palette-head"><span>Palette</span><button class="icon-btn cp-add" title="Add the main color to the palette">${icon('plus', 14)}</button></div>
       <div class="cp-palette" aria-label="Palette"></div>`;
     this.sv = root.querySelector('.cp-sv');
     this.hue = root.querySelector('.cp-hue');
     this.hex = root.querySelector('.cp-hex');
+    this.sliderMode = ['hsv', 'rgb', 'off'].includes(store('colorSliders')) ? store('colorSliders') : 'hsv';
+    root.querySelectorAll('.cp-modes button').forEach(b => { b.onclick = () => { this.sliderMode = b.dataset.mode; store('colorSliders', this.sliderMode); this.buildSliders(); }; });
+    this.buildSliders();
     this.drawHue();
     this.drag(this.sv, (x, y) => this.setHsv([this.hsv[0], x / SQ, 1 - y / SQ]));
     this.drag(this.hue, (x, y) => this.setHsv([(y / SQ) * 360, this.hsv[1], this.hsv[2]]));
@@ -47,6 +54,38 @@ export class ColorPanel {
       else this.hex.value = this.main;
     });
     this.refresh();
+  }
+
+  /** The three slider rows for the current mode (none when hidden). */
+  buildSliders() {
+    const box = this.root.querySelector('.cp-sliders'), mode = this.sliderMode;
+    this.root.querySelectorAll('.cp-modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+    box.hidden = mode === 'off';
+    box.innerHTML = mode === 'off' ? '' : SLIDER_CHANNELS[mode].map(([k, label, max]) => `<label class="cp-slider" data-k="${k}">
+      <span>${label}</span><input type="range" min="0" max="${max}" step="1"><input type="number" min="0" max="${max}" step="1"></label>`).join('');
+    box.querySelectorAll('.cp-slider').forEach(row => {
+      const k = row.dataset.k, [range, num] = row.querySelectorAll('input');
+      const apply = (v, done) => {
+        if (!Number.isFinite(+v) || v === '') return;
+        this.setHsv(fromSlider(mode, this.hsv, k, +v));
+        if (done) this.save();
+      };
+      range.oninput = () => apply(range.value);
+      range.onchange = () => this.save();
+      num.onchange = () => apply(num.value, true);
+    });
+    this.drawSliders();
+  }
+
+  drawSliders() {
+    if (this.sliderMode === 'off') return;
+    const vals = sliderValues(this.sliderMode, this.hsv);
+    this.root.querySelectorAll('.cp-slider').forEach(row => {
+      const k = row.dataset.k, [range, num] = row.querySelectorAll('input');
+      range.style.background = `linear-gradient(to right, ${sliderStops(this.sliderMode, this.hsv, k).join(', ')})`;
+      if (document.activeElement !== range) range.value = vals[k];
+      if (document.activeElement !== num) num.value = vals[k];
+    });
   }
 
   drag(canvas, fn) {
@@ -126,6 +165,7 @@ export class ColorPanel {
     this.root.querySelector('.cp-main').style.background = this.main;
     this.root.querySelector('.cp-sub').style.background = this.sub;
     if (updateHex || document.activeElement !== this.hex) this.hex.value = this.main;
+    this.drawSliders();
     this.drawRecent();
     this.drawPalette();
   }

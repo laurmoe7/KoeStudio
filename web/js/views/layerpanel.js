@@ -114,6 +114,7 @@ export class LayerPanel {
       if (node.locked) sub.push('locked');
       else if (node.alphaLock) sub.push('alpha locked');
       if (node.reference) sub.push('reference');
+      if (node.effects) sub.push(node.effects.border && node.effects.shadow ? 'border + shadow' : node.effects.border ? 'border' : 'shadow');
       if (node.mask && !node.mask.enabled) sub.push('mask off');
       row.innerHTML = `
         <button class="icon-btn lp-eye" title="${node.visible ? 'Hide' : 'Show'}">${icon(node.visible ? 'eye' : 'eyeOff', 16)}</button>

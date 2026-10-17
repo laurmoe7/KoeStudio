@@ -30,7 +30,15 @@ export const GUIDE = [
       <li><b>Stabilization</b> smooths shaky lines; higher values trail further behind the pen.</li>
       <li><b>Shift+click</b> draws a straight line from where your last stroke on that layer ended.</li>
     </ul>
-    <p>Each tool remembers its own settings. <b>Smudge</b> <kbd>J</kbd> drags paint along like a wet finger; press <kbd>J</kbd> again for <b>Liquify</b>, which bends the picture: Push drags it with the pen, Pinch, Bloat and Twirl work where you hold the pen (and keep going while it stays still). It follows the symmetry ruler.</p>`],
+    <p>Each tool remembers its own settings. <b>Smudge</b> <kbd>J</kbd> drags paint along like a wet finger; press <kbd>J</kbd> again for <b>Liquify</b>, which bends the picture: Push drags it with the pen, Pinch, Bloat and Twirl work where you hold the pen (and keep going while it stays still). It follows the symmetry ruler.</p>
+    <h4>Retouching</h4>
+    <ul>
+      <li><b>Blur</b> (<kbd>J</kbd> until it shows) softens what you paint over.</li>
+      <li><b>Dodge</b> lightens and <b>Burn</b> darkens (<kbd>O</kbd>, press again to switch); a low strength builds up gently.</li>
+      <li><b>Clone stamp</b> <kbd>S</kbd>: <kbd>Ctrl</kbd>+click where to copy from, then paint to copy it where the brush is.
+      A crosshair shows where it copies from. <b>Aligned</b> keeps the same distance for every stroke; <b>Look at</b> copies from this layer or from everything you see.</li>
+      <li>All of them stay inside the selection; Blur, Dodge and Burn follow the symmetry ruler.</li>
+    </ul>`],
 
   ['brushes', 'Brush settings and saved brushes', `
     <p>The tool panel shows only the basics. <b>Brush settings…</b> opens a window with everything else, on pages, under a preview stroke that shows each change at once (light to full pressure and back):</p>
@@ -52,6 +60,8 @@ export const GUIDE = [
     <p>The Color panel has a saturation/brightness square, a hue bar, the <b>main</b> and <b>sub</b> colour squares,
     a hex field and your recent colours.</p>
     <ul>
+      <li><b>Sliders</b> under the square set the colour by hue, saturation and brightness (<b>HSV</b>) or red, green and blue
+      (<b>RGB</b>); type a number in the box beside a slider for an exact value. <b>Hide</b> folds them away.</li>
       <li><kbd>X</kbd> swaps main and sub.</li>
       <li>Hold <kbd>Alt</kbd> with a painting tool to pick a colour from the canvas, or use the Eyedropper <kbd>I</kbd>.</li>
       <li><b>Palette</b>: <b>+</b> keeps the main colour there for good; click a swatch to use it, right-click to remove it.</li>
@@ -122,6 +132,9 @@ export const GUIDE = [
       one under it (great for shading).</li>
       <li><b>Lock</b> protects a layer from changes; <b>Reference</b> marks line art for Fill and the wand.</li>
       <li><b>Copy to new layer</b> <kbd>Ctrl+J</kbd> and <b>Cut to new layer</b> <kbd>Ctrl+Shift+J</kbd> lift the selection (or the whole layer) onto a layer of its own. <b>Flatten image</b> puts everything visible on one layer.</li>
+      <li><b>Layer effects</b> (Layer menu): a <b>Border</b> round everything on the layer (in any colour and width,
+      great for stickers and lettering) and a <b>Drop shadow</b>. They follow as you paint and never change the layer's
+      pixels; Rasterize layer effects makes them pixels.</li>
       <li>The coloured dots label layers so you can find them.</li>
       <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click picks more layers, <kbd>Shift</kbd>+click picks a run of
       them. Then drag, the up/down buttons, the eye, delete, duplicate, <kbd>Ctrl+G</kbd> and <kbd>Ctrl+E</kbd> (merge
@@ -167,6 +180,8 @@ export const GUIDE = [
       <li>Colour: brightness/contrast, hue/saturation, colour balance, curves, levels, posterize, threshold and invert.</li>
       <li><b>Extract lines</b> keeps only lines darker than their surroundings, as black ink (or their own colour) on a clear layer: use it on a scanned sketch or photo. Set <b>Line width</b> to at least your widest lines (wider lines keep only their edges). Duplicate the layer first to keep the original.</li>
       <li><b>Gradient map</b> recolours by lightness: dark parts take the first colour of the Gradient tool's Colors choice, light parts the last (try Sunset or Night, or main → sub).</li>
+      <li><b>Change color to main color</b> repaints everything on the layer (or in the selection) in the main colour, keeping its shape and softness: recolour line art in one step.</li>
+      <li><b>Brightness to opacity</b> makes white clear and keeps everything else as it looks over white: a scanned pencil drawing becomes lines on a clear layer.</li>
       <li><kbd>Ctrl+F</kbd> repeats the last filter with the same settings.</li>
     </ul>`],
 

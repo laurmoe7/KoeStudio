@@ -58,3 +58,36 @@ export function hexToRgb(hex) {
   if (!/^[0-9a-f]{6}$/i.test(s)) return null;
   return [0, 2, 4].map(i => parseInt(s.slice(i, i + 2), 16));
 }
+
+/** The colour sliders' channels: [key, label, max] per mode. HSV shows s and v in percent. */
+export const SLIDER_CHANNELS = {
+  hsv: [['h', 'H', 360], ['s', 'S', 100], ['v', 'V', 100]],
+  rgb: [['r', 'R', 255], ['g', 'G', 255], ['b', 'B', 255]],
+};
+
+/** The slider values for a colour: HSV as degrees and percent (rounded), RGB as 0-255. */
+export function sliderValues(mode, hsv) {
+  if (mode === 'rgb') { const [r, g, b] = hsvToRgb(...hsv); return { r, g, b }; }
+  return { h: Math.round(hsv[0]), s: Math.round(hsv[1] * 100), v: Math.round(hsv[2] * 100) };
+}
+
+/** The HSV colour after one slider moves to value (keeping the hue for grays when an RGB slider moves). */
+export function fromSlider(mode, hsv, key, value) {
+  if (mode === 'hsv') {
+    const [h, s, v] = hsv;
+    return key === 'h' ? [Math.max(0, Math.min(360, value)) % 360, s, v]
+      : key === 's' ? [h, Math.max(0, Math.min(100, value)) / 100, v] : [h, s, Math.max(0, Math.min(100, value)) / 100];
+  }
+  const rgb = hsvToRgb(...hsv), i = 'rgb'.indexOf(key);
+  rgb[i] = Math.max(0, Math.min(255, Math.round(value)));
+  const out = rgbToHsv(...rgb);
+  if (out[1] === 0 || out[2] === 0) out[0] = hsv[0];
+  return out;
+}
+
+/** CSS colour stops along one slider's track: the colour at each end; the hue track shows the whole wheel at full strength. */
+export function sliderStops(mode, hsv, key) {
+  if (key === 'h') return Array.from({ length: 7 }, (_, k) => rgbToHex(...hsvToRgb(k * 60, 1, 1)));
+  const max = SLIDER_CHANNELS[mode].find(c => c[0] === key)[2];
+  return [0, max].map(x => rgbToHex(...hsvToRgb(...fromSlider(mode, hsv, key, x))));
+}

@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor } from '../color.js';
-import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource } from '../doc.js';
+import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource, docEffectReach } from '../doc.js';
 import { isFolder } from '../tree.js';
 import { floodMask, growMask, closeGapFill } from '../fill.js';
 import { History } from '../history.js';
@@ -35,6 +35,8 @@ import { vectorMethods } from './vectortools.js';
 import { refMethods } from './reftools.js';
 import { smudgeMethods } from './smudgetool.js';
 import { liquifyMethods } from './liquifytool.js';
+import { retouchMethods } from './retouchtool.js';
+import { effectMethods } from './effecttools.js';
 import { lineEditMethods } from './lineedittool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -343,6 +345,9 @@ export class Editor {
         { label: 'Apply mask to layer', run: () => this.applyMask(), disabled: !d.active.mask || isFolder(d.active) },
         { label: 'Delete mask', run: () => this.deleteMask(), disabled: !d.active.mask },
         '-',
+        { label: 'Layer effects (border, shadow)…', run: () => this.layerEffectsDialog(), disabled: isFolder(d.active) },
+        { label: 'Rasterize layer effects', run: () => this.rasterizeEffects(d.active), disabled: !d.active.effects },
+        '-',
         { label: this.sel.active ? 'New screentone (in selection)…' : 'New screentone…', run: () => this.newToneLayer() },
         { label: 'Screentone settings…', run: () => this.toneDialog(), disabled: isFolder(d.active) },
         { label: 'Rasterize screentone', run: () => this.rasterizeTone(d.active), disabled: !d.active.tone },
@@ -411,6 +416,8 @@ export class Editor {
    */
   updateComp(r) {
     const d = this.doc;
+    const fx = r ? docEffectReach(d) : 0;  // a layer's border or shadow reaches beyond the pixels that changed
+    if (fx) r = { x: r.x - fx, y: r.y - fx, w: r.w + 2 * fx, h: r.h + 2 * fx };
     const area = clip(r || { x: 0, y: 0, w: d.width, h: d.height }, d.width, d.height);
     if (area) this.compQueue = this.compQueue ? union(this.compQueue, area) : area;
     this.dirty = !r || this.dirty === 'all' ? 'all' : union(this.dirty, area);
@@ -568,6 +575,7 @@ export class Editor {
     this.drawGradientOverlay(ctx);
     this.drawFigurePoly(ctx);
     this.drawLineEditOverlay(ctx);
+    this.drawCloneOverlay(ctx);
     this.placeTextEditor();
     const brush = this.updateCursor();
     if (brush) this.drawBrushOutline(ctx, brush);
@@ -585,9 +593,9 @@ export class Editor {
     }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
-    set({ paint: 'none', smudge: 'none', liquify: 'none', lineedit: 'crosshair', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+    set({ paint: 'none', smudge: 'none', liquify: 'none', retouch: 'none', lineedit: 'crosshair', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
-    return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge' || tool.kind === 'liquify') ? tool : null;
+    return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge' || tool.kind === 'liquify' || tool.kind === 'retouch') ? tool : null;
   }
 
   drawBrushOutline(ctx, tool) {
@@ -670,6 +678,8 @@ export class Editor {
       box.querySelector('[data-brush-win]').onclick = () => this.toggleBrushWindow();
     } else box.innerHTML = this.settingsHtml(fields, s);
     if (t.kind === 'lineedit') this.renderLineEditProps(box);
+    if (t.kind === 'retouch') box.insertAdjacentHTML('beforeend', `<p class="hint">${t.id === 'clone' ? 'Ctrl+click where to copy from, then paint to copy it here.'
+      : t.id === 'blur' ? 'Paint over the picture to soften it.' : `Paint over the picture to ${t.id === 'burn' ? 'darken' : 'lighten'} it; low strength builds up gently.`}</p>`);
     if (t.kind === 'select') {
       box.insertAdjacentHTML('beforeend', `<div class="btn-row">
         <button data-sel="all" title="Ctrl+A">All</button><button data-sel="none" title="Ctrl+D">Deselect</button>
@@ -790,6 +800,7 @@ export class Editor {
       else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId, e.shiftKey);
       else if (tool.kind === 'smudge') this.beginSmudge(dp, e.pointerId);
       else if (tool.kind === 'liquify') this.beginLiquify(dp, e.pointerId);
+      else if (tool.kind === 'retouch') this.beginRetouch(toolId, dp, e.pointerId, e.ctrlKey);
       else if (tool.kind === 'lineedit') this.beginLineEdit(dp, e.pointerId);
       else if (tool.kind === 'lassofill') this.beginLassoFill(dp, e.pointerId);
       else if (tool.kind === 'figure') this.beginFigure(this.gridPoint(dp), e.pointerId, e.shiftKey, e.detail >= 2);
@@ -806,12 +817,13 @@ export class Editor {
       this.pointerShift = e.shiftKey;
       const g = this.gesture;
       if (g && g.id === e.pointerId) {
-        if (g.type === 'paint' || g.type === 'smudge' || g.type === 'liquify') {
+        if (g.type === 'paint' || g.type === 'smudge' || g.type === 'liquify' || g.type === 'retouch') {
           const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
           for (const ev of evs.length ? evs : [e]) {
             const q = pos(ev), pt = { ...toDoc(this.view, q.x, q.y), p: pressure(ev) };
             if (g.type === 'paint') this.addPoint(pt);
             else if (g.type === 'liquify') this.liquifyPoint(pt);
+            else if (g.type === 'retouch') this.retouchPoint(pt);
             else this.smudgePoint(pt);
           }
           this.requestRender();
@@ -854,6 +866,7 @@ export class Editor {
       if (g.type === 'paint') this.endPaint();
       else if (g.type === 'smudge') this.endSmudge();
       else if (g.type === 'liquify') this.endLiquify();
+      else if (g.type === 'retouch') this.endRetouch();
       else if (g.type === 'lineedit') this.endLineEdit();
       else if (g.type === 'verase') this.endVectorErase();
       else if (g.type === 'lassofill') this.endLassoFill();
@@ -1296,7 +1309,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, lineEditMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, effectMethods, lineEditMethods, symmetryMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

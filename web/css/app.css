@@ -199,6 +199,15 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .cp-main { left: 0; top: 0; z-index: 1; }
 .cp-sub { left: 16px; top: 8px; }
 .cp-hex { width: 84px; font-family: Consolas, monospace; }
+.cp-slider-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.cp-modes { display: flex; gap: 2px; }
+.cp-modes button { padding: 1px 6px; font-size: 10px; min-height: 0; }
+.cp-modes button.on { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
+.cp-sliders { display: grid; gap: 3px; margin-top: 4px; }
+.cp-slider { display: grid; grid-template-columns: 14px 1fr 46px; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.cp-slider input[type=range] { -webkit-appearance: none; appearance: none; height: 10px; border-radius: 5px; margin: 0; border: 1px solid #111; width: 100%; }
+.cp-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 14px; border-radius: 2px; background: #fff; border: 1px solid #111; box-shadow: 0 0 0 1px rgba(255,255,255,.4); }
+.cp-slider input[type=number] { width: 46px; padding: 1px 3px; font-size: 11px; }
 .cp-recent { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
 .cp-recent:empty { display: none; }
 .cp-recent button { width: 18px; height: 18px; padding: 0; border-radius: 3px; border: 1px solid #111; }
