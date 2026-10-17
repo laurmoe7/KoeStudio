@@ -45,8 +45,18 @@ export async function guideDialog(topic = null) {
           const [, title, html] = GUIDE.find(g => g[0] === id);
           page.innerHTML = `<h3>${esc(title)}</h3>${html}`;
           page.querySelectorAll('figure[data-pic]').forEach(f => f.insertAdjacentHTML('afterbegin', PICS[f.dataset.pic] || ''));
+          // reading on: the pages before and after this one
+          const i = GUIDE.findIndex(g => g[0] === id), prev = GUIDE[i - 1], next = GUIDE[i + 1];
+          page.insertAdjacentHTML('beforeend', `<div class="guide-turn">${prev ? `<button type="button" data-goto="${prev[0]}">‹ ${esc(prev[1])}</button>` : '<span></span>'}${
+            next ? `<button type="button" data-goto="${next[0]}">${esc(next[1])} ›</button>` : ''}</div>`);
+          page.querySelectorAll('[data-goto]').forEach(b => { b.onclick = () => go(b.dataset.goto); });
           page.scrollTop = 0;
           nav.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === id));
+        };
+        // a link or the next/previous buttons: clears a search that hides the page
+        const go = id => {
+          if (!nav.querySelector(`[data-topic="${id}"]`)) { search.value = ''; current = id; list(); } else show(id);
+          nav.querySelector(`[data-topic="${id}"]`)?.scrollIntoView({ block: 'nearest' });
         };
         const list = () => {
           const ids = searchGuide(search.value);

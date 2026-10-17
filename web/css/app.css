@@ -276,6 +276,10 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
   border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; line-height: 18px; }
 .guide-page code { font-size: 12.5px; background: var(--panel-2); border-radius: 3px; padding: 0 4px; }
 .guide-page figure { margin: 10px 0 14px; }
+.guide-page .guide-link { display: inline; padding: 0; min-height: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.guide-page .guide-link:hover { background: none; color: #9cc3ff; }
+.guide-turn { display: flex; justify-content: space-between; gap: 8px; margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--line); }
+.guide-turn button { font-size: 12.5px; }
 .guide-page figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .guide-page .lead { font-size: 15px; }
 .guide-page .tip { background: var(--panel-2); border-left: 3px solid var(--accent); border-radius: 4px; padding: 6px 10px; margin: 10px 0; }
@@ -331,6 +335,11 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .gp .guide { fill: none; stroke: #3e8fe0; stroke-width: 1.5; stroke-dasharray: 6 4; }
 .gp .ray { fill: none; stroke: #9a9ba5; stroke-width: 1; }
 .gp .vp { fill: #e5484d; }
+.gp .sketch { fill: none; stroke: #9a9ba5; stroke-width: 1.3; }
+.gp .flat { fill: #f08c2e; }
+.gp .shade { fill: #8a3f12; opacity: .45; }
+.gp .pencil { fill: none; stroke: #55565e; stroke-width: 2; stroke-linecap: round; opacity: .85; }
+.gp .doc { fill: #fff; stroke: #9a9ba5; stroke-width: 1.2; }
 .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 4px 28px; align-items: start; max-height: 70vh; overflow-y: auto; }
 .keys-group { margin-bottom: 12px; }
 .keys-group h4 { margin: 0 0 6px; font-size: 13px; color: var(--accent); }

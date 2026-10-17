@@ -32,6 +32,13 @@ test('shortcut list', () => {
   for (const [group, list] of SHORTCUTS) assert.ok(group && list.length && list.every(([k, w]) => k && w));
 });
 
+test('links between guide pages', () => {
+  const ids = new Set(GUIDE.map(([id]) => id));
+  const links = GUIDE.flatMap(([, , html]) => [...html.matchAll(/data-goto="([^"]+)"/g)].map(m => m[1]));
+  assert.ok(links.length > 0);
+  for (const id of links) assert.ok(ids.has(id), `link to ${id} goes to a page`);
+});
+
 test('guide pictures', () => {
   const used = GUIDE.flatMap(([, , html]) => [...html.matchAll(/data-pic="([^"]+)"/g)].map(m => m[1]));
   for (const name of used) assert.ok(PICS[name], `picture ${name} exists`);

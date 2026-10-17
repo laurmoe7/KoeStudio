@@ -1,6 +1,7 @@
 // The guidebook (Help → Guide, F1) and the shortcut list (Help → Keyboard shortcuts), as data, plus the search
 // used by the Guide window (pure, tested). Topics are short HTML pages: <p> (class lead / tip), <ul>, <ol>, <b>,
-// <kbd>, <code>, <h4>, and <figure data-pic="name"> for a picture from guidepics.js (help.js draws it in).
+// <kbd>, <code>, <h4>, <figure data-pic="name"> for a picture from guidepics.js (help.js draws it in), and
+// <button class="guide-link" data-goto="<page id>"> for a link to another page.
 // Keep them in step with the features (README.md has the same facts in longer form).
 
 /** [id, title, html] for each page of the guide, in reading order. */
@@ -21,7 +22,26 @@ export const GUIDE = [
       <li>The arrow at the top left takes you back to the gallery.</li>
     </ul>
     <p class="tip">Your work <b>saves by itself</b> a moment after every change; there is no Save button to forget.
-    <kbd>Ctrl+Z</kbd> undoes anything.</p>`],
+    <kbd>Ctrl+Z</kbd> undoes anything.</p>
+    <p>New here? Try <button type="button" class="guide-link" data-goto="first">Your first picture, step by step</button>.</p>`],
+
+  ['first', 'Your first picture, step by step', `
+    <p class="lead">A simple way to make a finished picture. Each step has its own layer, so you can fix one without
+    spoiling the others.</p>
+    <figure data-pic="workflow"></figure>
+    <ol>
+      <li><b>New canvas</b> in the gallery. A4 or Full HD is a good start.</li>
+      <li><b>Sketch</b> with the Pencil <kbd>N</kbd>. Rough is fine. Then turn the layer's <b>opacity</b> down to about 30%.</li>
+      <li><b>Lines:</b> press <kbd>Ctrl+Shift+N</kbd> for a new layer and draw clean lines over the sketch with the Pen
+      <kbd>P</kbd>. Hide the sketch with its eye when you are done.</li>
+      <li><b>Colours:</b> add another layer and drag it <b>under</b> the lines. Tick <b>Reference</b> on the line layer,
+      take Fill <kbd>G</kbd>, set <b>Look at</b> to <b>Reference layers</b>, and click inside each area.</li>
+      <li><b>Shading:</b> add a layer above the colours, tick <b>Clip below</b> and set it to <b>Multiply</b>. Paint
+      shadows with the Brush <kbd>B</kbd>; they stay inside the colours.</li>
+      <li><b>Export:</b> File → Export… saves a PNG or JPEG to share.</li>
+    </ol>
+    <p class="tip">Made a mistake? <kbd>Ctrl+Z</kbd> undoes it, and your artwork saves by itself all along.
+    More on each step: <button type="button" class="guide-link" data-goto="layers">Layers</button>, <button type="button" class="guide-link" data-goto="fill">Fill</button>, <button type="button" class="guide-link" data-goto="files">Exporting</button>.</p>`],
 
   ['drawing', 'Drawing and erasing', `
     <p class="lead">Pick a pen, choose a colour, and draw.</p>
@@ -127,7 +147,7 @@ export const GUIDE = [
     </ul>
     <h4>Lasso fill</h4>
     <p>Draw round an area and it fills with the main colour, like colouring in with a marker.</p>
-    <p class="tip">With a selection, every fill stays inside it.</p>`],
+    <p class="tip">With a selection, every fill stays inside it. Colouring under line art is shown step by step in <button type="button" class="guide-link" data-goto="first">Your first picture</button>.</p>`],
 
   ['shapes', 'Shapes and text', `
     <h4>Figure <kbd>U</kbd></h4>
@@ -216,7 +236,8 @@ export const GUIDE = [
       selection onto its own layer.</li>
       <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click or <kbd>Shift</kbd>+click more layers, then move, hide, delete,
       merge or change them together.</li>
-    </ul>`],
+    </ul>
+    <p>See also: <button type="button" class="guide-link" data-goto="effects">Layer effects</button>, <button type="button" class="guide-link" data-goto="masks">Masks</button>, <button type="button" class="guide-link" data-goto="vector">Vector layers</button>.</p>`],
 
   ['effects', 'Layer effects', `
     <p class="lead">Give everything on a layer an outline or a shadow, without changing what you drew.</p>
@@ -288,6 +309,7 @@ export const GUIDE = [
       <li><b>Extract lines</b> keeps only lines darker than their surroundings, for a photo of a sketch. Set
       <b>Line width</b> to at least your thickest line.</li>
     </ul>
+    <figure data-pic="whitealpha"></figure>
     <p class="tip"><kbd>Ctrl+F</kbd> repeats the last filter with the same settings. Filters work on a mask too, while
     you paint on it (blur a mask for a soft edge).</p>`],
 
@@ -314,6 +336,7 @@ export const GUIDE = [
     </ul>`],
 
   ['canvas', 'Canvas size, cropping and turning', `
+    <figure data-pic="canvassize"></figure>
     <ul>
       <li>Image → <b>Canvas size</b> adds or removes space round the picture without stretching it.</li>
       <li>Image → <b>Image size</b> makes the whole picture bigger or smaller.</li>
@@ -344,6 +367,7 @@ export const GUIDE = [
       versions… or a gallery card's ⋯ menu. It opens as a copy, so nothing is lost.</li>
       <li>Deleted something by mistake? Press <b>Deleted</b> at the top of the gallery to put it back.</li>
     </ul>
+    <figure data-pic="versions"></figure>
     <h4>Sharing your picture</h4>
     <ul>
       <li><b>File → Export…</b> <kbd>Ctrl+Alt+Shift+S</kbd>: save as PNG, JPEG, WebP, GIF, TGA or BMP, at any size, in

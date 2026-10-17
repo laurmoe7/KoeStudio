@@ -16,7 +16,27 @@ const arrow = (x1, y1, x2, y2, cls = 'arrow') => {
 /** A dashed "marching ants" outline. */
 const ants = d => `<path class="ants" d="${d}"/>`;
 
+/** A round cat face (head and ears) centred on cx, cy, for the walkthrough. */
+const face = (cx, cy) => `M${cx - 24},${cy} a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0 M${cx - 21},${cy - 12} L${cx - 17},${cy - 32} L${cx - 5},${cy - 23} M${cx + 21},${cy - 12} L${cx + 17},${cy - 32} L${cx + 5},${cy - 23}`;
+const head = (cx, cy) => `M${cx - 24},${cy} a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0`;
+/** A checkerboard (see-through) area. */
+const checker = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="url(#gp-check)"/>`;
+
 export const PICS = {
+  // ---------- Your first picture: the steps ----------
+  workflow: svg(460, 124, `
+    <defs><clipPath id="gp-wf-clip"><path d="${head(320, 50)}"/></clipPath><clipPath id="gp-wf-clip2"><path d="${head(412, 50)}"/></clipPath></defs>
+    ${[0, 1, 2, 3, 4].map(i => paper(4 + i * 92, 4, 80, 88)).join('')}
+    <path class="sketch" d="${face(44, 50)}"/><path class="sketch" d="${face(46, 52)}"/>
+    <path class="ink thin" d="${face(136, 50)}"/>
+    <path class="flat" d="${head(228, 50)}"/><path class="ink thin" d="${face(228, 50)}"/>
+    <path class="flat" d="${head(320, 50)}"/><circle cx="334" cy="62" r="26" class="shade" clip-path="url(#gp-wf-clip)"/><path class="ink thin" d="${face(320, 50)}"/>
+    <path class="flat" d="${head(412, 50)}"/><circle cx="426" cy="62" r="26" class="shade" clip-path="url(#gp-wf-clip2)"/><path class="ink thin" d="${face(412, 50)}"/>
+    <circle cx="404" cy="46" r="2.5" class="dot-dark"/><circle cx="420" cy="46" r="2.5" class="dot-dark"/>
+    ${[0, 1, 2, 3].map(i => arrow(86 + i * 92, 48, 94 + i * 92, 48, 'arrow thin')).join('')}
+    ${[['1 Sketch', 44], ['2 Lines', 136], ['3 Colours', 228], ['4 Shading', 320], ['5 Export', 412]].map(([l, x]) => t(x, 112, l)).join('')}
+  `, 'The steps of a picture: sketch, line art, flat colours, shading, export'),
+
   // ---------- Getting started: the screen ----------
   screen: svg(460, 214, `
     <rect class="frame" x="1" y="1" width="458" height="212" rx="6"/>
@@ -235,4 +255,30 @@ export const PICS = {
     <circle cx="347" cy="54" r="4" class="vp"/>
     ${t(113, 124, 'Left–right: draw one side')}${t(347, 124, 'Radial, 6 lines')}
   `, 'Symmetry mirrors what you draw, or repeats it round a centre'),
+  // ---------- Canvas: canvas size vs image size ----------
+  canvassize: svg(460, 150, `
+    ${[0, 1, 2].map(i => `<rect class="canvasbg" x="${4 + i * 154}" y="4" width="144" height="112" rx="4"/>`).join('')}
+    ${paper(51, 40, 50, 40)}<circle cx="76" cy="60" r="12" fill="#3e8fe0"/>
+    ${paper(186, 25, 90, 70)}<circle cx="231" cy="60" r="12" fill="#3e8fe0"/>
+    ${paper(340, 25, 90, 70)}<circle cx="385" cy="60" r="21" fill="#3e8fe0"/>
+    ${t(76, 136, 'Before')}${t(231, 136, 'Canvas size: more room')}${t(385, 136, 'Image size: all bigger')}
+  `, 'Canvas size adds room round the picture; Image size makes everything bigger'),
+
+  // ---------- Filters: brightness to opacity ----------
+  whitealpha: svg(460, 130, `
+    <defs><pattern id="gp-check" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#fff"/><rect width="8" height="8" fill="#d9d9de"/><rect x="8" y="8" width="8" height="8" fill="#d9d9de"/></pattern></defs>
+    <rect x="4" y="4" width="218" height="100" rx="4" fill="#ece6d6"/>
+    ${checker(238, 4, 218, 100)}
+    <path class="pencil" d="M70,80 C80,30 140,24 156,52 S120,92 100,70 M60,50 l40,-8 M130,84 c10,-6 30,-4 36,4"/>
+    <path class="pencil" d="M304,80 C314,30 374,24 390,52 S354,92 334,70 M294,50 l40,-8 M364,84 c10,-6 30,-4 36,4"/>
+    ${arrow(226, 54, 234, 54)}
+    ${t(113, 124, 'A scanned pencil drawing')}${t(347, 124, 'Brightness to opacity: the paper is gone')}
+  `, 'Brightness to opacity turns the white paper of a scan see-through and keeps the lines'),
+
+  // ---------- Files: earlier versions ----------
+  versions: svg(460, 110, `
+    <path class="leader" d="M20,46 H440"/>
+    ${['10:00', '10:10', '10:20', '10:30', '10:40'].map((time, i) => { const x = 50 + i * 90; return `<path class="doc" d="M${x - 14},${30} h20 l8,8 v24 h-28 z"/>${t(x, 84, time, 'middle', 'small')}`; }).join('')}
+    ${t(230, 104, 'While you work, a copy is kept every 10 minutes (the newest five)')}
+  `, 'A copy of the artwork every ten minutes, the newest five kept'),
 };
