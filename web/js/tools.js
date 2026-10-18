@@ -233,10 +233,10 @@ export const SETTING_HINTS = {
   taperIn: 'Starts each stroke thin and grows to full size over this many pixels (0 = off)',
   taperOut: 'Ends each stroke thin over this many pixels (0 = off). The last stretch appears when you lift the pen',
   quickShape: 'Keep the pen still for a moment at the end of a stroke: a line becomes straight, a loop a clean ellipse. Move the pen before lifting it to stretch the shape (QuickShape)',
-  tiltSize: 'Makes the brush bigger the more you tilt the pen, up to three times its size when the pen lies flat (pens that report tilt; not on vector layers)',
+  tiltSize: 'Makes the brush bigger the more you tilt the pen, up to three times its size when the pen lies flat (pens that report tilt)',
   tiltFlow: 'Makes the paint lighter the more you tilt the pen, as when shading with the side of a pencil',
   tiltAngle: 'Turns the tip the way the pen leans (best with a squashed or image tip)',
-  speedSize: 'Above 0, fast strokes get thinner (like an ink pen); below 0 they get thicker (not on vector layers)',
+  speedSize: 'Above 0, fast strokes get thinner (like an ink pen); below 0 they get thicker',
   speedFlow: 'Above 0, fast strokes get lighter; below 0 they get stronger',
 };
 

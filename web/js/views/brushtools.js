@@ -196,7 +196,7 @@ export const brushMethods = {
         random: b.tipRandom, follow: b.tipFollow, rnd: seeded(PREVIEW_SEED + 7) });
       for (const st of strokeStamps(line, b)) {
         const { size, flow } = stampAt(b, st.p);
-        painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c);
+        painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
       }
       let dual = null;
       if (s.dualTip && s.dualTip !== 'none') {  // the dual brush along the same path, as painting does it

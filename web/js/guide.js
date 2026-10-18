@@ -81,7 +81,8 @@ export const GUIDE = [
       <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
       <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>
       <li><b>Tilt and speed</b>: tilt the pen to make the brush bigger or lighter (like shading with the side of a
-      pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. Tilt needs a pen that reports it.</li>
+      pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. Tilt needs a pen that reports it.
+      Lines on a vector layer remember the tilt and speed, so they keep their look when you erase or bend them.</li>
       <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.
       <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles).</li>
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.</li>

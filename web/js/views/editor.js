@@ -1159,8 +1159,8 @@ export class Editor {
     if (layer.vector && tool.erase) return this.beginVectorErase(toolId, pt, id, layer);  // erases lines, not pixels
     this.resetStroke();
     const sizeAt = p => stampAt(s, p).size;
-    // vector lines keep only position and pressure, so tilt and speed would vanish once the line is kept
-    const dyn = !layer.vector && !!(s.tiltSize || s.tiltFlow || s.tiltAngle || s.speedSize || s.speedFlow);
+    // pen tilt and speed (vector lines keep them per point, so the kept line looks as drawn)
+    const dyn = !!(s.tiltSize || s.tiltFlow || s.tiltAngle || s.speedSize || s.speedFlow);
     const reach = tipReach(hasTipImage(s.tip)) * 2 * (dyn ? dynamicsReach(s) : 1);
     const line = shift && this.lastStroke && this.lastStroke.layer === layer ? this.lastStroke.pt : null;
     // colour jitter: erasers and masks keep their black; per stroke the varied colour is picked once here
@@ -1248,7 +1248,7 @@ export class Editor {
     const g = this.gesture;
     g.last = pt;
     const sp = g.smoother.add(pt);
-    if (g.vec) g.vec.push([sp.x, sp.y, sp.p]);
+    if (g.vec) g.vec.push(g.dyn ? [sp.x, sp.y, sp.p, Math.round((sp.t || 0) * 1000) / 1000, Math.round((sp.v || 0) * 1000) / 1000, sp.az ?? null] : [sp.x, sp.y, sp.p]);
     if (g.dual) this.addDualStamps(sp);
     const steps = g.path.add(sp);
     if (!steps.length) return;

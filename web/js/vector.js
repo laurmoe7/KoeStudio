@@ -5,6 +5,9 @@
 //           tip, variation, tapers, texture); lines drawn with the same settings share one entry.
 //   stroke: { pts: [[x, y, p], ...] (the smoothed pen path, p = pressure 0-1), b: brush index, color: '#rrggbb',
 //           opacity: 0-1, seed: integer (for repeatable jitter) }
+//           A line drawn with a brush using pen tilt or speed keeps them per point: [x, y, p, t, v, az] (tilt 0-1,
+//           speed 0-1, lean direction in radians or null). Points without them count as upright and slow, which
+//           leaves the dabs as they are, so every edit that drops them still gives a sensible line.
 // The layer's pixels are always the strokes drawn in order (vectorlayer.js); the PNG is saved too.
 // Vector objects are never changed in place: every edit returns a new one, so undo can keep the old one.
 //
@@ -13,7 +16,7 @@
 // and 'line' removes every line it touches.
 
 import { shiftColor } from './color.js';
-import { stampAt, dabJitter, colorJitter, taperIn, taperOut, StampPath, sanitizeCurve } from './brush.js';
+import { stampAt, dabJitter, colorJitter, taperIn, taperOut, StampPath, sanitizeCurve, dynamicsAt, dynamicsReach } from './brush.js';
 import { tipReach } from './brushtip.js';
 
 export const MAX_STROKES = 20000;
@@ -27,8 +30,9 @@ const NUM = {
   minFlow: [0, 0, 1], gamma: [1, 0.3, 3], thickness: [1, 0.05, 1], tipAngle: [0, 0, 360], tipRandom: [0, 0, 1],
   scatter: [0, 0, 2], count: [1, 1, 16], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500],
   textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4],
+  tiltSize: [0, 0, 1], tiltFlow: [0, 0, 1], speedSize: [0, -1, 1], speedFlow: [0, -1, 1],
 };
-const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, textureInvert: false, colorJitterStroke: false, pixel: false };
+const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, textureInvert: false, colorJitterStroke: false, pixel: false, tiltAngle: false };
 const CURVES = ['sizeCurve', 'flowCurve'];
 export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture'];
 
@@ -51,6 +55,27 @@ export function sanitizeBrush(raw) {
 
 export const emptyVector = () => ({ brushes: [], strokes: [] });
 
+/** True when a brush changes its dabs with pen tilt or speed (its lines then keep them per point). */
+export const usesDynamics = b => !!(b.tiltSize || b.tiltFlow || b.tiltAngle || b.speedSize || b.speedFlow);
+
+/** A path point's tilt, speed and lean direction ([] when it has none), cleaned up. */
+function extras(q) {
+  if (!q || q.length <= 3) return [];
+  const c = v => (Number.isFinite(+v) && v !== null ? Math.max(0, Math.min(1, +v)) : 0);
+  const az = q[5] === null || q[5] === undefined || !Number.isFinite(+q[5]) ? null : Math.round(+q[5] * 1000) / 1000;
+  return [c(q[3]), c(q[4]), az];
+}
+
+/** The point part way (t, 0-1) from a to b: position, pressure, tilt and speed blended, b's lean direction. */
+function mix(a, b, t, round = v => v) {
+  const out = [round(a[0] + (b[0] - a[0]) * t), round(a[1] + (b[1] - a[1]) * t), round(a[2] + (b[2] - a[2]) * t)];
+  if (b.length > 3) {
+    const ea = a.length > 3 ? a : b;
+    out.push(round(ea[3] + (b[3] - ea[3]) * t), round(ea[4] + (b[4] - ea[4]) * t), b[5] ?? null);
+  }
+  return out;
+}
+
 /** The brush a line is drawn with: its brush entry, made wider or thinner by the line's own width factor `w`. */
 export function brushOf(v, s) {
   const b = v.brushes[s.b];
@@ -67,7 +92,7 @@ export function sanitizeVector(raw) {
     const pts = [];
     for (const q of (Array.isArray(s?.pts) ? s.pts : []).slice(0, MAX_POINTS)) {
       const x = Number(q?.[0]), y = Number(q?.[1]), p = Number(q?.[2]);
-      if (Number.isFinite(x) && Number.isFinite(y)) pts.push([x, y, Number.isFinite(p) ? Math.max(0, Math.min(1, p)) : 1]);
+      if (Number.isFinite(x) && Number.isFinite(y)) pts.push([x, y, Number.isFinite(p) ? Math.max(0, Math.min(1, p)) : 1, ...extras(q)]);
     }
     if (!pts.length) continue;
     const b = Math.round(Number(s.b));
@@ -103,9 +128,9 @@ export function resample(pts, step) {
   pts.forEach((q, i) => {
     if (i) {
       const a = pts[i - 1], n = Math.ceil(Math.hypot(q[0] - a[0], q[1] - a[1]) / step);
-      for (let k = 1; k < n; k++) { const t = k / n; out.push([r(a[0] + (q[0] - a[0]) * t), r(a[1] + (q[1] - a[1]) * t), r(a[2] + (q[2] - a[2]) * t)]); }
+      for (let k = 1; k < n; k++) out.push(mix(a, q, k / n, r));
     }
-    out.push([r(q[0]), r(q[1]), r(q[2])]);
+    out.push(mix(q, q, 0, r));
   });
   return out;
 }
@@ -121,7 +146,7 @@ export function addStrokes(v, brush, strokes) {
 
 /** Moves every line by dx, dy (the Move tool). */
 export function translateVector(v, dx, dy) {
-  return { brushes: v.brushes, strokes: v.strokes.map(s => ({ ...s, pts: s.pts.map(([x, y, p]) => [x + dx, y + dy, p]) })) };
+  return { brushes: v.brushes, strokes: v.strokes.map(s => ({ ...s, pts: s.pts.map(([x, y, ...rest]) => [x + dx, y + dy, ...rest]) })) };
 }
 
 /** Half the width of a line at pressure p (tapers and jitter aside): how far from its path it still shows. */
@@ -129,7 +154,7 @@ export const halfWidth = (b, p) => stampAt(b, p).size / 2;
 
 /** How far paint can land from a line's path: half the full size (more for an image tip) plus any scatter. */
 export function reachOf(b) {
-  return b.size * (tipReach(b.tip !== 'round') + b.scatter) + 2;
+  return b.size * (tipReach(b.tip !== 'round') * (usesDynamics(b) ? dynamicsReach(b) : 1) + b.scatter) + 2;
 }
 
 /** The box a line's paint covers, as integer {x, y, w, h}. */
@@ -165,15 +190,24 @@ export function strokeStamps(s, b) {
   const dabColors = !b.colorJitterStroke && !!colorJitter(b);
   const out = [];
   let dist = 0, prev = null;
-  for (const [x, y, p] of s.pts) {
-    for (const st of path.add({ x, y, p })) {
+  const dyn = usesDynamics(b);
+  for (const q of s.pts) {
+    const pt = { x: q[0], y: q[1], p: q[2] };
+    if (dyn && q.length > 3) { pt.t = q[3]; pt.v = q[4]; pt.az = q[5] ?? null; }
+    for (const st of path.add(pt)) {
       if (prev) dist += Math.hypot(st.x - prev.x, st.y - prev.y);
       prev = { x: st.x, y: st.y };
       for (let n = 0; n < (b.count || 1); n++) {  // Count: several dabs per step, each with its own variation
         const j = dabJitter(b, sizeAt(st.p), rnd);
-        const q = { x: st.x + j.dx, y: st.y + j.dy, p: st.p, k: j.sizeK * taperIn(dist, b.taperIn), f: j.flowK, d: dist };
-        if (dabColors) q.c = shiftColor(s.color, colorJitter(b, rnd));
-        out.push(q);
+        const o = { x: st.x + j.dx, y: st.y + j.dy, p: st.p, k: j.sizeK * taperIn(dist, b.taperIn), f: j.flowK, d: dist };
+        if (dyn) {  // pen tilt and speed, as addStampPoint applies them while drawing
+          const m = dynamicsAt(b, st.t, st.v);
+          o.k *= m.sizeK;
+          o.f *= m.flowK;
+          if (b.tiltAngle && st.az != null) o.a = st.az;
+        }
+        if (dabColors) o.c = shiftColor(s.color, colorJitter(b, rnd));
+        out.push(o);
       }
     }
   }
@@ -234,8 +268,7 @@ function touchAt(s, b, a1, a2, r) {
 function pointAt(pts, pos) {
   const i = Math.floor(pos), t = pos - i;
   if (t <= 0 || i >= pts.length - 1) return pts[Math.min(i, pts.length - 1)].slice();
-  const a = pts[i], b = pts[i + 1];
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  return mix(pts[i], pts[i + 1], t);
 }
 
 /** The part of a path between two positions (index + fraction), ends cut exactly; null when shorter than a point. */
@@ -330,11 +363,11 @@ export function nearestStroke(v, x, y, r) {
  */
 export function pullStroke(s, grab, to, radius, step = 2) {
   const dx = to.x - grab.x, dy = to.y - grab.y, r2 = radius * radius;
-  const pts = s.pts.map(([x, y, p]) => {
+  const pts = s.pts.map(([x, y, ...rest]) => {
     const d2 = (x - grab.x) ** 2 + (y - grab.y) ** 2;
-    if (d2 >= r2) return [x, y, p];
+    if (d2 >= r2) return [x, y, ...rest];
     const f = (1 - d2 / r2) ** 2;
-    return [x + dx * f, y + dy * f, p];
+    return [x + dx * f, y + dy * f, ...rest];
   });
   return { ...s, pts: resample(pts, step) };
 }
@@ -357,7 +390,7 @@ export function smoothPoints(pts, passes) {
   let cur = pts;
   for (let n = 0; n < passes; n++) {
     cur = cur.map((q, i) => (i === 0 || i === cur.length - 1 ? q : [
-      (cur[i - 1][0] + 2 * q[0] + cur[i + 1][0]) / 4, (cur[i - 1][1] + 2 * q[1] + cur[i + 1][1]) / 4, q[2]]));
+      (cur[i - 1][0] + 2 * q[0] + cur[i + 1][0]) / 4, (cur[i - 1][1] + 2 * q[1] + cur[i + 1][1]) / 4, ...q.slice(2)]));
   }
   return cur;
 }

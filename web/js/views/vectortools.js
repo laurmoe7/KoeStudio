@@ -53,7 +53,7 @@ export const vectorMethods = {
     const copies = base.map(([x, y]) => symmetryPoints(d.rulers.symmetry, x, y, d.width, d.height));
     const r2 = v => Math.round(v * 100) / 100;
     const strokes = copies[0].map((_, k) => ({
-      pts: base.map((q, i) => [r2(copies[i][k].x), r2(copies[i][k].y), q[2]]),
+      pts: base.map((q, i) => [r2(copies[i][k].x), r2(copies[i][k].y), ...q.slice(2)]),
       color, opacity, seed: Math.floor(Math.random() * 2147483646) + 1,
     }));
     const before = layer.vector, after = addStrokes(before, s, strokes);

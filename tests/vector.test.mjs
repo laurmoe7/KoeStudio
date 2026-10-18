@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeBrush, sanitizeVector, emptyVector, resample, addStrokes, translateVector, strokeBounds, changedBounds,
-  strokeStamps, segDist, segCross, eraseVector, seeded } from '../web/js/vector.js';
+  strokeStamps, segDist, segCross, eraseVector, seeded, smoothPoints, pullStroke, usesDynamics } from '../web/js/vector.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg || ''} ${a} ≈ ${b}`);
 // a brush 4 px wide at any pressure, so half its width is 2
@@ -150,4 +150,29 @@ test('smoothing a shaky line keeps its ends and pressure', async () => {
   assert.deepEqual(s.pts[0], [0, 0, 0.2]); assert.deepEqual(s.pts.at(-1), [8, 0, 1]);
   assert.ok(s.pts.every(([, y]) => y <= 1.1), 'the zigzag is nearly flat after many rounds');
   assert.equal(s.color, '#000');
+});
+
+test('lines keep pen tilt and speed', () => {
+  // sanitizing: extras clamped, kept only when there
+  const v = sanitizeVector({ brushes: [{}], strokes: [{ pts: [[0, 0, 1], [1, 0, 0.5, 2, -1, 'x'], [2, 0, 1, 0.5, 0.25, 1.23456]] }] });
+  assert.deepEqual(v.strokes[0].pts, [[0, 0, 1], [1, 0, 0.5, 1, 0, null], [2, 0, 1, 0.5, 0.25, 1.235]]);
+  // resampling blends tilt and speed and takes the later point's direction
+  assert.deepEqual(resample([[0, 0, 1, 0, 0, 1], [4, 0, 1, 1, 0.5, 2]], 2), [[0, 0, 1, 0, 0, 1], [2, 0, 1, 0.5, 0.25, 2], [4, 0, 1, 1, 0.5, 2]]);
+  // a plain point next to one with extras borrows them (no jump from 0)
+  assert.deepEqual(resample([[0, 0, 1], [2, 0, 1, 1, 1, null]], 1)[1], [1, 0, 1, 1, 1, null]);
+  assert.deepEqual(translateVector({ brushes: [B], strokes: [{ pts: [[1, 1, 1, 0.5, 0.5, 0]] }] }, 2, 3).strokes[0].pts, [[3, 4, 1, 0.5, 0.5, 0]]);
+  assert.deepEqual(smoothPoints([[0, 0, 1, 0, 0, null], [1, 4, 1, 1, 1, 2], [2, 0, 1, 0, 0, null]], 1)[1], [1, 2, 1, 1, 1, 2], 'extras ride along');
+  assert.equal(pullStroke({ pts: [[0, 0, 1, 0.3, 0.6, null]] }, { x: 0, y: 0 }, { x: 1, y: 0 }, 5).pts[0][3], 0.3);
+  // dabs: tilt to size 1 at full tilt makes them three times as big; no extras = as drawn
+  const b = sanitizeBrush({ size: 10, spacing: 1, pressureSize: false, tiltSize: 1 });
+  assert.ok(usesDynamics(b) && !usesDynamics(B));
+  const tilted = strokeStamps({ pts: [[0, 0, 1, 1, 0, null], [100, 0, 1, 1, 0, null]], seed: 1 }, b);
+  assert.ok(tilted.length > 1 && tilted.every(st => Math.abs(st.k - 3) < 1e-9), 'tilt 1: k = 1 + 2 = 3');
+  const upright = strokeStamps({ pts: [[0, 0, 1], [100, 0, 1]], seed: 1 }, b);
+  assert.ok(upright.every(st => st.k === 1));
+  // turn with tilt gives each dab the lean direction
+  const turn = strokeStamps({ pts: [[0, 0, 1, 0.5, 0, 0.7], [50, 0, 1, 0.5, 0, 0.7]], seed: 1 }, sanitizeBrush({ size: 10, tiltAngle: true }));
+  assert.ok(turn.every(st => st.a === 0.7));
+  // bounds grow with the tilt reach (3x the half width)
+  assert.ok(strokeBounds({ pts: [[0, 0, 1]] }, b).w > strokeBounds({ pts: [[0, 0, 1]] }, sanitizeBrush({ size: 10, pressureSize: false })).w);
 });
