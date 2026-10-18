@@ -304,22 +304,27 @@ export const exportMethods = {
     if (!res) return;
     store('layerExport', { which: res.which, hidden: res.hidden });
     store('exportDir', dir);
-    const shown = n => res.hidden || n.visible;
-    const nodes = res.which === 'all' ? allLayers(d.root).filter(n => { for (let x = n; x && x !== d.root; x = x.parent) if (!shown(x)) return false; return true; })
-      : d.root.children.filter(shown);
-    if (!nodes.length) return toast('There are no layers to export.');
+    const parts = layerExportParts(d.root, res.which, res.hidden);
+    if (!parts.length) return toast('There are no layers to export.');
     const full = { x: 0, y: 0, w: d.width, h: d.height };
     let mode = 'ask', last = null;
     try {
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i], c = document.createElement('canvas');
+      for (let i = 0; i < parts.length; i++) {
+        const { name: partName, draw, clipTo } = parts[i], c = document.createElement('canvas');
         c.width = d.width; c.height = d.height;
-        const vis = n.visible;
-        n.visible = true;  // a hidden layer, when asked for, as if shown
-        try { renderFolder(c.getContext('2d'), { children: [n] }, full); } finally { n.visible = vis; }
+        const ctx = c.getContext('2d');
+        drawShown(ctx, draw, full);
+        if (clipTo) {  // a clipped layer on its own: cut down to the layer it clips to, as it shows in the picture
+          const b = document.createElement('canvas');
+          b.width = d.width; b.height = d.height;
+          drawShown(b.getContext('2d'), [clipTo], full);
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.drawImage(b, 0, 0);
+          ctx.globalCompositeOperation = 'source-over';
+        }
         const blob = await new Promise(r => c.toBlob(r, 'image/png'));
         const png = new Blob([pngWithDpi(new Uint8Array(await blob.arrayBuffer()), d.dpi)], { type: 'image/png' });
-        const name = `${res.name}-${String(i + 1).padStart(2, '0')}-${n.name}`;
+        const name = `${res.name}-${String(i + 1).padStart(2, '0')}-${partName}`;
         try {
           last = await api.exportImage(name, 'png', png, { dir, mode });
         } catch (e) {
@@ -329,7 +334,7 @@ export const exportMethods = {
           last = await api.exportImage(name, 'png', png, { dir, mode });
         }
       }
-      if (last) toast(`Exported ${nodes.length} layer${nodes.length === 1 ? '' : 's'} to ${last.folder}`, { action: showFolder(last.folder), ms: 6000 });
+      if (last) toast(`Exported ${parts.length} layer${parts.length === 1 ? '' : 's'} to ${last.folder}`, { action: showFolder(last.folder), ms: 6000 });
     } catch (e) {
       toast('Export failed: ' + e.message, { error: true });
     }
@@ -374,3 +379,46 @@ export const exportMethods = {
     }
   },
 };
+
+/**
+ * What File → Export layers writes, bottom first: [{name, draw (nodes drawn together), clipTo (a clipped layer's
+ * base, or null)}]. 'top': each top-level node with the layers clipped to it, so the part looks as it does in the
+ * picture; 'all': every layer, a clipped one cut to its base. Correction layers alone have nothing to show.
+ */
+export function layerExportParts(root, which, hidden) {
+  const shown = n => hidden || n.visible;
+  const out = [];
+  if (which === 'all') {
+    for (const n of allLayers(root)) {
+      let ok = !n.adjust;
+      for (let x = n; ok && x && x !== root; x = x.parent) if (!shown(x)) ok = false;
+      if (ok) out.push({ name: n.name, draw: [n], clipTo: clipBase(n) });
+    }
+    return out;
+  }
+  const kids = root.children;
+  for (let i = 0; i < kids.length; i++) {
+    let j = i + 1;
+    while (j < kids.length && kids[j].clip) j++;
+    const base = kids[i], group = kids.slice(i, j).filter(shown);
+    i = j - 1;
+    if (shown(base) && !base.adjust) out.push({ name: base.name, draw: group, clipTo: null });
+  }
+  return out;
+}
+
+/** The node a clipped node clips to, as composite() reads clipping (a clipped bottom node clips to nothing). */
+function clipBase(n) {
+  const sib = n.parent?.children || [];
+  let i = sib.indexOf(n);
+  if (!n.clip || i <= 0) return null;
+  while (i > 0 && sib[i].clip) i--;
+  return sib[i];
+}
+
+/** Draws nodes together as if each were shown (hidden ones only get here when asked for). */
+function drawShown(ctx, nodes, r) {
+  const vis = nodes.map(n => n.visible);
+  nodes.forEach(n => { n.visible = true; });
+  try { renderFolder(ctx, { children: nodes }, r); } finally { nodes.forEach((n, k) => { n.visible = vis[k]; }); }
+}
