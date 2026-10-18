@@ -12,6 +12,8 @@ export const GUIDE = [
       <li><b>New canvas</b> starts a picture. Pick a size (Full HD, A4, square…) or type your own.</li>
       <li><b>Open image or project…</b> turns a picture file into a new artwork, or opens a <code>.koe</code> file.</li>
       <li>Click a card to keep working on it. Its <b>⋯</b> menu renames, copies or deletes it.</li>
+      <li>With more than one artwork, the <b>Search</b> box at the top finds them by title, and the list next to it
+      orders them by last change, name or size.</li>
     </ul>
     <h4>The drawing screen</h4>
     <figure data-pic="screen"><figcaption>1 Tools · 2 Settings of the tool you hold · 3 History and Navigator ·

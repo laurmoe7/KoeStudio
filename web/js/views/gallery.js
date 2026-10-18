@@ -6,7 +6,8 @@ import { Doc, MAX_SIDE, loadImage } from '../doc.js';
 import { DPI_MIN, DPI_MAX, sanitizeDpi, printLabel } from '../resolution.js';
 import { icon } from '../icons.js';
 import { guideDialog } from './help.js';
-import { esc, toast, modal, confirmBox, promptBox, fileToDataUrl, menu } from '../ui.js';
+import { esc, toast, modal, confirmBox, promptBox, fileToDataUrl, menu, store } from '../ui.js';
+import { galleryOrder, GALLERY_SORTS } from '../galleryorder.js';
 
 /** [label, width, height, dpi] */
 export const PRESETS = [
@@ -25,6 +26,9 @@ export async function showGallery(root, { onOpen }) {
       <header class="gal-top">
         <img src="icon.png" alt="" class="logo"><h1>KoeStudio</h1>
         <div class="grow"></div>
+        <input type="search" class="gal-search" placeholder="Search" aria-label="Search artwork by title" hidden>
+        <select class="gal-sort" aria-label="Sort artwork" title="Order of the artwork" hidden>${GALLERY_SORTS.map(([v, l]) =>
+          `<option value="${v}"${(store('gallerySort') || 'modified') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
         <button class="primary" data-act="new">${icon('plus', 18)} New canvas</button>
         <button data-act="import">Open image or project…</button>
         <button data-act="deleted" title="Put back artwork you deleted">${icon('trash', 16)} Deleted</button>
@@ -41,6 +45,10 @@ export async function showGallery(root, { onOpen }) {
   root.querySelector('[data-act="folder"]').onclick = () => api.openFolder();
   root.querySelector('[data-act="guide"]').onclick = () => guideDialog();
   root.querySelector('[data-act="deleted"]').onclick = async () => { if (await deletedDialog()) fillGrid(root, onOpen); };
+  const search = root.querySelector('.gal-search'), sort = root.querySelector('.gal-sort');
+  search.oninput = () => showCards(root, onOpen);
+  search.onkeydown = e => { if (e.key === 'Escape' && search.value) { e.stopPropagation(); search.value = ''; showCards(root, onOpen); } };
+  sort.onchange = () => { store('gallerySort', sort.value); showCards(root, onOpen); };
   await fillGrid(root, onOpen);
 }
 
@@ -126,11 +134,23 @@ function sizeText(bytes) {
 
 async function fillGrid(root, onOpen) {
   const grid = root.querySelector('.gal-grid');
-  let list;
   try {
-    list = await api.list();
+    root.galleryList = await api.list();
   } catch (e) {
     grid.innerHTML = `<p class="error">Could not list artwork: ${esc(e.message)}</p>`;
+    return;
+  }
+  showCards(root, onOpen);
+}
+
+/** The cards of the listed artwork that match the search box, in the chosen order. */
+function showCards(root, onOpen) {
+  const grid = root.querySelector('.gal-grid'), all = root.galleryList || [];
+  const search = root.querySelector('.gal-search'), sort = root.querySelector('.gal-sort');
+  search.hidden = sort.hidden = all.length < 2;  // nothing to look for or order yet
+  const list = galleryOrder(all, search.value, sort.value);
+  if (all.length && !list.length) {
+    grid.innerHTML = `<p class="muted">No artwork has "${esc(search.value.trim())}" in its title.</p>`;
     return;
   }
   if (!list.length) {
@@ -162,7 +182,8 @@ async function fillGrid(root, onOpen) {
       try {
         await api.remove(id);
         card.remove();
-        if (!grid.querySelector('.card')) fillGrid(root, onOpen);
+        root.galleryList = root.galleryList.filter(a => a.id !== id);
+        if (!grid.querySelector('.card')) showCards(root, onOpen);
       } catch (e) {
         toast('Could not delete: ' + e.message, { error: true });
       }
@@ -178,6 +199,8 @@ async function fillGrid(root, onOpen) {
           const t = await promptBox('Rename artwork', 'Title', title());
           if (!t || t === title()) return;
           await api.rename(id, t);
+          const a = root.galleryList.find(x => x.id === id);
+          if (a) a.title = t;
           card.querySelector('.card-title').textContent = t;
           card.setAttribute('aria-label', 'Open ' + t);
         }) },
