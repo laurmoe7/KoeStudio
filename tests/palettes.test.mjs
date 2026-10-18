@@ -19,6 +19,7 @@ test('GIMP palette', () => {
 test('hex lists (Lospec .hex, Paint.NET .txt)', () => {
   assert.deepEqual(parsePalette(text('ff0044\n00FF00\n'), 'pico.hex'), { name: 'pico', colors: ['#ff0044', '#00ff00'] });
   assert.deepEqual(parsePalette(text('; Paint.NET Palette File\nFF112233\nFFAABBCC\n'), 'pdn.txt').colors, ['#112233', '#aabbcc'], 'AARRGGBB');
+  assert.deepEqual(parsePalette(text('; made for a decade of art\nFF010203\n'), 'pdn.txt').colors, ['#010203'], 'comment words are not colours');
   assert.throws(() => parsePalette(text('hello'), 'x.txt'), /no colours/);
 });
 

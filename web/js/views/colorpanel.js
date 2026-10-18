@@ -250,11 +250,13 @@ export class ColorPanel {
     if (!file) return;
     let pal;
     try { pal = parsePalette(new Uint8Array(await file.arrayBuffer()), file.name); } catch (e) { return toast(e.message, { error: true }); }
+    const fresh = pal.colors.filter(c => !this.palette.includes(c)).length, room = Math.max(0, PALETTE_MAX - this.palette.length);
     const how = await modal({
       title: 'Import palette',
       body: `<p>${pal.colors.length} colour${pal.colors.length === 1 ? '' : 's'} from <b>${esc(pal.name)}</b>.</p>
         <div class="cp-palette">${pal.colors.slice(0, PALETTE_MAX).map(c => `<i class="cp-sw" style="background:${esc(c)}"></i>`).join('')}</div>
-        ${pal.colors.length > PALETTE_MAX ? `<p class="muted small">Only the first ${PALETTE_MAX} fit in the palette.</p>` : ''}`,
+        ${pal.colors.length > PALETTE_MAX ? `<p class="muted small">Only the first ${PALETTE_MAX} fit in the palette.</p>` : ''}
+        ${room < Math.min(fresh, PALETTE_MAX) ? `<p class="muted small">Adding keeps only ${room} of the ${fresh} new colours: the palette holds ${PALETTE_MAX}.</p>` : ''}`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'Add to my palette', value: 'add' }, { label: 'Replace my palette', value: 'replace', primary: true }],
     });
     if (!how) return;

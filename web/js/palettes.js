@@ -32,9 +32,11 @@ function readGpl(text) {
   return { name, colors };
 }
 
-/** Plain colour lists: every #rrggbb or bare rrggbb word; an 8-digit one is Paint.NET's AARRGGBB. */
+/** Plain colour lists: every #rrggbb or bare rrggbb word; an 8-digit one is Paint.NET's AARRGGBB. Lines starting
+ * with ; are Paint.NET comments (whose words, like "decade", can look like colours). */
 function readHexList(text) {
   const colors = [];
+  text = text.split(/\r?\n/).filter(line => !/^\s*;/.test(line)).join('\n');
   for (const m of text.matchAll(/(?:^|[\s,;#])([0-9a-f]{8}|[0-9a-f]{6})(?![0-9a-f])/gi)) {
     const h = m[1].length === 8 ? m[1].slice(2) : m[1];
     colors.push('#' + h.toLowerCase());
