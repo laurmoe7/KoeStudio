@@ -2,10 +2,14 @@
 // palette (+ adds the main colour, a click picks one, right-click removes it; kept per machine in koe.palette).
 // Under the square, HSV or RGB sliders with number boxes (the mode, or hidden, is kept in koe.colorSliders).
 // The square and hue bar can be swapped for a colour wheel: a hue ring round the square (koe.colorWheel).
+// The palette's ⋯ menu imports palette files (palettes.js: .gpl, .aco, .ase, hex lists) and exports a .gpl.
 
-import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, paletteAdd, sanitizePalette, SLIDER_CHANNELS, sliderValues, fromSlider, sliderStops, wheelLayout, wheelHit } from '../color.js';
+import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, paletteAdd, sanitizePalette, PALETTE_MAX, SLIDER_CHANNELS, sliderValues, fromSlider, sliderStops, wheelLayout, wheelHit } from '../color.js';
 import { icon } from '../icons.js';
-import { store, esc } from '../ui.js';
+import { store, esc, menu, modal, toast, confirmBox } from '../ui.js';
+import { api } from '../api.js';
+import { parsePalette, gplText } from '../palettes.js';
+import { browseFile } from './filebrowser.js';
 
 const SQ = 180, BAR = 14, WHEEL = 200, RING = 18;
 
@@ -37,7 +41,7 @@ export class ColorPanel {
         <span class="cp-modes">${['hsv', 'rgb', 'off'].map(m => `<button data-mode="${m}">${m === 'off' ? 'Hide' : m.toUpperCase()}</button>`).join('')}</span></div>
       <div class="cp-sliders"></div>
       <div class="cp-recent" aria-label="Recent colors"></div>
-      <div class="cp-palette-head"><span>Palette</span><button class="icon-btn cp-add" title="Add the main color to the palette">${icon('plus', 14)}</button></div>
+      <div class="cp-palette-head"><span>Palette</span><span><button class="icon-btn cp-add" title="Add the main color to the palette">${icon('plus', 14)}</button><button class="icon-btn cp-pal-more" title="Import, export or clear the palette">${icon('more', 14)}</button></span></div>
       <div class="cp-palette" aria-label="Palette"></div>`;
     this.sv = root.querySelector('.cp-sv');
     this.hue = root.querySelector('.cp-hue');
@@ -54,6 +58,13 @@ export class ColorPanel {
     this.drag(this.hue, (x, y) => this.setHsv([(y / SQ) * 360, this.hsv[1], this.hsv[2]]));
     root.querySelector('.cp-swap').onclick = () => this.swap();
     root.querySelector('.cp-add').onclick = () => { this.palette = paletteAdd(this.palette, this.main); this.savePalette(); };
+    const more = root.querySelector('.cp-pal-more');
+    more.onclick = () => menu(more, [
+      { label: 'Import palette (.gpl, .aco, .ase, .hex)…', run: () => this.importPalette() },
+      { label: 'Export palette (.gpl)…', run: () => this.exportPalette(), disabled: !this.palette.length },
+      '-',
+      { label: 'Clear palette', run: () => this.clearPalette(), disabled: !this.palette.length },
+    ]);
     root.querySelector('.cp-sub').onclick = () => this.swap();
     this.hex.addEventListener('change', () => {
       const rgb = hexToRgb(this.hex.value);
@@ -225,6 +236,53 @@ export class ColorPanel {
     this.drawSliders();
     this.drawRecent();
     this.drawPalette();
+  }
+
+  /** Reads a palette file and adds its colours to the palette, or puts them in its place. */
+  async importPalette() {
+    const file = await new Promise(resolve => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = '.gpl,.aco,.ase,.hex,.txt';
+      inp.onchange = () => resolve(inp.files[0] || null);
+      inp.click();
+    });
+    if (!file) return;
+    let pal;
+    try { pal = parsePalette(new Uint8Array(await file.arrayBuffer()), file.name); } catch (e) { return toast(e.message, { error: true }); }
+    const how = await modal({
+      title: 'Import palette',
+      body: `<p>${pal.colors.length} colour${pal.colors.length === 1 ? '' : 's'} from <b>${esc(pal.name)}</b>.</p>
+        <div class="cp-palette">${pal.colors.slice(0, PALETTE_MAX).map(c => `<i class="cp-sw" style="background:${esc(c)}"></i>`).join('')}</div>
+        ${pal.colors.length > PALETTE_MAX ? `<p class="muted small">Only the first ${PALETTE_MAX} fit in the palette.</p>` : ''}`,
+      buttons: [{ label: 'Cancel', value: null }, { label: 'Add to my palette', value: 'add' }, { label: 'Replace my palette', value: 'replace', primary: true }],
+    });
+    if (!how) return;
+    this.palette = sanitizePalette(how === 'replace' ? pal.colors : [...this.palette, ...pal.colors]);
+    this.savePalette();
+  }
+
+  async exportPalette() {
+    const pick = await browseFile({ title: 'Export palette', dir: store('exportDir') || '', name: 'KoeStudio palette', ext: 'gpl', okLabel: 'Save' });
+    if (!pick) return;
+    const blob = new Blob([gplText(pick.name, this.palette)]);
+    try {
+      let res;
+      try { res = await api.exportImage(pick.name, 'gpl', blob, { dir: pick.dir, mode: 'ask' }); } catch (e) {
+        if (!e.data?.exists) throw e;
+        if (!await confirmBox('Replace file', `${pick.name}.gpl already exists. Replace it?`, 'Replace')) return;
+        res = await api.exportImage(pick.name, 'gpl', blob, { dir: pick.dir, mode: 'replace' });
+      }
+      toast(`Saved the palette to ${res.path}`);
+    } catch (e) {
+      toast('Could not save the palette: ' + e.message, { error: true });
+    }
+  }
+
+  async clearPalette() {
+    if (!await confirmBox('Clear palette', `Remove all ${this.palette.length} colours from the palette?`, 'Clear')) return;
+    this.palette = [];
+    this.savePalette();
   }
 
   savePalette() {

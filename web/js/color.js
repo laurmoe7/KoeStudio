@@ -29,7 +29,7 @@ export function shiftColor(hex, { h = 0, s = 0, v = 0 }) {
   return rgbToHex(...hsvToRgb(H + h, clamp(S + s), clamp(V + v)));
 }
 
-export const PALETTE_MAX = 64;
+export const PALETTE_MAX = 256;
 
 /** A saved palette with a colour added at the end (not twice: an existing one moves to the end), at most PALETTE_MAX. */
 export function paletteAdd(list, hex) {

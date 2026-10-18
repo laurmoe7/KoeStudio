@@ -419,6 +419,7 @@ EXPORT_TYPES = {
     'bmp': lambda d: d[:2] == b'BM',
     'koe': lambda d: d.lstrip()[:1] == b'{' and b'"format":"koe"' in d[:2000].replace(b' ', b''),
     'tga': lambda d: d.endswith(b'TRUEVISION-XFILE.\x00'),
+    'gpl': lambda d: d.startswith(b'GIMP Palette'),  # a colour palette (Color panel)
 }
 
 

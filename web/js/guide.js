@@ -134,6 +134,8 @@ export const GUIDE = [
       grainy texture does not decide the colour.</li>
       <li><b>Recent</b> colours appear by themselves. For colours you want to keep, press <b>+</b> next to
       <b>Palette</b>. Click a swatch to use it, right-click to remove it.</li>
+      <li>The palette's <b>⋯</b> button imports palette files (GIMP and Krita <code>.gpl</code>, Photoshop
+      <code>.aco</code>, Adobe <code>.ase</code>, Lospec <code>.hex</code>), saves yours as a <code>.gpl</code>, or clears it.</li>
     </ul>
     <h4>Reference window</h4>
     <p>View → Reference window shows pictures beside your canvas while you draw. Press <b>+</b> (or drop pictures on it)
