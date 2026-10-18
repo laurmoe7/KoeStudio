@@ -1501,6 +1501,9 @@ export class Editor {
 
   /** Records a pixel change of rect r for undo; before/after are ImageData or snapshots. */
   pushPatch(layer, r, before, after, label) {
+    // pixels read already (filters, Smudge) are kept only where painted, as snapshots are once read (readSnapshots)
+    if (before instanceof ImageData) before = trimmedSnapshot(before);
+    if (after instanceof ImageData) after = trimmedSnapshot(after);
     const put = img => { this.putSnapshot(layer, r, img); this.changed(r); };
     this.history.push({ label, get bytes() { return snapBytes(before) + snapBytes(after); }, undo: () => put(before), redo: () => put(after) });
   }

@@ -182,7 +182,9 @@ export const layerMethods = {
   structural(label, doIt, undoIt, bytes = 0) {
     const run = f => { this.picked = new Set(); f(); };
     run(doIt);
-    this.history.push({ label, bytes, undo: () => { run(undoIt); this.layersChanged(); }, redo: () => { run(doIt); this.layersChanged(); } });
+    // bytes: what the step holds, or a function saying it (undo copies shrink once read into memory)
+    this.history.push({ label, get bytes() { return typeof bytes === 'function' ? bytes() : bytes; },
+      undo: () => { run(undoIt); this.layersChanged(); }, redo: () => { run(doIt); this.layersChanged(); } });
     this.layersChanged();
   },
 
@@ -493,14 +495,14 @@ export const layerMethods = {
     const d = this.doc, n = d.active, m = n.mask;
     if (!m) return;
     if (isFolder(n)) return toast('A folder mask cannot be applied. Use Layer → Merge folder to turn the folder into a layer first.');
-    const before = n.ctx.getImageData(0, 0, d.width, d.height);
+    const full = { x: 0, y: 0, w: d.width, h: d.height }, before = this.snapshot(n, full);
     n.ctx.save();
     n.ctx.globalCompositeOperation = 'destination-out';
     n.ctx.drawImage(m.canvas, 0, 0);
     n.ctx.restore();
-    const after = n.ctx.getImageData(0, 0, d.width, d.height);
-    const put = img => { n.ctx.putImageData(img, 0, 0); n.touch(); };
-    this.structural('Apply mask', () => { put(after); n.mask = null; this.maskEdit = false; }, () => { put(before); n.mask = m; }, d.width * d.height * 8);
+    const after = this.snapshot(n, full);
+    const put = img => this.putSnapshot(n, full, img);
+    this.structural('Apply mask', () => { put(after); n.mask = null; this.maskEdit = false; }, () => { put(before); n.mask = m; }, () => snapBytes(before) + snapBytes(after));
   },
 
   toggleMask() {
