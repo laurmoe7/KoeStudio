@@ -89,7 +89,8 @@ export const GUIDE = [
       <li>Pick it from the Brush row whenever you want it back.</li>
     </ol>
     <p>The same <b>⋯</b> menu updates, renames and deletes brushes, adds your own tip and texture pictures, and
-    <b>imports Procreate and Photoshop brushes</b> (<code>.brush</code>, <code>.brushset</code>, <code>.abr</code>).</p>`],
+    <b>imports Procreate, Photoshop, GIMP and Krita brushes</b> (<code>.brush</code>, <code>.brushset</code>,
+    <code>.abr</code>, <code>.gbr</code>, <code>.gih</code>, <code>.vbr</code>, <code>.kpp</code>, <code>.bundle</code>).</p>`],
 
   ['retouch', 'Smudge, blur and retouching', `
     <p class="lead">These tools change paint that is already on the layer, instead of adding new paint.</p>

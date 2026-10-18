@@ -192,10 +192,110 @@ class AbrReader(unittest.TestCase):
         self.assertEqual(png_pixels(from_url(res['images'][0]['png']))[3][1::2], b'\x10\x20')
 
     def test_damaged(self):
-        with self.assertRaisesRegex(ValueError, 'not a Procreate'):
+        with self.assertRaisesRegex(ValueError, 'not a brush file'):
             bi.import_brushes('x.abr', b'GIF89a......')
         with self.assertRaisesRegex(ValueError, 'damaged'):
             bi.import_brushes('x.abr', make_abr()[:200])
+
+
+# ---------- GIMP and Krita file pieces ----------
+
+def make_gbr(name, w, h, px, depth=1, spacing=25, version=2):
+    nb = name.encode() + b'\0'
+    if version == 1:
+        return u32(20 + len(nb)) + u32(1) + u32(w) + u32(h) + u32(depth) + nb + px
+    return u32(28 + len(nb)) + u32(2) + u32(w) + u32(h) + u32(depth) + b'GIMP' + u32(spacing) + nb + px
+
+
+def with_text(png, key, text, kind=b'tEXt'):
+    """A PNG with a text chunk put in before IEND."""
+    body = key.encode('latin-1') + b'\0' + (text.encode('latin-1') if kind == b'tEXt' else b'\0\0\0\0' + text.encode())
+    chunk = u32(len(body)) + kind + body + u32(zlib.crc32(kind + body) & 0xffffffff)
+    return png[:-12] + chunk + png[-12:]
+
+
+def kpp(name, params, engine='paintbrush'):
+    xml = f'<Preset paintopid="{engine}" name="{name}">' + ''.join(
+        f'<param type="string" name="{k}"><![CDATA[{v}]]></param>' for k, v in params.items()) + '</Preset>'
+    return with_text(PNG, 'preset', xml)
+
+
+class GimpReader(unittest.TestCase):
+    def test_gbr(self):
+        res = bi.import_brushes('dots.gbr', make_gbr('Dots', 2, 1, b'\xff\x40', spacing=40))
+        b = res['brushes'][0]
+        self.assertEqual(b['name'], 'Dots')
+        self.assertEqual(b['settings'], {'size': 2, 'hardness': 1, 'spacing': 0.4})
+        w, h, ct, raw = png_pixels(from_url(res['images'][b['tip']]['png']))
+        self.assertEqual((w, h, ct), (2, 1, 4))
+        self.assertEqual(raw, b'\0\xff\0\x40', 'black, with the gray as its alpha')
+
+    def test_colour_and_version_1(self):
+        res = bi.import_brushes('c.gbr', make_gbr('Leaf', 1, 1, b'\x10\x20\x30\x99', depth=4))
+        self.assertEqual(png_pixels(from_url(res['images'][0]['png']))[3], b'\0\x99', 'the alpha of a colour brush')
+        self.assertIn('colours', res['brushes'][0]['notes'][0])
+        old = bi.import_brushes('old.gbr', make_gbr('Old', 1, 1, b'\x80', version=1))
+        self.assertEqual(old['brushes'][0]['name'], 'Old')
+        self.assertNotIn('spacing', old['brushes'][0]['settings'], 'version 1 has no spacing')
+        with self.assertRaisesRegex(ValueError, 'damaged'):
+            good = make_gbr('X', 1, 1, b'\x80')
+            bi.import_brushes('x.gbr', good[:20] + b'NOPE' + good[24:])
+
+    def test_gih_uses_the_first_cell(self):
+        data = b'Grass\n3 ncells:3 cellwidth:1 cellheight:1 step:1 dim:1 placement:constant rank0:3 sel0:random\n' + \
+            make_gbr('a', 1, 1, b'\x11') + make_gbr('b', 1, 1, b'\x22') + make_gbr('c', 1, 1, b'\x33')
+        res = bi.import_brushes('grass.gih', data)
+        b = res['brushes'][0]
+        self.assertEqual(b['name'], 'Grass')
+        self.assertEqual(png_pixels(from_url(res['images'][0]['png']))[3], b'\0\x11')
+        self.assertIn('first of its 3 tips', b['notes'][0])
+
+    def test_vbr(self):
+        res = bi.import_brushes('round.vbr', b'GIMP-VBR\n1.0\nSoft round\n20\n12.5\n0.5\n2\n30\n')
+        self.assertEqual(res['brushes'][0]['settings'],
+                         {'tip': 'round', 'size': 25.0, 'spacing': 0.2, 'hardness': 0.5, 'thickness': 0.5, 'tipAngle': 330})
+        star = bi.import_brushes('s.vbr', b'GIMP-VBR\n1.5\nStar\ndiamond\n5\n10\n3\n1\n1\n0\n')
+        self.assertEqual(star['brushes'][0]['notes'], ['Its square or star shape becomes round'])
+        self.assertEqual(star['brushes'][0]['settings']['size'], 6.0)
+
+
+class KritaReader(unittest.TestCase):
+    AUTO = ('<Brush type="auto_brush" spacing="0.08" angle="1.5707963" scale="2">'
+            '<MaskGenerator type="circle" diameter="20" ratio="0.5" hfade="0.3" vfade="0.6" spikes="2"/></Brush>')
+
+    def test_auto_brush_preset(self):
+        res = bi.import_brushes('ink.kpp', kpp('Inker', {'brush_definition': self.AUTO, 'OpacityValue': '0.75',
+                                                        'FlowValue': '2', 'PressureSize': 'true', 'PressureOpacity': 'false'}))
+        b = res['brushes'][0]
+        self.assertEqual(b['name'], 'Inker')
+        # 20 px x scale 2; 90° counter-clockwise is 270; the softer fade wins; flow clamped to 1
+        self.assertEqual(b['settings'], {'gamma': 1, 'opacity': 0.75, 'flow': 1, 'pressureSize': True, 'pressureOpacity': False,
+                                         'spacing': 0.08, 'tipAngle': 270, 'tip': 'round', 'size': 40.0, 'thickness': 0.5, 'hardness': 0.3})
+        self.assertEqual(b['notes'], [])
+        other = bi.import_brushes('s.kpp', kpp('Smear', {'brush_definition': self.AUTO}, engine='colorsmudge'))
+        self.assertIn('colour smudge', other['brushes'][0]['notes'][0])
+
+    def test_bundle_with_tip_files(self):
+        tip = '<Brush type="gbr_brush" filename="chalk.gbr" spacing="0.2" scale="0.5"/>'
+        data = make_zip({'mimetype': b'application/x-krita-resourcebundle', 'meta.xml': b'<meta><dc:title>Chalks</dc:title></meta>',
+                         'paintoppresets/a.kpp': kpp('Chalk', {'brush_definition': tip}),
+                         'paintoppresets/b.kpp': kpp('Lost', {'brush_definition': '<Brush type="png_brush" filename="gone.png"/>'}),
+                         'brushes/chalk.gbr': make_gbr('chalk', 4, 2, b'\x80' * 8)})
+        res = bi.import_brushes('chalks.bundle', data)
+        self.assertEqual(res['name'], 'Chalks')
+        chalk, lost = res['brushes']
+        self.assertEqual(chalk['settings']['size'], 2.0, '4 px tip at half scale')
+        self.assertEqual(png_pixels(from_url(res['images'][chalk['tip']]['png']))[:2], (4, 2))
+        self.assertIsNone(lost['tip'])
+        self.assertEqual(lost['settings']['tip'], 'round')
+        self.assertIn('gone.png', lost['notes'][0])
+
+    def test_refuses_entities_and_plain_pictures(self):
+        with self.assertRaisesRegex(ValueError, 'no brush settings'):
+            bi.import_brushes('photo.png', PNG)
+        bomb = with_text(PNG, 'preset', '<!DOCTYPE x [<!ENTITY a "aaaa">]><Preset name="&a;"/>')
+        with self.assertRaisesRegex(ValueError, 'does not read'):
+            bi.import_brushes('bomb.kpp', bomb)
 
 
 class ProcreateReader(unittest.TestCase):

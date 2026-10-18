@@ -1,4 +1,4 @@
-// Saved brushes, tip and texture images, and importing Procreate and Photoshop brushes, as Editor methods.
+// Saved brushes, tip and texture images, and importing Procreate, Photoshop, GIMP and Krita brushes, as Editor methods.
 //
 // The brush library lives in the app folder (app.py: <app dir>/brushes): images ({id, name, kind: 'tip' |
 // 'texture'}) and presets ({id, name, settings, source}). Paint tools name an image as 'img:<id>' in their tip or
@@ -222,7 +222,7 @@ export const brushMethods = {
       { label: 'Rename brush…', disabled: !p, run: () => this.renamePreset(p) },
       { label: 'Delete brush…', disabled: !p, run: () => this.deletePreset(p) },
       '-',
-      { label: 'Import brushes (Procreate, Photoshop)…', run: () => this.importBrushFile() },
+      { label: 'Import brushes (Procreate, Photoshop, GIMP, Krita)…', run: () => this.importBrushFile() },
       '-',
       { label: 'Add tip image…', run: () => this.addBrushImageFile('tip') },
       { label: 'Add texture image…', run: () => this.addBrushImageFile('texture') },
@@ -358,7 +358,7 @@ export const brushMethods = {
 
   /** Brush menu → Import brushes: a Procreate (.brush, .brushset) or Photoshop (.abr) file; pick which to keep. */
   async importBrushFile() {
-    const file = await pickFile('.brush,.brushset,.abr');
+    const file = await pickFile('.brush,.brushset,.abr,.gbr,.gih,.vbr,.kpp,.bundle');
     if (!file) return;
     let res;
     try {

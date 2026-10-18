@@ -1,4 +1,5 @@
-"""Imports brushes from Procreate (.brush, .brushset) and Photoshop (.abr) files for KoeStudio's brush library.
+"""Imports brushes from Procreate (.brush, .brushset), Photoshop (.abr), GIMP (.gbr, .gih, .vbr) and Krita (.kpp,
+.bundle) files for KoeStudio's brush library.
 
 import_brushes(filename, data) -> {'name', 'brushes': [{name, settings, tip, texture, notes}], 'images': [{kind,
 name, png, white}]}: settings are KoeStudio paint-tool settings (checked again in the browser), tip / texture index
@@ -12,12 +13,25 @@ setting names are not documented by Procreate, so each one read here is optional
 Photoshop ABR, versions 1-2: a list of brushes (sampled tips stored inline). Versions 6-10: '8BIM' sections:
 'samp' (the tip images, 8 or 16 bit, raw or PackBits), 'patt' (texture patterns, as in PSD files) and 'desc' (an
 action descriptor with each brush's settings, pointing at its tip by id). All numbers are big-endian.
+
+GIMP .gbr: a header (size, version 1 or 2, width, height, bytes per pixel 1 or 4, and in version 2 'GIMP' and the
+spacing in %), the name (UTF-8, ending in 0), then the pixels (gray: 255 = full paint; RGBA: the alpha is used).
+.gih (an "image hose"): a name line, a parameter line ("<cells> ncells:.. sel0:random ..."), then the cells as .gbr
+brushes; the first one is used. .vbr: text lines GIMP-VBR, version, name, spacing, radius, hardness, aspect, angle.
+
+Krita .kpp: a PNG (the preset's picture) with a text chunk 'preset' holding XML: <Preset paintopid name> with
+<param name=..> values; 'brush_definition' is itself XML (<Brush type spacing angle> with an auto brush's
+<MaskGenerator diameter ratio hfade vfade>, or a tip file's name). A .bundle is a ZIP with paintoppresets/*.kpp and
+the tip files under brushes/. Krita's names are not documented as a format either, so all are optional.
 """
 import base64
 import io
+import math
 import plistlib
 import posixpath
+import re
 import struct
+import xml.etree.ElementTree as ET
 import zipfile
 import zlib
 
@@ -453,15 +467,20 @@ def _pnum(d, key, lo=0.0, hi=1.0):
     return _clamp(float(v), lo, hi) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
-def read_procreate(data, filename):
+def _zip(data, what='brush file'):
     try:
         z = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile:
-        raise ValueError('That Procreate brush file is damaged.')
+        raise ValueError(f'That {what} is damaged.')
     infos = z.infolist()
     if len(infos) > 20000 or sum(i.file_size for i in infos) > MAX_UNZIPPED:
         raise ValueError('That brush file is too big.')
-    names = {i.filename for i in infos}
+    return z
+
+
+def read_procreate(data, filename):
+    z = _zip(data, 'Procreate brush file')
+    names = {i.filename for i in z.infolist()}
     archives = sorted(n for n in names if posixpath.basename(n) == 'Brush.archive')
     if not archives:
         raise ValueError('There are no Procreate brushes in that file.')
@@ -559,6 +578,299 @@ def _procreate_settings(b):
     return s, notes
 
 
+# ---------- GIMP ----------
+
+def _gbr(data, pos=0):
+    """One GIMP brush at pos: (name, width, height, alpha bytes, spacing 0-1 or None, coloured, end position)."""
+    r = Reader(data, pos)
+    header, version = r.u32(), r.u32()
+    if version not in (1, 2) or header < (28 if version == 2 else 20) or header > 4096:
+        raise ValueError('That GIMP brush file is damaged.')
+    w, h, depth = r.u32(), r.u32(), r.u32()
+    spacing = None
+    if version == 2:
+        if r.take(4) != b'GIMP':
+            raise ValueError('That GIMP brush file is damaged.')
+        spacing = r.u32() / 100
+    if not (0 < w <= MAX_SIDE and 0 < h <= MAX_SIDE) or depth not in (1, 4):
+        raise ValueError('That GIMP brush has a size or colour depth KoeStudio cannot read.')
+    name = data[r.p:pos + header].split(b'\0', 1)[0].decode('utf-8', 'replace').strip()
+    r.p = pos + header
+    px = r.take(w * h * depth)
+    alpha = px if depth == 1 else px[3::4]
+    return name, w, h, alpha, spacing, depth == 4, r.p
+
+
+def _gimp_brush(name, w, h, alpha, spacing, coloured, notes, images):
+    images.append({'kind': 'tip', 'name': name, 'png': data_url(png_bytes(w, h, bytes(w * h), alpha)), 'white': False})
+    s = {'size': _clamp(max(w, h), 1, 1000), 'hardness': 1}
+    if spacing is not None:
+        s['spacing'] = round(_clamp(spacing, 0.02, 1), 3)
+    if coloured:
+        notes = notes + ['Its colours (the tip paints in your colour, keeping its shape)']
+    return {'name': name[:120], 'settings': s, 'tip': len(images) - 1, 'texture': None, 'notes': notes}
+
+
+def read_gbr(data, filename):
+    name, w, h, alpha, spacing, coloured, _ = _gbr(data)
+    images = []
+    return {'name': _stem(filename), 'brushes': [_gimp_brush(name or _stem(filename), w, h, alpha, spacing, coloured, [], images)], 'images': images}
+
+
+def _gih_cells(data):
+    """(name, number of cells, where the first cell starts) of a GIMP image hose."""
+    lines = data.split(b'\n', 2)
+    if len(lines) < 3:
+        raise ValueError('That GIMP image hose is damaged.')
+    m = re.match(rb'\s*(\d+)', lines[1])
+    return lines[0].decode('utf-8', 'replace').strip(), int(m.group(1)) if m else 1, len(lines[0]) + len(lines[1]) + 2
+
+
+def read_gih(data, filename):
+    """An image hose: several tips picked in turn or at random as you paint; KoeStudio keeps the first one."""
+    name, cells, start = _gih_cells(data)
+    name = name or _stem(filename)
+    _, w, h, alpha, spacing, coloured, _ = _gbr(data, start)
+    notes = [f'Only the first of its {cells} tips (an image hose changes tips as you paint)'] if cells > 1 else []
+    images = []
+    return {'name': name, 'brushes': [_gimp_brush(name, w, h, alpha, spacing, coloured, notes, images)], 'images': images}
+
+
+def read_vbr(data, filename):
+    """A generated (round or square) GIMP brush: no picture, just its shape."""
+    lines = [x.strip() for x in data.decode('utf-8', 'replace').splitlines()]
+    if len(lines) < 8 or lines[0] != 'GIMP-VBR':
+        raise ValueError('That GIMP brush file is damaged.')
+    name, rest, notes = lines[2] or _stem(filename), lines[3:], []
+    if lines[1] == '1.5':  # 1.5 adds the shape and the number of spikes after the name
+        if len(rest) < 7:
+            raise ValueError('That GIMP brush file is damaged.')
+        shape, spikes, rest = rest[0], rest[1], rest[2:]
+        if shape != 'circle' or (spikes.isdigit() and int(spikes) > 2):
+            notes.append('Its square or star shape becomes round')
+    try:
+        spacing, radius, hardness, aspect, angle = (float(x) for x in rest[:5])
+    except ValueError:
+        raise ValueError('That GIMP brush file is damaged.')
+    if not all(math.isfinite(v) for v in (spacing, radius, hardness, aspect, angle)):
+        raise ValueError('That GIMP brush file is damaged.')
+    s = {'tip': 'round', 'size': round(_clamp(radius * 2, 1, 1000), 1), 'spacing': round(_clamp(spacing / 100, 0.02, 1), 3),
+         'hardness': round(_clamp(hardness, 0, 1), 2), 'thickness': round(_clamp(1 / max(1, aspect), 0.05, 1), 2),
+         'tipAngle': round(-angle) % 360}  # GIMP turns counter-clockwise
+    return {'name': _stem(filename), 'brushes': [{'name': name[:120], 'settings': s, 'tip': None, 'texture': None, 'notes': notes}], 'images': []}
+
+
+# ---------- Krita ----------
+
+# Krita's brush engines (paintop ids) other than the ordinary pixel brush, by what Krita calls them
+KRITA_ENGINES = {'colorsmudge': 'colour smudge', 'hairybrush': 'bristle', 'sketchbrush': 'sketch', 'deformbrush': 'deform',
+                 'particlebrush': 'particle', 'spraybrush': 'spray', 'experimentbrush': 'shape', 'hatchingbrush': 'hatching',
+                 'duplicate': 'clone', 'curvebrush': 'curve', 'filter': 'filter', 'roundmarker': 'quick',
+                 'tangentnormal': 'tangent normal', 'gridbrush': 'grid', 'chalkbrush': 'chalk', 'dynabrush': 'dyna'}
+
+
+def _inflate(b):
+    d = zlib.decompressobj()
+    out = d.decompress(b, MAX_UNZIPPED)
+    if d.unconsumed_tail:
+        raise ValueError('That brush file is too big.')
+    return out
+
+
+def png_texts(png):
+    """The text chunks (tEXt, zTXt, iTXt) of a PNG as {keyword: text}."""
+    out, pos = {}, 8
+    while pos + 12 <= len(png):
+        n, kind = struct.unpack('>I4s', png[pos:pos + 8])
+        body = png[pos + 8:pos + 8 + n]
+        pos += 12 + n
+        if kind == b'IEND':
+            break
+        if kind not in (b'tEXt', b'zTXt', b'iTXt') or b'\0' not in body:
+            continue
+        key, rest = body.split(b'\0', 1)
+        try:
+            if kind == b'tEXt':
+                out[key.decode('latin-1')] = rest.decode('latin-1')
+            elif kind == b'zTXt':
+                out[key.decode('latin-1')] = _inflate(rest[1:]).decode('latin-1')
+            else:
+                compressed, rest = rest[0], rest[2:]
+                _lang, _tkey, text = rest.split(b'\0', 2)
+                out[key.decode('latin-1')] = (_inflate(text) if compressed else text).decode('utf-8')
+        except (ValueError, IndexError, zlib.error, UnicodeDecodeError):
+            continue
+    return out
+
+
+def _xml(text):
+    """Parses XML from a brush file, refusing document types (entity tricks can make a small file enormous)."""
+    if '<!DOCTYPE' in text or '<!ENTITY' in text:
+        raise ValueError('That Krita brush file has XML KoeStudio does not read.')
+    return ET.fromstring(text)
+
+
+def _kfloat(v, default=None):
+    try:
+        f = float(v)
+        return f if math.isfinite(f) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _kpp_preset(png):
+    """(name, paintop id, {param: text}, XML root) of a .kpp file."""
+    if not png.startswith(b'\x89PNG'):
+        raise ValueError('That is not a Krita brush preset.')
+    text = png_texts(png).get('preset')
+    if not text:
+        raise ValueError('That PNG is not a Krita brush preset (it has no brush settings).')
+    try:
+        root = _xml(text)
+    except ET.ParseError:
+        raise ValueError('That Krita brush preset is damaged.')
+    params = {p.get('name'): (p.text or '') for p in root.iter('param') if p.get('name')}
+    return root.get('name') or '', root.get('paintopid') or 'paintbrush', params, root
+
+
+def _kbool(params, key):
+    return params[key].strip().lower() == 'true' if key in params else None
+
+
+def _krita_settings(params, engine):
+    """KoeStudio settings, notes, the tip file's name (None for a round tip) and its scale, from a preset's params."""
+    s, notes, tip_file, scale = {'gamma': 1}, [], None, 1
+    if engine in KRITA_ENGINES:
+        notes.append(f"Krita's {KRITA_ENGINES[engine]} brush engine works differently: it imports as an ordinary brush")
+    for key, setting in (('OpacityValue', 'opacity'), ('FlowValue', 'flow')):
+        v = _kfloat(params.get(key))
+        if v is not None:
+            s[setting] = round(_clamp(v, 0.01, 1), 2)
+    for key, setting in (('PressureSize', 'pressureSize'), ('PressureOpacity', 'pressureOpacity')):
+        v = _kbool(params, key)
+        if v is not None:
+            s[setting] = v
+    if _kbool(params, 'PressureFlow') and not s.get('pressureOpacity'):
+        s['pressureOpacity'] = True
+    if _kbool(params, 'Texture/Pattern/Enabled'):
+        notes.append('Its texture')
+    if _kbool(params, 'PressureRotation') or _kbool(params, 'PressureScatter'):
+        notes.append('Tilt, speed or other sensors')
+    defn = params.get('brush_definition', '').strip()
+    b = None
+    if defn:
+        try:
+            b = _xml(defn)
+        except ET.ParseError:
+            notes.append('Its tip settings could not be read')
+    if b is not None and b.tag != 'Brush':
+        b = next(b.iter('Brush'), None)
+    if b is None:
+        return s, notes, None, 1
+    sp = _kfloat(b.get('spacing'))
+    if sp is not None:
+        s['spacing'] = round(_clamp(sp, 0.02, 1), 3)
+    ang = _kfloat(b.get('angle'))
+    if ang:
+        s['tipAngle'] = round(-math.degrees(ang)) % 360  # radians, counter-clockwise
+    scale = _kfloat(b.get('scale'), 1) or 1
+    mg = b.find('MaskGenerator')
+    if b.get('type') == 'auto_brush' and mg is not None:
+        s['tip'] = 'round'
+        d = _kfloat(mg.get('diameter'))
+        if d:
+            s['size'] = round(_clamp(d * scale, 1, 1000), 1)
+        ratio = _kfloat(mg.get('ratio'))
+        if ratio:
+            s['thickness'] = round(_clamp(ratio, 0.05, 1), 2)
+        # the fade is where the edge starts to soften, as a share of the radius: 1 = a hard edge
+        fade = [f for f in (_kfloat(mg.get('hfade')), _kfloat(mg.get('vfade'))) if f is not None]
+        s['hardness'] = round(_clamp(min(fade), 0, 1), 2) if fade else 1
+        if mg.get('type') == 'rect' or (_kfloat(mg.get('spikes'), 2) or 2) > 2:
+            notes.append('Its square or star shape becomes round')
+    elif b.get('filename'):
+        tip_file = posixpath.basename(b.get('filename').replace('\\', '/'))
+        s['hardness'] = 1
+    else:
+        s['tip'] = 'round'
+        notes.append('Its tip (text or generated) becomes round')
+    return s, notes, tip_file, scale
+
+
+def _krita_tip(name, blob, images):
+    """A tip file (.gbr, .gih or an image) added to images; its larger side in px, or None when unreadable."""
+    try:
+        if blob.startswith(b'\x89PNG'):
+            w, h = struct.unpack('>2I', blob[16:24])
+            images.append({'kind': 'tip', 'name': name, 'png': data_url(blob), 'white': False})
+            return max(w, h)
+        start = _gih_cells(blob)[2] if name.lower().endswith('.gih') else 0
+        _, w, h, alpha, _, _, _ = _gbr(blob, start)
+        images.append({'kind': 'tip', 'name': name, 'png': data_url(png_bytes(w, h, bytes(w * h), alpha)), 'white': False})
+        return max(w, h)
+    except (ValueError, struct.error):
+        return None
+
+
+def _krita_brush(png, files, images, fallback):
+    """One .kpp as a brush. files(name) gives a tip file's bytes from the bundle, or None."""
+    name, engine, params, root = _kpp_preset(png)
+    s, notes, tip_file, scale = _krita_settings(params, engine)
+    tip = None
+    if tip_file:
+        blob = files(tip_file)
+        if blob is None:  # Krita 5 can keep the tip inside the preset itself, as base64
+            for res in root.iter():
+                if res is not root and res.get('filename') and posixpath.basename(res.get('filename')) == tip_file and (res.text or '').strip():
+                    try:
+                        blob = base64.b64decode(res.text.strip())
+                    except ValueError:
+                        blob = None
+                    break
+        size = _krita_tip(tip_file, blob, images) if blob else None
+        if size:
+            tip = len(images) - 1
+            s['size'] = round(_clamp(size * scale, 1, 1000), 1)
+        else:
+            s['tip'] = 'round'
+            notes.append(f'Its tip picture ({tip_file}) is not in the file')
+    return {'name': (name or fallback).strip()[:120], 'settings': s, 'tip': tip, 'texture': None, 'notes': notes}
+
+
+def read_kpp(data, filename):
+    images = []
+    return {'name': _stem(filename), 'brushes': [_krita_brush(data, lambda n: None, images, _stem(filename))], 'images': images}
+
+
+def read_krita_bundle(z, filename):
+    names = z.namelist()
+    tips = {}
+    for n in names:
+        if n.startswith('brushes/'):
+            tips.setdefault(posixpath.basename(n), n)
+    out, images, cache = [], [], {}
+
+    def files(base):
+        if base not in tips:
+            return None
+        if base not in cache:
+            cache[base] = z.read(tips[base])
+        return cache[base]
+    for n in sorted(x for x in names if x.lower().endswith('.kpp'))[:MAX_BRUSHES]:
+        try:
+            out.append(_krita_brush(z.read(n), files, images, _stem(n)))
+        except (ValueError, struct.error, zipfile.BadZipFile):
+            continue
+    if not out:
+        raise ValueError('There are no Krita brush presets in that bundle.')
+    title = _stem(filename)
+    if 'meta.xml' in names:
+        m = re.search(rb'<(?:dc:|meta:)?title>([^<]{1,120})<', z.read('meta.xml'))
+        if m:
+            title = m.group(1).decode('utf-8', 'replace').strip() or title
+    return {'name': title, 'brushes': out, 'images': images}
+
+
 # ---------- entry point ----------
 
 def _stem(filename):
@@ -571,8 +883,21 @@ def import_brushes(filename, data):
         raise ValueError('That file is empty.')
     if len(data) > MAX_FILE:
         raise ValueError('That brush file is too big.')
+    ext = (filename or '').lower().rsplit('.', 1)[-1]
     if data.startswith(b'PK\x03\x04'):
+        z = _zip(data)
+        if any(n.lower().endswith('.kpp') for n in z.namelist()):
+            return read_krita_bundle(z, filename)
         return read_procreate(data, filename)
+    if data.startswith(b'\x89PNG'):
+        return read_kpp(data, filename)
+    if data.startswith(b'GIMP-VBR'):
+        return read_vbr(data, filename)
+    if data[20:24] == b'GIMP' or (ext == 'gbr' and len(data) >= 20):
+        return read_gbr(data, filename)
+    if ext == 'gih' or re.match(rb'[^\n]{0,256}\n\s*\d+ ncells:', data[:400]):
+        return read_gih(data, filename)
     if len(data) >= 4 and struct.unpack('>H', data[:2])[0] in (1, 2, 6, 7, 9, 10):
         return read_abr(data, filename)
-    raise ValueError('That is not a Procreate (.brush, .brushset) or Photoshop (.abr) brush file.')
+    raise ValueError('That is not a brush file KoeStudio can read (Procreate .brush/.brushset, Photoshop .abr, '
+                     'GIMP .gbr/.gih/.vbr, Krita .kpp/.bundle).')
