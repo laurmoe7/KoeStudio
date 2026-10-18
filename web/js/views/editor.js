@@ -471,6 +471,7 @@ export class Editor {
     if (area) {
       composite(this.compCtx, d, area, this.live, this.compView());
       this.mipDirty = this.mipDirty ? union(this.mipDirty, area) : area;
+      if (this.compRead) this.compRead.dirty = union(this.compRead.dirty, area);  // read again when next needed (compPixels)
     }
   }
 
@@ -856,6 +857,7 @@ export class Editor {
     this.cancelPolygon();
     this.cancelFigurePoly();
     this.tool = id;
+    if (id !== 'fill' && id !== 'wand') this.compRead = this.refRead = null;  // their kept copies of the pixels (sampleData)
     if (id === 'crop' && !this.crop) this.startCrop();
     store('tool', id);
     this.root.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === id));
@@ -1551,19 +1553,56 @@ export class Editor {
    */
   sampleData(sample, t) {
     const d = this.doc;
-    if (sample === 'layer' && t?.ctx) return t.ctx.getImageData(0, 0, d.width, d.height).data;
-    const c = sample === 'reference' ? this.referenceCanvas() : null;
-    if (c) return c.getContext('2d').getImageData(0, 0, d.width, d.height).data;
-    const view = this.compView();
-    if (view?.onion) {  // the onion skins are only for seeing: fills and the wand look at the frame without them
-      const o = document.createElement('canvas');
-      o.width = d.width; o.height = d.height;
-      const octx = o.getContext('2d', { willReadFrequently: true });
-      composite(octx, d, { x: 0, y: 0, w: d.width, h: d.height }, null, { ...view, onion: false });
-      return octx.getImageData(0, 0, d.width, d.height).data;
+    if (sample === 'layer' && t?.canvas) {  // through a canvas in memory: reading the layer itself would move it off the GPU
+      const c = document.createElement('canvas');
+      c.width = d.width; c.height = d.height;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(t.canvas, 0, 0);
+      return ctx.getImageData(0, 0, d.width, d.height).data;
     }
+    if (sample === 'reference') { const data = this.referencePixels(); if (data) return data; }
+    return this.compPixels();
+  }
+
+  /**
+   * The composite's pixels, kept between calls: click after click with Fill or the wand reads again only what was
+   * recomposited since (flushComp marks it). They are composited afresh into a small canvas in memory rather than
+   * read off this.comp: a readback makes the browser move the composite off the GPU and upload it again for the
+   * next frame (a print-size canvas took 150-250 ms per click, this takes about 25). The copy goes when another
+   * tool is chosen. Callers must not change the array.
+   */
+  compPixels() {
     this.flushComp();
-    return this.compCtx.getImageData(0, 0, d.width, d.height).data;
+    const d = this.doc, W = d.width, H = d.height;
+    let c = this.compRead;
+    if (!c || c.w !== W || c.h !== H) c = this.compRead = { w: W, h: H, data: new Uint8ClampedArray(W * H * 4), dirty: { x: 0, y: 0, w: W, h: H } };
+    const r = clip(c.dirty, W, H);
+    c.dirty = null;
+    if (r) {
+      const sc = document.createElement('canvas');
+      sc.width = r.w; sc.height = r.h;
+      const sctx = sc.getContext('2d', { willReadFrequently: true });
+      sctx.translate(-r.x, -r.y);
+      const view = this.compView();  // the onion skins are only for seeing: fills and the wand look at the frame without them
+      composite(sctx, d, r, null, view && { ...view, onion: false });
+      const part = sctx.getImageData(0, 0, r.w, r.h).data, row = r.w * 4;
+      if (r.w === W) c.data.set(part, r.y * row);
+      else for (let y = 0; y < r.h; y++) c.data.set(part.subarray(y * row, (y + 1) * row), ((r.y + y) * W + r.x) * 4);
+    }
+    return c.data;
+  }
+
+  /** sampleData's 'reference' pixels, kept while the reference layers are unchanged (filling another layer). */
+  referencePixels() {
+    const d = this.doc, refs = referenceLayers(d.root), k = this.refRead;
+    const same = k && k.w === d.width && k.h === d.height && k.layers.length === refs.length &&
+      refs.every((l, i) => k.layers[i] === l && k.versions[i] === l.version && k.opacity[i] === l.opacity);
+    if (same) return k.data;
+    const c = this.referenceCanvas();
+    if (!c) return null;
+    this.refRead = { w: d.width, h: d.height, layers: refs, versions: refs.map(l => l.version), opacity: refs.map(l => l.opacity),
+      data: c.getContext('2d').getImageData(0, 0, d.width, d.height).data };
+    return this.refRead.data;
   }
 
   /** The visible reference layers on one canvas (null, with a note, when none is marked). */
@@ -1602,22 +1641,16 @@ export class Editor {
       if (x < 0 || y < 0 || x >= d.width || y >= d.height) return;
       const s = this.settings.picker, k = Math.floor((+s.average || 1) / 2);
       const r = clip({ x: x - k, y: y - k, w: 2 * k + 1, h: 2 * k + 1 }, d.width, d.height);
-      const n = d.active, view = this.compView(), own = s.pickFrom === 'layer' || !!view?.onion;
-      let src;
-      if (own) {
-        // this layer alone (a folder as it looks), or the picture without the onion skins: only the square is drawn
-        const c = document.createElement('canvas');
-        c.width = r.w; c.height = r.h;
-        src = c.getContext('2d', { willReadFrequently: true });
-        src.translate(-r.x, -r.y);
-        if (s.pickFrom === 'layer') renderFolder(src, { children: [n] }, r);
-        else composite(src, d, r, null, { ...view, onion: false });
-        src.setTransform(1, 0, 0, 1, 0, 0);
-      } else {
-        this.flushComp();
-        src = this.compCtx;
-      }
-      const p = averageColor(src.getImageData(own ? 0 : r.x, own ? 0 : r.y, r.w, r.h).data);
+      // only the square is drawn, in memory: this layer alone (a folder as it looks) or the picture without the
+      // onion skins. Reading this.comp instead would move it off the GPU, and the next frame would upload it again.
+      const n = d.active, view = this.compView(), c = document.createElement('canvas');
+      c.width = r.w; c.height = r.h;
+      const src = c.getContext('2d', { willReadFrequently: true });
+      src.translate(-r.x, -r.y);
+      if (s.pickFrom === 'layer') renderFolder(src, { children: [n] }, r);
+      else composite(src, d, r, null, view && { ...view, onion: false });
+      src.setTransform(1, 0, 0, 1, 0, 0);
+      const p = averageColor(src.getImageData(0, 0, r.w, r.h).data);
       if (!p) return;
       this.colors.set(rgbToHex(p[0], p[1], p[2]));
       if (this.gesture?.type === 'pick') this.drawOverlay();  // the ring shows the new colour

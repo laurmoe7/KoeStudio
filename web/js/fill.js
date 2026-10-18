@@ -62,23 +62,27 @@ export function floodMask(data, w, h, x, y, tolerance = 0, contiguous = true) {
   return { mask, bounds: { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } };
 }
 
-/** Grows a mask by n pixels (square neighbourhood), so a fill tucks under anti-aliased line edges. */
+/**
+ * Grows a mask by n pixels (a step to each side per pixel, so diagonals grow by n steps), so a fill tucks under
+ * anti-aliased line edges. Only the bounds (grown a pixel per step) are visited, and mask itself is left as it is.
+ */
 export function growMask(mask, w, h, n, bounds) {
   if (n <= 0) return { mask, bounds };
-  let cur = mask;
+  const cur = mask.slice();
+  let x0 = bounds.x, y0 = bounds.y, x1 = bounds.x + bounds.w - 1, y1 = bounds.y + bounds.h - 1;
   for (let k = 0; k < n; k++) {
-    const next = cur.slice();
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        if (cur[y * w + x]) continue;
-        if ((x > 0 && cur[y * w + x - 1]) || (x < w - 1 && cur[y * w + x + 1]) ||
-            (y > 0 && cur[(y - 1) * w + x]) || (y < h - 1 && cur[(y + 1) * w + x])) next[y * w + x] = 1;
+    x0 = Math.max(0, x0 - 1); y0 = Math.max(0, y0 - 1); x1 = Math.min(w - 1, x1 + 1); y1 = Math.min(h - 1, y1 + 1);
+    for (let y = y0; y <= y1; y++) {  // 2 marks this step's new pixels, so they do not grow again within it
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        if (cur[i]) continue;
+        if ((x > 0 && cur[i - 1] === 1) || (x < w - 1 && cur[i + 1] === 1) || (y > 0 && cur[i - w] === 1) || (y < h - 1 && cur[i + w] === 1)) cur[i] = 2;
       }
     }
-    cur = next;
+    for (let y = y0; y <= y1; y++) for (let i = y * w + x0, e = y * w + x1; i <= e; i++) if (cur[i] === 2) cur[i] = 1;
   }
-  const x = Math.max(0, bounds.x - n), y = Math.max(0, bounds.y - n);
-  return { mask: cur, bounds: { x, y, w: Math.min(w, bounds.x + bounds.w + n) - x, h: Math.min(h, bounds.y + bounds.h + n) - y } };
+  return { mask: cur, bounds: { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 } };
 }
 
 /**

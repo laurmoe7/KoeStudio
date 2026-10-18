@@ -72,6 +72,20 @@ test('flood fill', () => {
   assert.deepEqual([...floodMask(transparent, 2, 1, 0, 0, 0).mask], [1, 1]);
 });
 
+test('growing a fill by two pixels makes a diamond and leaves the mask alone', () => {
+  const m = new Uint8Array(25);
+  m[12] = 1;  // the middle of 5 x 5
+  const g = growMask(m, 5, 5, 2, { x: 2, y: 2, w: 1, h: 1 });
+  assert.deepEqual([...g.mask], [
+    0, 0, 1, 0, 0,
+    0, 1, 1, 1, 0,
+    1, 1, 1, 1, 1,
+    0, 1, 1, 1, 0,
+    0, 0, 1, 0, 0]);
+  assert.deepEqual(g.bounds, { x: 0, y: 0, w: 5, h: 5 });
+  assert.equal(m.reduce((a, b) => a + b), 1, 'the input mask is unchanged');
+});
+
 test('history: undo, redo, limits', () => {
   const log = [];
   const h = new History({ maxSteps: 2 });
