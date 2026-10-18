@@ -19,7 +19,7 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0,
-    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, preset: '' };
+    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false, preset: '' };
 }
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
@@ -112,6 +112,7 @@ export const SETTING_FIELDS = [
   ['colorJitterStroke', 'Once per stroke', 'check'],
   ['taperIn', 'Start taper', 'range', 0, 500, 1],
   ['taperOut', 'End taper', 'range', 0, 500, 1],
+  ['quickShape', 'Hold to straighten', 'check'],
   ['tiltSize', 'Tilt → size', 'range', 0, 1, 0.01],
   ['tiltFlow', 'Tilt → lighter', 'range', 0, 1, 0.01],
   ['tiltAngle', 'Turn with pen tilt', 'check'],
@@ -154,7 +155,7 @@ export const SETTING_GROUPS = [
   ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness']],
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
-  ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut']],
+  ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'quickShape']],
   ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
   ['Variation', ['scatter', 'count', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert']],
@@ -217,6 +218,7 @@ export const SETTING_HINTS = {
   colorJitterStroke: 'Picks one varied colour for the whole stroke instead of a new one for every dab',
   taperIn: 'Starts each stroke thin and grows to full size over this many pixels (0 = off)',
   taperOut: 'Ends each stroke thin over this many pixels (0 = off). The last stretch appears when you lift the pen',
+  quickShape: 'Keep the pen still for a moment at the end of a stroke: a line becomes straight, a loop a clean ellipse. Move the pen before lifting it to stretch the shape (QuickShape)',
   tiltSize: 'Makes the brush bigger the more you tilt the pen, up to three times its size when the pen lies flat (pens that report tilt; not on vector layers)',
   tiltFlow: 'Makes the paint lighter the more you tilt the pen, as when shading with the side of a pencil',
   tiltAngle: 'Turns the tip the way the pen leans (best with a squashed or image tip)',

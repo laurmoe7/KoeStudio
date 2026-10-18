@@ -47,6 +47,7 @@ import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
 import { animMethods } from './animtools.js';
 import { printLabel } from '../resolution.js';
+import { detectShape, shapePoints, adjustShape } from '../quickshape.js';
 import { brushMethods, curveSvg } from './brushtools.js';
 import { symmetryStamps } from '../symmetry.js';
 import { linePoints } from '../figure.js';
@@ -56,7 +57,8 @@ const SAVE_RETRY = 10000;  // after a failed save
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
 const GRID_TOOLS = new Set(['select', 'ellipse', 'polygon']);  // selection tools whose corners snap to the grid
 const TAP_SLOP = 16, TAP_MS = 300;  // two- and three-finger taps: at most this far (px, both fingers) and this long
-const TURN_DEAD = 6 * Math.PI / 180;  // a pinch turns the canvas only once the fingers twist further than this
+const TURN_DEAD = 6 * Math.PI / 180;
+const HOLD_MS = 600, HOLD_PX = 4;  // QuickShape: the pen kept within HOLD_PX screen px for HOLD_MS  // a pinch turns the canvas only once the fingers twist further than this
 
 /** Visible layers marked as reference, or inside a reference folder (bottom first). */
 function referenceLayers(root) {
@@ -900,6 +902,7 @@ export class Editor {
       if (g?.type === 'touchview') { g.count = Math.max(g.count, this.touches.size); return; }
       if (g && !g.touch) return;
       if (g?.type === 'paint') {  // the first finger's stroke was the start of a pinch
+        clearTimeout(g.holdTimer);
         this.gesture = null;
         this.live = null;
         this.resetStroke();
@@ -1101,6 +1104,7 @@ export class Editor {
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
+      raw: s.quickShape && !line ? [] : null,  // QuickShape: the pen's own path, to recognise a line or a loop
       vec: layer.vector ? [] : null,  // on a vector layer: the smoothed path, kept as a line at pen-up (vectortools.js)
     };
     // vector lines are kept whole, so the selection does not cut them
@@ -1115,8 +1119,52 @@ export class Editor {
   /** A pen point: through ruler snapping (if any), then smoothing and stamping. */
   addPoint(pt) {
     const g = this.gesture;
+    if (g.quick) { g.quick.to = pt; this.scheduleQuickShape(); return; }  // a snapped shape: the pen stretches it
+    if (g.raw && !g.snap?.line) this.watchHold(pt);
     if (g.snap) { for (const q of this.snapPoint(g.snap, pt)) this.addStampPoint(q); return; }
     this.addStampPoint(pt);
+  }
+
+  /** QuickShape: remembers the pen's path and starts the hold timer again whenever the pen moves on. */
+  watchHold(pt) {
+    const g = this.gesture;
+    g.raw.push({ x: pt.x, y: pt.y, p: pt.p });
+    const slop = HOLD_PX / this.view.zoom;
+    if (g.holdAt && Math.hypot(pt.x - g.holdAt.x, pt.y - g.holdAt.y) <= slop) return;
+    g.holdAt = pt;
+    clearTimeout(g.holdTimer);
+    g.holdTimer = setTimeout(() => this.snapQuickShape(g), HOLD_MS);
+  }
+
+  /** The pen was held still: the stroke so far becomes a clean line or ellipse (when it looks like one). */
+  snapQuickShape(g) {
+    if (this.gesture !== g || g.quick) return;
+    const shape = detectShape(g.raw);
+    if (!shape) return;
+    const ps = g.raw.map(q => q.p).sort((a, b) => a - b);
+    g.quick = { base: shape, shape, from: g.raw[g.raw.length - 1], to: g.raw[g.raw.length - 1], p: ps[Math.floor(ps.length / 2)] };
+    this.redrawQuickShape();
+  }
+
+  scheduleQuickShape() {
+    const g = this.gesture;
+    if (g.quickRaf) return;
+    g.quickRaf = requestAnimationFrame(() => { g.quickRaf = 0; if (this.gesture === g) this.redrawQuickShape(); });
+  }
+
+  /** Stamps the snapped shape afresh (stretched to where the pen is now) in place of the stroke. */
+  redrawQuickShape() {
+    const g = this.gesture, q = g.quick, old = g.bounds;
+    q.shape = adjustShape(q.base, q.from, q.to);
+    this.resetStroke();
+    g.path = new StampPath(g.sizeAt, g.s.spacing);
+    g.smoother = new Smoother(0);
+    g.prevStamp = null; g.dist = 0; g.held = []; g.bounds = null;
+    g.painter.last = [];
+    if (g.vec) g.vec = [];
+    for (const pt of shapePoints(q.shape, q.p, 1)) this.addStampPoint(pt);
+    if (old) this.updateComp(old);
+    this.requestRender();
   }
 
   addStampPoint(pt) {
@@ -1171,6 +1219,8 @@ export class Editor {
 
   endPaint() {
     const g = this.gesture;
+    clearTimeout(g.holdTimer);
+    if (g.quickRaf) { cancelAnimationFrame(g.quickRaf); g.quickRaf = 0; this.redrawQuickShape(); }
     // a short dab never picked a snap line: paint what was held back as it was
     if (g.snap && !g.snap.line) for (const q of g.snap.held) this.addStampPoint(q);
     // stabilization lags behind the pen: catch up to where the pen was lifted

@@ -51,6 +51,8 @@ export const GUIDE = [
       <li><b>Eraser</b> <kbd>E</kbd> takes paint away. The eraser end of your pen does too.</li>
       <li><kbd>[</kbd> and <kbd>]</kbd> make the brush smaller and bigger.</li>
       <li><b>Shift+click</b> draws a straight line from where your last stroke ended.</li>
+      <li><b>Hold to straighten</b> (Brush settings → Stroke): draw a line or a loop and keep the pen still for a moment
+      before lifting it. The line turns straight, the loop into a neat ellipse; move the pen to stretch it, then lift.</li>
     </ul>
     <h4>The main settings</h4>
     <figure data-pic="strokes"><figcaption>Opacity and density both make paint lighter, but only density builds up
