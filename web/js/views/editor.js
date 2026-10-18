@@ -1282,10 +1282,10 @@ export class Editor {
   /**
    * The dual brush for a stroke (Brush settings → Dual brush): its tip dabbed in black along the same path into
    * this.dualCanvas, at its own size, spacing and scatter; liveSource keeps the stroke only where those dabs are.
-   * null when it is off or on a vector layer (lines keep no second tip).
+   * null when it is off. Vector lines keep the dual tip in their brush and redraw it from their seed (vector.js dualStamps).
    */
   dualBrush(s, layer, sizeAt) {
-    if (!s.dualTip || s.dualTip === 'none' || layer.vector) return null;
+    if (!s.dualTip || s.dualTip === 'none') return null;
     const d = this.doc, c = this.dualCanvas ||= document.createElement('canvas');
     if (c.width !== d.width || c.height !== d.height) { c.width = d.width; c.height = d.height; }
     const ctx = c.getContext('2d');

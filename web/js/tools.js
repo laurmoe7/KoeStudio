@@ -213,7 +213,7 @@ export const SETTING_HINTS = {
   tipAngle: 'Turns the tip (most useful with a squashed or image tip)',
   tipRandom: 'Turns each dab by a random amount, up to this share of a half turn either way',
   tipFollow: 'Turns the tip with the direction the stroke is going',
-  dualTip: 'A second tip stamped along the stroke: paint shows only where it lands, so the stroke breaks up like chalk, dry bristles or foliage (not on vector layers)',
+  dualTip: 'A second tip stamped along the stroke: paint shows only where it lands, so the stroke breaks up like chalk, dry bristles or foliage',
   dualSize: 'Size of the dual tip, as a share of the brush size',
   dualSpacing: 'Distance between the dual tip\'s dabs, as a share of its size',
   dualScatter: 'Throws each dual dab off the stroke by up to this many times its size',

@@ -31,10 +31,11 @@ const NUM = {
   scatter: [0, 0, 2], count: [1, 1, 16], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500],
   textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4],
   tiltSize: [0, 0, 1], tiltFlow: [0, 0, 1], speedSize: [0, -1, 1], speedFlow: [0, -1, 1],
+  dualSize: [0.6, 0.05, 3], dualSpacing: [0.25, 0.02, 2], dualScatter: [0.5, 0, 3],
 };
 const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, textureInvert: false, colorJitterStroke: false, pixel: false, tiltAngle: false };
 const CURVES = ['sizeCurve', 'flowCurve'];
-export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture'];
+export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture', 'dualTip'];
 
 const NAME = /^(?:[a-z]{1,20}|img:[0-9a-f]{8,32})$/;
 
@@ -50,6 +51,7 @@ export function sanitizeBrush(raw) {
   for (const k of CURVES) out[k] = sanitizeCurve(s[k]);
   out.tip = typeof s.tip === 'string' && NAME.test(s.tip) ? s.tip : 'round';
   out.texture = typeof s.texture === 'string' && NAME.test(s.texture) ? s.texture : 'none';
+  out.dualTip = typeof s.dualTip === 'string' && NAME.test(s.dualTip) ? s.dualTip : 'none';
   return out;
 }
 
@@ -212,6 +214,23 @@ export function strokeStamps(s, b) {
     }
   }
   if (b.taperOut > 0) for (const st of out) st.k *= taperOut(dist - st.d, b.taperOut);
+  return out;
+}
+
+/**
+ * The dual brush's dabs along a line (brush dualTip not 'none'): {x, y, size}, its own spacing and scatter, from
+ * the line's seed, so the line's paint shows only where these land (liveSource's `dual`). [] when it is off.
+ */
+export function dualStamps(s, b) {
+  if (!b.dualTip || b.dualTip === 'none') return [];
+  const dsize = p => Math.max(0.5, stampAt(b, p).size * b.dualSize), path = new StampPath(dsize, b.dualSpacing), rnd = seeded(s.seed + 11);
+  const out = [];
+  for (const [x, y, p] of s.pts) {
+    for (const st of path.add({ x, y, p })) {
+      const j = dabJitter({ scatter: b.dualScatter }, dsize(st.p), rnd);
+      out.push({ x: st.x + j.dx, y: st.y + j.dy, size: dsize(st.p) });
+    }
+  }
   return out;
 }
 

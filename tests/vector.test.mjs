@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeBrush, sanitizeVector, emptyVector, resample, addStrokes, translateVector, strokeBounds, changedBounds,
-  strokeStamps, segDist, segCross, eraseVector, seeded, smoothPoints, pullStroke, usesDynamics } from '../web/js/vector.js';
+  strokeStamps, segDist, segCross, eraseVector, seeded, smoothPoints, pullStroke, usesDynamics, dualStamps } from '../web/js/vector.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg || ''} ${a} ≈ ${b}`);
 // a brush 4 px wide at any pressure, so half its width is 2
@@ -175,4 +175,18 @@ test('lines keep pen tilt and speed', () => {
   assert.ok(turn.every(st => st.a === 0.7));
   // bounds grow with the tilt reach (3x the half width)
   assert.ok(strokeBounds({ pts: [[0, 0, 1]] }, b).w > strokeBounds({ pts: [[0, 0, 1]] }, sanitizeBrush({ size: 10, pressureSize: false })).w);
+});
+
+test('lines keep the dual brush', () => {
+  const b = sanitizeBrush({ size: 10, pressureSize: false, dualTip: 'round', dualSize: 0.5, dualSpacing: 1, dualScatter: 0 });
+  assert.equal(b.dualTip, 'round');
+  assert.equal(sanitizeBrush({ dualTip: '<x>' }).dualTip, 'none');
+  assert.equal(sanitizeBrush({ dualSize: 9 }).dualSize, 3);
+  const s = { pts: [[0, 0, 1], [20, 0, 1]], seed: 5 };
+  // dual tip 5 px (half of 10), spaced by its size: a dab at 0, 5, 10, 15, 20
+  assert.deepEqual(dualStamps(s, b).map(st => [st.x, st.y, st.size]), [[0, 0, 5], [5, 0, 5], [10, 0, 5], [15, 0, 5], [20, 0, 5]]);
+  assert.deepEqual(dualStamps(s, B), [], 'off');
+  const sc = sanitizeBrush({ ...b, dualScatter: 1 });
+  assert.deepEqual(dualStamps(s, sc), dualStamps(s, sc), 'scatter is repeatable from the seed');
+  assert.ok(dualStamps(s, sc).some(st => st.y !== 0), 'and scatters');
 });

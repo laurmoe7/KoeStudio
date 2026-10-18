@@ -8,11 +8,11 @@
 // images; the dialog picks which to keep, saves their images (each once) and adds them as presets.
 
 import { api } from '../api.js';
-import { curveAt, stampAt, previewPath, previewSettings, StampPath, dabJitter } from '../brush.js';
+import { curveAt, stampAt, previewPath, previewSettings } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage, liveSource } from '../doc.js';
 import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor } from '../painter.js';
-import { sanitizeBrush, strokeStamps, seeded } from '../vector.js';
+import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
@@ -199,17 +199,11 @@ export const brushMethods = {
         painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
       }
       let dual = null;
-      if (s.dualTip && s.dualTip !== 'none') {  // the dual brush along the same path, as painting does it
+      if (b.dualTip !== 'none') {  // the dual brush along the same path, as vector lines draw it
         dual = this.previewDual ||= document.createElement('canvas');
         dual.width = w; dual.height = h;
-        const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: s.dualTip });
-        const dsize = p => Math.max(0.5, stampAt(b, p).size * s.dualSize), path = new StampPath(dsize, s.dualSpacing), rnd = seeded(PREVIEW_SEED + 11);
-        for (const [x, y, p] of line.pts) {
-          for (const st of path.add({ x, y, p })) {
-            const j = dabJitter({ scatter: s.dualScatter }, dsize(st.p), rnd);
-            dp.dab(st.x + j.dx, st.y + j.dy, dsize(st.p), 1);
-          }
-        }
+        const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: b.dualTip });
+        for (const st of dualStamps(line, b)) dp.dab(st.x, st.y, st.size, 1);
       }
       const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), dual }, r);
       ctx.globalAlpha = s.opacity ?? 1;

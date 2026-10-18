@@ -5,10 +5,10 @@
 import { liveSource } from './doc.js';
 import { Painter, textureFor } from './painter.js';
 import { stampAt } from './brush.js';
-import { strokeBounds, strokeStamps, seeded, brushOf } from './vector.js';
+import { strokeBounds, strokeStamps, dualStamps, seeded, brushOf } from './vector.js';
 import { clip } from './rect.js';
 
-let scratch = null;
+let scratch = null, dualScratch = null;
 
 /** Redraws the layer's lines inside rect (doc px; the whole layer when null), clearing that area first. */
 export function renderVector(layer, rect = null) {
@@ -37,7 +37,16 @@ export function renderVector(layer, rect = null) {
       const { size, flow } = stampAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
     }
-    const [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b) }, a);
+    let dual = null;
+    if (b.dualTip !== 'none') {  // the dual brush: the line shows only where its second tip lands
+      dual = dualScratch ||= document.createElement('canvas');
+      if (dual.width !== W || dual.height !== H) { dual.width = W; dual.height = H; }
+      const dctx = dual.getContext('2d');
+      dctx.clearRect(q.x, q.y, q.w, q.h);
+      const dp = new Painter(dctx, { color: '#000000', hardness: b.hardness, tip: b.dualTip });
+      for (const st of dualStamps(s, b)) dp.dab(st.x, st.y, st.size, 1);
+    }
+    const [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), dual }, a);
     ctx.globalAlpha = s.opacity;
     ctx.drawImage(src, sx, sy, a.w, a.h, a.x, a.y, a.w, a.h);
     ctx.globalAlpha = 1;
