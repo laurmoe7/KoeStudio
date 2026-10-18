@@ -193,6 +193,9 @@ export const GUIDE = [
     </ol>
     <p>Choose the font, size, bold, italic, alignment and line spacing in the tool panel. <b>Vertical</b> writes top to
     bottom, as in manga. <b>Outline</b> puts a border round the letters.</p>
+    <p>Edit → <b>Transform</b> (<kbd>Ctrl</kbd>+<kbd>T</kbd>) turns, sizes and mirrors a text layer and it stays text:
+    you can still click it to change the words, and it stays sharp at any size. Flipping, turning or resizing the
+    canvas keeps text editable too. Only Distort and Mesh need it rasterized.</p>
     <p class="tip">Text stays editable on its own layer. To paint on it, use Layer → Rasterize text first.</p>`],
 
   ['selection', 'Selections', `

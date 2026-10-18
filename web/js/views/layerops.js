@@ -25,7 +25,7 @@ export const layerMethods = {
    * The raster tools change (layer or mask), or null after telling the user why not. verb: 'draw on', 'fill'...
    * read: the tool only reads pixels (copy, select), so text layers are fine as they are.
    */
-  target(verb = 'draw on', { read = false, vector = false } = {}) {
+  target(verb = 'draw on', { read = false, vector = false, text = false } = {}) {
     if (this.quickMask) return this.quickMask;
     const n = this.doc.active;
     if (!n.visible) { toast(`This ${isFolder(n) ? 'folder' : 'layer'} is hidden. Show it to ${verb} it.`); return null; }
@@ -37,7 +37,7 @@ export const layerMethods = {
       toast(`This is a correction layer: it has no pixels of its own. Paint on its mask to choose where it applies, or change its settings.`, { action: { label: 'Settings', run: () => this.adjustSettings(n) }, ms: 6000 });
       return null;
     }
-    if (n.text && !read) {
+    if (n.text && !read && !text) {
       toast('This is a text layer. Use the Text tool to change it, or rasterize it to paint on it.', { action: { label: 'Rasterize', run: () => this.rasterizeText(n) }, ms: 6000 });
       return null;
     }
@@ -526,9 +526,10 @@ export const layerMethods = {
     for (const p of g.parts) {
       p.after = p.r.ctx.getImageData(0, 0, d.width, d.height);
       p.r.touch();
-      if (p.r.text) {  // a text layer keeps its text editable: move where it is drawn
-        p.textBefore = p.r.text;
-        p.textAfter = { ...p.r.text, x: p.r.text.x + g.dx, y: p.r.text.y + g.dy };
+      if (p.r.text) {  // a text layer keeps its text editable: move where it is drawn (a turned text moves its matrix)
+        const t = p.r.text, m = t.m;
+        p.textBefore = t;
+        p.textAfter = m ? { ...t, m: [m[0], m[1], m[2], m[3], m[4] + g.dx, m[5] + g.dy] } : { ...t, x: t.x + g.dx, y: t.y + g.dy };
         p.r.text = p.textAfter;
       }
       if (p.r.vector) {  // a vector layer keeps its lines: move them too
@@ -624,9 +625,9 @@ export const layerMethods = {
         l.touch();
       }
     };
-    const tx = this.textsIn(rasters);  // flipped pixels no longer match the text, so text layers become pixels
-    const m = !canvas ? null : axis === 'h' ? [-1, 0, 0, 1, d.width, 0] : [1, 0, 0, -1, 0, d.height];
-    const rl = this.rulersAlong(m, d.width, d.height, d.width, d.height);
+    const m = axis === 'h' ? [-1, 0, 0, 1, d.width, 0] : [1, 0, 0, -1, 0, d.height];
+    const tx = this.textsIn(rasters, m);  // text layers are mirrored in their matrix and stay editable
+    const rl = this.rulersAlong(canvas ? m : null, d.width, d.height, d.width, d.height);
     this.structural(label, () => { flip(); tx.drop(); rl.apply(); }, () => { flip(); tx.restore(); rl.revert(); });
   },
 };

@@ -4,7 +4,8 @@
 // Esc or Ctrl+Enter to finish. Editor methods (mixed into Editor.prototype in editor.js).
 
 import { Layer } from '../doc.js';
-import { fontCss, renderTextLayer, sanitizeText, textBounds } from '../textlayer.js';
+import { fontCss, renderTextLayer, sanitizeText, textBounds, textMatrix, toTextLocal, textAfterMap } from '../textlayer.js';
+import { translateVector } from '../vector.js';
 import { allLayers, insertNode, removeNode, contains } from '../tree.js';
 import { toast } from '../ui.js';
 import { matrix } from '../view.js';
@@ -15,9 +16,9 @@ export const textMethods = {
   /** The text tool was clicked at dp: finish any edit, then edit the text there or start a new one. */
   textClick(dp) {
     if (this.textEdit) {
-      const b = this.editBounds();
+      const b = this.editBounds(), q = toTextLocal(this.textEdit.layer.text, dp);
       const pad = 6 / this.view.zoom;
-      if (b && dp.x >= b.x - pad && dp.x <= b.x + b.w + pad && dp.y >= b.y - pad && dp.y <= b.y + b.h + pad) return;
+      if (b && q.x >= b.x - pad && q.x <= b.x + b.w + pad && q.y >= b.y - pad && q.y <= b.y + b.h + pad) return;
       this.commitText();
     }
     const hit = this.textLayerAt(dp);
@@ -31,8 +32,8 @@ export const textMethods = {
     const pad = 4 / this.view.zoom;
     const layers = allLayers(this.doc.root).filter(l => l.text && this.isShown(l)).reverse();
     return layers.find(l => {
-      const b = textBounds(l.text, l.ctx);
-      return dp.x >= b.x - pad && dp.x <= b.x + b.w + pad && dp.y >= b.y - pad && dp.y <= b.y + b.h + pad;
+      const b = textBounds(l.text, l.ctx), q = toTextLocal(l.text, dp);
+      return q.x >= b.x - pad && q.x <= b.x + b.w + pad && q.y >= b.y - pad && q.y <= b.y + b.h + pad;
     }) || null;
   },
 
@@ -97,7 +98,10 @@ export const textMethods = {
     const box = this.viewport.querySelector('.text-edit');
     if (!box || !this.textEdit) return;
     const t = this.textEdit.layer.text, b = this.editBounds();
-    const [a, bb, c, d, e, f] = matrix(this.view);
+    // the view's matrix after the text's own (turned or scaled text keeps its editor lined up with it)
+    const [va, vb, vc, vd, ve, vf] = matrix(this.view), [ma, mb, mc, md, me, mf] = textMatrix(t);
+    const a = va * ma + vc * mb, bb = vb * ma + vd * mb, c = va * mc + vc * md, d = vb * mc + vd * md;
+    const e = va * me + vc * mf + ve, f = vb * me + vd * mf + vf;
     box.style.transform = `matrix(${a}, ${bb}, ${c}, ${d}, ${e}, ${f})`;
     const ta = box.firstElementChild, extra = t.size;  // room for the next character
     Object.assign(ta.style, {
@@ -175,12 +179,23 @@ export const textMethods = {
 
   /**
    * For operations that change text or vector layers' pixels directly: drop their text or lines, so they become
-   * ordinary pixels (and restore them on undo).
+   * ordinary pixels (and restore them on undo). With `m` (the affine the operation maps doc points by) text layers
+   * instead follow it in their matrix and stay editable (redrawn sharp), unless that would shear them; vector
+   * lines follow a plain shift (crop, canvas size).
    */
-  textsIn(rasters) {
-    const list = rasters.filter(r => r.text || r.vector).map(r => [r, r.text, r.vector]);
+  textsIn(rasters, m = null) {
+    const shift = m && m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1;
+    const list = rasters.filter(r => r.text || r.vector).map(r => {
+      const t2 = r.text && m ? textAfterMap(r.text, m) : null;
+      const v2 = r.vector && shift ? translateVector(r.vector, m[4], m[5]) : null;
+      return [r, r.text, r.vector, t2, v2];
+    });
     return {
-      drop: () => list.forEach(([r]) => { r.text = null; r.vector = null; }),
+      drop: () => list.forEach(([r, , , t2, v2]) => {
+        r.text = t2;
+        r.vector = v2;
+        if (t2) renderTextLayer(r);
+      }),
       restore: () => list.forEach(([r, t, v]) => { r.text = t; r.vector = v; }),
     };
   },

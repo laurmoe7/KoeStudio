@@ -34,7 +34,7 @@ export const canvasMethods = {
       after.canvases.set(l, c);
     }
     const bytes = rasters.length * (before.w * before.h + w * h) * 4;
-    const tx = this.textsIn(rasters);  // resized or moved pixels no longer match the text: text layers become pixels
+    const tx = this.textsIn(rasters, m);  // text follows m in its matrix (else becomes pixels); lines follow a shift
     const rl = this.rulersAlong(m, d.width, d.height, w, h);
     this.structural(label, () => { this.setCanvasState(after); tx.drop(); rl.apply(); }, () => { this.setCanvasState(before); tx.restore(); rl.revert(); }, bytes);
   },

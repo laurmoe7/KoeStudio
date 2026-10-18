@@ -5,6 +5,7 @@ import { floodMask } from '../fill.js';
 import { hexToRgb, rgbToHex } from '../color.js';
 import { colorRangeMask, strokeBand } from '../maskops.js';
 import { Layer } from '../doc.js';
+import { textBounds, drawText, textTransformStart, textMatrixAfter, renderTextLayer } from '../textlayer.js';
 import { icon } from '../icons.js';
 import { maskBounds, modeFor, rectBetween, SELECT_MODES } from '../selection.js';
 import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds } from '../transform.js';
@@ -316,8 +317,10 @@ export const selectionMethods = {
    */
   beginTransform({ moveOnly = false } = {}) {
     if (this.xf) return true;
-    const d = this.doc, layer = this.target('transform');
+    this.finishText();
+    const d = this.doc, layer = this.target('transform', { text: true });
     if (!layer) return false;
+    if (layer.text) return this.beginTextTransform(layer, moveOnly);
     const companion = !this.quickMask && !this.maskEdit && layer.kind === 'layer' && layer.mask ? layer.mask : null;
     const full = layer.ctx.getImageData(0, 0, d.width, d.height);
     const mfull = companion ? companion.ctx.getImageData(0, 0, d.width, d.height) : null;
@@ -360,6 +363,27 @@ export const selectionMethods = {
     return true;
   },
 
+  /**
+   * Transform on a text layer: the whole text, in its own frame (the box is its layout bounds, turned and scaled
+   * as its matrix says), shown as pixels while dragging; applying stores a new matrix (textlayer.js), so the text
+   * stays editable and is redrawn sharp. The selection and the layer's mask are left as they are.
+   */
+  beginTextTransform(layer, moveOnly) {
+    const d = this.doc, t = layer.text, b = textBounds({ ...t, content: t.content || ' ' }, layer.ctx);
+    if (!t.content.trim() || b.w < 1 || b.h < 1) { toast('There is no text on this layer to transform.'); return false; }
+    const src = canvasOf(Math.ceil(b.w), Math.ceil(b.h)), sctx = src.getContext('2d');
+    sctx.translate(-b.x, -b.y);
+    drawText(sctx, t);
+    const base = canvasOf(d.width, d.height);
+    this.xf = { layer, src, mask: null, base, linked: null, before: layer.ctx.getImageData(0, 0, d.width, d.height), selBefore: this.sel.snapshot(),
+      r: { x: b.x, y: b.y, w: src.width, h: src.height }, t: textTransformStart(t, { ...b, w: src.width, h: src.height }),
+      keepAspect: false, smooth: true, moveOnly, text: { before: t, b: { ...b, w: src.width, h: src.height } } };
+    this.xf.text.t0 = { ...this.xf.t };
+    if (!moveOnly) this.showTransformBar();
+    this.renderTransform();
+    return true;
+  },
+
   renderTransform() {
     const x = this.xf, d = this.doc;
     const draw = (ctx, base, src, srcData) => {
@@ -391,6 +415,7 @@ export const selectionMethods = {
     if (x.raf) { cancelAnimationFrame(x.raf); x.raf = 0; this.renderTransform(); }  // a distort drag still waiting to be drawn
     this.xf = null;
     this.hideTransformBar();
+    if (x.text) return this.applyTextTransform(x);
     const start = corners(newTransform(x.r));
     const same = (a, b) => a.every((p, i) => p.x === b[i].x && p.y === b[i].y);
     if (x.mesh ? same(x.mesh.pts, x.mesh.start) : x.quad ? same(x.quad, start) : isIdentity(x.t, x.r)) return this.cancelTransformState(x);
@@ -424,6 +449,16 @@ export const selectionMethods = {
     layer.touch();
     linked?.raster.touch();
     this.changed(null);
+    this.drawOverlay();
+  },
+
+  applyTextTransform(x) {
+    const layer = x.layer, before = x.text.before, s = x.text.t0;
+    if (['cx', 'cy', 'sx', 'sy', 'rot'].every(k => Math.abs(x.t[k] - s[k]) < 1e-9)) return this.cancelTransformState(x);
+    const m = textMatrixAfter(xfMatrix(x.t), x.text.b), after = { ...before };
+    if (m) after.m = m; else delete after.m;
+    const set = t => { layer.text = t; renderTextLayer(layer); this.changed(null); };
+    this.structural(x.moveOnly ? 'Move' : 'Transform text', () => set(after), () => set(before));
     this.drawOverlay();
   },
 
@@ -468,6 +503,7 @@ export const selectionMethods = {
   startDistort() {
     const x = this.xf;
     if (!x || x.quad || x.mesh || x.moveOnly) return;
+    if (x.text) return toast('Distort bends pixels: rasterize the text first (Layer → Rasterize text) to distort it.');
     x.quad = corners(x.t);
     this.readTransformSource(x);
     this.viewport.querySelector('.xf-bar')?.classList.add('distort');
@@ -488,6 +524,7 @@ export const selectionMethods = {
   startMesh() {
     const x = this.xf;
     if (!x || x.mesh || x.moveOnly) return;
+    if (x.text) return toast('Mesh bends pixels: rasterize the text first (Layer → Rasterize text) to bend it.');
     const pts = meshFromQuad(x.quad || corners(x.t), MESH_N);
     x.mesh = { n: MESH_N, pts, start: pts.map(p => ({ ...p })) };
     x.quad = null;

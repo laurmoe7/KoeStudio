@@ -1,7 +1,8 @@
 // Text layout, text settings, gradient maths and tool keys. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutText, sanitizeText, fontCss } from '../web/js/textlayer.js';
+import { layoutText, sanitizeText, fontCss, sanitizeTextMatrix, toTextLocal, textTransformStart, textMatrixAfter, textAfterMap } from '../web/js/textlayer.js';
+import { xfMatrix } from '../web/js/transform.js';
 import { gradientStops, snapEnd, gradientReach, repeatStops } from '../web/js/gradient.js';
 import { toolForKey, sanitizeSettings } from '../web/js/tools.js';
 import { sanitizeDoc } from '../web/js/doc.js';
@@ -112,4 +113,43 @@ test('text outlines are kept in range', async () => {
   assert.deepEqual([sanitizeText({}).outline, sanitizeText({}).outlineColor], [0, '#ffffff'], 'old text layers: no outline');
   assert.deepEqual([sanitizeText({ outline: 300, outlineColor: '#12abEF' }).outline, sanitizeText({ outlineColor: '#12abEF' }).outlineColor], [100, '#12abEF']);
   assert.equal(sanitizeText({ outlineColor: 'red; x' }).outlineColor, '#ffffff', 'only #rrggbb');
+});
+
+test('turned and scaled text keeps a matrix', () => {
+  assert.equal(sanitizeTextMatrix([1, 0, 0, 1, 0, 0]), null, 'no change is no matrix');
+  assert.equal(sanitizeTextMatrix([1, 0, 0.5, 1, 0, 0]), null, 'shear is refused');
+  assert.equal(sanitizeTextMatrix([0, 0, 0, 0, 0, 0]), null);
+  assert.equal(sanitizeTextMatrix('x'), null);
+  assert.deepEqual(sanitizeTextMatrix([0, 2, -2, 0, 10, 5]), [0, 2, -2, 0, 10, 5], 'turned 90° and doubled');
+  assert.equal(sanitizeText({}).m, undefined, 'plain text has none');
+  assert.deepEqual(sanitizeText({ m: [-1, 0, 0, 1, 100, 0] }).m, [-1, 0, 0, 1, 100, 0], 'mirrored');
+  // doc point -> layout point: m turns 90° clockwise and doubles, then moves by (10, 5)
+  const t = { m: [0, 2, -2, 0, 10, 5] };
+  const q = toTextLocal(t, { x: 10 - 2 * 3, y: 5 + 2 * 1 });  // the doc image of layout point (1, 3)
+  near(q.x, 1); near(q.y, 3);
+  // the transform box starts on the text's frame: layout box 40 x 20 at (0, 0) under m
+  const s = textTransformStart(t, { x: 0, y: 0, w: 40, h: 20 });
+  near(s.rot, Math.PI / 2); near(s.sx, 2); near(s.sy, 2);
+  near(s.cx, 10 - 2 * 10); near(s.cy, 5 + 2 * 20, 'centre (20, 10) maps to (10 - 20, 5 + 40)');
+  // and a transform left as it started gives the same matrix back
+  const back = textMatrixAfter(xfMatrix(s), { x: 0, y: 0, w: 40, h: 20 });
+  back.forEach((v, i) => near(v, t.m[i], `entry ${i}`));
+  // an untouched plain text: identity again
+  assert.equal(textMatrixAfter(xfMatrix(textTransformStart({}, { x: 5, y: 7, w: 30, h: 10 })), { x: 5, y: 7, w: 30, h: 10 }), null);
+  // a plain text box moved by (3, 4): only the shift
+  const moved = { ...textTransformStart({}, { x: 5, y: 7, w: 30, h: 10 }) };
+  moved.cx += 3; moved.cy += 4;
+  assert.deepEqual(textMatrixAfter(xfMatrix(moved), { x: 5, y: 7, w: 30, h: 10 }), [1, 0, 0, 1, 3, 4]);
+});
+
+test('text follows flips, turns and resizes of the canvas', () => {
+  const t = { content: 'a', x: 10, y: 20 };
+  assert.deepEqual(textAfterMap(t, [1, 0, 0, 1, -5, 3]).m, [1, 0, 0, 1, -5, 3], 'a crop shifts it');
+  assert.deepEqual(textAfterMap(t, [-1, 0, 0, 1, 100, 0]).m, [-1, 0, 0, 1, 100, 0], 'flipped across a 100 px canvas');
+  assert.equal(textAfterMap({ ...t, m: [-1, 0, 0, 1, 100, 0] }, [-1, 0, 0, 1, 100, 0]).m, undefined, 'flipped twice: back to none');
+  assert.deepEqual(textAfterMap(t, [0, 1, -1, 0, 300, 0]).m, [0, 1, -1, 0, 300, 0], 'a quarter turn right');
+  assert.deepEqual(textAfterMap(t, [2, 0, 0, 0.5, 0, 0]).m, [2, 0, 0, 0.5, 0, 0], 'an uneven resize of level text is fine');
+  const turned = { ...t, m: [0.6, 0.8, -0.8, 0.6, 0, 0] };
+  assert.equal(textAfterMap(turned, [2, 0, 0, 0.5, 0, 0]), null, 'but turned text would shear');
+  assert.deepEqual(textAfterMap(turned, [2, 0, 0, 2, 0, 0]).m, [1.2, 1.6, -1.6, 1.2, 0, 0], 'an even resize keeps it');
 });
