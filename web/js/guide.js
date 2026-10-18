@@ -381,7 +381,9 @@ export const GUIDE = [
     <figure data-pic="canvassize"></figure>
     <ul>
       <li>Image → <b>Canvas size</b> adds or removes space round the picture without stretching it.</li>
-      <li>Image → <b>Image size</b> makes the whole picture bigger or smaller.</li>
+      <li>Image → <b>Image size</b> makes the whole picture bigger or smaller. Its <b>Resolution (dpi)</b> sets how
+      big the picture prints, without changing any pixels; exported PNG, JPEG and BMP files carry it. Hover over the
+      size at the bottom right to see the print size.</li>
       <li>The <b>Crop</b> tool <kbd>C</kbd>: drag the edges of the box, then press <kbd>Enter</kbd>.</li>
       <li>Image → <b>Crop to selection</b> crops in one step; <b>Trim to content</b> cuts away empty space round your
       drawing.</li>

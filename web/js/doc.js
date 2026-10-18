@@ -8,6 +8,7 @@ import { sanitizeTone, applyTone } from './tone.js';
 import { sanitizeVector } from './vector.js';
 import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
+import { sanitizeDpi } from './resolution.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -79,6 +80,7 @@ export function sanitizeDoc(raw) {
     width: side(d.width || 1920),
     height: side(d.height || 1080),
     paper: d.paper === null ? null : (/^#[0-9a-f]{6}$/i.test(d.paper) ? d.paper : '#ffffff'),
+    dpi: sanitizeDpi(d.dpi),  // resolution for printing (resolution.js); older files: 72
     activePath,
     rulers: sanitizeRulers(d.rulers),
     layers,
@@ -218,12 +220,13 @@ export function loadImage(src) {
 }
 
 export class Doc {
-  constructor({ width, height, title = 'Untitled', paper = '#ffffff', id = null }) {
+  constructor({ width, height, title = 'Untitled', paper = '#ffffff', id = null, dpi = 72 }) {
     this.id = id;
     this.title = title;
     this.width = width;
     this.height = height;
     this.paper = paper;
+    this.dpi = sanitizeDpi(dpi);
     this.root = new Folder({ name: 'root' });
     this.active = null;  // the selected layer or folder
     this.rulers = defaultRulers();
@@ -281,7 +284,7 @@ export class Doc {
     };
     const layers = [];
     for (const n of this.root.children) layers.push(await node(n));
-    return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper,
+    return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper, dpi: this.dpi,
       activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, layers };
   }
 

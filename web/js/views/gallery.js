@@ -3,18 +3,20 @@
 
 import { api } from '../api.js';
 import { Doc, MAX_SIDE, loadImage } from '../doc.js';
+import { DPI_MIN, DPI_MAX, sanitizeDpi, printLabel } from '../resolution.js';
 import { icon } from '../icons.js';
 import { guideDialog } from './help.js';
 import { esc, toast, modal, confirmBox, promptBox, fileToDataUrl, menu } from '../ui.js';
 
+/** [label, width, height, dpi] */
 export const PRESETS = [
-  ['Full HD (1920 × 1080)', 1920, 1080],
-  ['Square (2048 × 2048)', 2048, 2048],
-  ['Illustration (3000 × 4000)', 3000, 4000],
-  ['A4 at 300 dpi (2480 × 3508)', 2480, 3508],
-  ['B5 manga page at 600 dpi (4299 × 6071)', 4299, 6071],
-  ['Twitter / X post (1600 × 900)', 1600, 900],
-  ['Icon (512 × 512)', 512, 512],
+  ['Full HD (1920 × 1080)', 1920, 1080, 72],
+  ['Square (2048 × 2048)', 2048, 2048, 72],
+  ['Illustration (3000 × 4000)', 3000, 4000, 350],
+  ['A4 at 300 dpi (2480 × 3508)', 2480, 3508, 300],
+  ['B5 manga page at 600 dpi (4299 × 6071)', 4299, 6071, 600],
+  ['Twitter / X post (1600 × 900)', 1600, 900, 72],
+  ['Icon (512 × 512)', 512, 512, 72],
 ];
 
 export async function showGallery(root, { onOpen }) {
@@ -205,17 +207,22 @@ export function newCanvasDialog() {
       <div class="field-row">
         <label class="field"><span>Width (px)</span><input type="number" name="w" min="1" max="${MAX_SIDE}" value="${PRESETS[0][1]}"></label>
         <label class="field"><span>Height (px)</span><input type="number" name="h" min="1" max="${MAX_SIDE}" value="${PRESETS[0][2]}"></label>
+        <label class="field"><span>Resolution (dpi)</span><input type="number" name="dpi" min="${DPI_MIN}" max="${DPI_MAX}" value="${PRESETS[0][3]}"></label>
       </div>
+      <p class="muted small" data-print></p>
       <label class="field"><span>Paper</span><select name="paper"><option value="#ffffff">White</option><option value="custom">Color…</option><option value="none">Transparent</option></select></label>
       <input type="color" name="paperColor" value="#f4efe4" hidden>`,
     buttons: [{ label: 'Cancel', value: null }, { label: 'Create', primary: true }],
     onOpen: root => {
       const f = n => root.querySelector(`[name="${n}"]`);
+      const print = () => { root.querySelector('[data-print]').textContent = 'Prints at ' + printLabel(+f('w').value || 1, +f('h').value || 1, f('dpi').value); };
       f('preset').onchange = () => {
         const p = PRESETS[+f('preset').value];
-        if (p) { f('w').value = p[1]; f('h').value = p[2]; }
+        if (p) { f('w').value = p[1]; f('h').value = p[2]; f('dpi').value = p[3]; }
+        print();
       };
-      for (const n of ['w', 'h']) f(n).oninput = () => { f('preset').value = 'custom'; };
+      for (const n of ['w', 'h', 'dpi']) f(n).oninput = () => { f('preset').value = 'custom'; print(); };
+      print();
       f('paper').onchange = () => { f('paperColor').hidden = f('paper').value !== 'custom'; };
       f('title').select();
     },
@@ -227,7 +234,7 @@ export function newCanvasDialog() {
         return undefined;
       }
       const paper = f('paper').value === 'none' ? null : f('paper').value === 'custom' ? f('paperColor').value : '#ffffff';
-      return Doc.blank({ width: w, height: h, title: f('title').value.trim() || 'Untitled', paper });
+      return Doc.blank({ width: w, height: h, title: f('title').value.trim() || 'Untitled', paper, dpi: sanitizeDpi(f('dpi').value) });
     },
   });
 }

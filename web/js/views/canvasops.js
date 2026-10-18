@@ -6,6 +6,7 @@
 import { mapRulers } from '../rulers.js';
 import { ANCHORS, anchorOffset, validSide, keepRatio, rotatedSize, cropRect } from '../canvasmath.js';
 import { MAX_SIDE, renderFolder } from '../doc.js';
+import { DPI_MIN, DPI_MAX, sanitizeDpi, printLabel } from '../resolution.js';
 import { icon } from '../icons.js';
 import { Selection, maskBounds } from '../selection.js';
 import { newTransform, corners, hitTest, dragHandle } from '../transform.js';
@@ -58,7 +59,7 @@ export const canvasMethods = {
     for (const c of [this.comp, this.stroke]) { c.width = s.w; c.height = s.h; }
     this.mips = [this.comp];
     this.sel = new Selection(s.w, s.h);  // a selection does not survive a change of canvas size
-    this.root.querySelector('.doc-size').textContent = `${s.w} × ${s.h} px`;
+    this.showDocSize();
     if (this.crop) this.startCrop();
     this.updateComp(null);
     this.fit();
@@ -102,38 +103,53 @@ export const canvasMethods = {
     const res = await modal({
       title: 'Image size',
       body: `
-        <p class="muted small">Stretches or shrinks the whole picture, every layer. Now ${d.width} × ${d.height} px.</p>
+        <p class="muted small">Stretches or shrinks the whole picture, every layer. Now ${d.width} × ${d.height} px at ${d.dpi} dpi.</p>
         <div class="field-row">
           <label class="field"><span>Width (px)</span><input type="number" name="w" min="1" max="${MAX_SIDE}" value="${d.width}"></label>
           <label class="field"><span>Height (px)</span><input type="number" name="h" min="1" max="${MAX_SIDE}" value="${d.height}"></label>
           <label class="field"><span>Scale (%)</span><input type="number" name="pct" min="1" max="1000" value="100"></label>
         </div>
+        <div class="field-row">
+          <label class="field"><span>Resolution (dpi)</span><input type="number" name="dpi" min="${DPI_MIN}" max="${DPI_MAX}" value="${d.dpi}"></label>
+        </div>
+        <p class="muted small" data-print></p>
         <label class="check"><input type="checkbox" name="keep" checked> Keep proportions</label>
         <label class="check"><input type="checkbox" name="smooth" checked> Smooth (off keeps hard pixels, for pixel art)</label>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'Resize image', primary: true }],
       onOpen: root => {
         const f = n => root.querySelector(`[name="${n}"]`);
+        const print = () => { root.querySelector('[data-print]').textContent = 'Prints at ' + printLabel(+f('w').value || 1, +f('h').value || 1, f('dpi').value); };
         f('w').oninput = () => {
           if (f('keep').checked && validSide(f('w').value)) f('h').value = keepRatio(d.width, d.height, +f('w').value);
           f('pct').value = Math.round(+f('w').value / d.width * 100);
+          print();
         };
         f('h').oninput = () => {
           if (f('keep').checked && validSide(f('h').value)) f('w').value = keepRatio(d.height, d.width, +f('h').value);
           f('pct').value = Math.round(+f('h').value / d.height * 100);
+          print();
         };
         f('pct').oninput = () => {
           const k = +f('pct').value / 100;
           if (k > 0) { f('w').value = Math.max(1, Math.round(d.width * k)); f('h').value = Math.max(1, Math.round(d.height * k)); }
+          print();
         };
+        f('dpi').oninput = print;
+        print();
       },
       collect: root => {
         const f = n => root.querySelector(`[name="${n}"]`);
         const w = validSide(f('w').value), h = validSide(f('h').value);
         if (!w || !h) { toast(`Width and height must be between 1 and ${MAX_SIDE} pixels.`, { error: true }); return undefined; }
-        return { w, h, smooth: f('smooth').checked };
+        return { w, h, smooth: f('smooth').checked, dpi: sanitizeDpi(f('dpi').value) };
       },
     });
-    if (!res || (res.w === d.width && res.h === d.height)) return;
+    if (!res) return;
+    if (res.dpi !== d.dpi) {  // the print size: no pixels change, so its own small undo step
+      const old = d.dpi;
+      this.structural('Resolution', () => { d.dpi = res.dpi; this.showDocSize(); }, () => { d.dpi = old; this.showDocSize(); });
+    }
+    if (res.w === d.width && res.h === d.height) return;
     this.reshapeCanvas('Image size', res.w, res.h, (ctx, old) => {
       ctx.imageSmoothingEnabled = res.smooth;
       ctx.drawImage(old, 0, 0, res.w, res.h);

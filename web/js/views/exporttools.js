@@ -5,6 +5,7 @@
 import { api } from '../api.js';
 import { composite } from '../doc.js';
 import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, exportSize, sanitizeExportOptions } from '../imageformats.js';
+import { pngWithDpi, jpegWithDpi } from '../resolution.js';
 import { esc, toast, modal, store, confirmBox } from '../ui.js';
 import { versionsDialog, newCanvasDialog, importImage } from './gallery.js';
 import { browseFile } from './filebrowser.js';
@@ -56,10 +57,13 @@ export const exportMethods = {
       let blob;
       if (['gif', 'tga', 'bmp'].includes(fmt.id)) {
         const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-        blob = new Blob([encodePixels(fmt.id, data, canvas.width, canvas.height)]);
+        blob = new Blob([encodePixels(fmt.id, data, canvas.width, canvas.height, this.doc.dpi)]);
       } else {
         blob = await new Promise(r => canvas.toBlob(r, fmt.mime, fmt.quality ? o.quality / 100 : undefined));
         if (!blob || blob.type !== fmt.mime) throw new Error(`This window cannot make ${fmt.label} files`);
+        // the artwork's resolution goes into the file, so it prints at the same size elsewhere
+        if (fmt.id === 'png') blob = new Blob([pngWithDpi(new Uint8Array(await blob.arrayBuffer()), this.doc.dpi)], { type: fmt.mime });
+        if (fmt.id === 'jpg') blob = new Blob([jpegWithDpi(new Uint8Array(await blob.arrayBuffer()), this.doc.dpi)], { type: fmt.mime });
       }
       const res = await writeExport(name, fmt.ext, blob, dir, !format);
       if (res) toast(`Exported ${canvas.width} × ${canvas.height} ${fmt.label} to ${res.path}`, { action: showFolder(res.folder), ms: 6000 });

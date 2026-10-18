@@ -54,8 +54,8 @@ export function encodeTga(rgba, w, h) {
   return out;
 }
 
-/** 32-bit BMP with a BITMAPV4HEADER so the alpha channel is declared; rows bottom-up. */
-export function encodeBmp(rgba, w, h) {
+/** 32-bit BMP with a BITMAPV4HEADER so the alpha channel is declared; rows bottom-up. dpi goes in the header. */
+export function encodeBmp(rgba, w, h, dpi = 72) {
   const head = 14 + 108, size = head + w * h * 4;
   const out = new Uint8Array(size);
   out[0] = 0x42; out[1] = 0x4d;
@@ -64,7 +64,8 @@ export function encodeBmp(rgba, w, h) {
   u16(out, 26, 1); u16(out, 28, 32);
   u32(out, 30, 3);  // BI_BITFIELDS
   u32(out, 34, w * h * 4);
-  u32(out, 38, 2835); u32(out, 42, 2835);
+  const ppm = Math.round(Math.max(1, Math.min(2400, Math.round(dpi) || 72)) / 0.0254);  // pixels per metre
+  u32(out, 38, ppm); u32(out, 42, ppm);
   u32(out, 54, 0x00ff0000); u32(out, 58, 0x0000ff00); u32(out, 62, 0x000000ff); u32(out, 66, 0xff000000);
   out[70] = 0x20; out[71] = 0x6e; out[72] = 0x69; out[73] = 0x57;  // 'Win ' colour space
   let o = head;
@@ -195,10 +196,10 @@ export function encodeGif(rgba, w, h) {
   return Uint8Array.from(out);
 }
 
-/** Encodes RGBA pixels as the given non-canvas format id ('tga', 'bmp', 'gif'). */
-export function encodePixels(format, rgba, w, h) {
+/** Encodes RGBA pixels as the given non-canvas format id ('tga', 'bmp', 'gif'); BMP records dpi. */
+export function encodePixels(format, rgba, w, h, dpi = 72) {
   if (format === 'tga') return encodeTga(rgba, w, h);
-  if (format === 'bmp') return encodeBmp(rgba, w, h);
+  if (format === 'bmp') return encodeBmp(rgba, w, h, dpi);
   if (format === 'gif') return encodeGif(rgba, w, h);
   throw new Error('Unknown format ' + format);
 }

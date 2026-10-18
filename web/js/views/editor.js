@@ -45,6 +45,7 @@ import { pressureMethods } from './pressuretool.js';
 import { lineEditMethods } from './lineedittool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
+import { printLabel } from '../resolution.js';
 import { brushMethods, curveSvg } from './brushtools.js';
 import { symmetryStamps } from '../symmetry.js';
 import { linePoints } from '../figure.js';
@@ -126,6 +127,7 @@ export class Editor {
     this.needsFit = true;  // done by resize() once the viewport has a real size
     this.resize();
     this.layerPanel.render();
+    this.showDocSize();
     this.selectTool(this.tool);
     this.loadBrushLibrary();
     window.addEventListener('keydown', this.onKey);
@@ -211,7 +213,7 @@ export class Editor {
           </div>
           <div class="grow"></div>
           <span class="muted small cursor-pos"></span>
-          <span class="muted small doc-size">${doc.width} × ${doc.height} px</span>
+          <span class="muted small doc-size"></span>
         </footer>
       </div>`;
     const $ = s => this.root.querySelector(s);
@@ -601,6 +603,13 @@ export class Editor {
     ctx.fillRect(0, 0, d.width, d.height);
     this.tintKey = key;
     return c;
+  }
+
+  /** The canvas size in the status bar, with its print size on hover. */
+  showDocSize() {
+    const d = this.doc, el = this.root.querySelector('.doc-size');
+    el.textContent = `${d.width} × ${d.height} px`;
+    el.title = `${d.dpi} dpi: prints at ${printLabel(d.width, d.height, d.dpi)} (Image → Image size to change)`;
   }
 
   /** View → Grayscale view: the canvas on screen in grays, to judge light and dark; the artwork keeps its colours. */
