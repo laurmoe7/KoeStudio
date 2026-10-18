@@ -8,7 +8,7 @@
 // to the stroke's direction is picked (towards a vanishing point, the perspective's horizontal/vertical, or a
 // guide the stroke started on), and every point is projected onto it.
 //
-// doc.rulers.shapes holds the straight-line and concentric rulers:
+// doc.rulers.shapes holds the straight-line, concentric and curve rulers:
 //   {type: 'line', x1, y1, x2, y2}: a stroke started near the line (or its extension) follows it;
 //   {type: 'ellipse', x, y, rx, ry, angle}: every stroke follows the ellipse with the same centre, shape and turn
 //   that passes through where it started (concentric circles when rx = ry);
