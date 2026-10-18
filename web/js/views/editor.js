@@ -1769,7 +1769,7 @@ export class Editor {
     this.setStatus('Saving…');
     this.saving = (async () => {
       // only the pictures changed since the last save travel; the server fills in the rest (app.py SAVE_CACHE)
-      const thumb = await canvasToDataUrl(d.flatten(360));
+      const thumb = await canvasToDataUrl(this.thumbCanvas(360));
       const send = async have => {
         const delta = { have, keys: new Set() };
         const json = await d.toJSON(delta);
@@ -1807,6 +1807,25 @@ export class Editor {
     if (d.version !== this.savedVersion && this.saveAgain) { this.saveAgain = false; return this.save(); }
     if (d.version === this.savedVersion) this.setStatus('Saved', 'Saved at ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     else this.setStatus('Unsaved changes');
+  }
+
+  /**
+   * The gallery picture, at most `max` px a side: from the kept halvings of the composite (updateMips), so it is an
+   * even average of the picture; shrinking the whole page in one step only picked scattered pixels of the line art.
+   */
+  thumbCanvas(max) {
+    const d = this.doc, view = this.compView();
+    if (view?.onion) return d.flatten(max);  // the composite shows the onion skins: the picture without them
+    const big = Math.max(d.width, d.height), k = Math.max(0, Math.floor(Math.log2(big / max)));
+    let src = this.comp;
+    if (k) src = this.updateMips(k); else this.flushComp();
+    const s = Math.min(1, max / big), f = 2 ** k, c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(d.width * s)); c.height = Math.max(1, Math.round(d.height * s));
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'low';
+    ctx.drawImage(src, 0, 0, d.width / f, d.height / f, 0, 0, c.width, c.height);
+    return c;
   }
 
   /** Saves anything pending; used before reloading or leaving the editor. */
