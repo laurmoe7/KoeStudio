@@ -894,7 +894,7 @@ export class Editor {
         const out = inp.parentElement.querySelector('output');
         if (out) out.textContent = fmt(k, s[k]);
         store('tools', this.settings);
-        if (t.id === 'text') this.textSettingsChanged();
+        if (t.id === 'text') this.textSettingsChanged(k);
         if (k === 'texture' || k === 'figure') this.renderToolProps();  // which settings show depends on these
         else this.showSetting(k, inp);
         this.drawBrushPreview();

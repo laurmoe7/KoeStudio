@@ -193,6 +193,9 @@ export const GUIDE = [
     </ol>
     <p>Choose the font, size, bold, italic, alignment and line spacing in the tool panel. <b>Vertical</b> writes top to
     bottom, as in manga. <b>Outline</b> puts a border round the letters.</p>
+    <p><b>Style part of the text:</b> select some letters in the text box, then change the font, size, Bold, Italic
+    or the main colour: only those letters change. With nothing selected, a change goes to the whole text. Letters
+    you type carry on the look of the letter before them.</p>
     <p>Edit → <b>Transform</b> (<kbd>Ctrl</kbd>+<kbd>T</kbd>) turns, sizes and mirrors a text layer and it stays text:
     you can still click it to change the words, and it stays sharp at any size. Flipping, turning or resizing the
     canvas keeps text editable too. Only Distort and Mesh need it rasterized.</p>

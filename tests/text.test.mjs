@@ -1,7 +1,7 @@
 // Text layout, text settings, gradient maths and tool keys. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutText, sanitizeText, fontCss, sanitizeTextMatrix, toTextLocal, textTransformStart, textMatrixAfter, textAfterMap } from '../web/js/textlayer.js';
+import { layoutText, sanitizeText, fontCss, sanitizeTextMatrix, toTextLocal, textTransformStart, textMatrixAfter, textAfterMap, styleRange, editContent, restyleText, styleAt } from '../web/js/textlayer.js';
 import { xfMatrix } from '../web/js/transform.js';
 import { gradientStops, snapEnd, gradientReach, repeatStops } from '../web/js/gradient.js';
 import { toolForKey, sanitizeSettings } from '../web/js/tools.js';
@@ -152,4 +152,43 @@ test('text follows flips, turns and resizes of the canvas', () => {
   const turned = { ...t, m: [0.6, 0.8, -0.8, 0.6, 0, 0] };
   assert.equal(textAfterMap(turned, [2, 0, 0, 0.5, 0, 0]), null, 'but turned text would shear');
   assert.deepEqual(textAfterMap(turned, [2, 0, 0, 2, 0, 0]).m, [1.2, 1.6, -1.6, 1.2, 0, 0], 'an even resize keeps it');
+});
+
+test('styling parts of a text', () => {
+  const t = sanitizeText({ content: 'Hello world', size: 20, color: '#000000' });
+  assert.equal(t.runs, undefined, 'plain text has no runs');
+  const b = styleRange(t, 0, 5, { bold: true });
+  assert.deepEqual(b.runs, [{ from: 0, to: 5, bold: true }]);
+  const c = styleRange(b, 3, 8, { color: '#FF0000' });
+  assert.deepEqual(c.runs, [{ from: 0, to: 3, bold: true }, { from: 3, to: 5, bold: true, color: '#ff0000' }, { from: 5, to: 8, color: '#ff0000' }],
+    'overlapping changes split into runs that each say all they change');
+  assert.deepEqual(styleRange(c, 0, 11, { bold: false, color: '#000000' }).runs, undefined, "back to the text's own look: no runs");
+  // from a file: bad values dropped, overlaps resolved, runs past the end cut
+  assert.deepEqual(sanitizeText({ content: 'abc', runs: [{ from: 1, to: 9, size: 'x', italic: true }, { from: 0, to: 1, font: '<b>' }, 'junk'] }).runs,
+    [{ from: 1, to: 3, italic: true }]);
+  // typing: inside or right after a run continues it; before it at the start, the run moves along
+  assert.deepEqual(editContent(b, 'HelloX world').runs, [{ from: 0, to: 6, bold: true }], 'typed right after the bold part');
+  assert.deepEqual(editContent(b, 'Hello wXorld').runs, [{ from: 0, to: 5, bold: true }], 'typed in the plain part');
+  assert.deepEqual(editContent(b, '>Hello world').runs, [{ from: 0, to: 6, bold: true }], "at the very start: takes the first character's look");
+  assert.deepEqual(editContent(b, 'Ho world').runs, [{ from: 0, to: 2, bold: true }], 'deleting takes the deleted styles along');
+  assert.deepEqual(editContent(c, 'Hello').runs, [{ from: 0, to: 3, bold: true }, { from: 3, to: 5, bold: true, color: '#ff0000' }]);
+  assert.equal(styleAt(b, 2).bold, true);
+  assert.equal(styleAt(b, 7).bold, false);
+  assert.deepEqual(styleAt(b, -1), { font: 'Segoe UI', size: 20, bold: false, italic: false, color: '#000000' }, 'before the start: the text’s own look');
+  // changing the whole text's settings drops what now matches
+  assert.equal(restyleText(b, { bold: true }).runs, undefined);
+});
+
+test('layout with mixed sizes', () => {
+  const m = (s, st) => s.length * (st ? st.size / 2 : 10);  // characters half as wide as they are tall
+  const t = styleRange(sanitizeText({ content: 'aab\nc', x: 0, y: 0, size: 20, leading: 1 }), 2, 3, { size: 40 });
+  const { glyphs, bounds } = layoutText(t, m);
+  // line 1: 'aa' (20 px, 2 x 10 wide) then 'b' (40 px, 20 wide); 40 tall. Line 2: 'c', 20 tall.
+  assert.deepEqual(bounds, { x: 0, y: 0, w: 40, h: 60 });
+  assert.deepEqual(glyphs.map(g => [g.str, g.x, g.y, g.st.size]), [['aa', 0, 16, 20], ['b', 20, 0, 40], ['c', 0, 40, 20]],
+    "the small letters are lowered 0.8 x (40 - 20) = 16 onto the big one's baseline");
+  const v = layoutText({ ...t, vertical: true, x: 100 }, m);
+  // column 1: a, a (20 each) and b (40) down; pitch 40. Column 2: c, pitch 20.
+  assert.deepEqual(v.bounds, { x: 40, y: 0, w: 60, h: 80 });
+  assert.deepEqual(v.glyphs.map(g => [g.str, g.x, g.y]), [['a', 80, 0], ['a', 80, 20], ['b', 80, 40], ['c', 50, 0]]);
 });

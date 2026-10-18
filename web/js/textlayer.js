@@ -76,7 +76,7 @@ export function textMatrixAfter(xm, b) {
 export function sanitizeText(raw) {
   const t = raw && typeof raw === 'object' ? raw : {};
   const num = (v, lo, hi, def) => (Number.isFinite(+v) ? Math.max(lo, Math.min(hi, +v)) : def);
-  return {
+  const out = {
     content: String(t.content ?? '').slice(0, 5000),
     x: num(t.x, -100000, 100000, 0),
     y: num(t.y, -100000, 100000, 0),
@@ -93,41 +93,200 @@ export function sanitizeText(raw) {
     outlineColor: /^#[0-9a-f]{6}$/i.test(t.outlineColor) ? t.outlineColor : '#ffffff',
     ...(sanitizeTextMatrix(t.m) ? { m: sanitizeTextMatrix(t.m) } : {}),
   };
+  const runs = t.runs ? sanitizeRuns(t.runs, out) : [];  // styles of parts of the text (see below)
+  if (runs.length) out.runs = runs;
+  return out;
 }
 
 export function fontCss(t) {
   return `${t.italic ? 'italic ' : ''}${t.bold ? 'bold ' : ''}${t.size}px "${t.font}", "Segoe UI", sans-serif`;
 }
 
+// ---------- per-character styles ----------
+//
+// `runs` (optional) styles parts of the text differently from the text's own settings: [{from, to, font?, size?,
+// bold?, italic?, color?}], from/to as string indices into content (to exclusive), sorted, not overlapping, each
+// holding only what differs from the text's settings. Typing inside or right after a run continues its style.
+
+/** What a run may change. */
+export const RUN_KEYS = ['font', 'size', 'bold', 'italic', 'color'];
+const FONT_RE = /^[\w .-]{1,60}$/, HEX_RE = /^#[0-9a-f]{6}$/i;
+/** How far below a line's top a letter's top sits per px it is smaller than the line's largest letter, so small
+ *  and big letters share a baseline (about the ascent of the em box in common fonts). */
+const ASCENT = 0.8;
+
+const baseStyle = t => ({ font: t.font, size: t.size, bold: t.bold, italic: t.italic, color: String(t.color).toLowerCase() });
+
+/** One run property cleaned up, or undefined when it is not valid. */
+function runValue(k, v) {
+  if (k === 'font') return typeof v === 'string' && FONT_RE.test(v) ? v : undefined;
+  if (k === 'size') return Number.isFinite(+v) && v !== null && v !== '' && typeof v !== 'boolean' ? Math.max(1, Math.min(1000, +v)) : undefined;
+  if (k === 'color') return typeof v === 'string' && HEX_RE.test(v) ? v.toLowerCase() : undefined;
+  return typeof v === 'boolean' ? v : undefined;
+}
+
+/** Per string index: what that character changes ({} = nothing), from runs (later runs win where they overlap). */
+function expandRuns(runs, len) {
+  const out = Array.from({ length: len }, () => ({}));
+  for (const r of Array.isArray(runs) ? runs.slice(0, 5000) : []) {
+    if (!r || typeof r !== 'object') continue;
+    const from = Math.max(0, Math.floor(+r.from || 0)), to = Math.min(len, Math.floor(+r.to || 0));
+    for (let i = from; i < to; i++) {
+      for (const k of RUN_KEYS) {
+        const v = runValue(k, r[k]);
+        if (v !== undefined) out[i][k] = v;
+      }
+    }
+  }
+  return out;
+}
+
+/** Per-character changes back into runs: what equals the base dropped, equal neighbours joined. */
+function compressRuns(over, base) {
+  const runs = [];
+  over.forEach((o, i) => {
+    const d = {};
+    for (const k of RUN_KEYS) if (o[k] !== undefined && o[k] !== base[k]) d[k] = o[k];
+    if (!Object.keys(d).length) return;
+    const last = runs[runs.length - 1];
+    if (last && last.to === i && RUN_KEYS.every(k => last[k] === d[k])) last.to = i + 1;
+    else runs.push({ from: i, to: i + 1, ...d });
+  });
+  return runs;
+}
+
+/** Runs cleaned up for a text (its content and settings); [] when there are none. */
+export const sanitizeRuns = (runs, t) => compressRuns(expandRuns(runs, t.content.length), baseStyle(t));
+
+/** The text with characters from..to (string indices) given props (any of RUN_KEYS); a new object. */
+export function styleRange(t, from, to, props) {
+  const over = expandRuns(t.runs, t.content.length);
+  for (let i = Math.max(0, from); i < Math.min(over.length, to); i++) {
+    for (const k of RUN_KEYS) {
+      if (!(k in props)) continue;
+      const v = runValue(k, props[k]);
+      if (v !== undefined) over[i][k] = v;
+    }
+  }
+  return withRuns(t, compressRuns(over, baseStyle(t)));
+}
+
+/** The text with its own settings changed (props) and its runs kept, minus what now equals the new settings. */
+export function restyleText(t, props) {
+  const next = { ...t, ...props };
+  return t.runs?.length ? withRuns(next, compressRuns(expandRuns(t.runs, t.content.length), baseStyle(next))) : next;
+}
+
 /**
- * Where each piece of text goes: { glyphs: [{str, x, y, center}], bounds: {x, y, w, h} }.
- * measure(str) is the width of str in the text's font. Horizontal lines are drawn left-aligned at their x;
- * vertical text is drawn one character at a time, centred on its column (center: true).
+ * The text with its content replaced by `content`, the runs following the edit: the part that changed is found
+ * by the common start and end, deleted characters take their styles along, and new characters take the style of
+ * the one before them (or after, at the very start).
+ */
+export function editContent(t, content) {
+  const old = t.content;
+  if (!t.runs?.length || old === content) return { ...t, content };
+  let p = 0;
+  while (p < old.length && p < content.length && old[p] === content[p]) p++;
+  let q = 0;
+  while (q < old.length - p && q < content.length - p && old[old.length - 1 - q] === content[content.length - 1 - q]) q++;
+  const over = expandRuns(t.runs, old.length);
+  const like = over[p - 1] || over[old.length - q] || {};
+  const added = Array.from({ length: content.length - p - q }, () => ({ ...like }));
+  const next = [...over.slice(0, p), ...added, ...over.slice(old.length - q)];
+  return withRuns({ ...t, content }, compressRuns(next, baseStyle(t)));
+}
+
+function withRuns(t, runs) {
+  const out = { ...t };
+  if (runs.length) out.runs = runs; else delete out.runs;
+  return out;
+}
+
+/** The full style ({font, size, bold, italic, color}) of the character at string index i (the text's own when out of range). */
+export function styleAt(t, i) {
+  const base = baseStyle(t);
+  if (!(i >= 0 && i < t.content.length)) return base;
+  return { ...base, ...expandRuns(t.runs, t.content.length)[i] };
+}
+
+/** The full style of each string index of the content: base settings with the runs over them (shared objects). */
+function charStyles(t) {
+  const base = baseStyle(t), cache = new Map();
+  return expandRuns(t.runs, t.content.length).map(o => {
+    const key = RUN_KEYS.map(k => o[k] ?? '').join('|');
+    if (!cache.has(key)) cache.set(key, { ...base, ...o });
+    return cache.get(key);
+  });
+}
+
+/**
+ * Where each piece of text goes: { glyphs: [{str, x, y, center, st}], bounds: {x, y, w, h} }.
+ * measure(str, st) is the width of str in style st ({font, size, bold, italic}). Horizontal lines are drawn as
+ * pieces of one style, left-aligned at their x; each line is as tall as its largest letters (times the line
+ * spacing), with smaller letters lowered onto the same baseline. Vertical text is drawn one character at a time,
+ * centred on its column (center: true); each character takes its own size down the column. st is the piece's
+ * full style (font, size, bold, italic, color).
  */
 export function layoutText(t, measure) {
-  const lines = t.content.split('\n');
-  const lh = t.size * t.leading, pad = (lh - t.size) / 2;
+  const styles = charStyles(t), base = baseStyle(t);
+  let at = 0;
+  const lines = t.content.split('\n').map(str => { const start = at; at += str.length + 1; return { str, start }; });
+  const sizeOfEmpty = start => (styles[start] || styles[start - 1] || base).size;
   const glyphs = [];
   if (!t.vertical) {
-    const widths = lines.map(l => measure(l));
-    const w = Math.max(0, ...widths), h = lines.length * lh;
-    const left = t.align === 'left' ? t.x : t.align === 'center' ? t.x - w / 2 : t.x - w;
-    lines.forEach((str, i) => {
-      const x = t.align === 'left' ? t.x : t.align === 'center' ? t.x - widths[i] / 2 : t.x - widths[i];
-      if (str) glyphs.push({ str, x, y: t.y + i * lh + pad, center: false });
+    let top = t.y;
+    const rows = lines.map(({ str, start }) => {
+      const segs = [];
+      for (let i = 0; i < str.length; i++) {
+        const st = styles[start + i], last = segs[segs.length - 1];
+        if (last && last.st === st) last.str += str[i]; else segs.push({ str: str[i], st });
+      }
+      const widths = segs.map(s => measure(s.str, s.st));
+      const size = segs.length ? Math.max(...segs.map(s => s.st.size)) : sizeOfEmpty(start);
+      const row = { segs, widths, w: widths.reduce((a, b) => a + b, 0), size, lh: size * t.leading, top };
+      top += row.lh;
+      return row;
     });
+    const w = Math.max(0, ...rows.map(r => r.w)), h = top - t.y;
+    const left = t.align === 'left' ? t.x : t.align === 'center' ? t.x - w / 2 : t.x - w;
+    for (const r of rows) {
+      let x = t.align === 'left' ? t.x : t.align === 'center' ? t.x - r.w / 2 : t.x - r.w;
+      const y = r.top + (r.lh - r.size) / 2;
+      r.segs.forEach((s, k) => {
+        glyphs.push({ str: s.str, x, y: y + (r.size - s.st.size) * ASCENT, center: false, st: s.st });
+        x += r.widths[k];
+      });
+    }
     return { glyphs, bounds: { x: left, y: t.y, w, h } };
   }
-  const cols = lines.map(l => Array.from(l));
-  const longest = Math.max(0, ...cols.map(c => c.length));
-  const w = lines.length * lh, h = longest * t.size;
-  cols.forEach((chars, i) => {
-    const cx = t.x - i * lh - lh / 2;
-    const free = (longest - chars.length) * t.size;
-    const top = t.y + (t.align === 'left' ? 0 : t.align === 'center' ? free / 2 : free);
-    chars.forEach((ch, j) => glyphs.push({ str: ch, x: cx, y: top + j * t.size, center: true }));
+  const cols = lines.map(({ str, start }) => {
+    const chars = [];
+    for (let i = 0; i < str.length;) {
+      const ch = String.fromCodePoint(str.codePointAt(i));
+      chars.push({ ch, st: styles[start + i] });
+      i += ch.length;
+    }
+    const size = chars.length ? Math.max(...chars.map(c => c.st.size)) : sizeOfEmpty(start);
+    return { chars, pitch: size * t.leading, len: chars.reduce((a, c) => a + c.st.size, 0) };
   });
-  return { glyphs, bounds: { x: t.x - w, y: t.y, w, h } };
+  const longest = Math.max(0, ...cols.map(c => c.len));
+  let right = t.x;
+  for (const c of cols) {
+    const cx = right - c.pitch / 2;
+    right -= c.pitch;
+    const free = longest - c.len;
+    let y = t.y + (t.align === 'left' ? 0 : t.align === 'center' ? free / 2 : free);
+    for (const { ch, st } of c.chars) {
+      glyphs.push({ str: ch, x: cx, y, center: true, st });
+      y += st.size;
+    }
+  }
+  return { glyphs, bounds: { x: right, y: t.y, w: t.x - right, h: longest } };
+}
+
+/** A layoutText measure function using ctx's text metrics. */
+function measureWith(ctx) {
+  return (s, st) => { ctx.font = fontCss(st); return ctx.measureText(s).width; };
 }
 
 /** Clears the layer's canvas and draws its text. */
@@ -145,18 +304,18 @@ export function renderTextLayer(layer) {
 /** Draws a text's glyphs (and outline) in its layout space, under ctx's current transform. */
 export function drawText(ctx, t) {
   ctx.save();
-  ctx.font = fontCss(t);
-  ctx.fillStyle = t.color;
   ctx.textBaseline = 'top';
-  const { glyphs } = layoutText(t, s => ctx.measureText(s).width);
+  const { glyphs } = layoutText(t, measureWith(ctx));
+  const look = g => { ctx.font = fontCss(g.st); ctx.textAlign = g.center ? 'center' : 'left'; };
   if (t.outline > 0) {  // under the letters, twice as wide, so `outline` px show around them
     ctx.strokeStyle = t.outlineColor;
     ctx.lineWidth = t.outline * 2;
     ctx.lineJoin = 'round';
-    for (const g of glyphs) { ctx.textAlign = g.center ? 'center' : 'left'; ctx.strokeText(g.str, g.x, g.y); }
+    for (const g of glyphs) { look(g); ctx.strokeText(g.str, g.x, g.y); }
   }
   for (const g of glyphs) {
-    ctx.textAlign = g.center ? 'center' : 'left';
+    look(g);
+    ctx.fillStyle = g.st.color;
     ctx.fillText(g.str, g.x, g.y);
   }
   ctx.restore();
@@ -165,8 +324,7 @@ export function drawText(ctx, t) {
 /** Bounds of a text layer's text in its layout space (see textMatrix), for clicking on it and placing the editor. */
 export function textBounds(t, ctx) {
   ctx.save();
-  ctx.font = fontCss(t);
-  const b = layoutText(t, s => ctx.measureText(s).width).bounds;
+  const b = layoutText(t, measureWith(ctx)).bounds;
   ctx.restore();
   const o = t.outline || 0;
   return o ? { x: b.x - o, y: b.y - o, w: b.w + 2 * o, h: b.h + 2 * o } : b;

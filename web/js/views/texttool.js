@@ -1,10 +1,12 @@
 // Text tool: click to start a text layer, click an existing text to edit it again. Typing goes into a textarea
 // laid over the canvas (its own text is invisible; what you see is the layer being drawn as you type), placed
 // with the view's transform so it follows zoom, rotation and mirroring. Click elsewhere, switch tools,
-// Esc or Ctrl+Enter to finish. Editor methods (mixed into Editor.prototype in editor.js).
+// Esc or Ctrl+Enter to finish. With some characters selected in the box, the font, size, bold, italic and the main
+// colour change only those (textlayer.js runs); with none selected they change the whole text.
+// Editor methods (mixed into Editor.prototype in editor.js).
 
 import { Layer } from '../doc.js';
-import { fontCss, renderTextLayer, sanitizeText, textBounds, textMatrix, toTextLocal, textAfterMap } from '../textlayer.js';
+import { fontCss, renderTextLayer, sanitizeText, textBounds, textMatrix, toTextLocal, textAfterMap, editContent, styleRange, restyleText, styleAt, RUN_KEYS } from '../textlayer.js';
 import { translateVector } from '../vector.js';
 import { allLayers, insertNode, removeNode, contains } from '../tree.js';
 import { toast } from '../ui.js';
@@ -83,13 +85,15 @@ export const textMethods = {
     const ta = box.querySelector('textarea');
     ta.value = this.textEdit.layer.text.content;
     ta.addEventListener('input', () => {
-      this.textEdit.layer.text.content = ta.value.slice(0, 5000);
+      const te = this.textEdit;
+      te.layer.text = editContent(te.layer.text, ta.value.slice(0, 5000));  // styled parts follow the typing
       this.renderEditingText();
     });
     ta.addEventListener('keydown', e => {
       if (e.key === 'Escape' || (e.key === 'Enter' && e.ctrlKey)) { e.preventDefault(); this.commitText(); }
     });
     ta.addEventListener('pointerdown', e => e.stopPropagation());
+    for (const ev of ['select', 'keyup', 'pointerup']) ta.addEventListener(ev, () => this.syncTextPanel());
     setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
   },
 
@@ -150,12 +154,42 @@ export const textMethods = {
     if (this.textEdit) this.commitText();
   },
 
-  /** Tool panel or colour changes while editing apply to the text being edited. */
-  textSettingsChanged() {
+  /** The characters selected in the text box ([from, to], string indices), or null when only the caret is there. */
+  textSelection() {
+    const ta = this.viewport.querySelector('.text-edit textarea');
+    return ta && ta.selectionEnd > ta.selectionStart ? [ta.selectionStart, ta.selectionEnd] : null;
+  },
+
+  /**
+   * Tool panel or colour changes while editing apply to the text being edited: to the selected characters for a
+   * setting a part can have (key k), else to the whole text.
+   */
+  textSettingsChanged(k = null) {
     if (!this.textEdit) return;
-    Object.assign(this.textEdit.layer.text, sanitizeText({ ...this.textEdit.layer.text, ...pick(this.settings.text), outlineColor: this.outlineHex(this.settings.text) }));
+    const sel = this.textSelection(), te = this.textEdit;
+    if (sel && RUN_KEYS.includes(k)) {
+      te.layer.text = styleRange(te.layer.text, sel[0], sel[1], { [k]: this.settings.text[k] });
+      this.renderEditingText();
+      this.viewport.querySelector('.text-edit textarea')?.focus();
+      return;
+    }
+    // only the setting that changed: the panel may be showing a styled part's look (syncTextPanel)
+    const s = this.settings.text;
+    const change = k === 'outlineColor' ? { outlineColor: this.outlineHex(s) } : k ? (TEXT_KEYS.includes(k) ? { [k]: s[k] } : {}) : { ...pick(s), outlineColor: this.outlineHex(s) };
+    te.layer.text = sanitizeText(restyleText(te.layer.text, change));
     this.renderEditingText();
     this.viewport.querySelector('.text-edit textarea')?.focus();
+  },
+
+  /** The panel shows the look under the caret (or at the start of the selected characters) while editing. */
+  syncTextPanel() {
+    const te = this.textEdit, ta = this.viewport.querySelector('.text-edit textarea');
+    if (!te || !ta) return;
+    const i = ta.selectionEnd > ta.selectionStart ? ta.selectionStart : ta.selectionStart - 1;
+    const st = styleAt(te.layer.text, i), s = this.settings.text;
+    if (['font', 'size', 'bold', 'italic'].every(k => s[k] === st[k])) return;
+    Object.assign(s, { font: st.font, size: st.size, bold: st.bold, italic: st.italic });
+    this.renderToolProps();
   },
 
   /** The outline colour a Text tool setting stands for ('sub' is the sub colour now). */
@@ -165,6 +199,12 @@ export const textMethods = {
 
   textColorChanged() {
     if (!this.textEdit) return;
+    const sel = this.textSelection();
+    if (sel) {
+      this.textEdit.layer.text = styleRange(this.textEdit.layer.text, sel[0], sel[1], { color: this.colors.main });
+      this.renderEditingText();
+      return;
+    }
     this.textEdit.layer.text.color = this.colors.main;
     this.renderEditingText();
   },
