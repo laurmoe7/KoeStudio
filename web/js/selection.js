@@ -53,10 +53,14 @@ export class Selection {
   }
 
   all() {
+    const { w, h } = this;
     this.ctx.globalCompositeOperation = 'source-over';
     this.ctx.fillStyle = '#000';
-    this.ctx.fillRect(0, 0, this.w, this.h);
-    this.refresh();
+    this.ctx.fillRect(0, 0, w, h);
+    // known without reading the mask back: the whole canvas, outlined by its edges
+    this.bounds = { x: 0, y: 0, w, h };
+    this.segments = [[0, 0, w, 0], [0, h, w, h], [0, 0, 0, h], [w, 0, w, h]];
+    this.version = (this.version || 0) + 1;
   }
 
   invert() {

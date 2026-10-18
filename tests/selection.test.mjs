@@ -41,6 +41,12 @@ test('outline of a mask region read at an offset is in doc coordinates', () => {
   assert.deepEqual(maskOutline(new Uint8Array(6), 3, 2, 10, 20), { bounds: null, segments: [] });
 });
 
+test('a full selection is outlined by the canvas edges (Select all sets them without reading the mask)', () => {
+  const o = maskOutline(new Uint8Array(6).fill(255), 3, 2);
+  assert.deepEqual(o.bounds, { x: 0, y: 0, w: 3, h: 2 });
+  assert.deepEqual(o.segments.sort(), [[0, 0, 3, 0], [0, 2, 3, 2], [0, 0, 0, 2], [3, 0, 3, 2]].sort());
+});
+
 test('selection modes from keys', () => {
   assert.equal(modeFor('replace', false, false), 'replace');
   assert.equal(modeFor('subtract', false, false), 'subtract', 'tool setting');
