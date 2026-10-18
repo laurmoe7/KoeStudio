@@ -6,7 +6,7 @@ import { pressureCurve, stampFor, Smoother, StampPath, stampBounds } from '../we
 import { floodMask, growMask } from '../web/js/fill.js';
 import { History } from '../web/js/history.js';
 import { isReloadKey, comboOf, isTyping } from '../web/js/keys.js';
-import { union, clip } from '../web/js/rect.js';
+import { union, clip, alphaBounds } from '../web/js/rect.js';
 import { newView, toDoc, toScreen, zoomAt, rotateAt, flipAt, fitView } from '../web/js/view.js';
 import { sanitizeSettings, nextSize, TOOLS } from '../web/js/tools.js';
 import { sanitizeDoc } from '../web/js/doc.js';
@@ -276,4 +276,14 @@ test('two-finger pinch: zoom, turn and pan about the fingers', async () => {
   const t = pinchView(v, a0, b0, { x: 150, y: 50 }, { x: 150, y: 150 }, 0.1);
   assert.ok(Math.abs(t.rot - (Math.PI / 2 - 0.1)) < 1e-9);
   assert.equal(pinchView(v, a0, b0, { x: 100, y: 100 }, { x: 200, y: 105 }, 0.1).rot, 0, 'a small twist inside the dead zone does not turn');
+});
+
+test('the rect round the painted pixels', () => {
+  // 4 x 3, alpha at (2, 0) and (1, 2): x 1-2, y 0-2
+  const px = new Uint8ClampedArray(4 * 3 * 4);
+  px[(0 * 4 + 2) * 4 + 3] = 9;
+  px[(2 * 4 + 1) * 4 + 3] = 255;
+  px[(1 * 4 + 3) * 4] = 255;  // red with no alpha does not count
+  assert.deepEqual(alphaBounds(px, 4, 3), { x: 1, y: 0, w: 2, h: 3 });
+  assert.equal(alphaBounds(new Uint8ClampedArray(16), 2, 2), null);
 });

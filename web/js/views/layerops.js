@@ -11,6 +11,7 @@ import { animFrames } from '../anim.js';
 import { toneDensity } from '../tone.js';
 import { translateVector, strokesInside, removeStrokes } from '../vector.js';
 import { adjustFilter } from '../adjust.js';
+import { drawSnapshot, snapBytes } from '../snapshot.js';
 
 /** The node itself or the nearest folder around it that is locked, or null. */
 export function lockedNode(n) {
@@ -540,10 +541,8 @@ export const layerMethods = {
   shiftParts(parts, dx, dy) {
     const d = this.doc;
     for (const p of parts) {
-      const ctx = p.r.ctx, s = p.before;
-      ctx.clearRect(0, 0, d.width, d.height);
-      if (s.data) ctx.putImageData(s.data, dx, dy);
-      else ctx.drawImage(s.canvas, dx, dy);
+      p.r.ctx.clearRect(0, 0, d.width, d.height);
+      drawSnapshot(p.r.ctx, p.before, dx, dy);
     }
     this.updateComp(null);
     this.requestRender();
@@ -579,7 +578,7 @@ export const layerMethods = {
       this.changed(null);
     };
     if (!entry) {
-      entry = { label: 'Move', bytes: parts.length * d.width * d.height * 8, undo: () => put('before'), redo: () => put('after') };
+      entry = { label: 'Move', get bytes() { return parts.reduce((n, p) => n + snapBytes(p.before) + snapBytes(p.after), 0); }, undo: () => put('before'), redo: () => put('after') };
       this.history.push(entry);
     }
     this.changed(null);

@@ -11,7 +11,8 @@ import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
 import { Painter, textureFor, hasTipImage, tipOutline } from '../painter.js';
-import { union, clip } from '../rect.js';
+import { union, clip, alphaBounds } from '../rect.js';
+import { drawSnapshot, snapBytes } from '../snapshot.js';
 import { gradientChoices } from '../gradient.js';
 import { mipLevel, mipSize, mipRect } from '../mips.js';
 import { Selection } from '../selection.js';
@@ -1473,26 +1474,33 @@ export class Editor {
 
   /**
    * A copy of rect r of a layer for undo, taken on the GPU (no waiting): {canvas}. When the editor is idle it is read
-   * into memory ({data}) so undo history does not hold GPU memory (readSnapshots).
+   * into memory so undo history does not hold GPU memory (readSnapshots), cut down to its painted part (`box`, in r;
+   * null when all clear): a Move on a big, mostly empty layer then keeps megabytes, not hundreds of them.
    */
   snapshot(layer, r) {
     const c = document.createElement('canvas');
     c.width = r.w; c.height = r.h;
     c.getContext('2d').drawImage(layer.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-    const snap = { canvas: c, data: null };
+    const snap = { canvas: c, data: null, box: null, w: r.w, h: r.h };
     (this.snapQueue ||= []).push(snap);
     if (!this.snapIdle) this.snapIdle = requestIdleCallback(dl => this.readSnapshots(dl), { timeout: 4000 });
     return snap;
   }
 
-  /** Turns queued GPU snapshots into ImageData while nothing is being drawn. */
+  /** Turns queued GPU snapshots into (trimmed) ImageData while nothing is being drawn. */
   readSnapshots(deadline) {
     this.snapIdle = 0;
     const q = this.snapQueue || [];
     while (q.length && !this.gesture && (deadline.didTimeout || deadline.timeRemaining() > 4)) {
       const s = q.shift();
       if (!s.canvas) continue;
-      s.data = s.canvas.getContext('2d').getImageData(0, 0, s.canvas.width, s.canvas.height);
+      const img = s.canvas.getContext('2d').getImageData(0, 0, s.w, s.h), box = alphaBounds(img.data, s.w, s.h);
+      if (box && (box.w < s.w || box.h < s.h)) {
+        const cut = new ImageData(box.w, box.h), row = box.w * 4;
+        for (let y = 0; y < box.h; y++) cut.data.set(img.data.subarray(((box.y + y) * s.w + box.x) * 4, ((box.y + y) * s.w + box.x) * 4 + row), y * row);
+        s.data = cut;
+      } else s.data = box ? img : null;
+      s.box = box;
       s.canvas = null;
     }
     if (q.length && !this.destroyed) this.snapIdle = requestIdleCallback(dl => this.readSnapshots(dl), { timeout: 4000 });
@@ -1501,15 +1509,14 @@ export class Editor {
   /** Records a pixel change of rect r for undo; before/after are ImageData or snapshots. */
   pushPatch(layer, r, before, after, label) {
     const put = img => { this.putSnapshot(layer, r, img); this.changed(r); };
-    this.history.push({ label, bytes: r.w * r.h * 8, undo: () => put(before), redo: () => put(after) });
+    this.history.push({ label, get bytes() { return snapBytes(before) + snapBytes(after); }, undo: () => put(before), redo: () => put(after) });
   }
 
-  /** Puts an ImageData or a snapshot back into rect r of a layer. */
+  /** Puts an ImageData or a snapshot back into rect r of a layer (all of r: what the snapshot lacks is cleared). */
   putSnapshot(layer, r, img) {
-    const data = img instanceof ImageData ? img : img.data;
-    if (data) layer.ctx.putImageData(data, r.x, r.y);
-    else {
-      const ctx = layer.ctx;
+    const ctx = layer.ctx;
+    if (img instanceof ImageData) ctx.putImageData(img, r.x, r.y);
+    else if (img.canvas) {
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
@@ -1517,6 +1524,9 @@ export class Editor {
       ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
       ctx.drawImage(img.canvas, r.x, r.y);
       ctx.restore();
+    } else {
+      ctx.clearRect(r.x, r.y, r.w, r.h);
+      drawSnapshot(ctx, img, r.x, r.y);
     }
     layer.touch();
   }
