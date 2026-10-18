@@ -10,7 +10,7 @@ import { modal, toast } from '../ui.js';
 export const effectMethods = {
   async layerEffectsDialog() {
     const n = this.doc.active;
-    if (isFolder(n)) return toast('Layer effects work on layers. Select a layer.');
+    if (isFolder(n) || n.adjust) return toast('Layer effects work on layers with pixels. Select one.');
     this.finishTransform();
     this.finishText();
     const old = n.effects;

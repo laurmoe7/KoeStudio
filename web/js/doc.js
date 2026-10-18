@@ -7,6 +7,7 @@ import { sanitizeText } from './textlayer.js';
 import { sanitizeTone, applyTone } from './tone.js';
 import { sanitizeVector } from './vector.js';
 import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
+import { sanitizeAdjust, adjustFilter } from './adjust.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -32,7 +33,7 @@ const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
  * children}) in `layers`, gives any node an optional `mask: {png, enabled}`, and stores `activePath`.
  * `rulers` (guides, perspective ruler, snapping; see rulers.js) is optional in either version, as is a layer's
  * `tone` (shown as screentone; see tone.js), a layer's `vector` (its lines as data; see vector.js), and any node's
- * `label` (a colour label from LABELS).
+ * `label` (a colour label from LABELS), and a layer's `adjust` (a correction layer; see adjust.js).
  */
 export function sanitizeDoc(raw) {
   const d = raw && typeof raw === 'object' ? raw : {};
@@ -59,10 +60,12 @@ export function sanitizeDoc(raw) {
     } else {
       out.alphaLock = !!l?.alphaLock;
       out.png = isPng(l?.png) ? l.png : null;
-      if (l?.text) out.text = sanitizeText(l.text);  // a text layer (textlayer.js); png holds its last rendering
+      const adjust = sanitizeAdjust(l?.adjust);
+      if (adjust) out.adjust = adjust;  // a correction layer (adjust.js): no pixels of its own, png stays empty
+      else if (l?.text) out.text = sanitizeText(l.text);  // a text layer (textlayer.js); png holds its last rendering
       else if (l?.vector) out.vector = sanitizeVector(l.vector);  // a vector layer (vector.js); png holds its last rendering
-      out.tone = sanitizeTone(l?.tone);
-      out.effects = sanitizeEffects(l?.effects);  // border and drop shadow (effects.js); null when none
+      out.tone = adjust ? null : sanitizeTone(l?.tone);
+      out.effects = adjust ? null : sanitizeEffects(l?.effects);  // border and drop shadow (effects.js); null when none
     }
     return out;
   };
@@ -147,6 +150,7 @@ export class Layer extends Raster {
     this.vector = props.vector || null;  // set on vector layers: the lines (vector.js); never changed in place
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
     this.effects = props.effects || null;  // border and drop shadow, drawn under the pixels (effects.js)
+    this.adjust = props.adjust || null;  // set on correction layers: the colour change applied to what is below (adjust.js)
   }
 }
 
@@ -177,7 +181,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null, effects: n.effects });
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null, effects: n.effects, adjust: n.adjust });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -270,6 +274,7 @@ export class Doc {
         if (n.vector) out.vector = n.vector;
         if (n.tone) out.tone = n.tone;
         if (n.effects) out.effects = n.effects;
+        if (n.adjust) out.adjust = n.adjust;
       }
       if (n.mask) out.mask = { enabled: n.mask.enabled, png: await n.mask.toPng() };
       return out;
@@ -372,6 +377,10 @@ function drawChildren(ctx, nodes, r, live, depth) {
       for (let k = i + 1; k < j; k++) {
         const n = nodes[k];
         if (!n.visible) continue;
+        if (n.adjust) {  // a correction clipped to the base changes only the group so far
+          drawAdjust(gctx, n, r, live, n.opacity, blendOf(n), depth + 1);
+          continue;
+        }
         const [cc, cctx] = scratchCanvas(`clip${depth}`, r);
         cctx.translate(-r.x, -r.y);
         drawNode(cctx, n, r, live, 1, 'source-over', depth + 1);
@@ -392,6 +401,7 @@ function drawChildren(ctx, nodes, r, live, depth) {
 
 /** Draws one node (with its mask and any live stroke) into ctx with the given alpha and blend. */
 function drawNode(ctx, node, r, live, alpha, blend, depth) {
+  if (node.adjust) return drawAdjust(ctx, node, r, live, alpha, blend, depth);
   let src = node.canvas, sx = r.x, sy = r.y;
   if (node.effects && !isFolder(node)) {
     // the effects reach beyond r, so the layer is built for a bigger area R and the effects drawn under it there
@@ -417,6 +427,24 @@ function drawNode(ctx, node, r, live, alpha, blend, depth) {
   ctx.globalAlpha = alpha;
   ctx.globalCompositeOperation = blend;
   ctx.drawImage(src, sx, sy, r.w, r.h, r.x, r.y, r.w, r.h);
+}
+
+/**
+ * A correction layer: what ctx already holds in region r is copied through the correction's GPU filter (adjust.js),
+ * cut by the layer's mask, and laid back over it with the layer's opacity. Normal blending keeps what is below
+ * exactly as see-through as it was ('source-atop'), so a correction never paints where there is nothing.
+ * ctx's transform may scale (thumbnails), so the region is read where the transform puts it.
+ */
+function drawAdjust(ctx, node, r, live, alpha, blend, depth) {
+  const t = ctx.getTransform();
+  const [c, cctx] = scratchCanvas(`adjust${depth}`, r);
+  cctx.filter = adjustFilter(node.adjust);
+  cctx.drawImage(ctx.canvas, t.a * r.x + t.e, t.d * r.y + t.f, t.a * r.w, t.d * r.h, 0, 0, r.w, r.h);
+  cctx.filter = 'none';
+  if (maskOn(node)) applyMask(cctx, node, r, live, depth);
+  ctx.globalAlpha = alpha;
+  ctx.globalCompositeOperation = blend === 'source-over' ? 'source-atop' : blend;
+  ctx.drawImage(c, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
 }
 
 /** A layer's region r as shown (live stroke, screentone, mask), in a scratch canvas whose (0, 0) is r's corner. */

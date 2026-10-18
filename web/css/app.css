@@ -386,6 +386,8 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 /* filter dialogs: wider labels than the tool panel's rows */
 .filter-fields { display: flex; flex-direction: column; gap: 6px; }
 .filter-fields .slider { grid-template-columns: 110px 1fr 58px; }
+.adjust-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.adjust-list button { text-align: left; }
 
 /* layer colour labels */
 .lp-labels { display: flex; gap: 4px; align-items: center; }

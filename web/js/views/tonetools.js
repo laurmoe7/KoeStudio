@@ -34,7 +34,7 @@ export const toneMethods = {
   /** Layer → Screentone settings: turn the selected layer's tone on or off and change its dots. */
   async toneDialog() {
     const n = this.doc.active;
-    if (isFolder(n)) return toast('Screentone works on layers. Select a layer.');
+    if (isFolder(n) || n.adjust) return toast('Screentone works on layers with pixels. Select one.');
     const res = await toneDialog({ title: 'Layer screentone', tone: n.tone || sanitizeTone(store('tone')) || defaultTone(), on: !!n.tone, ok: 'OK' });
     if (!res) return;
     this.setLayerProp(n, 'tone', res.on ? res.tone : null, res.on ? 'Screentone' : 'Screentone off');

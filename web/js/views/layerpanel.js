@@ -4,6 +4,7 @@
 import { BLEND_MODES, PASS_THROUGH, LABELS } from '../doc.js';
 import { icon } from '../icons.js';
 import { isDoubleTap } from '../taps.js';
+import { adjustLabel } from '../adjust.js';
 import { isFolder, panelRows } from '../tree.js';
 import { esc, promptBox } from '../ui.js';
 
@@ -111,6 +112,7 @@ export class LayerPanel {
       if (node.text) sub.unshift('Text');
       if (node.vector) sub.unshift('Vector');
       if (node.tone) sub.unshift('Tone');
+      if (node.adjust) sub.unshift(adjustLabel(node.adjust.type));
       if (node.locked) sub.push('locked');
       else if (node.alphaLock) sub.push('alpha locked');
       if (node.reference) sub.push('reference');
@@ -144,7 +146,8 @@ export class LayerPanel {
       const key = `${n.version}/${n.mask?.version}/${doc.width}x${doc.height}`;
       if (row._thumbKey === key) continue;
       row._thumbKey = key;
-      if (thumb) {
+      if (thumb && n.adjust) drawAdjustThumb(thumb.getContext('2d'));
+      else if (thumb) {
         const ctx = thumb.getContext('2d');
         ctx.clearRect(0, 0, TW, TH);
         ctx.drawImage(n.canvas, x, y, w, h);
@@ -173,7 +176,7 @@ export class LayerPanel {
     list.addEventListener('pointerdown', e => {
       const row = e.target.closest('.lp-row');
       if (!row || e.button !== 0 || e.target.closest('button')) return;
-      drag = { node: row._node, mask: !!e.target.closest('.lp-mask'), add: e.ctrlKey || e.metaKey, range: e.shiftKey, y: e.clientY, id: e.pointerId, moving: false, drop: null };
+      drag = { node: row._node, mask: !!e.target.closest('.lp-mask'), thumb: !!e.target.closest('.lp-thumb'), add: e.ctrlKey || e.metaKey, range: e.shiftKey, y: e.clientY, id: e.pointerId, moving: false, drop: null };
       try { list.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
     });
     list.addEventListener('pointermove', e => {
@@ -204,7 +207,8 @@ export class LayerPanel {
         const rename = !d.mask && isDoubleTap(this.lastTap, d.node, performance.now());
         this.lastTap = rename ? null : { key: d.node, time: performance.now() };
         this.ed.selectNode(d.node, { mask: d.mask });
-        if (rename) this.rename(d.node);
+        if (rename && d.thumb && d.node.adjust) this.ed.adjustSettings(d.node);  // a correction's thumbnail opens its settings
+        else if (rename) this.rename(d.node);
       }
       else if (d.drop && e.type === 'pointerup') {
         const multi = this.ed.picked.has(d.node) && this.ed.multiPicked();  // dragging a picked row takes them all
@@ -215,6 +219,19 @@ export class LayerPanel {
     list.addEventListener('pointerup', end);
     list.addEventListener('pointercancel', end);
   }
+}
+
+/** A correction layer's thumbnail: a circle half dark, half light (as Clip Studio Paint's correction icon). */
+function drawAdjustThumb(ctx) {
+  ctx.clearRect(0, 0, TW, TH);
+  const r = Math.min(TW, TH) * 0.32, cx = TW / 2, cy = TH / 2;
+  ctx.fillStyle = '#f2f2f2';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI / 2, Math.PI * 1.5); ctx.fill();
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
 }
 
 function labelColor(id) {

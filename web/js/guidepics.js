@@ -199,6 +199,21 @@ export const PICS = {
     ${t(113, 124, 'A layer as it is')}${t(347, 124, 'With Border and Drop shadow')}
   `, 'Lettering before and after a white border and a drop shadow'),
 
+  // ---------- Correction layers ----------
+  adjust: svg(460, 140, `
+    <defs><clipPath id="gp-adj1"><rect x="4" y="4" width="136" height="100" rx="4"/></clipPath><clipPath id="gp-adj2"><rect x="320" y="4" width="136" height="100" rx="4"/></clipPath></defs>
+    <g clip-path="url(#gp-adj1)"><rect x="4" y="4" width="136" height="100" fill="#78b4ea"/><circle cx="108" cy="30" r="13" fill="#ffe11f"/>
+      <path d="M4,104 L4,74 Q50,44 96,70 T140,66 L140,104 Z" fill="#46a758"/></g>
+    <g clip-path="url(#gp-adj2)"><rect x="320" y="4" width="136" height="100" fill="#f2784b"/><circle cx="424" cy="30" r="13" fill="#fff3b0"/>
+      <path d="M320,104 L320,74 Q366,44 412,70 T456,66 L456,104 Z" fill="#7b2c8f"/></g>
+    <rect class="panel" x="164" y="18" width="132" height="34" rx="3"/><rect class="panel" x="164" y="56" width="132" height="34" rx="3"/>
+    <circle cx="182" cy="35" r="9" fill="#f2f2f2"/><path d="M182,26 A9,9 0 0,0 182,44 Z" fill="#222"/>
+    <rect x="173" y="64" width="18" height="18" fill="#78b4ea"/><rect x="173" y="76" width="18" height="6" fill="#46a758"/>
+    ${t(198, 39, 'Hue/Saturation', 'start')}${t(198, 77, 'Your picture', 'start')}
+    ${arrow(144, 54, 160, 54)}${arrow(300, 54, 316, 54)}
+    ${t(72, 124, 'Before')}${t(230, 124, 'A correction layer on top')}${t(388, 124, 'Everything below changes')}
+  `, 'A Hue/Saturation correction layer above a picture changes its colours without changing the picture'),
+
   // ---------- Masks ----------
   mask: svg(460, 130, `
     ${paper(4, 4, 136, 100)}${paper(162, 4, 136, 100)}${paper(320, 4, 136, 100)}

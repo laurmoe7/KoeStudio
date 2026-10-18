@@ -99,3 +99,6 @@ async function start() {
 }
 
 start();
+
+// For test scripts driving a scratch server (tools/ui_shot.mjs): the open editor, if any.
+Object.defineProperty(window, 'koeEditor', { get: () => editor });

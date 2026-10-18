@@ -120,7 +120,7 @@ export const filterMethods = {
  * The sliders of a filter; onChange(params) runs on every change. Resolves to the params, or null when cancelled.
  * pick(set), when given, receives a function that sets some sliders from outside (a click on the canvas).
  */
-function filterDialog(filter, params, onChange, pick = null) {
+export function filterDialog(filter, params, onChange, pick = null) {
   const fmt = (x, v) => (x.step < 1 ? (+v).toFixed(2).replace(/\.?0+$/, '') : Math.round(v)) + x.unit;
   return modal({
     title: filter.label.replace(/…$/, ''),
@@ -170,7 +170,7 @@ function filterDialog(filter, params, onChange, pick = null) {
 }
 
 /** How many pixels of each brightness (0-255) there are, counting only painted pixels inside the selection. */
-function histogram(img, selData) {
+export function histogram(img, selData) {
   const h = new Uint32Array(256), d = img.data;
   for (let i = 0; i < d.length; i += 4) {
     if (!d[i + 3] || (selData && !selData[i + 3])) continue;
@@ -187,7 +187,7 @@ const DROP_PX = 24;    // a point dragged this far out of the box is removed
  * Curves: drag the points of each channel's curve; click to add one, drag one out of the box (or double-click
  * it) to remove it. Resolves to the params ({rgb, r, g, b}: point lists), or null when cancelled.
  */
-function curvesDialog(filter, params, onChange, hist) {
+export function curvesDialog(filter, params, onChange, hist) {
   let p = JSON.parse(JSON.stringify(params)), ch = 'rgb';
   const colors = { rgb: '#e8e8ea', r: '#ff6b6b', g: '#5fd47f', b: '#6ea8ff' };
   const copy = () => JSON.parse(JSON.stringify(p));

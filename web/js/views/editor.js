@@ -44,6 +44,7 @@ import { gradientEditMethods } from './gradienteditor.js';
 import { pressureMethods } from './pressuretool.js';
 import { lineEditMethods } from './lineedittool.js';
 import { symmetryMethods } from './symmetrytools.js';
+import { adjustMethods } from './adjusttools.js';
 import { brushMethods, curveSvg } from './brushtools.js';
 import { symmetryStamps } from '../symmetry.js';
 import { linePoints } from '../figure.js';
@@ -334,6 +335,8 @@ export class Editor {
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
         { label: 'New vector layer', run: () => this.newVectorLayer() },
         { label: 'New folder', run: () => this.folderAdd() },
+        { label: this.sel.active ? 'New correction layer (in selection)…' : 'New correction layer…', run: () => this.newAdjustLayer() },
+        { label: 'Correction layer settings…', run: () => this.adjustSettings(), disabled: !d.active.adjust },
         { label: multi ? 'Duplicate selected layers' : 'Duplicate layer', run: () => this.layerDuplicate() },
         { label: 'Copy to new layer', key: 'Ctrl+J', run: () => this.layerViaCopy() },
         { label: 'Cut to new layer', key: 'Ctrl+Shift+J', run: () => this.layerViaCopy(true) },
@@ -354,11 +357,11 @@ export class Editor {
         { label: 'Apply mask to layer', run: () => this.applyMask(), disabled: !d.active.mask || isFolder(d.active) },
         { label: 'Delete mask', run: () => this.deleteMask(), disabled: !d.active.mask },
         '-',
-        { label: 'Layer effects (border, shadow)…', run: () => this.layerEffectsDialog(), disabled: isFolder(d.active) },
+        { label: 'Layer effects (border, shadow)…', run: () => this.layerEffectsDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
         { label: 'Rasterize layer effects', run: () => this.rasterizeEffects(d.active), disabled: !d.active.effects },
         '-',
         { label: this.sel.active ? 'New screentone (in selection)…' : 'New screentone…', run: () => this.newToneLayer() },
-        { label: 'Screentone settings…', run: () => this.toneDialog(), disabled: isFolder(d.active) },
+        { label: 'Screentone settings…', run: () => this.toneDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
         { label: 'Rasterize screentone', run: () => this.rasterizeTone(d.active), disabled: !d.active.tone },
         '-',
         { label: 'Flip layer horizontally', run: () => this.flipPixels(this.layerRasters(), 'h', 'Flip layer') },
@@ -1438,7 +1441,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

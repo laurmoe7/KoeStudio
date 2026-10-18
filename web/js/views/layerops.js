@@ -8,6 +8,7 @@ import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas,
 import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes } from '../tree.js';
 import { toast } from '../ui.js';
 import { translateVector } from '../vector.js';
+import { adjustFilter } from '../adjust.js';
 
 /** The node itself or the nearest folder around it that is locked, or null. */
 export function lockedNode(n) {
@@ -30,6 +31,10 @@ export const layerMethods = {
     if (lockedBy) { toast(`${lockedBy === n ? '' : 'Its folder '}"${lockedBy.name}" is locked. Untick Lock in the Layers panel to ${verb} it.`); return null; }
     if (this.maskEdit && n.mask) return n.mask;
     if (isFolder(n)) { toast(`A folder has no pixels of its own. Select a layer inside it to ${verb}, or click the folder's mask.`); return null; }
+    if (n.adjust) {
+      toast(`This is a correction layer: it has no pixels of its own. Paint on its mask to choose where it applies, or change its settings.`, { action: { label: 'Settings', run: () => this.adjustSettings(n) }, ms: 6000 });
+      return null;
+    }
     if (n.text && !read) {
       toast('This is a text layer. Use the Text tool to change it, or rasterize it to paint on it.', { action: { label: 'Rasterize', run: () => this.rasterizeText(n) }, ms: 6000 });
       return null;
@@ -247,13 +252,18 @@ export const layerMethods = {
     const parent = n.parent, i = parent.children.indexOf(n), lower = parent.children[i - 1];
     if (!lower) return toast('There is no layer below this one (in the same folder) to merge into.');
     if (isFolder(lower)) return toast('The layer below is a folder. Use Layer → Merge folder on it first.');
+    if (lower.adjust) return toast('The layer below is a correction layer, which has no pixels to merge into.');
     if (lower.mask) return toast('The layer below has a mask. Apply or delete that mask first.');
     if (!n.visible || !lower.visible) return toast('Show both layers before merging them.');
     const W = d.width, H = d.height;
     const src = document.createElement('canvas');
     src.width = W; src.height = H;
     const c = src.getContext('2d');
-    c.drawImage(n.tone ? tonedCanvas(n) : n.canvas, 0, 0);  // a tone layer merges as the dots it shows
+    if (n.adjust) {  // a correction merges as the layer below seen through it
+      c.filter = adjustFilter(n.adjust);
+      c.drawImage(lower.canvas, 0, 0);
+      c.filter = 'none';
+    } else c.drawImage(n.tone ? tonedCanvas(n) : n.canvas, 0, 0);  // a tone layer merges as the dots it shows
     if (n.mask?.enabled) { c.globalCompositeOperation = 'destination-out'; c.drawImage(n.mask.canvas, 0, 0); }
     if (n.effects) {  // its border and shadow become pixels too
       const fx = effectsCanvas(n, src);
@@ -263,7 +273,7 @@ export const layerMethods = {
     const before = lower.ctx.getImageData(0, 0, W, H);
     lower.ctx.save();
     lower.ctx.globalAlpha = n.opacity;
-    lower.ctx.globalCompositeOperation = lower.alphaLock ? 'source-atop' : n.blend;
+    lower.ctx.globalCompositeOperation = lower.alphaLock || (n.adjust && n.blend === 'source-over') ? 'source-atop' : n.blend;
     lower.ctx.drawImage(src, 0, 0);
     lower.ctx.restore();
     const after = lower.ctx.getImageData(0, 0, W, H);

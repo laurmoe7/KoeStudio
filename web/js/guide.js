@@ -249,7 +249,7 @@ export const GUIDE = [
       <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click or <kbd>Shift</kbd>+click more layers, then move, hide, delete,
       merge or change them together.</li>
     </ul>
-    <p>See also: <button type="button" class="guide-link" data-goto="effects">Layer effects</button>, <button type="button" class="guide-link" data-goto="masks">Masks</button>, <button type="button" class="guide-link" data-goto="vector">Vector layers</button>.</p>`],
+    <p>See also: <button type="button" class="guide-link" data-goto="effects">Layer effects</button>, <button type="button" class="guide-link" data-goto="adjust">Correction layers</button>, <button type="button" class="guide-link" data-goto="masks">Masks</button>, <button type="button" class="guide-link" data-goto="vector">Vector layers</button>.</p>`],
 
   ['effects', 'Layer effects', `
     <p class="lead">Give everything on a layer an outline or a shadow, without changing what you drew.</p>
@@ -264,6 +264,28 @@ export const GUIDE = [
     the layer's name.</p>
     <p class="tip">Great for stickers, lettering and logos. Layer → <b>Rasterize layer effects</b> turns them into
     ordinary paint (merging the layer down does too).</p>`],
+
+  ['adjust', 'Correction layers', `
+    <p class="lead">Change the colours of everything below, and keep changing your mind: a correction layer never
+    touches the layers under it.</p>
+    <figure data-pic="adjust"></figure>
+    <ol>
+      <li>Select the top layer of what you want to change (or make a selection first to change only that part).</li>
+      <li>Open Layer → <b>New correction layer…</b> and pick one: Brightness/Contrast, Levels, Curves,
+      Hue/Saturation/Lightness, Color balance, Posterize, Threshold, Invert colors or Gradient map.</li>
+      <li>Drag its sliders; the canvas follows. Press <b>OK</b>.</li>
+    </ol>
+    <ul>
+      <li>To change it later, double-click its thumbnail (a half black, half white circle), or use Layer →
+      <b>Correction layer settings…</b></li>
+      <li>Lower its <b>opacity</b> to make it weaker, or hide it with the eye to compare.</li>
+      <li>Paint on its <b>mask</b> to choose where it applies: painting hides the correction there.</li>
+      <li>Turn on <b>Clip below</b> to change only the layer right under it. Inside a folder (not set to Through) it
+      changes only that folder.</li>
+      <li>Merging it down makes the change permanent on the layer below.</li>
+    </ul>
+    <p class="tip">Try a Gradient map or Hue/Saturation correction on top of a finished picture to test colour
+    moods without repainting anything.</p>`],
 
   ['vector', 'Vector layers', `
     <p class="lead">A <b>vector layer</b> remembers every line as a line, not as pixels. That makes cleaning up line
