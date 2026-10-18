@@ -32,7 +32,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
   - **Tilt and speed:** tilting the pen can make the brush bigger (up to three times when it lies flat) or lighter, or turn its tip the way the pen leans; fast strokes can get thinner or thicker, lighter or stronger (Brush settings → Tilt and speed). Not on vector layers.
   - **Dual brush** (Brush settings → Dual brush): a second tip, round or any tip image, stamped along the stroke at its own size, spacing and scatter; the paint shows only where it lands, for chalky, broken or leafy strokes. Photoshop brushes' dual brushes import into it.
   - **Count** (Variation) lays up to 16 dabs at each step, each with its own scatter and jitter, for sprays, foliage and sparkles (Photoshop brushes' Count imports into it).
-  - **Eyedropper (I):** picks from everything you see or only the selected layer, a single pixel or the average of a 3 × 3, 5 × 5 or 11 × 11 square; Alt with other tools uses the same settings.
+  - **Eyedropper (I):** picks from everything you see or only the selected layer, a single pixel or the average of a 3 × 3, 5 × 5 or 11 × 11 square, with a ring showing the new and the old colour while you pick; Alt with other tools uses the same settings.
   - **Variation:** Scatter throws each dab off the stroke by up to a multiple of the brush size, Size jitter and Density jitter make dabs randomly smaller or lighter, Hue, Saturation and Brightness jitter vary the colour of each dab (or once per stroke), and Start taper (under Stroke) starts each stroke thin and grows it to full size over that many pixels. End taper thins the end of each stroke the same way; since the end is only known when you lift the pen, that last stretch appears then.
   - **Saved brushes:** the Brush row at the top of the pen tools' settings loads a saved brush; its ⋯ menu saves the current settings as a new brush, updates, renames or deletes one, and manages tip and texture images.
   - **Importing brushes:** Brush ⋯ → Import brushes (Procreate, Photoshop, GIMP, Krita)… reads Procreate `.brush` / `.brushset`, Photoshop `.abr`, GIMP `.gbr` / `.gih` / `.vbr` and Krita `.kpp` / `.bundle` files, tip and texture pictures included, and shows every brush in the file so you can pick which to keep; each becomes a saved brush. Size, opacity, spacing, tip angle, squash and rotation, pen pressure and texture strength carry over; the dialog lists what does not (for example dual brushes, color dynamics, wet edges). Procreate does not document its settings, so those are approximate: check the size after importing. Check a brush's terms of use before using it outside the program it was made for.
@@ -67,7 +67,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 - **Colour:** HSV square and hue bar (or a colour wheel: a hue ring round the square, with the round button by the hex box), **HSV or RGB sliders** with number boxes, main and sub colour, hex entry, recently used colours, and a **palette** of colours you keep (+ adds the main colour, click to use, right-click to remove; up to 256). Its ⋯ menu imports GIMP/Krita `.gpl`, Photoshop `.aco`, Adobe `.ase` and Lospec `.hex` palettes and saves yours as `.gpl`.
 - **Reference window** (View menu): pictures to look at while you draw, in a floating window you can move and resize. Scroll to zoom, drag to move, click to pick a colour, double-click to fit; + adds pictures (or drop them on it), ‹ › step through them. They are kept in `%LOCALAPPDATA%\KoeStudio\references`, so they are there in every artwork.
 - **Touch screens:** pinch with two fingers to zoom, twist to turn the canvas, drag to move it; a two-finger tap undoes and a three-finger tap redoes. A stroke a finger had started is dropped when the second finger lands, and touches are ignored while the pen is drawing.
-- **View:** zoom at the cursor (wheel), rotate (Shift+wheel, 4/5/6), mirror (Shift+M), grayscale view (to check values), tile preview (the picture repeated round itself, for seamless patterns), a pixel grid from 800% zoom, fit (Ctrl+0), 100% (Ctrl+1); pixel-sharp when zoomed in.
+- **View:** zoom at the cursor (wheel, or Ctrl+Space+drag), rotate (Shift+wheel, Shift+Space+drag, 4/5/6), mirror (Shift+M), grayscale view (to check values), tile preview (the picture repeated round itself, for seamless patterns), a pixel grid from 800% zoom, fit (Ctrl+0), 100% (Ctrl+1); pixel-sharp when zoomed in.
 - **Symmetry ruler:** View → Symmetry settings… mirrors everything you draw left–right, top–bottom or four ways, or repeats it round a centre (radial, or kaleidoscope with mirroring) with 2–32 lines. Pens, brushes, the eraser, Smudge, Liquify and Lasso fill all follow it. Drag its round centre with the Ruler tool; View → Symmetry ruler turns it on and off. Saved with the artwork.
 - **Grid:** View → Grid (Ctrl+') shows a grid over the canvas; Grid settings… sets the spacing and divisions and can make strokes started on a grid line follow it and put the corners of selections, figures and crops on the grid.
 - **Rulers and perspective:** pixel rulers along the canvas edges (View → Edge rulers). Drag out of them to add horizontal or vertical guides, and drag a guide back to remove it. The Ruler tool (U) adds a 1-, 2- or 3-point perspective ruler and moves its vanishing points and the guides. With snapping on (Ctrl+2, or the magnet in the status bar), each stroke follows the guide it starts on or the perspective line closest to the direction you draw. **Curve rulers:** with the Ruler tool set to Curve, draw a curve freehand; it is smoothed into a curve with a few points you can drag, and strokes started on it follow it.
@@ -77,7 +77,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 
 | Key | Action | Key | Action |
 | --- | --- | --- | --- |
-| P / N / B / A | Pen / Pencil / Brush / Airbrush | Space (hold) | Pan |
+| P / N / B / A | Pen / Pencil / Brush / Airbrush | Space (hold) | Pan (with Shift: turn, Ctrl: zoom) |
 | M / L / W | Rectangle selection / Lasso / Magic wand | Ctrl+T | Transform |
 | M (again) / L (again) | Ellipse selection / Polygon selection | Enter / Esc | Close / drop the polygon |
 | Ctrl+A / Ctrl+D | Select all / Deselect | Ctrl+Shift+I | Invert selection |
@@ -85,7 +85,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 | E | Eraser | Alt (hold) | Eyedropper |
 | J | Smudge / Liquify / Blur | G (again) | Fill / Gradient / Lasso fill |
 | O | Dodge / Burn | S | Clone stamp (Ctrl+click: source) |
-| G | Fill | [ / ] | Smaller / bigger brush |
+| G | Fill | [ / ] (or Ctrl+Alt+drag) | Smaller / bigger brush |
 | I | Eyedropper | X | Swap main and sub colour |
 | V | Move layer (or selection); arrows nudge 1 px, Shift+arrows 10 px | Ctrl+Z / Ctrl+Y | Undo / redo |
 | H | Hand | Ctrl+Shift+N | New layer |

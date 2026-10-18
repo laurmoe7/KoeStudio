@@ -740,8 +740,9 @@ export class Editor {
     this.drawLineEditOverlay(ctx);
     this.drawCloneOverlay(ctx);
     this.placeTextEditor();
-    const brush = this.updateCursor();
-    if (brush) this.drawBrushOutline(ctx, brush);
+    const brush = this.updateCursor(), sizing = this.gesture?.type === 'brushsize' ? this.gesture : null;
+    if (brush) this.drawBrushOutline(ctx, brush, sizing ? sizing.start : this.pointer, !!sizing);
+    if (this.gesture?.type === 'pick' && this.pointer) this.drawPickRing(ctx, this.gesture.before, this.colors.main);
     this.drawEdgeRulers(ctx);
   }
 
@@ -761,10 +762,38 @@ export class Editor {
     return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge' || tool.kind === 'liquify' || tool.kind === 'retouch') ? tool : null;
   }
 
-  drawBrushOutline(ctx, tool) {
-    const dpr = this.dpr || 1;
-    const r = Math.max(1, (this.settings[tool.id].size * this.view.zoom) / 2) * dpr;
-    const x = this.pointer.x * dpr, y = this.pointer.y * dpr;
+  /** While picking a colour: a ring round the pointer, the new colour on top and the one before below. */
+  drawPickRing(ctx, before, now) {
+    const dpr = this.dpr || 1, x = this.pointer.x * dpr, y = this.pointer.y * dpr, r = 44 * dpr, w = 16 * dpr;
+    ctx.save();
+    ctx.lineWidth = w;
+    for (const [color, a0, a1] of [[now, Math.PI, 2 * Math.PI], [before, 0, Math.PI]]) {
+      ctx.strokeStyle = color;
+      ctx.beginPath(); ctx.arc(x, y, r, a0, a1); ctx.stroke();
+    }
+    // a light and a dark edge, so the ring shows on any colour (also when the new colour is the canvas's own)
+    for (const [color, lw, d] of [['rgba(255,255,255,0.9)', 1.5, 0.75], ['rgba(0,0,0,0.6)', 1, 2]]) {
+      ctx.lineWidth = lw * dpr;
+      ctx.strokeStyle = color;
+      for (const rr of [r - w / 2 - d * dpr, r + w / 2 + d * dpr]) { ctx.beginPath(); ctx.arc(x, y, rr, 0, 2 * Math.PI); ctx.stroke(); }
+    }
+    ctx.restore();
+  }
+
+  drawBrushOutline(ctx, tool, at, label = false) {
+    const dpr = this.dpr || 1, size = this.settings[tool.id].size;
+    const r = Math.max(1, (size * this.view.zoom) / 2) * dpr;
+    const x = at.x * dpr, y = at.y * dpr;
+    if (label) {  // Ctrl+Alt+drag: the size, next to the circle
+      const text = fmt('size', size);
+      ctx.font = `${12 * dpr}px system-ui, sans-serif`;
+      ctx.textBaseline = 'middle';
+      const w = ctx.measureText(text).width + 10 * dpr, lx = x - w / 2, ly = Math.max(10 * dpr, y - r - 14 * dpr);
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(lx, ly - 9 * dpr, w, 18 * dpr);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(text, lx + 5 * dpr, ly);
+    }
     ctx.lineWidth = 1 * dpr;
     for (const [color, rr] of [['rgba(0,0,0,0.75)', r + dpr], ['rgba(255,255,255,0.9)', r]]) {
       ctx.strokeStyle = color;
@@ -998,13 +1027,14 @@ export class Editor {
       if (e.button !== 0 && !(e.pointerType === 'pen' && e.button === 5)) return;
       const dp = { ...toDoc(this.view, p.x, p.y), p: pressure(e) };
       if (this.canvasPick) { this.canvasPick(dp); return; }  // a dialog takes canvas clicks (Color range, blur centre)
+      if (e.ctrlKey && e.altKey && !this.xf && this.beginBrushSize(p, e.pointerId)) { this.drawOverlay(); return; }
       const band = this.xf ? null : this.rulerBand(p);
       if (band) { if (band !== 'corner') this.beginNewGuide(band, dp, e.pointerId); this.drawOverlay(); return; }
       if (this.xf && !this.held.space) { this.xfPointerDown(dp, e.pointerId, e.ctrlKey); this.drawOverlay(); return; }
       const penEraser = e.pointerType === 'pen' && (e.button === 5 || (e.buttons & 32));
       const toolId = penEraser ? 'eraser' : this.effectiveTool();
       const tool = TOOL_BY_ID[toolId];
-      if (tool.kind === 'hand') this.beginPan(p, e.pointerId);
+      if (tool.kind === 'hand') this.beginPan(p, e.pointerId, e.shiftKey ? 'turn' : e.ctrlKey ? 'zoom' : 'pan');
       else if (tool.kind === 'select') this.beginSelect(toolId, GRID_TOOLS.has(toolId) ? this.gridPoint(dp) : dp, e.pointerId, e);
       else if (tool.kind === 'crop') this.beginCrop(this.gridPoint(dp), e.pointerId);
       else if (tool.kind === 'ruler') this.beginRulerTool(dp, e.pointerId);
@@ -1023,7 +1053,7 @@ export class Editor {
       else if (tool.kind === 'fill') this.fillAt(dp);
       else if (tool.kind === 'gradient') this.beginGradient(dp, e.pointerId);
       else if (tool.kind === 'text') { e.preventDefault(); this.textClick(dp); }
-      else if (tool.kind === 'picker') { this.gesture = { type: 'pick', tool: toolId, id: e.pointerId }; this.pickAt(dp); }
+      else if (tool.kind === 'picker') { this.gesture = { type: 'pick', tool: toolId, id: e.pointerId, before: this.colors.main }; this.pickAt(dp); }
       else if (tool.kind === 'move') this.beginMove(dp, e.pointerId);
       if (this.gesture && e.pointerType === 'touch') this.gesture.touch = true;
       this.drawOverlay();
@@ -1060,8 +1090,9 @@ export class Editor {
         } else if (g.type === 'lassofill') {
           this.lassoFillDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'pan') {
-          this.view = { ...this.view, panX: g.view.panX + p.x - g.start.x, panY: g.view.panY + p.y - g.start.y };
-          this.requestRender();
+          this.panDrag(p);
+        } else if (g.type === 'brushsize') {
+          this.brushSizeDrag(p);
         } else if (g.type === 'pick') {
           this.pickAt(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'move') {
@@ -1103,6 +1134,7 @@ export class Editor {
       else if (g.type === 'figure') this.endFigure();
       else if (g.type === 'move') this.endMove();
       else if (g.type === 'select') this.endSelect();
+      else if (g.type === 'brushsize') this.endBrushSize();
       this.gesture = null;
       if (g.type === 'xf') this.xfEnd();
       this.drawOverlay();
@@ -1136,8 +1168,52 @@ export class Editor {
     });
   }
 
-  beginPan(p, id) {
-    this.gesture = { type: 'pan', tool: 'hand', id, start: p, view: { ...this.view } };
+  /**
+   * Moving the view with the Hand (or Space held): a drag pans; with Shift (Shift+Space) it turns the view round
+   * the middle of the window, with Ctrl (Ctrl+Space) it zooms in (right) or out (left) at where it began.
+   */
+  beginPan(p, id, how = 'pan') {
+    this.gesture = { type: 'pan', how, tool: 'hand', id, start: p, view: { ...this.view } };
+  }
+
+  panDrag(p) {
+    const g = this.gesture, v = g.view;
+    if (g.how === 'turn') {
+      const cx = this.vw / 2, cy = this.vh / 2;
+      const a = Math.atan2(p.y - cy, p.x - cx) - Math.atan2(g.start.y - cy, g.start.x - cx);
+      if (Math.hypot(p.x - cx, p.y - cy) < 8) return;  // too close to the middle to tell the angle
+      this.view = rotateAt(v, a, cx, cy);
+      this.dirty = 'all';
+    } else if (g.how === 'zoom') {
+      const k = Math.exp((p.x - g.start.x) * 0.01);
+      const z = Math.min(64, Math.max(0.02, v.zoom * k));
+      this.view = zoomAt(v, z / v.zoom, g.start.x, g.start.y);
+      this.dirty = 'all';
+    } else this.view = { ...v, panX: v.panX + p.x - g.start.x, panY: v.panY + p.y - g.start.y };
+    this.requestRender();
+  }
+
+  /**
+   * Ctrl+Alt+drag with a brush-like tool sets its size, as in Clip Studio Paint: the circle stays where the drag
+   * began and its edge follows the pointer left and right. false when the tool has no size.
+   */
+  beginBrushSize(p, id) {
+    const kind = TOOL_BY_ID[this.tool].kind, s = this.settings[this.tool];
+    if (!['paint', 'smudge', 'liquify', 'retouch'].includes(kind) || !('size' in s)) return false;
+    this.gesture = { type: 'brushsize', tool: this.tool, id, start: p, size0: s.size };
+    return true;
+  }
+
+  brushSizeDrag(p) {
+    const g = this.gesture, s = this.settings[g.tool];
+    const r = g.size0 * this.view.zoom / 2 + (p.x - g.start.x);  // the circle's radius on screen
+    s.size = Math.min(1000, Math.max(1, Math.round(2 * r / this.view.zoom * 10) / 10));
+    this.showSetting('size');
+  }
+
+  endBrushSize() {
+    store('tools', this.settings);
+    this.drawBrushPreview();
   }
 
   // ---------- painting ----------
@@ -1521,6 +1597,7 @@ export class Editor {
       const p = averageColor(src.getImageData(own ? 0 : r.x, own ? 0 : r.y, r.w, r.h).data);
       if (!p) return;
       this.colors.set(rgbToHex(p[0], p[1], p[2]));
+      if (this.gesture?.type === 'pick') this.drawOverlay();  // the ring shows the new colour
     });
   }
 
@@ -1682,9 +1759,10 @@ export class Editor {
   onKey(e) {
     if (isTyping(e.target) || document.querySelector('.modal-back')) return;
     const c = e.key === 'Alt' ? 'alt' : comboOf(e);
-    if (c === 'space' || c === 'alt') {
+    const hold = e.key === ' ' ? 'space' : c === 'alt' ? 'alt' : null;  // Space with Shift or Ctrl held too (turn, zoom)
+    if (hold) {
       e.preventDefault();
-      if (!this.held[c]) { this.held[c] = true; this.drawOverlay(); }
+      if (!this.held[hold]) { this.held[hold] = true; this.drawOverlay(); }
       return;
     }
     if (this.xf) return this.onTransformKey(e, c);

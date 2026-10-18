@@ -49,7 +49,8 @@ export const GUIDE = [
       <li><b>Pen</b> <kbd>P</kbd> for clean lines, <b>Pencil</b> <kbd>N</kbd> for sketching, <b>Brush</b> <kbd>B</kbd> for
       soft paint, <b>Airbrush</b> <kbd>A</kbd> for gentle shading.</li>
       <li><b>Eraser</b> <kbd>E</kbd> takes paint away. The eraser end of your pen does too.</li>
-      <li><kbd>[</kbd> and <kbd>]</kbd> make the brush smaller and bigger.</li>
+      <li><kbd>[</kbd> and <kbd>]</kbd> make the brush smaller and bigger. Or hold <kbd>Ctrl+Alt</kbd> and drag on
+      the canvas: the circle grows as you drag right and shrinks as you drag left, with its size shown above it.</li>
       <li><b>Shift+click</b> draws a straight line from where your last stroke ended.</li>
       <li><b>Hold to straighten</b> (Brush settings → Stroke): draw a line or a loop and keep the pen still for a moment
       before lifting it. The line turns straight, the loop into a neat ellipse; move the pen to stretch it, then lift.</li>
@@ -134,7 +135,8 @@ export const GUIDE = [
       ring for the hue, inside the square for how strong and light it is.</li>
       <li>Hold <kbd>Alt</kbd> while painting to pick a colour from the canvas, or use the <b>Eyedropper</b> <kbd>I</kbd>.
       Its settings pick from everything you see or only the selected layer, and can average a small square, so a
-      grainy texture does not decide the colour.</li>
+      grainy texture does not decide the colour. While you pick, a ring round the pointer shows the new colour on
+      top and the one you had below.</li>
       <li><b>Recent</b> colours appear by themselves. For colours you want to keep, press <b>+</b> next to
       <b>Palette</b>. Click a swatch to use it, right-click to remove it.</li>
       <li>The palette's <b>⋯</b> button imports palette files (GIMP and Krita <code>.gpl</code>, Photoshop
@@ -457,9 +459,10 @@ export const GUIDE = [
   ['view', 'Zoom, view and undo', `
     <ul>
       <li><b>Zoom</b>: scroll the mouse wheel. <kbd>Ctrl+0</kbd> fits the picture in the window, <kbd>Ctrl+1</kbd>
-      shows it at 100%.</li>
+      shows it at 100%. Hold <kbd>Ctrl+Space</kbd> and drag right to zoom in where you started, left to zoom out.</li>
       <li><b>Move around</b>: hold <kbd>Space</kbd> and drag, or use the Hand <kbd>H</kbd>.</li>
-      <li><b>Turn</b>: <kbd>Shift</kbd>+scroll, or <kbd>4</kbd> and <kbd>6</kbd>. <kbd>5</kbd> straightens it.</li>
+      <li><b>Turn</b>: <kbd>Shift</kbd>+scroll, or <kbd>4</kbd> and <kbd>6</kbd>. <kbd>5</kbd> straightens it.
+      Hold <kbd>Shift+Space</kbd> and drag round the middle of the window to turn it freely.</li>
       <li><b>Mirror</b> <kbd>Shift+M</kbd>: a quick way to spot mistakes in your drawing.</li>
       <li>On a <b>touch screen</b>: pinch with two fingers to zoom, twist them to turn the canvas and drag them to move
       it. Tap with two fingers to undo, with three to redo. One finger draws; your palm is ignored while the pen draws.</li>
@@ -495,7 +498,7 @@ export const GUIDE = [
 
 /** Shortcuts other than the tool keys (those come from TOOLS): [group, [[keys, what], ...]]. */
 export const SHORTCUTS = [
-  ['Painting', [['[ / ]', 'Smaller / bigger brush'], ['X', 'Swap main and sub colour'], ['Alt (hold)', 'Pick a colour'],
+  ['Painting', [['[ / ]', 'Smaller / bigger brush'], ['Ctrl+Alt+drag', 'Set the brush size on the canvas'], ['X', 'Swap main and sub colour'], ['Alt (hold)', 'Pick a colour'],
     ['Shift+click', 'Straight line from the last stroke']]],
   ['Edit', [['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy / cut / paste'], ['Ctrl+T', 'Transform'],
     ['Del', 'Clear the selection or layer'], ['Alt+Del', 'Fill the selection or layer'], ['Ctrl+F', 'Repeat the last filter']]],
@@ -506,7 +509,7 @@ export const SHORTCUTS = [
     ['Ctrl+click / Shift+click', 'Pick several layers']]],
   ['Animation', [[', / .', 'Previous / next frame (with the animation timeline on)'], ['Alt+, / Alt+.', 'Hold the current frame one frame time less / longer']]],
   ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
-  ['View', [['Space (hold)', 'Move the view'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
+  ['View', [['Space (hold)', 'Move the view'], ['Shift+Space+drag', 'Turn the view'], ['Ctrl+Space+drag', 'Zoom in (right) / out (left)'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
     ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'],
     ['Ctrl+2 / Ctrl+;', 'Snap to rulers / show guides']]],
   ['File and program', [['Ctrl+S', 'Save now'], ['Ctrl+Shift+S', 'Export a PNG'], ['Ctrl+Alt+Shift+S', 'Export…'],
