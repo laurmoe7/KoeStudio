@@ -224,6 +224,17 @@ test('fill closes small gaps in line art', async () => {
   assert.ok(shut.bounds.y >= 3 && shut.bounds.x >= 6, 'at most a small bulge past the opening: ' + JSON.stringify(shut.bounds));
   const near = closeGapFill(data, W, W, 6, 6, 0, 2);
   assert.equal(at(near, 0, 0), 1, 'clicking next to a line falls back to the ordinary fill');
+  // the same square inside a bigger picture, 40 px right and 25 down, with a closed box elsewhere: it is worked
+  // out around the leaky fill only, and lands in the same place
+  const BW = 120, BH = 90, big = new Uint8ClampedArray(BW * BH * 4);
+  for (let y = 0; y < W; y++) big.set(data.subarray(y * W * 4, (y + 1) * W * 4), ((y + 25) * BW + 40) * 4);
+  for (let i = 0; i <= 10; i++) for (const [x, y] of [[90 + i, 60], [90 + i, 70], [90, 60 + i], [100, 60 + i]]) big[(y * BW + x) * 4 + 3] = 255;
+  const moved = closeGapFill(big, BW, BH, 55, 40, 0, 2);
+  assert.deepEqual(moved.bounds, { ...shut.bounds, x: shut.bounds.x + 40, y: shut.bounds.y + 25 });
+  for (let y = 0; y < BH; y++) for (let x = 0; x < BW; x++) {
+    const inSmall = x >= 40 && x < 70 && y >= 25 && y < 55 ? shut.mask[(y - 25) * W + x - 40] : 0;
+    if (moved.mask[y * BW + x] !== inSmall) assert.fail(`pixel ${x}, ${y} differs`);
+  }
 });
 
 test('colour palette', async () => {

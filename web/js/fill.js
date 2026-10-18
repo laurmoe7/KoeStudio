@@ -94,12 +94,29 @@ export function growMask(mask, w, h, n, bounds) {
 export function closeGapFill(data, w, h, x, y, tolerance = 0, gap = 0) {
   const plain = floodMask(data, w, h, x, y, tolerance, true);
   if (!plain || !(gap > 0)) return plain;
-  const same = floodMask(data, w, h, x, y, tolerance, false).mask;
+  // Everything happens within the plain fill's bounds plus a margin: the result lies inside the plain fill, and a
+  // line or core pixel that decides a distance is never further than the gap (+4/3 px) from where it counts. On a
+  // big canvas this is the difference between half a second and a few ms; the result is the same.
+  const m = Math.ceil(gap) + 3, b = plain.bounds;
+  const rx = Math.max(0, b.x - m), ry = Math.max(0, b.y - m);
+  const rw = Math.min(w, b.x + b.w + m) - rx, rh = Math.min(h, b.y + b.h + m) - ry;
+  const sub = new Uint8ClampedArray(rw * rh * 4);
+  for (let row = 0; row < rh; row++) sub.set(data.subarray(((ry + row) * w + rx) * 4, ((ry + row) * w + rx + rw) * 4), row * rw * 4);
+  const local = gapFillIn(sub, rw, rh, Math.floor(x) - rx, Math.floor(y) - ry, tolerance, gap);
+  if (!local) return plain;
+  const mask = new Uint8Array(w * h);
+  for (let row = 0; row < rh; row++) mask.set(local.mask.subarray(row * rw, (row + 1) * rw), (ry + row) * w + rx);
+  const lb = local.bounds;
+  return { mask, bounds: { x: lb.x + rx, y: lb.y + ry, w: lb.w, h: lb.h } };
+}
+
+/** closeGapFill on a picture (or a part of one) with the click at (sx, sy); null when the click is too near a line. */
+function gapFillIn(data, w, h, sx, sy, tolerance, gap) {
+  const same = floodMask(data, w, h, sx, sy, tolerance, false).mask;
   const wall = new Uint8Array(w * h);
   for (let i = 0; i < wall.length; i++) wall[i] = same[i] ? 0 : 1;
   const toWall = chamferDistance(wall, w, h), limit = Math.round(gap * 3);  // thirds of a pixel
-  const sx = Math.floor(x), sy = Math.floor(y);
-  if (toWall[sy * w + sx] <= limit) return plain;
+  if (toWall[sy * w + sx] <= limit) return null;
   // the core: connected to the click and further than `gap` from every line
   const core = new Uint8Array(w * h), stack = [sy * w + sx];
   core[sy * w + sx] = 1;
