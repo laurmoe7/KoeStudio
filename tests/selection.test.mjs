@@ -84,6 +84,19 @@ test('dragging a corner scales from the opposite corner', () => {
   near(flip.sx, -1, 'dragging past the opposite side mirrors it');
 });
 
+test('Alt+dragging a handle scales about the middle', () => {
+  const t0 = newTransform({ x: 0, y: 0, w: 100, h: 50 });  // middle (50, 25)
+  const t = dragHandle(t0, 'se', { x: 150, y: 75 }, false, true);
+  near(t.sx, 2, 'the corner went 100 px right of the middle: half the width is now 100');
+  near(t.sy, 2);
+  near(t.cx, 50); near(t.cy, 25, 'the middle stays put');
+  const nw = boxPoint(t, -1, -1);
+  near(nw.x, -50); near(nw.y, -25, 'the opposite corner moves out as far');
+  const e = dragHandle(t0, 'e', { x: 75, y: 999 }, false, true);
+  near(e.sx, 0.5, 'side handle 25 px from the middle: width 50');
+  near(e.sy, 1);
+});
+
 test('scaling a rotated box keeps the anchor and uses the box axes', () => {
   const t0 = { ...newTransform({ x: 0, y: 0, w: 100, h: 100 }), rot: Math.PI / 2 };
   const anchor = boxPoint(t0, -1, 0);  // opposite of the 'e' handle

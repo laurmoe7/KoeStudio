@@ -1126,7 +1126,7 @@ export class Editor {
           const q = toDoc(this.view, p.x, p.y);
           this.selectDrag(GRID_TOOLS.has(g.tool) ? this.gridPoint(q) : q);
         } else if (g.type === 'xf') {
-          this.xfDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
+          this.xfDrag(toDoc(this.view, p.x, p.y), e.shiftKey, e.altKey);
         } else if (g.type === 'crop') {
           this.cropDrag(this.gridPoint(toDoc(this.view, p.x, p.y)), e.shiftKey);
         } else if (g.type === 'guide' || g.type === 'vp' || g.type === 'shape') {

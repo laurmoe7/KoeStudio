@@ -238,7 +238,8 @@ export const GUIDE = [
     </ul>
     <figure data-pic="transform"></figure>
     <ul>
-      <li>Hold Shift to keep the proportions while resizing, or to turn in 15° steps.</li>
+      <li>Hold Shift to keep the proportions while resizing, or to turn in 15° steps. Hold Alt to resize from the
+      middle, so the opposite side moves too.</li>
       <li>The tool panel has buttons to flip and turn by 90°.</li>
       <li><b>Distort</b> (or <kbd>Ctrl</kbd>+drag a corner) moves each corner on its own: use it to lay a picture onto a
       wall or a screen in perspective.</li>

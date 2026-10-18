@@ -49,15 +49,18 @@ export function hitTest(t, p, tol) {
   return Math.abs(b.x) <= 1 && Math.abs(b.y) <= 1 ? 'move' : 'rotate';
 }
 
-/** Dragging handle `name` of start transform t0 to doc point p; the opposite handle stays put. */
-export function dragHandle(t0, name, p, keepAspect = false) {
+/**
+ * Dragging handle `name` of start transform t0 to doc point p; the opposite handle stays put, or with fromCentre
+ * (Alt) the middle of the box, so both sides move.
+ */
+export function dragHandle(t0, name, p, keepAspect = false, fromCentre = false) {
   const [hx, hy] = HANDLES[name];
-  const anchor = boxPoint(t0, -hx, -hy);
+  const anchor = fromCentre ? { x: t0.cx, y: t0.cy } : boxPoint(t0, -hx, -hy), reach = fromCentre ? 0.5 : 1;
   const cos = Math.cos(t0.rot), sin = Math.sin(t0.rot);
   const dx = p.x - anchor.x, dy = p.y - anchor.y;
   const lx = cos * dx + sin * dy, ly = -sin * dx + cos * dy;  // pointer in the box's own axes, from the anchor
-  let sx = hx ? lx / (hx * t0.w) : t0.sx;
-  let sy = hy ? ly / (hy * t0.h) : t0.sy;
+  let sx = hx ? lx / (hx * t0.w * reach) : t0.sx;
+  let sy = hy ? ly / (hy * t0.h * reach) : t0.sy;
   if (keepAspect) {
     if (hx && hy) {
       const kx = sx / t0.sx, ky = sy / t0.sy;
@@ -72,6 +75,7 @@ export function dragHandle(t0, name, p, keepAspect = false) {
   sx = clampScale(sx, t0.w);
   sy = clampScale(sy, t0.h);
   const t = { ...t0, sx, sy };
+  if (fromCentre) return t;
   // put the anchor back where it was
   const a2 = boxPoint(t, -hx, -hy);
   return { ...t, cx: t.cx + anchor.x - a2.x, cy: t.cy + anchor.y - a2.y };

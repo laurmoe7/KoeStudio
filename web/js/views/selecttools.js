@@ -658,7 +658,7 @@ export const selectionMethods = {
     if (!x.raf) x.raf = requestAnimationFrame(() => { x.raf = 0; if (this.xf === x) this.renderTransform(); });
   },
 
-  xfDrag(dp, shift) {
+  xfDrag(dp, shift, alt = false) {
     const g = this.gesture, x = this.xf;
     if (x.mesh) {
       if (typeof g.grab === 'number') this.setMesh(g.m0.map((p, i) => (i === g.grab ? { x: dp.x, y: dp.y } : p)));
@@ -672,7 +672,7 @@ export const selectionMethods = {
     }
     if (g.grab === 'move') x.t = dragMove(g.t0, g.p0, dp);
     else if (g.grab === 'rotate') x.t = dragRotate(g.t0, g.p0, dp, shift);
-    else x.t = dragHandle(g.t0, g.grab, dp, x.keepAspect !== shift);
+    else x.t = dragHandle(g.t0, g.grab, dp, x.keepAspect !== shift, alt);
     this.renderTransform();
   },
 
