@@ -430,6 +430,9 @@ export const GUIDE = [
       <li><b>Mirror</b> <kbd>Shift+M</kbd>: a quick way to spot mistakes in your drawing.</li>
       <li>On a <b>touch screen</b>: pinch with two fingers to zoom, twist them to turn the canvas and drag them to move
       it. Tap with two fingers to undo, with three to redo. One finger draws; your palm is ignored while the pen draws.</li>
+      <li><b>Tile preview</b> (View menu) repeats the picture all round itself on screen, to check that a pattern joins up
+      without seams (Filter → Offset moves the seams into the middle to paint over them).</li>
+      <li><b>Pixel grid</b> (View menu, on at first) draws lines between the pixels from 800% zoom, for pixel art.</li>
       <li><b>Grayscale view</b> (View menu) shows the canvas in grays, to check that light and dark read well. Your
       colours stay; click the "Grayscale view" label at the top to turn it off.</li>
       <li>The <b>Navigator</b> shows the whole picture: click or drag in it to jump there.</li>

@@ -58,7 +58,8 @@ const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 
 const GRID_TOOLS = new Set(['select', 'ellipse', 'polygon']);  // selection tools whose corners snap to the grid
 const TAP_SLOP = 16, TAP_MS = 300;  // two- and three-finger taps: at most this far (px, both fingers) and this long
 const TURN_DEAD = 6 * Math.PI / 180;
-const HOLD_MS = 600, HOLD_PX = 4;  // QuickShape: the pen kept within HOLD_PX screen px for HOLD_MS  // a pinch turns the canvas only once the fingers twist further than this
+const HOLD_MS = 600, HOLD_PX = 4;
+const PIXEL_GRID_ZOOM = 8;  // zoom (800%) from which View → Pixel grid shows lines between the pixels  // QuickShape: the pen kept within HOLD_PX screen px for HOLD_MS  // a pinch turns the canvas only once the fingers twist further than this
 
 /** Visible layers marked as reference, or inside a reference folder (bottom first). */
 function referenceLayers(root) {
@@ -95,7 +96,8 @@ export class Editor {
     this.showRulers = store('edgeRulers') !== false;  // pixel rulers along the view edges (rulertools.js)
     this.rulerMake = store('rulerMake') === 'ellipse' ? 'ellipse' : 'line';  // what a drag with the Ruler tool makes
     this.rulerPick = -1;  // the picked straight-line or concentric ruler (rulertools.js)
-    this.maskOverlay = store('maskOverlay') === true;  // tint what a mask hides while painting on it
+    this.maskOverlay = store('maskOverlay') === true;
+    this.pixelGrid = store('pixelGrid') !== false;  // lines between pixels when zoomed in far  // tint what a mask hides while painting on it
     this.poly = null;  // polygon selection being drawn (selecttools.js)
     this.figPoly = null;  // polyline/polygon figure being clicked (figuretool.js)
     this.quickMask = null;  // the Mask tools paint on while Quick mask is on (quickmask.js)
@@ -176,6 +178,7 @@ export class Editor {
           <button class="menu-btn" data-menu="help">Help</button>
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
           <button class="mask-chip" hidden title="Tools paint on the layer mask: painting hides, erasing shows. Click to paint on the layer again.">${icon('mask', 14)} Painting on mask</button>
+          <button class="mask-chip tile-chip" hidden title="The canvas is shown repeated round itself, to check a pattern joins up. Click to turn it off.">Tile preview</button>
           <button class="mask-chip gray-chip" hidden title="The canvas is shown in grays to check light and dark (your colours are unchanged). Click to show colours again.">Grayscale view</button>
           <button class="mask-chip qmask-chip" hidden title="Tools paint the selection: painting selects, erasing deselects. Click (or press Q) to turn it into the selection.">${icon('mask', 14)} Quick mask</button>
           <div class="grow"></div>
@@ -273,6 +276,7 @@ export class Editor {
     $('.mask-chip:not(.qmask-chip)').onclick = () => this.editMask(false);
     $('.qmask-chip').onclick = () => this.toggleQuickMask();
     $('.gray-chip').onclick = () => this.toggleGrayView();
+    $('.tile-chip').onclick = () => this.toggleTileView();
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
     this.bindPointer();
@@ -412,6 +416,8 @@ export class Editor {
         '-',
         { label: 'Show mask area (while painting on a mask)', checked: this.maskOverlay, run: () => this.toggleMaskOverlay() },
         { label: 'Grayscale view (check values)', checked: !!this.grayView, run: () => this.toggleGrayView() },
+        { label: 'Tile preview (seamless patterns)', checked: !!this.tileView, run: () => this.toggleTileView() },
+        { label: 'Pixel grid (when zoomed in)', checked: this.pixelGrid, run: () => this.togglePixelGrid() },
         '-',
         { label: 'Animation timeline', checked: d.anim.on, run: () => this.toggleAnimation() },
         { label: 'Animation settings…', run: () => this.animSettingsDialog(), disabled: !d.anim.on },
@@ -511,6 +517,7 @@ export class Editor {
    */
   render(region = 'all') {
     this.flushComp();
+    if (this.tileView) region = 'all';  // the copies round the canvas change with every stroke too
     const ctx = this.vctx, d = this.doc, dpr = this.dpr || 1;
     const r = region !== 'all' && region ? clip(region, d.width, d.height) : null;
     this.dirty = null;
@@ -538,8 +545,9 @@ export class Editor {
       if (!box) { ctx.restore(); return; }
     }
     ctx.drawImage(this.paperLayer, 0, 0);
-    ctx.setTransform(...m);
     const scale = this.view.zoom * dpr, n = mipLevel(scale);
+    if (this.tileView) this.drawTiles(ctx, m, n);
+    ctx.setTransform(...m);
     if (n) {  // zoomed out: from a downscaled copy (see updateMips), never through the browser's mipmaps
       const src = this.updateMips(n), f = 2 ** n, e = 2 * f;  // e: the bilinear edge of the source rect stays outside the clip
       const s = mipRect({ x: box.x - e, y: box.y - e, w: box.w + 2 * e, h: box.h + 2 * e }, n, d.width, d.height);
@@ -565,6 +573,62 @@ export class Editor {
     this.zoomLabel.textContent = Math.round(this.view.zoom * 1000) / 10 + '%';
     const deg = Math.round(((this.view.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
     this.rotLabel.textContent = deg + '°' + (this.view.flip ? ' ⇋' : '');
+  }
+
+  /**
+   * View → Tile preview: the picture repeated once all round itself (paper included), to check that a pattern
+   * joins up without seams. Only the screen shows it.
+   */
+  drawTiles(ctx, m, n) {
+    const d = this.doc, src = n ? this.updateMips(n) : this.comp, f = 2 ** n;
+    for (let ty = -1; ty <= 1; ty++) {
+      for (let tx = -1; tx <= 1; tx++) {
+        if (!tx && !ty) continue;
+        ctx.save();
+        ctx.setTransform(...m);
+        ctx.translate(tx * d.width, ty * d.height);
+        ctx.fillStyle = d.paper || this.checker(ctx);
+        ctx.fillRect(0, 0, d.width, d.height);
+        ctx.imageSmoothingEnabled = n > 0 || this.view.zoom < 2;
+        ctx.imageSmoothingQuality = 'low';
+        if (this.grayView) ctx.filter = 'grayscale(1)';
+        ctx.drawImage(src, 0, 0, Math.ceil(d.width / f), Math.ceil(d.height / f), 0, 0, Math.ceil(d.width / f) * f, Math.ceil(d.height / f) * f);
+        ctx.restore();
+      }
+    }
+  }
+
+  /** View → Tile preview (session only; a chip at the top turns it off). */
+  toggleTileView() {
+    this.tileView = !this.tileView;
+    this.root.querySelector('.tile-chip').hidden = !this.tileView;
+    this.render();
+  }
+
+  /** View → Pixel grid: lines between the pixels when zoomed in to PIXEL_GRID_ZOOM or more (kept per machine). */
+  togglePixelGrid() {
+    this.pixelGrid = !this.pixelGrid;
+    store('pixelGrid', this.pixelGrid);
+    this.drawOverlay();
+  }
+
+  drawPixelGrid(ctx) {
+    if (!this.pixelGrid || this.view.zoom < PIXEL_GRID_ZOOM) return;
+    const d = this.doc, dpr = this.dpr || 1;
+    const cs = [[0, 0], [this.vw, 0], [0, this.vh], [this.vw, this.vh]].map(([x, y]) => toDoc(this.view, x, y));
+    const x0 = Math.max(0, Math.floor(Math.min(...cs.map(p => p.x)))), x1 = Math.min(d.width, Math.ceil(Math.max(...cs.map(p => p.x))));
+    const y0 = Math.max(0, Math.floor(Math.min(...cs.map(p => p.y)))), y1 = Math.min(d.height, Math.ceil(Math.max(...cs.map(p => p.y))));
+    if (x1 <= x0 || y1 <= y0) return;
+    const [a, b, c, dd, e, f] = matrix(this.view);
+    const sp = (x, y) => [(a * x + c * y + e) * dpr, (b * x + dd * y + f) * dpr];
+    ctx.save();
+    ctx.strokeStyle = 'rgba(128,128,136,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = x0; x <= x1; x++) { ctx.moveTo(...sp(x, y0)); ctx.lineTo(...sp(x, y1)); }
+    for (let y = y0; y <= y1; y++) { ctx.moveTo(...sp(x0, y)); ctx.lineTo(...sp(x1, y)); }
+    ctx.stroke();
+    ctx.restore();
   }
 
   /** Background, paper shadow, white paper and (for transparent paper) the checker, for the current view. */
@@ -663,6 +727,7 @@ export class Editor {
     if (!ctx) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
+    this.drawPixelGrid(ctx);
     this.drawSelectionOverlay(ctx);
     this.drawCropOverlay(ctx);
     this.drawRulerOverlay(ctx);
