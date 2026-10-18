@@ -350,3 +350,51 @@ test('gradient map: lightness picks a colour along the stops', async () => {
   gradientMap(fade, [[0, [0, 0, 0, 255]], [1, [0, 0, 0, 0]]]);
   assert.equal(fade[3], 0, 'a transparent stop clears the light parts');
 });
+
+test('offset wraps round the edges', async () => {
+  const { offsetWrap } = await import('../web/js/filters.js');
+  const d = new Uint8ClampedArray([1, 0, 0, 255, 2, 0, 0, 255, 3, 0, 0, 255]);
+  offsetWrap(d, 3, 1, 1, 0);
+  assert.deepEqual([d[0], d[4], d[8]], [3, 1, 2], 'one to the right: the last comes round to the front');
+  offsetWrap(d, 3, 1, -4, 0);
+  assert.deepEqual([d[0], d[4], d[8]], [1, 2, 3], 'four to the left is one to the left');
+  const v = new Uint8ClampedArray([5, 0, 0, 255, 6, 0, 0, 255]);
+  offsetWrap(v, 1, 2, 0, 1);
+  assert.deepEqual([v[0], v[4]], [6, 5], 'down');
+  assert.equal(FILTER_BY_ID.offset.margin({}), 1e6, 'reads the whole canvas');
+});
+
+test('glow spills light from bright parts only', async () => {
+  const { glow } = await import('../web/js/filters.js');
+  const w = 9, h = 1, d = new Uint8ClampedArray(w * 4);
+  for (let x = 0; x < w; x++) d.set([0, 0, 0, 255], x * 4);
+  d.set([255, 255, 255, 255], 4 * 4);
+  glow(d, w, h, 2, 1, 128);
+  assert.ok(d[3 * 4] > 0, 'the neighbour of the white pixel lights up');
+  assert.ok(d[3 * 4] > d[1 * 4], 'less further away');
+  assert.equal(d[4 * 4], 255, 'white stays white');
+  const dim = new Uint8ClampedArray(w * 4);
+  for (let x = 0; x < w; x++) dim.set([100, 100, 100, 255], x * 4);
+  glow(dim, w, h, 2, 1, 128);
+  assert.equal(dim[0], 100, 'nothing brighter than the threshold: no glow');
+  const clear = new Uint8ClampedArray(w * 4);
+  clear.set([255, 255, 255, 255], 4 * 4);
+  glow(clear, w, h, 2, 1, 128);
+  assert.ok(clear[3 * 4 + 3] > 0, 'glow reaches onto see-through pixels');
+  assert.equal(clear[3 * 4], 255, 'as white light');
+});
+
+test('chromatic aberration pushes red out and blue in', async () => {
+  const { chromaticAberration } = await import('../web/js/filters.js');
+  const w = 5, flat = new Uint8ClampedArray(w * 4);
+  for (let x = 0; x < w; x++) flat.set([10, 20, 30, 255], x * 4);
+  chromaticAberration(flat, w, 1, 1, 2.5, 0.5, 2.5);
+  assert.deepEqual(px(flat, 4), [10, 20, 30, 255], 'a flat colour stays');
+  const d = new Uint8ClampedArray(w * 4);
+  for (let x = 0; x < w; x++) d.set([0, 0, 0, 255], x * 4);
+  d.set([255, 0, 0, 255], 3 * 4);
+  chromaticAberration(d, w, 1, 1, 2.5, 0.5, 2.5);
+  // pixel 4 (centre 4.5) is 2 from the centre: shifted 0.8, red read at 3.7 = 80% of pixel 3
+  assert.equal(d[4 * 4], 204);
+  assert.equal(d[2 * 4], 0, 'the centre pixel is not shifted');
+});

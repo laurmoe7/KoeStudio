@@ -332,8 +332,13 @@ export const GUIDE = [
       <li><b>Blurs</b>: Gaussian (soft all over), Motion (a streak in one direction), Zoom and Spin (click the canvas to
       set the centre).</li>
       <li><b>Sharpen</b>, <b>Mosaic</b> (big pixels) and <b>Add noise</b> (grain).</li>
+      <li><b>Glow</b> lets light spill softly round the bright parts (set how bright with <b>Brighter than</b>);
+      <b>Chromatic aberration</b> gives edges red and blue fringes, stronger towards the corners, like a cheap lens.</li>
+      <li><b>Offset (wrap around)</b> slides the picture so what leaves one edge comes back at the other. To make a
+      seamless pattern: offset by 50% both ways, paint over the seams now in the middle, and offset back.</li>
       <li><b>Colour fixes</b>: Brightness/Contrast, Hue/Saturation, Color balance, Curves, Levels, Posterize,
-      Threshold (black and white only) and Invert.</li>
+      Threshold (black and white only) and Invert. To keep changing them later, use a
+      <button type="button" class="guide-link" data-goto="adjust">correction layer</button> instead.</li>
       <li><b>Gradient map</b> recolours by lightness, using the Gradient tool's colours: try Sunset or Night.</li>
     </ul>
     <h4>For line art</h4>
@@ -388,6 +393,8 @@ export const GUIDE = [
       <li><b>Move around</b>: hold <kbd>Space</kbd> and drag, or use the Hand <kbd>H</kbd>.</li>
       <li><b>Turn</b>: <kbd>Shift</kbd>+scroll, or <kbd>4</kbd> and <kbd>6</kbd>. <kbd>5</kbd> straightens it.</li>
       <li><b>Mirror</b> <kbd>Shift+M</kbd>: a quick way to spot mistakes in your drawing.</li>
+      <li><b>Grayscale view</b> (View menu) shows the canvas in grays, to check that light and dark read well. Your
+      colours stay; click the "Grayscale view" label at the top to turn it off.</li>
       <li>The <b>Navigator</b> shows the whole picture: click or drag in it to jump there.</li>
     </ul>
     <h4>Undo</h4>

@@ -24,6 +24,13 @@ export const FILTERS = [
     margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => zoomBlur(d, w, h, p.amount / 100, (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
   { id: 'spin', label: 'Spin blur…', centre: true, fields: [f('angle', 'Angle', 1, 90, 1, 10, '°'), f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
     margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => spinBlur(d, w, h, p.angle, (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
+  { id: 'glow', label: 'Glow…', fields: [f('radius', 'Radius', 1, 100, 1, 12, ' px'), f('strength', 'Strength', 1, 200, 1, 80, '%'), f('threshold', 'Brighter than', 0, 254, 1, 160)],
+    margin: p => Math.ceil(p.radius * 3), apply: (d, w, h, p) => glow(d, w, h, p.radius, p.strength / 100, p.threshold) },
+  { id: 'chroma', label: 'Chromatic aberration…', fields: [f('amount', 'Amount', 1, 50, 1, 6, ' px')],
+    margin: p => Math.ceil(p.amount) + 2, apply: (d, w, h, p, x0, y0, W, H) => chromaticAberration(d, w, h, p.amount, (W ?? w) / 2 - x0, (H ?? h) / 2 - y0, Math.hypot(W ?? w, H ?? h) / 2) },
+  { id: 'offset', label: 'Offset (wrap around)…', fields: [f('x', 'Right', -100, 100, 1, 50, '%'), f('y', 'Down', -100, 100, 1, 50, '%')],
+    note: 'What leaves one edge comes back at the other, so the seams of a pattern move into the middle where you can paint over them.',
+    margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => offsetWrap(d, w, h, Math.round((p.x / 100) * (W ?? w)), Math.round((p.y / 100) * (H ?? h))) },
   { id: 'noise', label: 'Add noise…', fields: [f('amount', 'Amount', 1, 100, 1, 20, '%'), f('color', 'Color', 0, 100, 1, 0, '%')],
     margin: () => 0, apply: (d, w, h, p, x0, y0) => addNoise(d, w, h, p.amount, p.color, x0, y0) },
   '-',
@@ -255,6 +262,70 @@ export function sharpen(data, w, h, amount, radius) {
   gaussianBlur(blurred, w, h, radius);
   for (let i = 0; i < data.length; i += 4) {
     for (let c = 0; c < 3; c++) data[i + c] = data[i + c] + amount * (data[i + c] - blurred[i + c]);
+  }
+  return data;
+}
+
+/**
+ * Glow: the parts brighter than `threshold` (fading in over the brightness above it) are blurred by radius and laid
+ * over the picture in Screen mode at `strength` (1 = as they are), so light spills softly round them, also onto
+ * see-through pixels next to them.
+ */
+export function glow(data, w, h, radius, strength, threshold) {
+  const light = new Uint8ClampedArray(data.length), span = Math.max(1, 255 - threshold);
+  for (let i = 0; i < data.length; i += 4) {
+    const t = Math.max(0, Math.min(1, (luminance(data[i], data[i + 1], data[i + 2]) - threshold) / span));
+    light[i] = data[i]; light[i + 1] = data[i + 1]; light[i + 2] = data[i + 2]; light[i + 3] = data[i + 3] * t;
+  }
+  gaussianBlur(light, w, h, radius);
+  for (let i = 0; i < data.length; i += 4) {
+    const as = Math.min(1, (light[i + 3] / 255) * strength), ab = data[i + 3] / 255;
+    if (!as) continue;
+    const ao = as + ab * (1 - as);
+    for (let c = 0; c < 3; c++) {
+      const cs = light[i + c] / 255, cb = data[i + c] / 255;
+      // separable blending: source alone, backdrop alone, and where both are, screen of the two
+      const co = cs * as * (1 - ab) + cb * ab * (1 - as) + as * ab * (cs + cb - cs * cb);
+      data[i + c] = Math.round((co / ao) * 255);
+    }
+    data[i + 3] = Math.round(ao * 255);
+  }
+  return data;
+}
+
+/**
+ * Chromatic aberration (as a cheap lens): red is pushed outwards from the centre (cx, cy) and blue inwards, by
+ * `amount` px at distance `far` from it (the canvas corner) and less nearer the centre; green stays. Each channel
+ * comes with its own alpha, so outlines get coloured fringes on both sides.
+ */
+export function chromaticAberration(data, w, h, amount, cx, cy, far) {
+  const src = premultiplied(data), acc = new Float64Array(4), k = amount / Math.max(1, far);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, px = x + 0.5, py = y + 0.5, dx = (px - cx) * k, dy = (py - cy) * k;
+      acc.fill(0);
+      addSample(src, w, h, px - dx, py - dy, 1, acc);  // red: from nearer the centre, so it lands further out
+      const r = acc[0], ar = acc[3];
+      acc.fill(0);
+      addSample(src, w, h, px + dx, py + dy, 1, acc);
+      const b = acc[2], ab = acc[3];
+      const g = src[i + 1], ag = src[i + 3];
+      const a = Math.max(ar, ag, ab);
+      if (!a) { data[i] = data[i + 1] = data[i + 2] = data[i + 3] = 0; continue; }
+      data[i] = Math.round(r / a * 255); data[i + 1] = Math.round(g / a * 255); data[i + 2] = Math.round(b / a * 255);
+      data[i + 3] = Math.round(a);
+    }
+  }
+  return data;
+}
+
+/** Shifts the picture by dx, dy px (right, down), wrapping round: what leaves one edge comes in at the other. */
+export function offsetWrap(data, w, h, dx, dy) {
+  const src = new Uint32Array(new Uint8ClampedArray(data).buffer), out = new Uint32Array(data.buffer, data.byteOffset, w * h);
+  const ox = ((dx % w) + w) % w, oy = ((dy % h) + h) % h;
+  for (let y = 0; y < h; y++) {
+    const sy = (y - oy + h) % h;
+    for (let x = 0; x < w; x++) out[y * w + x] = src[sy * w + ((x - ox + w) % w)];
   }
   return data;
 }

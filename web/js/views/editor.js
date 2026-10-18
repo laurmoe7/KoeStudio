@@ -166,6 +166,7 @@ export class Editor {
           <button class="menu-btn" data-menu="help">Help</button>
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
           <button class="mask-chip" hidden title="Tools paint on the layer mask: painting hides, erasing shows. Click to paint on the layer again.">${icon('mask', 14)} Painting on mask</button>
+          <button class="mask-chip gray-chip" hidden title="The canvas is shown in grays to check light and dark (your colours are unchanged). Click to show colours again.">Grayscale view</button>
           <button class="mask-chip qmask-chip" hidden title="Tools paint the selection: painting selects, erasing deselects. Click (or press Q) to turn it into the selection.">${icon('mask', 14)} Quick mask</button>
           <div class="grow"></div>
           <button class="icon-btn" data-act="undo" title="Undo (Ctrl+Z)">${icon('undo')}</button>
@@ -258,6 +259,7 @@ export class Editor {
     });
     $('.mask-chip:not(.qmask-chip)').onclick = () => this.editMask(false);
     $('.qmask-chip').onclick = () => this.toggleQuickMask();
+    $('.gray-chip').onclick = () => this.toggleGrayView();
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
     this.bindPointer();
@@ -395,6 +397,7 @@ export class Editor {
         { label: 'Symmetry settings…', run: () => this.symmetryDialog() },
         '-',
         { label: 'Show mask area (while painting on a mask)', checked: this.maskOverlay, run: () => this.toggleMaskOverlay() },
+        { label: 'Grayscale view (check values)', checked: !!this.grayView, run: () => this.toggleGrayView() },
         { label: 'Reference window', checked: this.refState().open, run: () => this.toggleRefWindow() },
         '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
@@ -528,12 +531,15 @@ export class Editor {
       ctx.clip();
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'low';
+      if (this.grayView) ctx.filter = 'grayscale(1)';
       ctx.drawImage(src, s.x, s.y, s.w, s.h, s.x * f, s.y * f, s.w * f, s.h * f);
     } else {
       ctx.imageSmoothingEnabled = this.view.zoom < 2;
       ctx.imageSmoothingQuality = scale >= 1 ? 'high' : 'low';  // 'high' downscaling would build mipmaps of the whole composite
+      if (this.grayView) ctx.filter = 'grayscale(1)';  // View → Grayscale view: only the screen, never the artwork
       ctx.drawImage(this.comp, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h);
     }
+    ctx.filter = 'none';
     const tint = this.maskTint();
     if (tint) { ctx.globalAlpha = 0.45; ctx.drawImage(tint, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); ctx.globalAlpha = 1; }
     ctx.restore();
@@ -595,6 +601,13 @@ export class Editor {
     ctx.fillRect(0, 0, d.width, d.height);
     this.tintKey = key;
     return c;
+  }
+
+  /** View → Grayscale view: the canvas on screen in grays, to judge light and dark; the artwork keeps its colours. */
+  toggleGrayView() {
+    this.grayView = !this.grayView;
+    this.root.querySelector('.gray-chip').hidden = !this.grayView;
+    this.render();
   }
 
   toggleMaskOverlay() {
