@@ -255,7 +255,8 @@ export const GUIDE = [
     <ul>
       <li>Click a layer to paint on it. Drag it up or down the list to change the order.</li>
       <li>The buttons under the list add a layer, a folder or a mask, copy, move, merge and delete.</li>
-      <li>The <b>eye</b> hides a layer. Double-click its name (or press <kbd>F2</kbd>) to rename it.</li>
+      <li>The <b>eye</b> hides a layer. <kbd>Alt</kbd>+click an eye to see only that layer; <kbd>Alt</kbd>+click it
+      again to bring the others back as they were. Double-click its name (or press <kbd>F2</kbd>) to rename it.</li>
       <li><b>Opacity</b> makes the whole layer see-through. <b>Blending</b> modes such as Multiply (for shadows) and
       Screen (for light) change how it mixes with what is below.</li>
     </ul>
@@ -506,7 +507,7 @@ export const SHORTCUTS = [
     ['Shift / Alt (while dragging)', 'Add to / subtract from the selection']]],
   ['Layers', [['Ctrl+click (Move tool)', 'Pick the layer under the pointer'], ['Arrows / Shift+arrows (Move tool)', 'Move the layer or selection 1 / 10 px'], ['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],
     ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['Ctrl+J / Ctrl+Shift+J', 'Copy / cut to a new layer'], ['F2', 'Rename the layer'],
-    ['Ctrl+click / Shift+click', 'Pick several layers']]],
+    ['Ctrl+click / Shift+click', 'Pick several layers'], ['Alt+click an eye', 'Show only that layer (again: the others come back)']]],
   ['Animation', [[', / .', 'Previous / next frame (with the animation timeline on)'], ['Alt+, / Alt+.', 'Hold the current frame one frame time less / longer']]],
   ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
   ['View', [['Space (hold)', 'Move the view'], ['Shift+Space+drag', 'Turn the view'], ['Ctrl+Space+drag', 'Zoom in (right) / out (left)'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],

@@ -54,6 +54,17 @@ export function panelRows(root) {
   return rows;
 }
 
+/**
+ * Alt+click on an eye ("show only this"): which nodes to hide so only `node` shows. Its folders and itself must be
+ * shown; what is inside it keeps its own eyes. Returns {show, hide} (arrays); `hide` empty means it already shows alone.
+ */
+export function soloChange(root, node) {
+  const show = [];
+  for (let n = node; n && n !== root; n = n.parent) if (!n.visible) show.push(n);
+  const hide = allNodes(root).filter(n => n.visible && !contains(n, node) && !contains(node, n));
+  return { show, hide };
+}
+
 /** True when node is a or inside a. */
 export function contains(a, node) {
   for (let n = node; n; n = n.parent) if (n === a) return true;

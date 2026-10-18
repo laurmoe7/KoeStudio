@@ -5,7 +5,7 @@
 // set by clicking the mask thumbnail). Folders have no pixels of their own, only an optional mask.
 
 import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, effectsCanvas, PASS_THROUGH } from '../doc.js';
-import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase } from '../tree.js';
+import { isFolder, allLayers, allNodes, soloChange, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase } from '../tree.js';
 import { toast, menu } from '../ui.js';
 import { animFrames } from '../anim.js';
 import { toneDensity } from '../tone.js';
@@ -148,9 +148,27 @@ export const layerMethods = {
   },
 
   /** Visibility is not an undo step either (as in other painting programs), but it is saved. */
-  toggleVisible(node) {
+  toggleVisible(node, only = false) {
+    if (only) return this.showOnly(node);
     const multi = this.multiPicked(), v = !node.visible;
     for (const n of multi && this.picked.has(node) ? multi : [node]) n.visible = v;  // the eye of a picked row: all of them
+    this.layersChanged();
+  },
+
+  /**
+   * Alt+click on an eye: shows only this node (with its folders), hiding everything else; again puts every eye
+   * back as it was (or, when it was already alone, shows everything). Like the eyes themselves, not an undo step.
+   */
+  showOnly(node) {
+    const root = this.doc.root, { show, hide } = soloChange(root, node);
+    if (hide.length || show.length) {
+      this.solo = { node, saved: new Map([...show, ...hide].map(n => [n, n.visible])) };
+      for (const n of show) n.visible = true;
+      for (const n of hide) n.visible = false;
+    } else if (this.solo?.node === node) {
+      for (const [n, v] of this.solo.saved) n.visible = v;
+      this.solo = null;
+    } else for (const n of allNodes(root)) n.visible = true;
     this.layersChanged();
   },
 

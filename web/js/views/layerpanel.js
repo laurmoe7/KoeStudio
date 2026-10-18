@@ -119,13 +119,13 @@ export class LayerPanel {
       if (node.effects) sub.push(node.effects.border && node.effects.shadow ? 'border + shadow' : node.effects.border ? 'border' : 'shadow');
       if (node.mask && !node.mask.enabled) sub.push('mask off');
       row.innerHTML = `
-        <button class="icon-btn lp-eye" title="${node.visible ? 'Hide' : 'Show'}">${icon(node.visible ? 'eye' : 'eyeOff', 16)}</button>
+        <button class="icon-btn lp-eye" title="${node.visible ? 'Hide' : 'Show'} (Alt+click: show only this, again: show the others again)">${icon(node.visible ? 'eye' : 'eyeOff', 16)}</button>
         ${isFolder(node)
           ? `<button class="icon-btn lp-twisty" title="${node.open ? 'Close' : 'Open'} folder">${node.open ? '▾' : '▸'}</button><span class="lp-foldericon">${icon('folder', 22)}</span>`
           : `<canvas class="lp-thumb${active && !ed.maskEdit ? ' target' : ''}" width="${TW}" height="${TH}" title="Layer pixels"></canvas>`}
         ${node.mask ? `<canvas class="lp-mask${active && ed.maskEdit ? ' target' : ''}${node.mask.enabled ? '' : ' off'}" width="${TW}" height="${TH}" title="Mask: click to paint on it (painting hides, erasing shows)"></canvas>` : ''}
         <div class="lp-name"><span>${node.label ? `<i class="lp-dot" style="background:${labelColor(node.label)}"></i>` : ''}${esc(node.name)}</span><small>${esc(sub.join(' · '))}</small></div>`;
-      row.querySelector('.lp-eye').onclick = () => ed.toggleVisible(node);
+      row.querySelector('.lp-eye').onclick = e => ed.toggleVisible(node, e.altKey);
       const tw = row.querySelector('.lp-twisty');
       if (tw) tw.onclick = () => ed.toggleOpen(node);
       row._node = node;

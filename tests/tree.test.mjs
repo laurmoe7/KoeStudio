@@ -1,7 +1,7 @@
 // Layer tree operations and the version 2 save format. Built from plain objects, no canvases.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { allLayers, panelRows, contains, removeNode, insertNode, pathOf, nodeAt, destination, moveNode, stepTarget, shownLayersTopFirst, clipBase } from '../web/js/tree.js';
+import { allLayers, panelRows, contains, removeNode, insertNode, pathOf, nodeAt, destination, moveNode, stepTarget, shownLayersTopFirst, clipBase, soloChange } from '../web/js/tree.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
 // root: [A, F(open): [B, G(closed): [C]], D]   (bottom first)
@@ -133,4 +133,19 @@ test('layers that can show, for picking on the canvas', () => {
   [a, b, c].forEach((n, i) => insertNode(root2, i, n));
   assert.equal(clipBase(c), a, 'clipped layers stacked on one base');
   assert.equal(clipBase(a), null, 'not clipped');
+});
+
+test('show only one layer (Alt+click on its eye)', () => {
+  const { root, A, f, B, g, C, D } = sample();
+  for (const n of [A, f, B, g, C, D]) n.visible = true;
+  g.visible = false;  // C sits in a hidden folder
+  const names = ns => ns.map(n => n.name).sort().join(',');
+  let c = soloChange(root, C);
+  assert.equal(names(c.show), 'G', 'its hidden folder must show');
+  assert.equal(names(c.hide), 'A,B,D', 'F holds C, so it stays; B beside G goes');
+  c = soloChange(root, f);
+  assert.equal(names(c.show), '');
+  assert.equal(names(c.hide), 'A,D', 'what is inside F keeps its own eyes');
+  A.visible = D.visible = false;
+  assert.equal(soloChange(root, f).hide.length, 0, 'F already shows alone');
 });
