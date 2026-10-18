@@ -218,7 +218,49 @@ export function nodeRasters(n) {
   return out;
 }
 
+/**
+ * A canvas as a PNG data URL. Big ones go through a worker (pngworker.js): toBlob encodes off the main thread but
+ * reads the pixels back from the GPU on it, which froze the drawing for 0.1 s per print-size layer on autosave.
+ * The worker gets an ImageBitmap (a copy taken now, on the GPU) and does the readback and encoding itself.
+ */
 export function canvasToDataUrl(canvas) {
+  if (canvas.width * canvas.height >= WORKER_PIXELS && pngWorker() && typeof createImageBitmap === 'function') {
+    return createImageBitmap(canvas).then(bitmap => new Promise((resolve, reject) => {
+      const id = ++pngJobs.next;
+      pngJobs.waiting.set(id, { resolve, reject });
+      pngJobs.worker.postMessage({ id, bitmap }, [bitmap]);
+    })).catch(() => { pngJobs.broken = true; return blobDataUrl(canvas); });  // a browser without OffscreenCanvas
+  }
+  return blobDataUrl(canvas);
+}
+
+const WORKER_PIXELS = 1 << 20;  // smaller pictures read back in a few ms: not worth the trip
+const pngJobs = { worker: null, broken: false, next: 0, waiting: new Map() };
+
+function pngWorker() {
+  if (pngJobs.broken || typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function') return null;
+  if (!pngJobs.worker) {
+    try {
+      pngJobs.worker = new Worker(new URL('./pngworker.js', import.meta.url));
+    } catch {
+      pngJobs.broken = true;
+      return null;
+    }
+    pngJobs.worker.onmessage = e => {
+      const job = pngJobs.waiting.get(e.data.id);
+      pngJobs.waiting.delete(e.data.id);
+      if (job) e.data.error ? job.reject(new Error(e.data.error)) : job.resolve(e.data.url);
+    };
+    pngJobs.worker.onerror = () => {  // the worker could not start: every waiting job is done the old way
+      pngJobs.broken = true;
+      for (const job of pngJobs.waiting.values()) job.reject(new Error('PNG worker failed'));
+      pngJobs.waiting.clear();
+    };
+  }
+  return pngJobs.worker;
+}
+
+function blobDataUrl(canvas) {
   return new Promise(resolve => canvas.toBlob(b => {
     const r = new FileReader();
     r.onload = () => resolve(r.result);
