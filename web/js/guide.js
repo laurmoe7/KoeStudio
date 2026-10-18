@@ -218,7 +218,9 @@ export const GUIDE = [
 
   ['transform', 'Moving and transforming', `
     <ul>
-      <li><b>Move</b> <kbd>V</kbd>: drag the whole layer. With a selection, only the selected part moves.</li>
+      <li><b>Move</b> <kbd>V</kbd>: drag the whole layer. With a selection, only the selected part moves.
+      <kbd>Ctrl</kbd>+drag first picks the top layer with paint under the pointer, so you can grab a thing without
+      looking for its layer. Right-click lists every layer with paint there.</li>
       <li><b>Transform</b> <kbd>Ctrl+T</kbd>: resize, turn or flip the layer or the selection.</li>
     </ul>
     <figure data-pic="transform"></figure>
@@ -483,7 +485,7 @@ export const SHORTCUTS = [
     ['Del', 'Clear the selection or layer'], ['Alt+Del', 'Fill the selection or layer'], ['Ctrl+F', 'Repeat the last filter']]],
   ['Selection', [['Ctrl+A / Ctrl+D', 'Select all / deselect'], ['Ctrl+Shift+I', 'Invert the selection'], ['Q', 'Quick mask'],
     ['Shift / Alt (while dragging)', 'Add to / subtract from the selection']]],
-  ['Layers', [['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],
+  ['Layers', [['Ctrl+click (Move tool)', 'Pick the layer under the pointer'], ['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],
     ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['Ctrl+J / Ctrl+Shift+J', 'Copy / cut to a new layer'], ['F2', 'Rename the layer'],
     ['Ctrl+click / Shift+click', 'Pick several layers']]],
   ['Animation', [[', / .', 'Previous / next frame (with the animation timeline on)'], ['Alt+, / Alt+.', 'Hold the current frame one frame time less / longer']]],

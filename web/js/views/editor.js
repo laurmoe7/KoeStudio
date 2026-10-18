@@ -829,7 +829,7 @@ export class Editor {
     if (t.kind === 'ruler') return this.renderRulerProps(box);
     if (!fields.length) {
       box.innerHTML = `<p class="hint">${t.kind === 'picker' ? 'Click the canvas to pick a color. Hold Alt with a brush to pick quickly.'
-        : t.kind === 'move' ? 'Drag to move the current layer, or only the selected pixels when there is a selection.'
+        : t.kind === 'move' ? 'Drag to move the current layer, or only the selected pixels when there is a selection. Ctrl+drag picks the layer under the pointer first; right-click lists the layers there.'
         : t.kind === 'crop' ? 'Drag the edges or corners of the box (Shift keeps proportions), drag inside to move it, or drag outside to draw a new box. Enter crops, Esc leaves.' : 'Drag to move the view. Hold Space with any tool to do the same.'}</p>`;
       return;
     }
@@ -994,6 +994,7 @@ export class Editor {
       const p = pos(e);
       this.pointer = p;
       if (e.button === 1) return this.beginPan(p, e.pointerId);
+      if (e.button === 2 && !this.xf && this.effectiveTool() === 'move') return this.layerMenuAt(toDoc(this.view, p.x, p.y), e.clientX, e.clientY);
       if (e.button !== 0 && !(e.pointerType === 'pen' && e.button === 5)) return;
       const dp = { ...toDoc(this.view, p.x, p.y), p: pressure(e) };
       if (this.canvasPick) { this.canvasPick(dp); return; }  // a dialog takes canvas clicks (Color range, blur centre)
@@ -1007,6 +1008,7 @@ export class Editor {
       else if (tool.kind === 'select') this.beginSelect(toolId, GRID_TOOLS.has(toolId) ? this.gridPoint(dp) : dp, e.pointerId, e);
       else if (tool.kind === 'crop') this.beginCrop(this.gridPoint(dp), e.pointerId);
       else if (tool.kind === 'ruler') this.beginRulerTool(dp, e.pointerId);
+      else if (tool.kind === 'move' && e.ctrlKey && !this.quickMask) { if (this.pickLayerAt(dp)) this.beginMove(dp, e.pointerId); }
       else if (tool.kind === 'move' && this.sel.active) {
         // with a selection, the Move tool moves only the selected pixels (a quick transform)
         if (this.beginTransform({ moveOnly: true })) this.gesture = { type: 'xf', tool: 'move', id: e.pointerId, grab: 'move', t0: { ...this.xf.t }, p0: dp };

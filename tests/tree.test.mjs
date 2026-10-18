@@ -1,7 +1,7 @@
 // Layer tree operations and the version 2 save format. Built from plain objects, no canvases.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { allLayers, panelRows, contains, removeNode, insertNode, pathOf, nodeAt, destination, moveNode, stepTarget } from '../web/js/tree.js';
+import { allLayers, panelRows, contains, removeNode, insertNode, pathOf, nodeAt, destination, moveNode, stepTarget, shownLayersTopFirst, clipBase } from '../web/js/tree.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
 // root: [A, F(open): [B, G(closed): [C]], D]   (bottom first)
@@ -117,4 +117,20 @@ test('several selected nodes', async () => {
   assert.equal(moveNodes([s.f], s.A, 'above'), null, 'not into itself');
   assert.equal(moveNodes([s.A], s.A, 'above'), null);
   assert.equal(moveNodes([s.A], s.B, 'top-of'), null, 'only folders take nodes inside');
+});
+
+test('layers that can show, for picking on the canvas', () => {
+  const { root, A, f, B, g, C, D } = sample();
+  for (const n of [A, f, B, g, C, D]) n.visible = true;
+  assert.deepEqual(shownLayersTopFirst(root).map(n => n.name), ['D', 'C', 'B', 'A'], 'top first, closed folders too');
+  f.visible = false;
+  assert.deepEqual(shownLayersTopFirst(root).map(n => n.name), ['D', 'A'], 'a hidden folder hides what is in it');
+  f.visible = true;
+  D.adjust = { type: 'levels' };
+  assert.deepEqual(shownLayersTopFirst(root, new Set([A, D])).map(n => n.name), ['A'], 'only the given top-level nodes; no correction layers');
+  // clipping: b and c both clip to a, the nearest unclipped sibling below
+  const root2 = { kind: 'folder', children: [] }, a = { kind: 'layer', name: 'a' }, b = { kind: 'layer', name: 'b', clip: true }, c = { kind: 'layer', name: 'c', clip: true };
+  [a, b, c].forEach((n, i) => insertNode(root2, i, n));
+  assert.equal(clipBase(c), a, 'clipped layers stacked on one base');
+  assert.equal(clipBase(a), null, 'not clipped');
 });

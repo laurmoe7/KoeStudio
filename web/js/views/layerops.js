@@ -5,8 +5,10 @@
 // set by clicking the mask thumbnail). Folders have no pixels of their own, only an optional mask.
 
 import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, effectsCanvas, PASS_THROUGH } from '../doc.js';
-import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes } from '../tree.js';
-import { toast } from '../ui.js';
+import { isFolder, allLayers, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase } from '../tree.js';
+import { toast, menu } from '../ui.js';
+import { animFrames } from '../anim.js';
+import { toneDensity } from '../tone.js';
 import { translateVector } from '../vector.js';
 import { adjustFilter } from '../adjust.js';
 
@@ -83,6 +85,52 @@ export const layerMethods = {
     this.layerPanel.render();
     this.doc.version++;
     this.scheduleSave();
+  },
+
+  /**
+   * The layers with visible paint at doc point p, top first: their pixel there is not see-through, not hidden by
+   * their own or a folder's mask, and (clipped layers) their base has paint there too. Tone layers count where they
+   * show dots. While the animation is on, only the frame shown (and background/foreground) count.
+   */
+  layersAt(p) {
+    const d = this.doc, x = Math.floor(p.x), y = Math.floor(p.y);
+    if (x < 0 || y < 0 || x >= d.width || y >= d.height) return [];
+    let tops = null;
+    if (d.anim.on) {
+      const { frames, bg, fg } = animFrames(d.root.children, d.anim);
+      tops = new Set([frames[this.drawnFrame()], bg, fg].filter(Boolean));
+    }
+    const px = r => r.ctx.getImageData(x, y, 1, 1).data;
+    const hidden = n => {
+      for (let m = n; m && m !== d.root; m = m.parent) if (m.mask?.enabled && px(m.mask)[3] > 200) return true;
+      return false;
+    };
+    const paint = l => {
+      const [r, g, b, a] = px(l);
+      return l.tone ? toneDensity(r, g, b, a) > 0.02 : a > 12;
+    };
+    return shownLayersTopFirst(d.root, tops).filter(l => {
+      if (l.opacity <= 0.02 || !paint(l) || hidden(l)) return false;
+      const base = clipBase(l);
+      return !l.clip || (base && !isFolder(base) && base.visible && paint(base) && !hidden(base));
+    });
+  },
+
+  /** Ctrl+click with the Move tool: selects the top layer with paint under the point. */
+  pickLayerAt(p) {
+    const [l] = this.layersAt(p);
+    if (!l) { toast('No layer has paint there.'); return false; }
+    if (l !== this.doc.active || this.maskEdit) this.selectNode(l);
+    return true;
+  },
+
+  /** Right-click with the Move tool: a menu of every layer with paint under the point, to pick one. */
+  layerMenuAt(p, clientX, clientY) {
+    const layers = this.layersAt(p);
+    const at = { getBoundingClientRect: () => ({ left: clientX, right: clientX, top: clientY, bottom: clientY, width: 0, height: 0 }) };
+    menu(at, layers.length
+      ? layers.slice(0, 20).map(l => ({ label: l.name, checked: l === this.doc.active, run: () => this.selectNode(l) }))
+      : [{ label: 'No layer has paint here', disabled: true, run: () => {} }]);
   },
 
   editMask(on) {

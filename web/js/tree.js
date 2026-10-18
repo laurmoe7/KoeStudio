@@ -13,6 +13,33 @@ export function allNodes(root) {
 
 export const allLayers = root => allNodes(root).filter(n => !isFolder(n));
 
+/**
+ * The layers that can show, top first (for picking a layer by clicking the canvas): visible, inside visible folders,
+ * and not correction layers (they have no pixels of their own). `tops` (a Set of top-level nodes) limits it to
+ * those, as when only one animation frame shows.
+ */
+export function shownLayersTopFirst(root, tops = null) {
+  const out = [];
+  const walk = f => {
+    for (let i = f.children.length - 1; i >= 0; i--) {
+      const n = f.children[i];
+      if (!n.visible || (f === root && tops && !tops.has(n))) continue;
+      if (isFolder(n)) walk(n);
+      else if (!n.adjust) out.push(n);
+    }
+  };
+  walk(root);
+  return out;
+}
+
+/** The layer a clipped layer is clipped to: the nearest unclipped sibling below it (null when there is none). */
+export function clipBase(node) {
+  if (!node.clip || !node.parent) return null;
+  const sib = node.parent.children;
+  for (let i = sib.indexOf(node) - 1; i >= 0; i--) if (!sib[i].clip) return sib[i];
+  return null;
+}
+
 /** Rows for the layer panel, top first: [{node, depth}], skipping the contents of closed folders. */
 export function panelRows(root) {
   const rows = [];
