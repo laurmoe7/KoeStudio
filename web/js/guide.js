@@ -368,6 +368,8 @@ export const GUIDE = [
       the artwork's resolution (Image → Image size). 60 lines per inch at 350 dpi is a common manga tone.</li>
       <li><b>Shift X / Y</b> moves the dots. Shift a second tone layer by half its spacing so its dots fall between the
       first one's instead of on top.</li>
+      <li>For a <b>gradient tone</b>, pick a <b>Fade</b> direction in New screentone: the dots fade from the density
+      to the Fade to density across the selection (or the whole canvas).</li>
     </ul>`],
 
   ['filters', 'Filters', `

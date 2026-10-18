@@ -1,7 +1,7 @@
 // Screentone and brush texture logic. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeTone, defaultTone, toneDensity, densityGray, applyTone, TONE_SHAPES, toneLpi, cellForLpi } from '../web/js/tone.js';
+import { sanitizeTone, defaultTone, toneDensity, densityGray, applyTone, TONE_SHAPES, toneLpi, cellForLpi, toneFadeLine } from '../web/js/tone.js';
 import { textureTile, valueNoise, hash01, grooveAlpha, TEXTURES, TILE } from '../web/js/textures.js';
 import { sanitizeSettings } from '../web/js/tools.js';
 import { sanitizeDoc } from '../web/js/doc.js';
@@ -162,4 +162,14 @@ test('tone grid shift and lines per inch', () => {
   const alphaRow = (d, y) => d[(y * 8) * 4 + 3];
   assert.equal(alphaRow(c, 2), alphaRow(a, 0), 'half a cell down: row 2 shows what row 0 showed');
   assert.notEqual(alphaRow(a, 0), alphaRow(a, 2), 'line tone: rows 0 and 2 differ (line and gap)');
+});
+
+test('gradient tone direction', () => {
+  const r = { x: 10, y: 20, w: 100, h: 50 };
+  assert.deepEqual(toneFadeLine(r, 'down'), { x0: 10, y0: 20, x1: 10, y1: 70 });
+  assert.deepEqual(toneFadeLine(r, 'up'), { x0: 10, y0: 70, x1: 10, y1: 20 });
+  assert.deepEqual(toneFadeLine(r, 'right'), { x0: 10, y0: 20, x1: 110, y1: 20 });
+  assert.deepEqual(toneFadeLine(r, 'left'), { x0: 110, y0: 20, x1: 10, y1: 20 });
+  assert.equal(toneFadeLine(r, 'none'), null);
+  assert.equal(toneFadeLine(r, 'sideways'), null);
 });

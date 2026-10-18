@@ -37,6 +37,24 @@ export function sanitizeTone(t) {
 export const toneLpi = (cell, dpi) => dpi / cell;
 export const cellForLpi = (lpi, dpi) => Math.round(Math.max(TONE_CELL[0], Math.min(TONE_CELL[1], dpi / Math.max(1, +lpi || 1))) * 10) / 10;
 
+/** Which way a gradient tone fades: from where the first density is to where the second one is. */
+export const TONE_FADES = [['none', 'No fade (even)'], ['down', 'Top to bottom'], ['up', 'Bottom to top'], ['right', 'Left to right'], ['left', 'Right to left']];
+
+/**
+ * The line a gradient tone runs along inside rect {x, y, w, h}: {x0, y0, x1, y1}, the first density at (x0, y0) and
+ * the second at (x1, y1). null for 'none' or an unknown direction.
+ */
+export function toneFadeLine(rect, fade) {
+  const { x, y, w, h } = rect;
+  switch (fade) {
+    case 'down': return { x0: x, y0: y, x1: x, y1: y + h };
+    case 'up': return { x0: x, y0: y + h, x1: x, y1: y };
+    case 'right': return { x0: x, y0: y, x1: x + w, y1: y };
+    case 'left': return { x0: x + w, y0: y, x1: x, y1: y };
+    default: return null;
+  }
+}
+
 /** Common screentone rulings (lines per inch) for printed comics. */
 export const LPI_PRESETS = [42.5, 50, 55, 60, 65, 70, 75, 80, 85];
 

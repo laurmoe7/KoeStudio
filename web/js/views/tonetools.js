@@ -3,7 +3,7 @@
 // (mixed into Editor.prototype in editor.js).
 
 import { Layer, tonedCanvas } from '../doc.js';
-import { TONE_SHAPES, TONE_CELL, LPI_PRESETS, defaultTone, sanitizeTone, applyTone, densityGray, toneLpi, cellForLpi } from '../tone.js';
+import { TONE_SHAPES, TONE_CELL, TONE_FADES, LPI_PRESETS, toneFadeLine, defaultTone, sanitizeTone, applyTone, densityGray, toneLpi, cellForLpi } from '../tone.js';
 import { isFolder } from '../tree.js';
 import { esc, modal, store, toast } from '../ui.js';
 
@@ -15,16 +15,24 @@ export const toneMethods = {
     this.finishTransform();
     this.finishText();
     const last = store('tone') || {};
-    const res = await toneDialog({ title: 'New screentone', tone: sanitizeTone(last) || defaultTone(), density: last.density ?? 0.3, ok: 'Create', dpi: this.doc.dpi });
+    const res = await toneDialog({ title: 'New screentone', tone: sanitizeTone(last) || defaultTone(), density: last.density ?? 0.3,
+      fade: last.fade || 'none', fadeTo: last.fadeTo ?? 0, ok: 'Create', dpi: this.doc.dpi });
     if (!res) return;
-    store('tone', { ...res.tone, density: res.density });
+    store('tone', { ...res.tone, density: res.density, fade: res.fade, fadeTo: res.fadeTo });
     const d = this.doc;
     const used = new Set(d.layers.map(l => l.name));
     let k = 1;
     while (used.has(`Tone ${k}`)) k++;
     const layer = new Layer(d.width, d.height, { name: `Tone ${k}`, tone: res.tone });
     const g = densityGray(res.density);
-    layer.ctx.fillStyle = `rgb(${g},${g},${g})`;
+    // a gradient tone fades from the density to `fadeTo` across the selection (or the canvas)
+    const line = toneFadeLine(this.sel.active ? this.sel.bounds : { x: 0, y: 0, w: d.width, h: d.height }, res.fade);
+    if (line) {
+      const grad = layer.ctx.createLinearGradient(line.x0, line.y0, line.x1, line.y1), g2 = densityGray(res.fadeTo);
+      grad.addColorStop(0, `rgb(${g},${g},${g})`);
+      grad.addColorStop(1, `rgb(${g2},${g2},${g2})`);
+      layer.ctx.fillStyle = grad;
+    } else layer.ctx.fillStyle = `rgb(${g},${g},${g})`;
     layer.ctx.fillRect(0, 0, d.width, d.height);
     if (this.sel.active) this.sel.clipCanvas(layer.ctx, { x: 0, y: 0, w: d.width, h: d.height });
     this.insertNode(layer, 'New screentone');
@@ -59,7 +67,7 @@ export const toneMethods = {
  * The tone settings dialog with a preview strip (density 0-100% left to right). Spacing and lines per inch (at the
  * artwork's dpi) are two ways to set the same thing and follow each other. Resolves to {tone, density, on} or null.
  */
-function toneDialog({ title, tone, density = null, on = null, ok, dpi = 72 }) {
+function toneDialog({ title, tone, density = null, on = null, ok, dpi = 72, fade = null, fadeTo = 0 }) {
   const lpi = v => Math.round(toneLpi(v, dpi) * 10) / 10;
   const shapes = TONE_SHAPES.map(([v, l]) => `<option value="${v}" ${tone.shape === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
   return modal({
@@ -79,6 +87,10 @@ function toneDialog({ title, tone, density = null, on = null, ok, dpi = 72 }) {
         <label class="field" title="Shifts the dots sideways, so they fall between another tone's dots"><span>Shift X (px)</span><input type="number" name="x" step="0.5" min="${-TONE_CELL[1]}" max="${TONE_CELL[1]}" value="${tone.x || 0}"></label>
         <label class="field" title="Shifts the dots up or down"><span>Shift Y (px)</span><input type="number" name="y" step="0.5" min="${-TONE_CELL[1]}" max="${TONE_CELL[1]}" value="${tone.y || 0}"></label>
       </div>
+      ${fade === null ? '' : `<div class="field-row">
+        <label class="field" title="A gradient tone: the dots fade from the density above to this one"><span>Fade</span><select name="fade">${TONE_FADES.map(([v, l]) => `<option value="${v}" ${fade === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+        <label class="field"><span>Fade to density (%)</span><input type="number" name="fadeTo" min="0" max="100" value="${Math.round(fadeTo * 100)}"></label>
+      </div>`}
       <canvas class="tone-preview" width="${PREVIEW_W}" height="${PREVIEW_H}" aria-label="Preview"></canvas>
       <p class="muted small tone-lpi"></p>`,
     buttons: [{ label: 'Cancel', value: null }, { label: ok, primary: true }],
@@ -97,9 +109,11 @@ function toneDialog({ title, tone, density = null, on = null, ok, dpi = 72 }) {
 function read(root) {
   const v = name => root.querySelector(`[name="${name}"]`)?.value;
   const tone = sanitizeTone({ cell: v('cell'), angle: v('angle'), shape: v('shape'), color: v('color'), x: v('x'), y: v('y') });
-  const dens = root.querySelector('[name="density"]');
+  const dens = root.querySelector('[name="density"]'), fade = root.querySelector('[name="fade"]');
   return {
     tone,
+    fade: fade ? fade.value : 'none',
+    fadeTo: Math.max(0, Math.min(1, (+v('fadeTo') || 0) / 100)),
     density: dens ? Math.max(0.01, Math.min(1, (+dens.value || 30) / 100)) : null,
     on: root.querySelector('[name="on"]')?.checked ?? true,
   };

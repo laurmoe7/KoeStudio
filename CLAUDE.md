@@ -126,7 +126,7 @@ Run `npm test` and `npm run check` before calling a change done, and add tests f
 
 ## Roadmap (not built yet)
 
-Text: per-character styling, shadows, text on transform without rasterizing. Brushes: dual brush for vector lines. Vector layer extras (vector selection); screentone extras (gradient tone presets); per-layer files for faster saves on huge canvases; animation extras (video export). (No comic tools for now: panels, balloons, speed lines.)
+Text: per-character styling, shadows, text on transform without rasterizing. Brushes: dual brush for vector lines. Vector layer extras (vector selection); per-layer files for faster saves on huge canvases; animation extras (video export). (No comic tools for now: panels, balloons, speed lines.)
 
 ## Repo
 
