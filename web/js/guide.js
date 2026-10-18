@@ -77,7 +77,8 @@ export const GUIDE = [
     open; drag it by its title bar.</p>
     <ul>
       <li><b>Paint</b>: size, opacity, density, hardness.</li>
-      <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke.
+      <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke. The
+      outline under the pointer takes the tip's shape, so you see what a dab will look like.
       <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).</li>
       <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
       <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>

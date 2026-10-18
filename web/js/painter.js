@@ -32,6 +32,53 @@ export function hasTipImage(tip) {
   return !!id && tipImages.has(id);
 }
 
+let outlineCache = null;
+
+/**
+ * The brush cursor for a tip image: its shape's edge as a thin light line with a dark one outside, drawn for a tip
+ * whose longer side is `long` screen px: {canvas, k} (draw it k times its size, centred), or null when the tip is not
+ * an image that is loaded. Big sizes go in 4% steps, so resizing the brush does not redraw it on every move.
+ */
+export function tipOutline(tip, long) {
+  const id = imageRef(tip), mask = id && tipImages.get(id);
+  if (!mask) return null;
+  let L = Math.max(4, Math.min(1200, Math.round(long)));
+  if (L > 64) L = Math.round(1.04 ** Math.round(Math.log(L) / Math.log(1.04)));
+  const key = `${id}:${L}`;
+  if (outlineCache?.key === key) return { canvas: outlineCache.canvas, k: long / L };
+  const m = L / Math.max(mask.width, mask.height), w = Math.max(1, Math.round(mask.width * m)), h = Math.max(1, Math.round(mask.height * m));
+  const pad = 3, W = w + 2 * pad, H = h + 2 * pad;
+  const layer = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return [c, c.getContext('2d')]; };
+  const [shape, sc] = layer();  // the tip at this size, alpha cut at half so the edge is where the paint is
+  sc.drawImage(mask, pad, pad, w, h);
+  const img = sc.getImageData(0, 0, W, H);
+  for (let i = 3; i < img.data.length; i += 4) img.data[i] = img.data[i] >= 64 ? 255 : 0;
+  sc.putImageData(img, 0, 0);
+  const grown = n => {  // the shape grown by n px (drawn shifted in every direction)
+    const [c, ctx] = layer();
+    for (let dy = -n; dy <= n; dy++) for (let dx = -n; dx <= n; dx++) if (dx * dx + dy * dy <= n * n + 1) ctx.drawImage(shape, dx, dy);
+    return [c, ctx];
+  };
+  const [out, oc] = grown(2);  // dark band 1-2 px outside the edge
+  const [one] = grown(1);
+  oc.globalCompositeOperation = 'source-in';
+  oc.fillStyle = 'rgba(0,0,0,0.75)';
+  oc.fillRect(0, 0, W, H);
+  oc.globalCompositeOperation = 'destination-out';
+  oc.drawImage(one, 0, 0);
+  const [light, lc] = layer();  // light band: the outermost pixel of the shape
+  lc.drawImage(one, 0, 0);
+  lc.globalCompositeOperation = 'source-in';
+  lc.fillStyle = 'rgba(255,255,255,0.9)';
+  lc.fillRect(0, 0, W, H);
+  lc.globalCompositeOperation = 'destination-out';
+  lc.drawImage(shape, 0, 0);
+  oc.globalCompositeOperation = 'source-over';
+  oc.drawImage(light, 0, 0);
+  outlineCache = { key, canvas: out };
+  return { canvas: out, k: long / L };
+}
+
 export class Painter {
   /** opts: color, hardness, and optionally tip ('round' or 'img:<id>'), thickness (0-1), angle (degrees),
    * random (0-1: share of a half turn either way), follow (turn with the stroke), rnd (random numbers 0-1; a seeded

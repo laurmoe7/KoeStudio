@@ -10,7 +10,7 @@ import { floodMask, growMask, closeGapFill } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
-import { Painter, textureFor, hasTipImage } from '../painter.js';
+import { Painter, textureFor, hasTipImage, tipOutline } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { gradientChoices } from '../gradient.js';
 import { mipLevel, mipSize, mipRect } from '../mips.js';
@@ -794,11 +794,34 @@ export class Editor {
       ctx.fillStyle = '#fff';
       ctx.fillText(text, lx + 5 * dpr, ly);
     }
-    ctx.lineWidth = 1 * dpr;
-    for (const [color, rr] of [['rgba(0,0,0,0.75)', r + dpr], ['rgba(255,255,255,0.9)', r]]) {
-      ctx.strokeStyle = color;
-      ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke();
+    // the tip's own shape: squashed and turned as set (in the view's turn and mirror), or an image tip's outline;
+    // a tip that turns by itself (with the stroke, at random, with the pen) shows as the circle it stays within
+    const s = this.settings[tool.id], turns = s.tipFollow || s.tipRandom > 0 || s.tiltAngle;
+    const squash = turns || s.pixel ? 1 : Math.max(0.05, Math.min(1, s.thickness ?? 1));
+    const [A, B, C, D] = matrix(this.view), z = this.view.zoom;
+    const frame = () => {  // device px at the pointer, doc directions: the view's turn and mirror, then the tip's angle
+      ctx.setTransform(A / z, B / z, C / z, D / z, x, y);
+      if (!turns) ctx.rotate((s.tipAngle || 0) * Math.PI / 180);
+      ctx.scale(1, squash);
+    };
+    const outline = !turns && !s.pixel && r >= 4 * dpr ? tipOutline(s.tip, 2 * r) : null;
+    ctx.save();
+    if (outline) {
+      frame();
+      const { canvas: c, k } = outline;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(c, -c.width * k / 2, -c.height * k / 2, c.width * k, c.height * k);
+    } else {
+      ctx.lineWidth = 1 * dpr;
+      for (const [color, rr] of [['rgba(0,0,0,0.75)', r + dpr], ['rgba(255,255,255,0.9)', r]]) {
+        frame();
+        ctx.beginPath(); ctx.ellipse(0, 0, rr, (r * squash + rr - r) / squash, 0, 0, Math.PI * 2);  // the dark ring 1 px outside all round
+        ctx.setTransform(1, 0, 0, 1, 0, 0);  // the line itself stays 1 px whatever the squash
+        ctx.strokeStyle = color;
+        ctx.stroke();
+      }
     }
+    ctx.restore();
     if (r < 4 * dpr) {  // tiny brush: add a crosshair so the cursor stays visible
       ctx.strokeStyle = 'rgba(0,0,0,0.8)';
       ctx.beginPath();
