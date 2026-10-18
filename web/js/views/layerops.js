@@ -593,7 +593,17 @@ export const layerMethods = {
    */
   nudgeLayer(dx, dy) {
     if (this.sel.active && !this.quickMask) {  // the selected pixels, as a drag with the Move tool would
-      if (this.beginTransform({ moveOnly: true })) { this.xfNudge(dx, dy); this.applyTransform(); }
+      const h = this.history, prev = h.done[h.done.length - 1];
+      if (!this.beginTransform({ moveOnly: true })) return;
+      this.xfNudge(dx, dy);
+      this.applyTransform();
+      const cur = h.done[h.done.length - 1];
+      if (cur === prev) return;
+      if (prev && prev === this.selNudge) {  // the press before was a nudge too: one step for both
+        h.done.splice(-2, 2, this.selNudge = { label: 'Move', get bytes() { return prev.bytes + cur.bytes; },
+          undo: () => { cur.undo(); prev.undo(); }, redo: () => { prev.redo(); cur.redo(); } });
+        h.onChange?.();
+      } else this.selNudge = cur;
       return;
     }
     const top = this.history.done[this.history.done.length - 1], n = this.nudge;
