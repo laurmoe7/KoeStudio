@@ -331,7 +331,7 @@ export const brushMethods = {
       <button data-del="${esc(i.id)}">Delete</button></div>`).join('') || '<p class="muted">No images.</p>';
     await modal({
       title: 'Tip and texture images',
-      body: `<div class="pick-list">${rows()}</div><p class="muted small">Brushes that use a deleted image go back to a round tip or no texture.</p>`,
+      body: `<div class="pick-list">${rows()}</div><p class="muted small">Brushes that use a deleted image go back to a round tip, no texture or no dual tip.</p>`,
       buttons: [{ label: 'Close', value: null, primary: true }],
       onOpen: root => {
         const bind = () => root.querySelectorAll('[data-del]').forEach(b => {
@@ -343,6 +343,7 @@ export const brushMethods = {
             for (const s of Object.values(this.settings)) {
               if (imageRef(s.tip) === id) s.tip = 'round';
               if (imageRef(s.texture) === id) s.texture = 'none';
+              if (imageRef(s.dualTip) === id) s.dualTip = 'none';
             }
             store('tools', this.settings);
             root.querySelector('.pick-list').innerHTML = rows();
