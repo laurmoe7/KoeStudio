@@ -153,3 +153,16 @@ test('reflected, diamond and angle gradients', async () => {
   assert.deepEqual(gradientReach('conic', { x: 0, y: 0 }, { x: 10, y: 0 }, area), { before: 0, after: 0 }, 'an angle gradient goes round once');
   assert.ok(['conic', 'reflected', 'diamond'].every(k => GRADIENT_SHAPES.some(s => s[0] === k)));
 });
+
+test('colour wheel', async () => {
+  const { wheelLayout, wheelHit } = await import('../web/js/color.js');
+  const L = wheelLayout(200, 18);
+  assert.deepEqual([L.cx, L.r1, L.r0, L.sq.w, L.sq.x], [100, 99, 81, 108, 46], 'the square fits inside the ring');
+  assert.deepEqual(wheelHit(100, 10, 200, 18), { part: 'ring', hue: 0 }, 'red at the top');
+  assert.equal(wheelHit(190, 100, 200, 18).hue, 90, 'clockwise');
+  assert.equal(wheelHit(100, 190, 200, 18).hue, 180);
+  assert.deepEqual(wheelHit(100, 100, 200, 18), { part: 'square', s: 0.5, v: 0.5 });
+  assert.equal(wheelHit(5, 5, 200, 18), null, 'the corner outside the ring');
+  assert.deepEqual(wheelHit(0, 0, 200, 18, 'square'), { part: 'square', s: 0, v: 1 }, 'a square drag clamps to its edge');
+  assert.equal(wheelHit(100, 100, 200, 18, 'ring').part, 'ring', 'a ring drag stays on the ring');
+});

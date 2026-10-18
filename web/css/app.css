@@ -212,6 +212,8 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .cp-sv, .cp-hue { border-radius: 4px; cursor: crosshair; touch-action: none; }
 .cp-sv { width: 200px; height: 200px; }
 .cp-hue { width: 18px; height: 200px; }
+.cp-wheel { width: 226px; height: 226px; cursor: crosshair; touch-action: none; display: block; }
+.cp-shape.on { color: var(--accent); }
 .cp-controls { margin-top: 8px; align-items: center; }
 .cp-swatches { position: relative; width: 44px; height: 34px; flex: none; }
 .cp-swatches button { position: absolute; width: 26px; height: 26px; padding: 0; border: 2px solid #111; outline: 1px solid #666; border-radius: 3px; }
@@ -479,6 +481,7 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 @media (max-height: 760px) {
   .cp-sv { width: 150px; height: 150px; }
   .cp-hue { height: 150px; }
+  .cp-wheel { width: 172px; height: 172px; }
 }
 
 /* Free transform in Distort mode: the box has four free corners, so Keep aspect has no meaning */

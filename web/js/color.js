@@ -61,6 +61,32 @@ export function averageColor(data) {
   return [Math.round(r / a), Math.round(g / a), Math.round(b / a), Math.round(a / n)];
 }
 
+/**
+ * The colour wheel's parts in a size x size box: a hue ring (outer radius r1, ring px wide, hue 0 at the top and
+ * turning clockwise) round a saturation/value square that fits inside it with a small gap.
+ */
+export function wheelLayout(size, ring) {
+  const c = size / 2, r1 = c - 1, r0 = r1 - ring, side = Math.floor((r0 - 4) * Math.SQRT2);
+  return { cx: c, cy: c, r0, r1, sq: { x: c - side / 2, y: c - side / 2, w: side } };
+}
+
+/**
+ * What a point on the wheel touches: {part: 'ring', hue} or {part: 'square', s, v}. `part` keeps a drag on the
+ * part it started on (a square drag clamps to the square's edge, a ring drag works anywhere round it); without
+ * it, points outside both give null.
+ */
+export function wheelHit(x, y, size, ring, part = null) {
+  const L = wheelLayout(size, ring), dx = x - L.cx, dy = y - L.cy, d = Math.hypot(dx, dy);
+  const hue = () => ((Math.atan2(dy, dx) * 180) / Math.PI + 90 + 360) % 360;
+  const inSq = x >= L.sq.x && x <= L.sq.x + L.sq.w && y >= L.sq.y && y <= L.sq.y + L.sq.w;
+  if (part === 'ring' || (!part && d >= L.r0 - 2 && d <= L.r1 + 2)) return { part: 'ring', hue: hue() };
+  if (part === 'square' || (!part && inSq)) {
+    const t = v => Math.max(0, Math.min(1, v));
+    return { part: 'square', s: t((x - L.sq.x) / L.sq.w), v: t(1 - (y - L.sq.y) / L.sq.w) };
+  }
+  return null;
+}
+
 export function rgbToHex(r, g, b) {
   return '#' + [r, g, b].map(n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')).join('');
 }

@@ -124,6 +124,8 @@ export const GUIDE = [
       <li><b>Sliders</b> under the square: <b>HSV</b> (hue, saturation, brightness) or <b>RGB</b> (red, green, blue).
       Type a number in the box beside a slider for an exact value; <b>Hide</b> folds them away. A colour code such as
       <code>#ff8800</code> goes in the box next to the colour squares.</li>
+      <li>The round button next to the hex box swaps the square and hue bar for a <b>colour wheel</b>: drag round the
+      ring for the hue, inside the square for how strong and light it is.</li>
       <li>Hold <kbd>Alt</kbd> while painting to pick a colour from the canvas, or use the <b>Eyedropper</b> <kbd>I</kbd>.
       Its settings pick from everything you see or only the selected layer, and can average a small square, so a
       grainy texture does not decide the colour.</li>

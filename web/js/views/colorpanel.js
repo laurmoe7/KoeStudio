@@ -1,12 +1,13 @@
 // Colour panel: saturation/value square, hue bar, main and sub colour, hex box, recently used colours and a saved
 // palette (+ adds the main colour, a click picks one, right-click removes it; kept per machine in koe.palette).
 // Under the square, HSV or RGB sliders with number boxes (the mode, or hidden, is kept in koe.colorSliders).
+// The square and hue bar can be swapped for a colour wheel: a hue ring round the square (koe.colorWheel).
 
-import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, paletteAdd, sanitizePalette, SLIDER_CHANNELS, sliderValues, fromSlider, sliderStops } from '../color.js';
+import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, paletteAdd, sanitizePalette, SLIDER_CHANNELS, sliderValues, fromSlider, sliderStops, wheelLayout, wheelHit } from '../color.js';
 import { icon } from '../icons.js';
 import { store, esc } from '../ui.js';
 
-const SQ = 180, BAR = 14;
+const SQ = 180, BAR = 14, WHEEL = 200, RING = 18;
 
 export class ColorPanel {
   constructor(root) {
@@ -18,10 +19,11 @@ export class ColorPanel {
     this.palette = sanitizePalette(store('palette'));
     this.hsv = rgbToHsv(...hexToRgb(this.main));
     root.innerHTML = `
-      <div class="cp-row">
+      <div class="cp-row cp-square">
         <canvas class="cp-sv" width="${SQ}" height="${SQ}"></canvas>
         <canvas class="cp-hue" width="${BAR}" height="${SQ}"></canvas>
       </div>
+      <canvas class="cp-wheel" width="${WHEEL}" height="${WHEEL}" hidden></canvas>
       <div class="cp-row cp-controls">
         <div class="cp-swatches" title="Main and sub color (X swaps them)">
           <button class="cp-sub" aria-label="Sub color"></button>
@@ -29,6 +31,7 @@ export class ColorPanel {
         </div>
         <button class="icon-btn cp-swap" title="Swap main and sub color (X)">${icon('swap', 18)}</button>
         <input class="cp-hex" type="text" maxlength="7" spellcheck="false" aria-label="Hex color">
+        <button class="icon-btn cp-shape" title="Colour wheel or square">${icon('wheel', 18)}</button>
       </div>
       <div class="cp-slider-head"><span>Sliders</span>
         <span class="cp-modes">${['hsv', 'rgb', 'off'].map(m => `<button data-mode="${m}">${m === 'off' ? 'Hide' : m.toUpperCase()}</button>`).join('')}</span></div>
@@ -43,6 +46,10 @@ export class ColorPanel {
     root.querySelectorAll('.cp-modes button').forEach(b => { b.onclick = () => { this.sliderMode = b.dataset.mode; store('colorSliders', this.sliderMode); this.buildSliders(); }; });
     this.buildSliders();
     this.drawHue();
+    this.wheel = root.querySelector('.cp-wheel');
+    this.useWheel = store('colorWheel') === true;
+    root.querySelector('.cp-shape').onclick = () => { this.useWheel = !this.useWheel; store('colorWheel', this.useWheel); this.refresh(false); };
+    this.bindWheel();
     this.drag(this.sv, (x, y) => this.setHsv([this.hsv[0], x / SQ, 1 - y / SQ]));
     this.drag(this.hue, (x, y) => this.setHsv([(y / SQ) * 360, this.hsv[1], this.hsv[2]]));
     root.querySelector('.cp-swap').onclick = () => this.swap();
@@ -101,6 +108,52 @@ export class ColorPanel {
     });
   }
 
+  /** Dragging on the wheel: the part pressed first (ring = hue, square = saturation and value) follows the pen. */
+  bindWheel() {
+    const c = this.wheel;
+    c.addEventListener('pointerdown', e => {
+      const at = ev => { const r = c.getBoundingClientRect(); return [(ev.clientX - r.left) * WHEEL / r.width, (ev.clientY - r.top) * WHEEL / r.height]; };
+      const first = wheelHit(...at(e), WHEEL, RING);
+      if (!first) return;
+      try { c.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+      const move = ev => {
+        const h = wheelHit(...at(ev), WHEEL, RING, first.part);
+        this.setHsv(h.part === 'ring' ? [h.hue, this.hsv[1], this.hsv[2]] : [this.hsv[0], h.s, h.v]);
+      };
+      move(e);
+      c.onpointermove = move;
+      c.onpointerup = () => { c.onpointermove = null; this.save(); };
+    });
+  }
+
+  drawWheel() {
+    const ctx = this.wheel.getContext('2d'), L = wheelLayout(WHEEL, RING), [h, s, v] = this.hsv;
+    ctx.clearRect(0, 0, WHEEL, WHEEL);
+    const g = ctx.createConicGradient(-Math.PI / 2, L.cx, L.cy);
+    for (let i = 0; i <= 12; i++) g.addColorStop(i / 12, `hsl(${i * 30},100%,50%)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(L.cx, L.cy, L.r1, 0, Math.PI * 2);
+    ctx.arc(L.cx, L.cy, L.r0, 0, Math.PI * 2, true);
+    ctx.fill();
+    const { x, y, w } = L.sq;
+    ctx.fillStyle = `hsl(${h},100%,50%)`;
+    ctx.fillRect(x, y, w, w);
+    let lg = ctx.createLinearGradient(x, 0, x + w, 0);
+    lg.addColorStop(0, '#fff'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = lg; ctx.fillRect(x, y, w, w);
+    lg = ctx.createLinearGradient(0, y, 0, y + w);
+    lg.addColorStop(0, 'rgba(0,0,0,0)'); lg.addColorStop(1, '#000');
+    ctx.fillStyle = lg; ctx.fillRect(x, y, w, w);
+    // the hue marker across the ring, and the colour's spot in the square
+    const a = (h - 90) * Math.PI / 180, rm = (L.r0 + L.r1) / 2;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#fff';
+    ctx.beginPath(); ctx.arc(L.cx + Math.cos(a) * rm, L.cy + Math.sin(a) * rm, RING / 2 - 1, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = v > 0.55 && s < 0.5 ? '#000' : '#fff';
+    ctx.beginPath(); ctx.arc(x + s * w, y + (1 - v) * w, 6, 0, Math.PI * 2); ctx.stroke();
+  }
+
   setHsv(hsv) {
     this.hsv = hsv;
     this.main = rgbToHex(...hsvToRgb(...hsv));
@@ -146,6 +199,10 @@ export class ColorPanel {
 
   refresh(updateHex = true) {
     const [h, s, v] = this.hsv;
+    this.root.querySelector('.cp-square').hidden = this.useWheel;
+    this.wheel.hidden = !this.useWheel;
+    this.root.querySelector('.cp-shape').classList.toggle('on', this.useWheel);
+    if (this.useWheel) this.drawWheel();
     const ctx = this.sv.getContext('2d');
     ctx.fillStyle = `hsl(${h},100%,50%)`;
     ctx.fillRect(0, 0, SQ, SQ);
