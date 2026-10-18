@@ -6,9 +6,11 @@ import { hexToRgb, rgbToHex } from '../color.js';
 import { colorRangeMask, strokeBand } from '../maskops.js';
 import { Layer } from '../doc.js';
 import { textBounds, drawText, textTransformStart, textMatrixAfter, renderTextLayer } from '../textlayer.js';
+import { strokesInside, removeStrokes, mapStrokes, strokeBounds, brushOf } from '../vector.js';
+import { renderVector } from '../vectorlayer.js';
 import { icon } from '../icons.js';
 import { maskBounds, modeFor, rectBetween, SELECT_MODES } from '../selection.js';
-import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds } from '../transform.js';
+import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds, homography, project } from '../transform.js';
 import { clip, union } from '../rect.js';
 import { esc, modal, store, toast } from '../ui.js';
 import { matrix, toDoc, toScreen } from '../view.js';
@@ -318,9 +320,10 @@ export const selectionMethods = {
   beginTransform({ moveOnly = false } = {}) {
     if (this.xf) return true;
     this.finishText();
-    const d = this.doc, layer = this.target('transform', { text: true });
+    const d = this.doc, layer = this.target('transform', { text: true, vector: true });
     if (!layer) return false;
     if (layer.text) return this.beginTextTransform(layer, moveOnly);
+    if (layer.vector) return this.beginVectorTransform(layer, moveOnly);
     const companion = !this.quickMask && !this.maskEdit && layer.kind === 'layer' && layer.mask ? layer.mask : null;
     const full = layer.ctx.getImageData(0, 0, d.width, d.height);
     const mfull = companion ? companion.ctx.getImageData(0, 0, d.width, d.height) : null;
@@ -419,23 +422,11 @@ export const selectionMethods = {
     const start = corners(newTransform(x.r));
     const same = (a, b) => a.every((p, i) => p.x === b[i].x && p.y === b[i].y);
     if (x.mesh ? same(x.mesh.pts, x.mesh.start) : x.quad ? same(x.quad, start) : isIdentity(x.t, x.r)) return this.cancelTransformState(x);
+    if (x.vector) return this.applyVectorTransform(x);
     const d = this.doc, layer = x.layer, linked = x.linked;
     const after = layer.ctx.getImageData(0, 0, d.width, d.height);
     const linkedAfter = linked ? linked.raster.ctx.getImageData(0, 0, d.width, d.height) : null;
-    if (x.mask) {  // the selection follows the pixels
-      const c = this.sel.ctx;
-      c.save();
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.clearRect(0, 0, d.width, d.height);
-      if (x.mesh) this.drawMeshed(c, x.maskData, x.mask.width, x.mask.height, x.mesh, true);
-      else if (x.quad) this.drawWarped(c, x.maskData, x.mask.width, x.mask.height, x.quad, true);
-      else {
-        c.setTransform(...xfMatrix(x.t));
-        c.drawImage(x.mask, 0, 0);
-      }
-      c.restore();
-      this.sel.refresh();
-    }
+    this.transformSelection(x);
     const selAfter = this.sel.snapshot();
     const put = (img, sel, mimg) => {
       layer.ctx.putImageData(img, 0, 0);
@@ -449,6 +440,83 @@ export const selectionMethods = {
     layer.touch();
     linked?.raster.touch();
     this.changed(null);
+    this.drawOverlay();
+  },
+
+  /** After a transform: the selection follows what was lifted (when there was one). */
+  transformSelection(x) {
+    if (!x.mask) return;
+    const d = this.doc, c = this.sel.ctx;
+    c.save();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, d.width, d.height);
+    if (x.mesh) this.drawMeshed(c, x.maskData, x.mask.width, x.mask.height, x.mesh, true);
+    else if (x.quad) this.drawWarped(c, x.maskData, x.mask.width, x.mask.height, x.quad, true);
+    else {
+      c.setTransform(...xfMatrix(x.t));
+      c.drawImage(x.mask, 0, 0);
+    }
+    c.restore();
+    this.sel.refresh();
+  },
+
+  /**
+   * Transform on a vector layer: the lines the selection takes (vector.js strokesInside), or all of them, are
+   * lifted as pixels for the preview and, on apply, their points are moved (affine, or Distort's homography), so
+   * they stay lines. Mesh needs pixels.
+   */
+  beginVectorTransform(layer, moveOnly) {
+    const d = this.doc, v = layer.vector;
+    let idxs = v.strokes.map((_, i) => i);
+    if (this.sel.active) {
+      idxs = strokesInside(v, this.sel.insideTest());
+    }
+    if (!idxs.length) { toast(this.sel.active ? 'No line is inside the selection (at least half of a line must be).' : 'There are no lines on this layer yet.'); return false; }
+    const pick = new Set(idxs), sub = { brushes: v.brushes, strokes: v.strokes.filter((_, i) => pick.has(i)) };
+    const scratch = vec => {
+      const c = canvasOf(d.width, d.height), l = { vector: vec, canvas: c, ctx: c.getContext('2d'), touch() {} };
+      renderVector(l);
+      return c;
+    };
+    const lifted = scratch(sub), base = scratch(removeStrokes(v, idxs));
+    let r = null;
+    for (const s of sub.strokes) r = union(r, strokeBounds(s, brushOf(sub, s)));
+    r = r && clip(r, d.width, d.height);
+    if (!r || r.w < 1 || r.h < 1) { toast('The selected lines are outside the canvas.'); return false; }
+    const src = canvasOf(r.w, r.h);
+    src.getContext('2d').drawImage(lifted, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    let mask = null;
+    if (this.sel.active) {
+      mask = canvasOf(r.w, r.h);
+      mask.getContext('2d').drawImage(this.sel.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    }
+    this.xf = { layer, src, mask, base, linked: null, before: layer.ctx.getImageData(0, 0, d.width, d.height), selBefore: this.sel.snapshot(), r,
+      t: newTransform(r), keepAspect: false, smooth: true, moveOnly, vector: { before: v, idxs } };
+    if (!moveOnly) this.showTransformBar();
+    this.renderTransform();
+    return true;
+  },
+
+  applyVectorTransform(x) {
+    const layer = x.layer, before = x.vector.before, r = x.r;
+    let after;
+    if (x.quad) {  // Distort: each point through the homography of the box onto the four corners
+      const H = homography(r.w, r.h, x.quad);
+      if (!H) return this.cancelTransformState(x);
+      after = mapStrokes(before, x.vector.idxs, (px, py) => { const p = project(H, px - r.x, py - r.y); return [p.x, p.y]; });
+    } else {
+      const [a, b, c, dd, e, f] = xfMatrix(x.t);
+      after = mapStrokes(before, x.vector.idxs, null, [a, b, c, dd, e - a * r.x - c * r.y, f - b * r.x - dd * r.y]);
+    }
+    this.transformSelection(x);
+    const selBefore = x.selBefore, selAfter = this.sel.snapshot();
+    layer.vector = after;
+    renderVector(layer);
+    this.changed(null);
+    const points = vv => vv.strokes.reduce((n, s) => n + s.pts.length, 0);
+    const show = (vec, sel) => { layer.vector = vec; renderVector(layer); this.sel.restore(sel); this.changed(null); };
+    this.history.push({ label: x.moveOnly ? 'Move lines' : 'Transform lines', bytes: (points(before) + points(after)) * 24 + 1024,
+      undo: () => show(before, selBefore), redo: () => show(after, selAfter) });
     this.drawOverlay();
   },
 
@@ -524,6 +592,7 @@ export const selectionMethods = {
   startMesh() {
     const x = this.xf;
     if (!x || x.mesh || x.moveOnly) return;
+    if (x.vector) return toast('Mesh works on pixels: rasterize the vector layer first (Layer → Rasterize vector layer) to bend it, or use Distort.');
     if (x.text) return toast('Mesh bends pixels: rasterize the text first (Layer → Rasterize text) to bend it.');
     const pts = meshFromQuad(x.quad || corners(x.t), MESH_N);
     x.mesh = { n: MESH_N, pts, start: pts.map(p => ({ ...p })) };

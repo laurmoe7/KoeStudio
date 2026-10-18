@@ -19,6 +19,15 @@ export class Selection {
 
   get active() { return !!this.bounds; }
 
+  /** A test (x, y) -> whether that doc point is more than half selected, reading the mask once (for vector lines). */
+  insideTest() {
+    const { w, h } = this, a = this.ctx.getImageData(0, 0, w, h).data;
+    return (px, py) => {
+      const ix = Math.floor(px), iy = Math.floor(py);
+      return ix >= 0 && iy >= 0 && ix < w && iy < h && a[(iy * w + ix) * 4 + 3] > 127;
+    };
+  }
+
   /** A copy of the mask for undo. */
   snapshot() {
     const c = document.createElement('canvas');

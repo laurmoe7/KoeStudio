@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeBrush, sanitizeVector, emptyVector, resample, addStrokes, translateVector, strokeBounds, changedBounds,
-  strokeStamps, segDist, segCross, eraseVector, seeded, smoothPoints, pullStroke, usesDynamics, dualStamps } from '../web/js/vector.js';
+  strokeStamps, segDist, segCross, eraseVector, seeded, smoothPoints, pullStroke, usesDynamics, dualStamps, strokesInside, removeStrokes, mapStrokes } from '../web/js/vector.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg || ''} ${a} ≈ ${b}`);
 // a brush 4 px wide at any pressure, so half its width is 2
@@ -189,4 +189,26 @@ test('lines keep the dual brush', () => {
   const sc = sanitizeBrush({ ...b, dualScatter: 1 });
   assert.deepEqual(dualStamps(s, sc), dualStamps(s, sc), 'scatter is repeatable from the seed');
   assert.ok(dualStamps(s, sc).some(st => st.y !== 0), 'and scatters');
+});
+
+test('selecting, removing and transforming lines', () => {
+  const v = vec(line(0, 0, 10, 0, 10), line(0, 20, 10, 20, 10), line(5, 40, 30, 40, 5));
+  const left = (x, y) => x <= 10;  // a selection over the left 10 px
+  // lines 1 and 2 lie wholly inside; line 3 has only its first point (x = 5) inside: 1 of 6 points
+  assert.deepEqual(strokesInside(v, left), [0, 1]);
+  assert.deepEqual(strokesInside(v, x => x <= 15), [0, 1, 2], 'half the points of line 3 (x 5, 10, 15 of 5..30) are in');
+  assert.deepEqual(removeStrokes(v, [0, 2]).strokes, [v.strokes[1]]);
+  // an affine double-size move of line 2 only: points doubled, width factor 2, the rest untouched
+  const m = mapStrokes(v, [1], null, [2, 0, 0, 2, 1, 0], 100);
+  assert.equal(m.strokes[0], v.strokes[0], 'unpicked lines stay the same object');
+  const ends = s => [s.pts.length, s.pts[0].slice(0, 2), s.pts[s.pts.length - 1].slice(0, 2)];
+  assert.deepEqual(ends(m.strokes[1]), [11, [1, 40], [21, 40]], 'every point (0, 20) .. (10, 20) to 2x + (1, 0)');
+  assert.equal(m.strokes[1].w, 2);
+  assert.equal(mapStrokes(v, [1], null, [0.5, 0, 0, 0.5, 0, 0], 100).strokes[1].w, 0.5);
+  assert.equal(mapStrokes(m, [1], null, [0.5, 0, 0, 0.5, 0, 0], 100).strokes[1].w, undefined, 'back to 1: not kept');
+  // a quarter turn turns the pen lean too
+  const tilted = { brushes: [B], strokes: [{ pts: [[0, 0, 1, 0.5, 0, 0], [4, 0, 1, 0.5, 0, 0]], b: 0, color: '#000000', opacity: 1, seed: 1 }] };
+  near(mapStrokes(tilted, [0], null, [0, 1, -1, 0, 0, 0], 100).strokes[0].pts[0][5], 1.571, 'lean 0 turned 90° is pi/2');
+  // any mapping function (Distort)
+  assert.deepEqual(ends(mapStrokes(v, [0], (x, y) => [x, y + x], null, 100).strokes[0]), [11, [0, 0], [10, 10]]);
 });

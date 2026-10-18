@@ -403,6 +403,54 @@ export function removeStroke(v, i) {
   return { brushes: v.brushes, strokes: v.strokes.filter((_, k) => k !== i) };
 }
 
+// ---------- selecting lines ----------
+
+/**
+ * The lines a selection takes (indices, bottom first): those with at least half their points inside, where
+ * inside(x, y) says whether a doc point is selected.
+ */
+export function strokesInside(v, inside) {
+  const out = [];
+  v.strokes.forEach((s, i) => {
+    let n = 0;
+    for (const q of s.pts) if (inside(q[0], q[1])) n++;
+    if (n > 0 && n * 2 >= s.pts.length) out.push(i);
+  });
+  return out;
+}
+
+/** The vector object without the lines at these indices. */
+export function removeStrokes(v, idxs) {
+  const gone = new Set(idxs);
+  return { brushes: v.brushes, strokes: v.strokes.filter((_, k) => !gone.has(k)) };
+}
+
+/**
+ * The vector object with the lines at these indices moved by map(x, y) -> [x, y] (a transform of the selected
+ * lines). With an affine `m` ([a..f], used when given), line widths follow its scale (sqrt of the area change)
+ * and pen lean directions turn with it. The lines are resampled to `step` so stretched parts keep close points.
+ */
+export function mapStrokes(v, idxs, map, m = null, step = 2) {
+  const pick = new Set(idxs);
+  const k = m ? Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2])) : 1;
+  const turn = az => (az === null || az === undefined || !m ? az ?? null
+    : Math.round(Math.atan2(m[1] * Math.cos(az) + m[3] * Math.sin(az), m[0] * Math.cos(az) + m[2] * Math.sin(az)) * 1000) / 1000);
+  return {
+    brushes: v.brushes,
+    strokes: v.strokes.map((s, i) => {
+      if (!pick.has(i)) return s;
+      const pts = s.pts.map(q => {
+        const [x, y] = m ? [m[0] * q[0] + m[2] * q[1] + m[4], m[1] * q[0] + m[3] * q[1] + m[5]] : map(q[0], q[1]);
+        return q.length > 3 ? [x, y, q[2], q[3], q[4], turn(q[5])] : [x, y, q[2]];
+      });
+      const out = { ...s, pts: resample(pts, step) };
+      const w = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, (s.w || 1) * k));
+      if (Math.abs(w - 1) > 1e-6) out.w = Math.round(w * 1000) / 1000; else delete out.w;
+      return out;
+    }),
+  };
+}
+
 /** The points evened out by `passes` rounds of a [1, 2, 1] / 4 average of each point with its neighbours (all from
  *  the previous round); the ends and the pressure stay. */
 export function smoothPoints(pts, passes) {

@@ -352,7 +352,12 @@ export const GUIDE = [
     <h4>Line edit <kbd>Y</kbd></h4>
     <p>Click a line to pick it, then drag it to bend it. The tool panel changes its width, opacity or colour,
     <b>Smooth</b> evens out a shaky line, and <kbd>Del</kbd> deletes it.</p>
-    <p class="tip">Fill, filters, Transform and Smudge need pixels: they ask to <b>rasterize</b> the layer first
+    <h4>Selecting lines</h4>
+    <p>Draw a selection round some lines with any selection tool: a line counts as selected when at least half of
+    it is inside. Then <kbd>Del</kbd> removes those lines, and Edit → <b>Transform</b> (<kbd>Ctrl</kbd>+<kbd>T</kbd>)
+    or the Move tool moves, turns, sizes or distorts them. They stay lines, and get thicker or thinner as you size
+    them. With nothing selected, Transform takes every line.</p>
+    <p class="tip">Fill, filters, Mesh and Smudge need pixels: they ask to <b>rasterize</b> the layer first
     (Layer → Rasterize vector layer).</p>`],
 
   ['masks', 'Masks and screentone', `

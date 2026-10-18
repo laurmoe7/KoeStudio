@@ -9,7 +9,7 @@ import { isFolder, allLayers, contains, removeNode, insertNode, destination, ste
 import { toast, menu } from '../ui.js';
 import { animFrames } from '../anim.js';
 import { toneDensity } from '../tone.js';
-import { translateVector } from '../vector.js';
+import { translateVector, strokesInside, removeStrokes } from '../vector.js';
 import { adjustFilter } from '../adjust.js';
 
 /** The node itself or the nearest folder around it that is locked, or null. */
@@ -553,8 +553,14 @@ export const layerMethods = {
   /** Clears the selected pixels, or the whole layer when nothing is selected (on a mask: reveals). */
   clearLayer(label = 'Delete') {
     const n = this.doc.active;
-    if (n.vector && !this.sel.active && !this.maskEdit && !this.quickMask && !lockedNode(n) && n.visible) {  // a vector layer: every line goes
-      if (n.vector.strokes.length) { const before = n.vector, after = { brushes: before.brushes, strokes: [] }; this.showVector(n, before, after); this.pushVectorStep(n, before, after, 'Clear layer'); }
+    if (n.vector && !this.maskEdit && !this.quickMask && !lockedNode(n) && n.visible) {  // a vector layer: lines go, as lines
+      const before = n.vector;
+      let idxs = before.strokes.map((_, i) => i);
+      if (this.sel.active) {  // the lines the selection takes (at least half inside)
+        idxs = strokesInside(before, this.sel.insideTest());
+        if (!idxs.length) return toast('No line is inside the selection (at least half of a line must be).');
+      }
+      if (idxs.length) { const after = removeStrokes(before, idxs); this.showVector(n, before, after); this.pushVectorStep(n, before, after, this.sel.active ? 'Delete lines' : 'Clear layer'); }
       return;
     }
     const d = this.doc, t = this.target('clear');
