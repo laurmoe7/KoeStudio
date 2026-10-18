@@ -196,6 +196,41 @@ export function encodeGif(rgba, w, h) {
   return Uint8Array.from(out);
 }
 
+/**
+ * Animated GIF89a: one frame per RGBA array (all w x h), each with its own palette (local colour table) and
+ * delay (hundredths of a second, see frameDelays in anim.js). Each frame is cleared before the next is drawn, so
+ * see-through frames do not pile up. loop: play forever (NETSCAPE2.0 extension), else once.
+ */
+export function encodeGifAnimation(frames, w, h, delays, loop = true) {
+  const out = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61, w & 255, w >> 8, h & 255, h >> 8, 0, 0, 0];  // no global colour table
+  if (loop) out.push(0x21, 0xff, 11, ...[...'NETSCAPE2.0'].map(c => c.charCodeAt(0)), 3, 1, 0, 0, 0);
+  frames.forEach((rgba, f) => {
+    let transparent = false;
+    for (let i = 3; i < rgba.length; i += 4) if (rgba[i] < 128) { transparent = true; break; }
+    const { palette, index } = quantize(rgba, transparent ? 255 : 256);
+    let bits = 1;
+    while ((1 << bits) < palette.length + (transparent ? 1 : 0)) bits++;
+    const transIndex = palette.length, delay = Math.max(0, Math.min(65535, Math.round(delays[f] ?? 10)));
+    const idx = new Uint8Array(w * h);
+    for (let p = 0, i = 0; p < idx.length; p++, i += 4) idx[p] = rgba[i + 3] < 128 ? transIndex : index(rgba[i], rgba[i + 1], rgba[i + 2]);
+    // graphic control: dispose to background (2), transparency, delay
+    out.push(0x21, 0xf9, 4, (2 << 2) | (transparent ? 1 : 0), delay & 255, delay >> 8, transparent ? transIndex : 0, 0);
+    out.push(0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0x80 | (bits - 1));
+    for (let i = 0; i < 1 << bits; i++) out.push(...(palette[i] || [0, 0, 0]));
+    const minBits = Math.max(2, bits);
+    out.push(minBits);
+    const data = lzwEncode(idx, minBits);
+    for (let i = 0; i < data.length; i += 255) {
+      const n = Math.min(255, data.length - i);
+      out.push(n);
+      for (let j = 0; j < n; j++) out.push(data[i + j]);
+    }
+    out.push(0);
+  });
+  out.push(0x3b);
+  return Uint8Array.from(out);
+}
+
 /** Encodes RGBA pixels as the given non-canvas format id ('tga', 'bmp', 'gif'); BMP records dpi. */
 export function encodePixels(format, rgba, w, h, dpi = 72) {
   if (format === 'tga') return encodeTga(rgba, w, h);

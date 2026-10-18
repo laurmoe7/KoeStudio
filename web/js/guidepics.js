@@ -214,6 +214,19 @@ export const PICS = {
     ${t(72, 124, 'Before')}${t(230, 124, 'A correction layer on top')}${t(388, 124, 'Everything below changes')}
   `, 'A Hue/Saturation correction layer above a picture changes its colours without changing the picture'),
 
+  // ---------- Animation ----------
+  anim: svg(460, 150, `
+    ${paper(4, 4, 218, 110)}
+    <circle cx="60" cy="74" r="16" fill="#3e8fe0" opacity=".35"/><circle cx="110" cy="50" r="16" fill="#e5484d"/><circle cx="160" cy="74" r="16" fill="#46a758" opacity=".35"/>
+    <rect class="panel" x="238" y="40" width="218" height="58" rx="4"/>
+    <rect class="paper" x="246" y="48" width="56" height="42" rx="2"/><circle cx="262" cy="74" r="6" fill="#e5484d"/>
+    <rect class="paper" x="318" y="48" width="56" height="42" rx="2"/><circle cx="346" cy="60" r="6" fill="#e5484d"/>
+    <rect x="316" y="46" width="60" height="46" rx="3" fill="none" stroke="#6ea8ff" stroke-width="2"/>
+    <rect class="paper" x="390" y="48" width="56" height="42" rx="2"/><circle cx="430" cy="74" r="6" fill="#e5484d"/>
+    ${t(274, 112, '1')}${t(346, 112, '2')}${t(418, 112, '3')}
+    ${t(113, 134, 'Frame 2, with 1 (blue) and 3 (green) faintly')}${t(347, 134, 'The timeline: one layer per frame')}
+  `, 'A bouncing ball: the frame being drawn with onion skins of the frames before and after it, and the timeline'),
+
   // ---------- Masks ----------
   mask: svg(460, 130, `
     ${paper(4, 4, 136, 100)}${paper(162, 4, 136, 100)}${paper(320, 4, 136, 100)}

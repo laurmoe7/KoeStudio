@@ -132,6 +132,7 @@ export class LayerPanel {
       this.list.append(row);
     }
     this.thumbs();
+    ed.animLayersChanged?.();
   }
 
   /** Redraws the small previews (after painting). */

@@ -45,6 +45,7 @@ import { pressureMethods } from './pressuretool.js';
 import { lineEditMethods } from './lineedittool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
+import { animMethods } from './animtools.js';
 import { printLabel } from '../resolution.js';
 import { brushMethods, curveSvg } from './brushtools.js';
 import { symmetryStamps } from '../symmetry.js';
@@ -128,6 +129,7 @@ export class Editor {
     this.resize();
     this.layerPanel.render();
     this.showDocSize();
+    this.renderTimeline();
     this.selectTool(this.tool);
     this.loadBrushLibrary();
     window.addEventListener('keydown', this.onKey);
@@ -140,6 +142,8 @@ export class Editor {
 
   destroy() {
     this.destroyed = true;
+    if (this.playing) clearTimeout(this.playing.timer);
+    this.playing = null;
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('paste', this.onPaste);
@@ -185,9 +189,12 @@ export class Editor {
             <section class="panel" data-panel="history"><h3><button class="panel-head" title="Every step you can undo: click one to go back to it">${icon('chevron', 12)}<span>History</span></button></h3><div class="history-list"></div></section>
             <section class="panel" data-panel="navigator"><h3><button class="panel-head" title="The whole picture: click or drag to move the view, scroll to zoom">${icon('chevron', 12)}<span>Navigator</span></button></h3><canvas class="nav-canvas"></canvas></section>
           </aside>
-          <div class="ed-viewport">
-            <canvas class="ed-view"></canvas>
-            <canvas class="ed-overlay"></canvas>
+          <div class="ed-center">
+            <div class="ed-viewport">
+              <canvas class="ed-view"></canvas>
+              <canvas class="ed-overlay"></canvas>
+            </div>
+            <div class="ed-timeline" hidden aria-label="Animation timeline"></div>
           </div>
           <aside class="ed-side">
             <section class="panel" data-panel="color"><h3><button class="panel-head">${icon('chevron', 12)}<span>Color</span></button></h3><div class="color-panel"></div></section>
@@ -283,6 +290,7 @@ export class Editor {
         { label: 'Save now', key: 'Ctrl+S', run: () => this.save() },
         { label: 'Export as PNG', key: 'Ctrl+Shift+S', run: () => this.exportAs('png') },
         { label: 'Export…', key: 'Ctrl+Alt+Shift+S', run: () => this.exportAs() },
+        { label: 'Export animation (GIF, frames)…', run: () => this.exportAnimation(), disabled: !d.anim.on },
         { label: 'Save project file (.koe)…', run: () => this.saveProjectFile() },
         '-',
         { label: 'Import image as layer…', run: () => this.pickImage() },
@@ -400,6 +408,9 @@ export class Editor {
         '-',
         { label: 'Show mask area (while painting on a mask)', checked: this.maskOverlay, run: () => this.toggleMaskOverlay() },
         { label: 'Grayscale view (check values)', checked: !!this.grayView, run: () => this.toggleGrayView() },
+        '-',
+        { label: 'Animation timeline', checked: d.anim.on, run: () => this.toggleAnimation() },
+        { label: 'Animation settings…', run: () => this.animSettingsDialog(), disabled: !d.anim.on },
         { label: 'Reference window', checked: this.refState().open, run: () => this.toggleRefWindow() },
         '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
@@ -447,7 +458,7 @@ export class Editor {
     this.compQueue = null;
     const area = clip(q, d.width, d.height);  // the canvas may have shrunk since
     if (area) {
-      composite(this.compCtx, d, area, this.live);
+      composite(this.compCtx, d, area, this.live, this.compView());
       this.mipDirty = this.mipDirty ? union(this.mipDirty, area) : area;
     }
   }
@@ -879,6 +890,7 @@ export class Editor {
     el.addEventListener('contextmenu', e => e.preventDefault());
     el.addEventListener('pointerdown', e => {
       if (this.gesture) return;
+      this.stopAnimation();  // drawing during playback: back to the frame being drawn
       try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
       const p = pos(e);
       this.pointer = p;
@@ -1219,6 +1231,14 @@ export class Editor {
     if (sample === 'layer' && t?.ctx) return t.ctx.getImageData(0, 0, d.width, d.height).data;
     const c = sample === 'reference' ? this.referenceCanvas() : null;
     if (c) return c.getContext('2d').getImageData(0, 0, d.width, d.height).data;
+    const view = this.compView();
+    if (view?.onion) {  // the onion skins are only for seeing: fills and the wand look at the frame without them
+      const o = document.createElement('canvas');
+      o.width = d.width; o.height = d.height;
+      const octx = o.getContext('2d', { willReadFrequently: true });
+      composite(octx, d, { x: 0, y: 0, w: d.width, h: d.height }, null, { ...view, onion: false });
+      return octx.getImageData(0, 0, d.width, d.height).data;
+    }
     this.flushComp();
     return this.compCtx.getImageData(0, 0, d.width, d.height).data;
   }
@@ -1327,7 +1347,7 @@ export class Editor {
   changed(r, { save = true } = {}) {
     this.updateComp(r);
     this.requestRender();
-    if (!this.thumbTimer) this.thumbTimer = setTimeout(() => { this.thumbTimer = 0; this.layerPanel.thumbs(); }, 150);
+    if (!this.thumbTimer) this.thumbTimer = setTimeout(() => { this.thumbTimer = 0; this.layerPanel.thumbs(); this.timelineThumbs(); }, 150);
     if (save) {
       this.doc.version++;
       this.scheduleSave();
@@ -1446,6 +1466,7 @@ export class Editor {
       'f2': () => this.renameLayer(),
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
       'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
+      ',': () => this.stepFrame(-1), '.': () => this.stepFrame(1),
     };
     // Ctrl+V pastes what was copied in KoeStudio (in place), unless the user has been in another program since;
     // then the browser's paste event brings in the image from the system clipboard instead (onPaste)
@@ -1487,7 +1508,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

@@ -9,6 +9,7 @@ import { sanitizeVector } from './vector.js';
 import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
 import { sanitizeDpi } from './resolution.js';
+import { sanitizeAnim, defaultAnim, animFrames, frameOf, onionSkins, ONION_COLORS } from './anim.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -81,6 +82,7 @@ export function sanitizeDoc(raw) {
     height: side(d.height || 1080),
     paper: d.paper === null ? null : (/^#[0-9a-f]{6}$/i.test(d.paper) ? d.paper : '#ffffff'),
     dpi: sanitizeDpi(d.dpi),  // resolution for printing (resolution.js); older files: 72
+    anim: sanitizeAnim(d.anim),  // frame-by-frame animation settings (anim.js); off for older files
     activePath,
     rulers: sanitizeRulers(d.rulers),
     layers,
@@ -230,6 +232,7 @@ export class Doc {
     this.root = new Folder({ name: 'root' });
     this.active = null;  // the selected layer or folder
     this.rulers = defaultRulers();
+    this.anim = defaultAnim();  // animation: every top-level node a frame while anim.on (anim.js)
     this.version = 0;    // raised on any change worth saving
   }
 
@@ -245,6 +248,7 @@ export class Doc {
     const s = sanitizeDoc(raw);
     const d = new Doc({ ...s, id });
     d.rulers = s.rulers;
+    d.anim = s.anim;
     const build = async (src, parent) => {
       const n = src.type === 'folder' ? new Folder(src) : new Layer(d.width, d.height, src);
       if (src.type === 'folder') for (const c of src.children) await build(c, n);
@@ -285,7 +289,7 @@ export class Doc {
     const layers = [];
     for (const n of this.root.children) layers.push(await node(n));
     return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper, dpi: this.dpi,
-      activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, layers };
+      activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, anim: this.anim, layers };
   }
 
   /** All raster layers (not folders), bottom first. */
@@ -338,8 +342,10 @@ const blendOf = n => (n.blend === PASS_THROUGH[0] ? 'source-over' : n.blend);
  * live = { layer, canvas, alpha, mode, texture } is a stroke in progress on a layer or mask, drawn as if already
  * applied (see liveSource). Layers with a tone are drawn as screentone dots.
  * Nodes with clip=true are clipped to the nearest non-clipping sibling below them.
+ * With the animation on (doc.anim.on) only one frame is drawn (see drawAnimation); view = {frame, onion} picks it
+ * and asks for onion skins, otherwise it is the frame holding the selected layer.
  */
-export function composite(ctx, doc, r, live = null) {
+export function composite(ctx, doc, r, live = null, view = null) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(r.x, r.y, r.w, r.h);
@@ -349,8 +355,43 @@ export function composite(ctx, doc, r, live = null) {
     ctx.fillStyle = doc.paper;
     ctx.fillRect(r.x, r.y, r.w, r.h);
   }
-  drawChildren(ctx, doc.root.children, r, live, 0);
+  if (doc.anim?.on) drawAnimation(ctx, doc, r, live, view);
+  else drawChildren(ctx, doc.root.children, r, live, 0);
   ctx.restore();
+}
+
+/** The frame index composite() shows for a doc and view (0 when the selected layer is in no frame). */
+export function shownFrame(doc, view = null) {
+  const { frames } = animFrames(doc.root.children, doc.anim);
+  const i = view?.frame ?? frames.indexOf(frameOf(doc.active));
+  return Math.max(0, Math.min(frames.length - 1, i));
+}
+
+/**
+ * One frame of an animation: the background, the onion skins (the frames round it as see-through blue and green
+ * silhouettes, only when view.onion), the frame, then the foreground. Each is drawn on its own, so a frame's
+ * Clip below or blending never reaches into another frame.
+ */
+function drawAnimation(ctx, doc, r, live, view) {
+  const { frames, bg, fg } = animFrames(doc.root.children, doc.anim);
+  const i = shownFrame(doc, view);
+  if (bg) drawChildren(ctx, [bg], r, live, 0);
+  if (view?.onion) {
+    for (const o of onionSkins(i, frames.length, doc.anim)) {
+      const [c, cctx] = scratchCanvas('onion', r);
+      cctx.translate(-r.x, -r.y);
+      drawChildren(cctx, [frames[o.index]], r, null, 1);
+      cctx.setTransform(1, 0, 0, 1, 0, 0);
+      cctx.globalCompositeOperation = 'source-in';
+      cctx.fillStyle = ONION_COLORS[o.side];
+      cctx.fillRect(0, 0, r.w, r.h);
+      ctx.globalAlpha = o.alpha;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(c, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+    }
+  }
+  if (frames[i]) drawChildren(ctx, [frames[i]], r, live, 0);
+  if (fg) drawChildren(ctx, [fg], r, live, 0);
 }
 
 /** A folder's contents on their own (transparent background), as for Merge folder. */

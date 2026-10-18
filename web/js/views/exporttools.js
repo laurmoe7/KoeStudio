@@ -4,7 +4,8 @@
 
 import { api } from '../api.js';
 import { composite } from '../doc.js';
-import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, exportSize, sanitizeExportOptions } from '../imageformats.js';
+import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, encodeGifAnimation, exportSize, sanitizeExportOptions } from '../imageformats.js';
+import { animFrames, frameDelays } from '../anim.js';
 import { pngWithDpi, jpegWithDpi } from '../resolution.js';
 import { esc, toast, modal, store, confirmBox } from '../ui.js';
 import { versionsDialog, newCanvasDialog, importImage } from './gallery.js';
@@ -82,7 +83,7 @@ export const exportMethods = {
     src.width = area.w; src.height = area.h;
     const sctx = src.getContext('2d');
     sctx.translate(-area.x, -area.y);
-    composite(sctx, o.paper ? d : { paper: null, root: d.root }, area);
+    composite(sctx, o.paper ? d : { paper: null, root: d.root, anim: d.anim, active: d.active }, area, null, o.view || null);
     const out = document.createElement('canvas');
     out.width = size.w; out.height = size.h;
     const ctx = out.getContext('2d', { willReadFrequently: true });
@@ -170,6 +171,99 @@ export const exportMethods = {
         return { opts, dir, name: root.querySelector('[name="name"]').value.trim() || d.title };
       },
     });
+  },
+
+  /**
+   * File → Export animation…: every frame (anim.js) as an animated GIF at the animation's speed, or as numbered PNG
+   * files (name-001.png, …) for video editors. Onion skins are never exported.
+   */
+  async exportAnimation() {
+    const d = this.doc;
+    if (!d.anim.on) return toast('Turn on View → Animation timeline first.');
+    const n = animFrames(d.root.children, d.anim).frames.length;
+    if (!n) return toast('There are no frames to export: show at least one layer.');
+    this.stopAnimation();
+    this.finishText();
+    const saved = store('animExport') || {};
+    let dir = store('exportDir') || '';
+    const read = root => {
+      const f = k => root.querySelector(`[name="${k}"]`);
+      return { ...sanitizeExportOptions({ scale: f('scale').value, paper: d.paper ? f('paper').checked : saved.paper !== false }),
+        format: f('format').value === 'png' ? 'png' : 'gif', name: f('name').value.trim() || d.title };
+    };
+    const res = await modal({
+      title: 'Export animation',
+      body: `
+        <label class="field"><span>File name</span><input type="text" name="name" value="${esc(d.title)}" maxlength="80"></label>
+        <div class="field-row">
+          <label class="field"><span>Format</span><select name="format">
+            <option value="gif"${saved.format !== 'png' ? ' selected' : ''}>Animated GIF</option>
+            <option value="png"${saved.format === 'png' ? ' selected' : ''}>PNG frames (one file per frame)</option></select></label>
+          <label class="field"><span>Size (%)</span><input type="number" name="scale" min="1" max="800" step="any" value="${sanitizeExportOptions(saved).scale}"></label>
+        </div>
+        <label class="check"><input type="checkbox" name="paper"${saved.paper !== false && d.paper ? ' checked' : ''}${d.paper ? '' : ' disabled'}> Include the paper colour</label>
+        <p class="small" data-size></p>
+        <label class="field"><span>Save in</span>
+          <div class="fb-dest"><span class="fb-path" data-dest></span><button type="button" data-browse>Browse…</button></div></label>`,
+      buttons: [{ label: 'Cancel', value: null }, { label: 'Export', primary: true }],
+      onOpen: root => {
+        const show = () => {
+          const p = read(root), size = exportSize(d.width, d.height, p.scale);
+          const el = root.querySelector('[data-size]');
+          el.textContent = `${n} frames of ${size.w} × ${size.h} px at ${d.anim.fps} fps` + (p.format === 'gif' ? (d.anim.loop ? ', looping' : ', playing once') + '. GIF has at most 256 colours per frame.' : `: ${p.name}-001.png and on.`)
+            + (size.tooBig ? ` Too big: at most ${EXPORT_MAX_SIDE} px a side.` : '');
+          el.classList.toggle('error', size.tooBig);
+        };
+        root.querySelectorAll('input, select').forEach(el => el.addEventListener('input', show));
+        const dest = root.querySelector('[data-dest]');
+        const showDir = () => { dest.textContent = dirLabel(dir); dest.title = dirLabel(dir); };
+        root.querySelector('[data-browse]').onclick = async () => {
+          const p = read(root), pick = await browseFile({ title: 'Export to', dir, name: p.name, ext: p.format, okLabel: 'Choose' });
+          if (pick) { dir = pick.dir; root.querySelector('[name="name"]').value = pick.name; showDir(); }
+        };
+        root.querySelector('[name="name"]').select();
+        showDir();
+        show();
+      },
+      collect: root => (exportSize(d.width, d.height, read(root).scale).tooBig ? undefined : read(root)),
+    });
+    if (!res) return;
+    store('animExport', { format: res.format, scale: res.scale, paper: res.paper });
+    store('exportDir', dir);
+    const frame = i => this.exportCanvas({ ...res, area: 'canvas', view: { frame: i, onion: false } }, EXPORT_BY_ID[res.format]);
+    try {
+      if (res.format === 'gif') {
+        let w = 0, h = 0;
+        const pixels = [];
+        for (let i = 0; i < n; i++) {
+          const c = frame(i);
+          w = c.width; h = c.height;
+          pixels.push(c.getContext('2d').getImageData(0, 0, w, h).data);
+        }
+        const gif = encodeGifAnimation(pixels, w, h, frameDelays(d.anim.fps, n), d.anim.loop);
+        const r = await writeExport(res.name, 'gif', new Blob([gif]), dir, true);
+        if (r) toast(`Exported a ${n}-frame GIF to ${r.path}`, { action: showFolder(r.folder), ms: 6000 });
+        return;
+      }
+      let mode = 'ask', last = null;
+      for (let i = 0; i < n; i++) {
+        const c = frame(i);
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        const png = new Blob([pngWithDpi(new Uint8Array(await blob.arrayBuffer()), d.dpi)], { type: 'image/png' });
+        const name = `${res.name}-${String(i + 1).padStart(3, '0')}`;
+        try {
+          last = await api.exportImage(name, 'png', png, { dir, mode });
+        } catch (e) {
+          if (!e.data?.exists) throw e;
+          if (!await confirmBox('Replace frames', `${name}.png already exists in ${dirLabel(dir)}. Replace it and any other frames of the same name?`, 'Replace')) return;
+          mode = 'replace';
+          last = await api.exportImage(name, 'png', png, { dir, mode });
+        }
+      }
+      if (last) toast(`Exported ${n} frames to ${last.folder}`, { action: showFolder(last.folder), ms: 6000 });
+    } catch (e) {
+      toast('Export failed: ' + e.message, { error: true });
+    }
   },
 
   /** File → Earlier versions…: saves, lists the kept versions, and opens the chosen one as a new artwork. */
