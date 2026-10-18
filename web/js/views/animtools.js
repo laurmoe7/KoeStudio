@@ -1,15 +1,18 @@
 // Frame-by-frame animation (anim.js): View → Animation timeline turns every visible top-level layer or folder into
 // a frame and shows the timeline under the canvas: frame thumbnails (click one to draw on it), play / stop, frames
 // per second, onion skins, and buttons to add, duplicate and delete frames. ',' and '.' step through the frames.
+// A frame can be held for several frame times (`node.hold`, animating "on twos"): playback and exports keep it up
+// that long, and the timeline draws the held time as a striped strip after its thumbnail.
 // Editor methods (mixed into Editor.prototype in editor.js).
 
 import { Layer, cloneNode, nodeRasters, renderFolder } from '../doc.js';
-import { animFrames, frameOf, nextFrame, sanitizeAnim, FPS_MIN, FPS_MAX, ONION_MAX } from '../anim.js';
+import { animFrames, frameOf, nextFrame, sanitizeAnim, sanitizeHold, holdOf, totalTicks, FPS_MIN, FPS_MAX, ONION_MAX, HOLD_MAX } from '../anim.js';
 import { isFolder, insertNode, removeNode } from '../tree.js';
 import { icon } from '../icons.js';
 import { esc, modal, toast } from '../ui.js';
 
 const TW = 64, TH = 48;  // frame thumbnail size, CSS px
+const HOLD_STRIP = 10, HOLD_STRIP_MAX = 160;  // CSS px of striped strip per extra frame time a frame is held
 
 export const animMethods = {
   /** What composite() should show while the animation is on: the frame playing or being drawn, with onion skins. */
@@ -55,9 +58,13 @@ export const animMethods = {
     if (!a.on) { el.innerHTML = ''; return; }
     const { frames, bg, fg } = animFrames(this.doc.root.children, a);
     const cur = this.playing ? this.playing.index : this.drawnFrame();
-    const cell = (node, label, i, extra = '') =>
-      `<button type="button" class="tl-cell${i === cur && !extra ? ' current' : ''}${extra}" data-i="${i}" title="${esc(node.name)}">
-        <canvas width="${TW}" height="${TH}"></canvas><span>${esc(label)}</span></button>`;
+    const cell = (node, label, i, extra = '') => {
+      const hold = extra ? 1 : holdOf(node);
+      return `<button type="button" class="tl-cell${i === cur && !extra ? ' current' : ''}${extra}" data-i="${i}" title="${esc(node.name)}${hold > 1 ? ` (held ${hold} frames)` : ''}">
+        <div class="tl-pic"><canvas width="${TW}" height="${TH}"></canvas>${hold > 1 ? `<i class="tl-held" style="width:${Math.min(HOLD_STRIP_MAX, (hold - 1) * HOLD_STRIP)}px"></i>` : ''}</div>
+        <span>${esc(label)}${hold > 1 ? ` ×${hold}` : ''}</span></button>`;
+    };
+    const ticks = totalTicks(frames.map(holdOf)), curNode = frames[cur];
     el.innerHTML = `
       <div class="tl-bar">
         <button type="button" class="icon-btn tl-play" data-tl="play" title="${this.playing ? 'Stop' : 'Play'}">${this.playing ? '■' : '▶'}</button>
@@ -67,11 +74,13 @@ export const animMethods = {
         <button type="button" class="tl-toggle${a.loop ? ' on' : ''}" data-tl="loop" title="Play round and round">Loop</button>
         <span class="tl-sep"></span>
         <button type="button" class="icon-btn" data-tl="prev" title="Previous frame (,)">‹</button>
-        <span class="tl-pos muted small">${frames.length ? `${cur + 1} / ${frames.length}` : 'no frames'}</span>
+        <span class="tl-pos muted small" title="${frames.length ? `Length when played: ${(ticks / a.fps).toFixed(2)} s` : ''}">${frames.length ? `${cur + 1} / ${frames.length}` : 'no frames'}</span>
         <button type="button" class="icon-btn" data-tl="next" title="Next frame (.)">›</button>
+        <label class="tl-fps" title="How many frame times this frame stays up: 2 = on twos (Alt+, / Alt+. change it)">Hold
+          <input type="number" data-tl="hold" min="1" max="${HOLD_MAX}" value="${holdOf(curNode)}"${curNode ? '' : ' disabled'}></label>
         <span class="tl-sep"></span>
         <button type="button" data-tl="add" title="A new empty frame after this one">${icon('plus', 14)} Frame</button>
-        <button type="button" data-tl="dup" title="A copy of this frame after it">${icon('copy', 14)} Duplicate</button>
+        <button type="button" class="icon-btn" data-tl="dup" title="Duplicate: a copy of this frame after it">${icon('copy', 15)}</button>
         <button type="button" class="icon-btn" data-tl="del" title="Delete this frame">${icon('trash', 15)}</button>
         <div class="grow"></div>
         <button type="button" data-tl="settings" title="Speed, onion skin, background and foreground">Settings…</button>
@@ -103,6 +112,7 @@ export const animMethods = {
     };
     el.querySelectorAll('button[data-tl]').forEach(b => { b.onclick = () => acts[b.dataset.tl](); });
     el.querySelector('[data-tl="fps"]').onchange = e => this.setAnim({ fps: e.target.value });
+    el.querySelector('[data-tl="hold"]').onchange = e => this.setFrameHold(e.target.value);
     el.querySelector('.tl-cell.current')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     this.timelineThumbs(true);
   },
@@ -130,6 +140,17 @@ export const animMethods = {
     }
   },
 
+  /** Hold in the timeline (or Alt+, / Alt+. with `delta`): how many frame times the current frame stays up; an undo step. */
+  setFrameHold(value, delta = 0) {
+    if (!this.doc.anim.on) return;
+    const { frames } = animFrames(this.doc.root.children, this.doc.anim);
+    const node = frames[this.drawnFrame()];
+    if (!node) return;
+    const hold = sanitizeHold(delta ? holdOf(node) + delta : value);
+    if (hold === holdOf(node)) return this.renderTimeline();
+    this.setLayerProp(node, 'hold', hold, 'Frame hold');
+  },
+
   setAnim(change) {
     this.doc.anim = sanitizeAnim({ ...this.doc.anim, ...change });
     this.renderTimeline();
@@ -152,6 +173,7 @@ export const animMethods = {
     this.finishTransform?.();
     this.finishText?.();
     const p = this.playing = { index: this.drawnFrame(), timer: 0 };
+    const wait = i => holdOf(animFrames(this.doc.root.children, this.doc.anim).frames[i]) * 1000 / this.doc.anim.fps;
     const tick = () => {
       if (this.playing !== p) return;
       const { frames: fr } = animFrames(this.doc.root.children, this.doc.anim);
@@ -164,9 +186,9 @@ export const animMethods = {
       el?.querySelectorAll('.tl-cell').forEach(b => b.classList.toggle('current', +b.dataset.i === next));
       const pos = el?.querySelector('.tl-pos');
       if (pos) pos.textContent = `${next + 1} / ${fr.length}`;
-      p.timer = setTimeout(tick, 1000 / this.doc.anim.fps);
+      p.timer = setTimeout(tick, wait(next));
     };
-    p.timer = setTimeout(tick, 1000 / this.doc.anim.fps);
+    p.timer = setTimeout(tick, wait(p.index));
     this.updateComp(null);
     this.requestRender();
     this.renderTimeline();

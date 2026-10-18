@@ -4,6 +4,14 @@
 // faint copies of its neighbours (onion skins); exports and thumbnails show the current frame alone.
 
 export const FPS_MIN = 1, FPS_MAX = 60, ONION_MAX = 5;
+/** How many frame times one drawing may stay up (Clip Studio Paint's "hold" / animating on twos and threes). */
+export const HOLD_MAX = 48;
+
+/** A node's hold as saved: a whole number of frame times, 1 (the default) to HOLD_MAX. */
+export const sanitizeHold = v => (Number.isFinite(+v) && v !== null && v !== '' ? Math.max(1, Math.min(HOLD_MAX, Math.round(+v))) : 1);
+
+/** How many frame times a frame (top-level node) stays up. */
+export const holdOf = node => sanitizeHold(node?.hold);
 /** Onion skin colours: frames before the current one, and after it (as Clip Studio Paint: blue, then green). */
 export const ONION_COLORS = { before: '#3e8fe0', after: '#46a758' };
 
@@ -67,20 +75,35 @@ export function onionSkins(index, count, anim) {
 }
 
 /**
- * How long each of n frames stays up in a GIF, in hundredths of a second: GIF delays are whole numbers, so the
- * rounding is carried from frame to frame and the total stays right (12 fps: 8, 9, 8, 8, 9, 8 ...).
+ * How long each frame stays up in a GIF, in hundredths of a second: GIF delays are whole numbers, so the rounding is
+ * carried from frame to frame and the total stays right (12 fps: 8, 9, 8, 8, 9, 8 ...). `holds` is the number of
+ * frames (each held once) or each frame's hold (a frame held 2 stays up two frame times).
  */
-export function frameDelays(fps, n) {
+export function frameDelays(fps, holds) {
+  const list = typeof holds === 'number' ? Array(Math.max(0, holds)).fill(1) : holds.map(sanitizeHold);
   const out = [], step = 100 / Math.max(FPS_MIN, Math.min(FPS_MAX, fps));
   let t = 0, done = 0;
-  for (let i = 0; i < n; i++) {
-    t += step;
+  for (const k of list) {
+    t += step * k;
     const d = Math.max(2, Math.round(t) - done);  // browsers play delays under 2 as 10
     out.push(d);
     done += d;
   }
   return out;
 }
+
+/** The frame showing at frame time `tick` (0-based) for these holds, or -1 past the end. */
+export function frameAtTick(holds, tick) {
+  let t = 0;
+  for (let i = 0; i < holds.length; i++) {
+    t += sanitizeHold(holds[i]);
+    if (tick < t) return i;
+  }
+  return -1;
+}
+
+/** How many frame times the frames take together. */
+export const totalTicks = holds => holds.reduce((s, h) => s + sanitizeHold(h), 0);
 
 /** The next frame when playing: wraps with loop, else stays on the last one (null = the end). */
 export function nextFrame(index, count, loop) {

@@ -1702,6 +1702,7 @@ export class Editor {
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
       'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
       ',': () => this.stepFrame(-1), '.': () => this.stepFrame(1),
+      'alt+,': () => this.setFrameHold(null, -1), 'alt+.': () => this.setFrameHold(null, 1),
     };
     // Ctrl+V pastes what was copied in KoeStudio (in place), unless the user has been in another program since;
     // then the browser's paste event brings in the image from the system clipboard instead (onPaste)

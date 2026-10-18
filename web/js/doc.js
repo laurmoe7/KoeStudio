@@ -9,7 +9,7 @@ import { sanitizeVector } from './vector.js';
 import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
 import { sanitizeDpi } from './resolution.js';
-import { sanitizeAnim, defaultAnim, animFrames, frameOf, onionSkins, ONION_COLORS } from './anim.js';
+import { sanitizeAnim, defaultAnim, animFrames, frameOf, onionSkins, ONION_COLORS, sanitizeHold } from './anim.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -56,6 +56,7 @@ export function sanitizeDoc(raw) {
       locked: l?.locked === true,
       reference: l?.reference === true,
     };
+    if (depth === 0) out.hold = sanitizeHold(l?.hold);  // animation: frame times this frame stays up (anim.js)
     if (folder) {
       out.open = l.open !== false;
       out.children = (Array.isArray(l.children) ? l.children : []).map(c => node(c, depth + 1));
@@ -150,6 +151,7 @@ export class Layer extends Raster {
     this.label = props.label || null;  // colour label in the layer list (LABELS)
     this.locked = !!props.locked;        // no pixel changes (Layer panel → Lock)
     this.reference = !!props.reference;  // Fill and the wand can look at reference layers only
+    this.hold = props.hold || 1;  // animation: how many frame times this frame stays up (anim.js)
     this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
     this.vector = props.vector || null;  // set on vector layers: the lines (vector.js); never changed in place
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
@@ -174,12 +176,13 @@ export class Folder {
     this.label = props.label || null;
     this.locked = !!props.locked;
     this.reference = !!props.reference;
+    this.hold = props.hold || 1;
   }
 }
 
 /** A deep copy of a layer or folder (with masks), for Duplicate. */
 export function cloneNode(n, w, h) {
-  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open, label: n.label, locked: n.locked, reference: n.reference };
+  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open, label: n.label, locked: n.locked, reference: n.reference, hold: n.hold };
   let c;
   if (isFolder(n)) {
     c = new Folder(props);
@@ -270,6 +273,7 @@ export class Doc {
       const out = { type: n.kind, name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };
       if (n.locked) out.locked = true;
       if (n.reference) out.reference = true;
+      if (n.hold > 1 && n.parent === this.root) out.hold = n.hold;
       if (isFolder(n)) {
         out.open = n.open;
         out.children = [];

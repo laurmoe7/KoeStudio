@@ -6,7 +6,7 @@ import { api } from '../api.js';
 import { composite, renderFolder } from '../doc.js';
 import { allLayers } from '../tree.js';
 import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, encodeGifAnimation, exportSize, sanitizeExportOptions } from '../imageformats.js';
-import { animFrames, frameDelays } from '../anim.js';
+import { animFrames, frameDelays, holdOf, totalTicks } from '../anim.js';
 import { pngWithDpi, jpegWithDpi } from '../resolution.js';
 import { esc, toast, modal, store, confirmBox } from '../ui.js';
 import { versionsDialog, newCanvasDialog, importImage } from './gallery.js';
@@ -176,12 +176,13 @@ export const exportMethods = {
 
   /**
    * File → Export animation…: every frame (anim.js) as an animated GIF at the animation's speed, or as numbered PNG
-   * files (name-001.png, …) for video editors. Onion skins are never exported.
+   * files (name-001.png, …) for video editors. Onion skins are never exported. A held frame stays up its hold in the
+   * GIF and is written once per frame time in the PNG frames, so they play at the animation's fps.
    */
   async exportAnimation() {
     const d = this.doc;
     if (!d.anim.on) return toast('Turn on View → Animation timeline first.');
-    const n = animFrames(d.root.children, d.anim).frames.length;
+    const holds = animFrames(d.root.children, d.anim).frames.map(holdOf), n = holds.length, ticks = totalTicks(holds);
     if (!n) return toast('There are no frames to export: show at least one layer.');
     this.stopAnimation();
     this.finishText();
@@ -211,7 +212,9 @@ export const exportMethods = {
         const show = () => {
           const p = read(root), size = exportSize(d.width, d.height, p.scale);
           const el = root.querySelector('[data-size]');
-          el.textContent = `${n} frames of ${size.w} × ${size.h} px at ${d.anim.fps} fps` + (p.format === 'gif' ? (d.anim.loop ? ', looping' : ', playing once') + '. GIF has at most 256 colours per frame.' : `: ${p.name}-001.png and on.`)
+          el.textContent = `${n} frames of ${size.w} × ${size.h} px at ${d.anim.fps} fps (${(ticks / d.anim.fps).toFixed(2)} s)`
+            + (p.format === 'gif' ? (d.anim.loop ? ', looping' : ', playing once') + '. GIF has at most 256 colours per frame.'
+              : `: ${ticks} files, ${p.name}-001.png and on${ticks > n ? ' (held frames repeat)' : ''}.`)
             + (size.tooBig ? ` Too big: at most ${EXPORT_MAX_SIDE} px a side.` : '');
           el.classList.toggle('error', size.tooBig);
         };
@@ -241,27 +244,29 @@ export const exportMethods = {
           w = c.width; h = c.height;
           pixels.push(c.getContext('2d').getImageData(0, 0, w, h).data);
         }
-        const gif = encodeGifAnimation(pixels, w, h, frameDelays(d.anim.fps, n), d.anim.loop);
+        const gif = encodeGifAnimation(pixels, w, h, frameDelays(d.anim.fps, holds), d.anim.loop);
         const r = await writeExport(res.name, 'gif', new Blob([gif]), dir, true);
         if (r) toast(`Exported a ${n}-frame GIF to ${r.path}`, { action: showFolder(r.folder), ms: 6000 });
         return;
       }
-      let mode = 'ask', last = null;
+      let mode = 'ask', last = null, k = 0;
       for (let i = 0; i < n; i++) {
         const c = frame(i);
         const blob = await new Promise(r => c.toBlob(r, 'image/png'));
         const png = new Blob([pngWithDpi(new Uint8Array(await blob.arrayBuffer()), d.dpi)], { type: 'image/png' });
-        const name = `${res.name}-${String(i + 1).padStart(3, '0')}`;
-        try {
-          last = await api.exportImage(name, 'png', png, { dir, mode });
-        } catch (e) {
-          if (!e.data?.exists) throw e;
-          if (!await confirmBox('Replace frames', `${name}.png already exists in ${dirLabel(dir)}. Replace it and any other frames of the same name?`, 'Replace')) return;
-          mode = 'replace';
-          last = await api.exportImage(name, 'png', png, { dir, mode });
+        for (let j = 0; j < holds[i]; j++) {
+          const name = `${res.name}-${String(++k).padStart(3, '0')}`;
+          try {
+            last = await api.exportImage(name, 'png', png, { dir, mode });
+          } catch (e) {
+            if (!e.data?.exists) throw e;
+            if (!await confirmBox('Replace frames', `${name}.png already exists in ${dirLabel(dir)}. Replace it and any other frames of the same name?`, 'Replace')) return;
+            mode = 'replace';
+            last = await api.exportImage(name, 'png', png, { dir, mode });
+          }
         }
       }
-      if (last) toast(`Exported ${n} frames to ${last.folder}`, { action: showFolder(last.folder), ms: 6000 });
+      if (last) toast(`Exported ${ticks} frames to ${last.folder}`, { action: showFolder(last.folder), ms: 6000 });
     } catch (e) {
       toast('Export failed: ' + e.message, { error: true });
     }

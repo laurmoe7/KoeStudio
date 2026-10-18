@@ -322,6 +322,8 @@ export const GUIDE = [
       <li><b>Settings…</b> can make the bottom layer a <b>background</b> and the top one a <b>foreground</b> that show
       on every frame, set how many onion skin frames you see and how strongly, and turn looping off.</li>
       <li>Hide a layer to leave it out of the animation.</li>
+      <li><b>Hold</b> keeps the current frame up for more than one frame time: 2 is animating "on twos". A held
+      frame gets a striped strip in the timeline. <kbd>Alt</kbd>+<kbd>,</kbd> and <kbd>Alt</kbd>+<kbd>.</kbd> change it.</li>
     </ul>
     <p class="tip">Drawing a walk or a bounce? Draw the first and last poses first, then the ones in between.</p>`],
 
@@ -478,7 +480,7 @@ export const SHORTCUTS = [
   ['Layers', [['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],
     ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['Ctrl+J / Ctrl+Shift+J', 'Copy / cut to a new layer'], ['F2', 'Rename the layer'],
     ['Ctrl+click / Shift+click', 'Pick several layers']]],
-  ['Animation', [[', / .', 'Previous / next frame (with the animation timeline on)']]],
+  ['Animation', [[', / .', 'Previous / next frame (with the animation timeline on)'], ['Alt+, / Alt+.', 'Hold the current frame one frame time less / longer']]],
   ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
   ['View', [['Space (hold)', 'Move the view'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
     ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'],

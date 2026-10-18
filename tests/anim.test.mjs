@@ -1,7 +1,7 @@
 // Frame-by-frame animation (anim.js) and the animated GIF encoder. Expected values worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeAnim, defaultAnim, animFrames, frameOf, onionSkins, frameDelays, nextFrame } from '../web/js/anim.js';
+import { sanitizeAnim, defaultAnim, animFrames, frameOf, onionSkins, frameDelays, nextFrame, sanitizeHold, holdOf, frameAtTick, totalTicks } from '../web/js/anim.js';
 import { encodeGifAnimation } from '../web/js/imageformats.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
@@ -51,6 +51,25 @@ test('frame timing and playback order', () => {
   assert.equal(nextFrame(2, 3, true), 0, 'loops round');
   assert.equal(nextFrame(2, 3, false), null, 'or stops at the end');
   assert.equal(nextFrame(0, 0, true), null);
+});
+
+test('held frames', () => {
+  assert.equal(sanitizeHold(undefined), 1);
+  assert.equal(sanitizeHold('3'), 3);
+  assert.equal(sanitizeHold(0), 1, 'at least one frame time');
+  assert.equal(sanitizeHold(500), 48);
+  assert.equal(sanitizeHold(2.6), 3);
+  assert.equal(holdOf({}), 1);
+  assert.equal(holdOf({ hold: 4 }), 4);
+  // 10 fps: a frame time is 10 hundredths; held 2 -> 20, held 3 -> 30
+  assert.deepEqual(frameDelays(10, [1, 2, 3]), [10, 20, 30]);
+  // 12 fps, holds 2, 1: 16.67 -> 17, then 25 total -> 8
+  assert.deepEqual(frameDelays(12, [2, 1]), [17, 8]);
+  assert.equal(totalTicks([1, 2, 3]), 6);
+  assert.deepEqual([0, 1, 2, 3, 5, 6].map(t => frameAtTick([1, 2, 3], t)), [0, 1, 1, 2, 2, -1]);
+  const doc = sanitizeDoc({ layers: [{ hold: 3 }, { type: 'folder', hold: 2, children: [{ hold: 5 }] }, {}] });
+  assert.deepEqual(doc.layers.map(l => l.hold), [3, 2, 1], 'kept on top-level nodes, 1 when missing');
+  assert.equal(doc.layers[1].children[0].hold, undefined, 'only frames (top-level nodes) have a hold');
 });
 
 test('animated GIF', () => {
