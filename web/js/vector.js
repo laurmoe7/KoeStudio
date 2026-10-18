@@ -25,7 +25,7 @@ export const MIN_WIDTH = 0.1, MAX_WIDTH = 5;
 const NUM = {
   size: [6, 0.5, 1000], flow: [1, 0.01, 1], hardness: [1, 0, 1], spacing: [0.08, 0.02, 1], minSize: [0.15, 0, 1],
   minFlow: [0, 0, 1], gamma: [1, 0.3, 3], thickness: [1, 0.05, 1], tipAngle: [0, 0, 360], tipRandom: [0, 0, 1],
-  scatter: [0, 0, 2], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500],
+  scatter: [0, 0, 2], count: [1, 1, 16], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500],
   textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4],
 };
 const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, textureInvert: false, colorJitterStroke: false };
@@ -169,10 +169,12 @@ export function strokeStamps(s, b) {
     for (const st of path.add({ x, y, p })) {
       if (prev) dist += Math.hypot(st.x - prev.x, st.y - prev.y);
       prev = { x: st.x, y: st.y };
-      const j = dabJitter(b, sizeAt(st.p), rnd);
-      const q = { x: st.x + j.dx, y: st.y + j.dy, p: st.p, k: j.sizeK * taperIn(dist, b.taperIn), f: j.flowK, d: dist };
-      if (dabColors) q.c = shiftColor(s.color, colorJitter(b, rnd));
-      out.push(q);
+      for (let n = 0; n < (b.count || 1); n++) {  // Count: several dabs per step, each with its own variation
+        const j = dabJitter(b, sizeAt(st.p), rnd);
+        const q = { x: st.x + j.dx, y: st.y + j.dy, p: st.p, k: j.sizeK * taperIn(dist, b.taperIn), f: j.flowK, d: dist };
+        if (dabColors) q.c = shiftColor(s.color, colorJitter(b, rnd));
+        out.push(q);
+      }
     }
   }
   if (b.taperOut > 0) for (const st of out) st.k *= taperOut(dist - st.d, b.taperOut);

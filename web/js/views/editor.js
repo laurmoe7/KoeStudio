@@ -3,8 +3,8 @@
 import { api } from '../api.js';
 import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL } from '../brush.js';
 import { tipReach } from '../brushtip.js';
-import { hexToRgb, rgbToHex, shiftColor } from '../color.js';
-import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource, docEffectReach } from '../doc.js';
+import { hexToRgb, rgbToHex, shiftColor, averageColor } from '../color.js';
+import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach } from '../doc.js';
 import { isFolder } from '../tree.js';
 import { floodMask, growMask, closeGapFill } from '../fill.js';
 import { History } from '../history.js';
@@ -768,6 +768,7 @@ export class Editor {
       this.bindPresetRow(box);
       box.querySelector('[data-brush-win]').onclick = () => this.toggleBrushWindow();
     } else box.innerHTML = this.settingsHtml(fields, s);
+    if (t.kind === 'picker') box.insertAdjacentHTML('beforeend', '<p class="hint">Click the canvas to pick a colour. Hold Alt with a brush to pick quickly (with these settings).</p>');
     if (t.kind === 'lineedit') this.renderLineEditProps(box);
     if (t.kind === 'retouch') box.insertAdjacentHTML('beforeend', `<p class="hint">${t.id === 'clone' ? 'Ctrl+click where to copy from, then paint to copy it here.'
       : t.id === 'blur' ? 'Paint over the picture to soften it.' : `Paint over the picture to ${t.id === 'burn' ? 'darken' : 'lighten'} it; low strength builds up gently.`}</p>`);
@@ -1072,11 +1073,15 @@ export class Editor {
     g.last = pt;
     const sp = g.smoother.add(pt);
     if (g.vec) g.vec.push([sp.x, sp.y, sp.p]);
-    const stamps = g.path.add(sp);
-    if (!stamps.length) return;
-    for (const st of stamps) {  // distance along the stroke (for the taper) and random variation; symmetric copies share it
-      if (g.prevStamp) g.dist += Math.hypot(st.x - g.prevStamp.x, st.y - g.prevStamp.y);
-      g.prevStamp = { x: st.x, y: st.y };
+    const steps = g.path.add(sp);
+    if (!steps.length) return;
+    const count = Math.max(1, Math.round(g.s.count || 1));
+    const stamps = count === 1 ? steps : steps.flatMap(st => Array.from({ length: count }, () => ({ ...st })));
+    stamps.forEach((st, n) => {  // distance along the stroke (for the taper) and random variation; symmetric copies share it
+      if (n % count === 0) {
+        if (g.prevStamp) g.dist += Math.hypot(st.x - g.prevStamp.x, st.y - g.prevStamp.y);
+        g.prevStamp = { x: st.x, y: st.y };
+      }
       const j = dabJitter(g.s, stampAt(g.s, st.p).size);
       st.x += j.dx; st.y += j.dy;
       st.k = j.sizeK * taperIn(g.dist, g.s.taperIn);
@@ -1089,7 +1094,7 @@ export class Editor {
         if (g.s.tiltAngle && st.az != null) st.a = st.az;
       }
       if (g.dabColors) st.c = shiftColor(g.color, colorJitter(g.s));
-    }
+    });
     if (g.s.taperOut > 0) {  // the end taper holds the last stretch back until the pen lifts
       const r = releaseHeld([...g.held, ...stamps], g.dist, g.s.taperOut);
       g.held = r.held;
@@ -1275,11 +1280,27 @@ export class Editor {
       const q = this.pickPt;
       this.pickPt = null;
       if (this.destroyed) return;
-      const x = Math.floor(q.x), y = Math.floor(q.y);
-      if (x < 0 || y < 0 || x >= this.doc.width || y >= this.doc.height) return;
-      this.flushComp();
-      const p = this.compCtx.getImageData(x, y, 1, 1).data;
-      if (p[3] === 0) return;
+      const d = this.doc, x = Math.floor(q.x), y = Math.floor(q.y);
+      if (x < 0 || y < 0 || x >= d.width || y >= d.height) return;
+      const s = this.settings.picker, k = Math.floor((+s.average || 1) / 2);
+      const r = clip({ x: x - k, y: y - k, w: 2 * k + 1, h: 2 * k + 1 }, d.width, d.height);
+      const n = d.active, view = this.compView(), own = s.pickFrom === 'layer' || !!view?.onion;
+      let src;
+      if (own) {
+        // this layer alone (a folder as it looks), or the picture without the onion skins: only the square is drawn
+        const c = document.createElement('canvas');
+        c.width = r.w; c.height = r.h;
+        src = c.getContext('2d', { willReadFrequently: true });
+        src.translate(-r.x, -r.y);
+        if (s.pickFrom === 'layer') renderFolder(src, { children: [n] }, r);
+        else composite(src, d, r, null, { ...view, onion: false });
+        src.setTransform(1, 0, 0, 1, 0, 0);
+      } else {
+        this.flushComp();
+        src = this.compCtx;
+      }
+      const p = averageColor(src.getImageData(own ? 0 : r.x, own ? 0 : r.y, r.w, r.h).data);
+      if (!p) return;
       this.colors.set(rgbToHex(p[0], p[1], p[2]));
     });
   }

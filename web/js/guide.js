@@ -79,7 +79,8 @@ export const GUIDE = [
       <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>
       <li><b>Tilt and speed</b>: tilt the pen to make the brush bigger or lighter (like shading with the side of a
       pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. Tilt needs a pen that reports it.</li>
-      <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.</li>
+      <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.
+      <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles).</li>
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.</li>
     </ul>
     <figure data-pic="taper"><figcaption>Start and End taper make a stroke begin and end thin, even with a mouse.
@@ -123,7 +124,9 @@ export const GUIDE = [
       <li><b>Sliders</b> under the square: <b>HSV</b> (hue, saturation, brightness) or <b>RGB</b> (red, green, blue).
       Type a number in the box beside a slider for an exact value; <b>Hide</b> folds them away. A colour code such as
       <code>#ff8800</code> goes in the box next to the colour squares.</li>
-      <li>Hold <kbd>Alt</kbd> while painting to pick a colour from the canvas, or use the <b>Eyedropper</b> <kbd>I</kbd>.</li>
+      <li>Hold <kbd>Alt</kbd> while painting to pick a colour from the canvas, or use the <b>Eyedropper</b> <kbd>I</kbd>.
+      Its settings pick from everything you see or only the selected layer, and can average a small square, so a
+      grainy texture does not decide the colour.</li>
       <li><b>Recent</b> colours appear by themselves. For colours you want to keep, press <b>+</b> next to
       <b>Palette</b>. Click a swatch to use it, right-click to remove it.</li>
     </ul>
@@ -149,7 +152,8 @@ export const GUIDE = [
     <ul>
       <li>Drag from where the gradient starts to where it ends. Hold Shift for a straight angle.</li>
       <li><b>Colors</b>: main to sub, or a ready-made one (rainbow, sunset, sky, fire, night).</li>
-      <li><b>Shape</b>: straight or circle. <b>Repeat</b> and <b>Mirror</b> make stripes and rings.</li>
+      <li><b>Shape</b>: straight, circle, angle (round the start like a clock hand), reflected (both ways from the
+      start) or diamond. <b>Repeat</b> and <b>Mirror</b> make stripes and rings.</li>
       <li><b>Dither</b> adds a faint grain so smooth gradients show no bands.</li>
       <li><b>Edit gradient…</b> makes your own: click under the colour strip to add a colour, drag the markers to move
       them, and give each one a colour (or "main colour" / "sub colour", so it follows the colour squares) and an

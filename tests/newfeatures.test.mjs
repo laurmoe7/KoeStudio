@@ -116,3 +116,40 @@ test('pen tilt, speed and the points between', async () => {
   const s = sanitizeSettings({ pen: { tiltSize: 5, speedSize: -3, tiltAngle: 1 } }).pen;
   assert.deepEqual([s.tiltSize, s.speedSize, s.tiltAngle], [1, -1, true]);
 });
+
+test('eyedropper average colour', async () => {
+  const { averageColor } = await import('../web/js/color.js');
+  assert.deepEqual(averageColor(new Uint8ClampedArray([255, 0, 0, 255, 0, 0, 255, 255])), [128, 0, 128, 255], 'red and blue: purple');
+  assert.deepEqual(averageColor(new Uint8ClampedArray([255, 0, 0, 255, 0, 255, 0, 0])), [255, 0, 0, 128], 'a clear pixel adds no colour, only lowers the opacity');
+  assert.deepEqual(averageColor(new Uint8ClampedArray([200, 100, 0, 51, 0, 0, 200, 204])), [40, 20, 160, 128], 'weighted by opacity: 1 part to 4');
+  assert.equal(averageColor(new Uint8ClampedArray(8)), null, 'nothing there');
+  const s = sanitizeSettings({ picker: { pickFrom: 'layer', average: '5' } }).picker;
+  assert.deepEqual([s.pickFrom, s.average], ['layer', '5']);
+  assert.equal(sanitizeSettings({ picker: { average: '7' } }).picker.average, '1', 'only the listed sizes');
+});
+
+test('brush count lays several dabs per step', async () => {
+  const { strokeStamps, sanitizeBrush } = await import('../web/js/vector.js');
+  const line = { pts: [[0, 0, 1], [20, 0, 1]], seed: 3, color: '#000000' };
+  const one = strokeStamps(line, sanitizeBrush({ size: 10, spacing: 0.5 }));
+  const three = strokeStamps(line, sanitizeBrush({ size: 10, spacing: 0.5, count: 3, scatter: 1 }));
+  assert.equal(one.length, 5, 'a dab every 5 px over 20 px, and the first');
+  assert.equal(three.length, 15);
+  assert.ok(new Set(three.slice(0, 3).map(q => q.x)).size > 1, 'the three dabs of a step scatter apart');
+  assert.equal(sanitizeBrush({ count: 99 }).count, 16);
+  assert.equal(sanitizeSettings({ brush: { count: 4 } }).brush.count, 4);
+});
+
+test('reflected, diamond and angle gradients', async () => {
+  const { reflectStops, diamondQuarters, gradientReach, GRADIENT_SHAPES } = await import('../web/js/gradient.js');
+  assert.deepEqual(reflectStops([[0, 'a'], [1, 'b']]), [[0, 'b'], [0.5, 'a'], [0.5, 'a'], [1, 'b']], 'the start in the middle, both ends the end colour');
+  const q = diamondQuarters({ x: 0, y: 0 }, { x: 10, y: 0 }, 10, 100, 0);
+  assert.equal(q.length, 4);
+  assert.deepEqual([q[0].to.x, q[0].to.y], [5, 5], 'the first quarter reaches the end colour where along + across = 10');
+  near(q[1].to.x, -5, 'second quarter: behind the start'); near(q[1].to.y, 5, 'and across');
+  assert.deepEqual(q[0].poly.map(p => [p.x, p.y]), [[0, 0], [100, 0], [100, 100], [0, 100]]);
+  const area = { x: 0, y: 0, w: 30, h: 10 };
+  assert.deepEqual(gradientReach('diamond', { x: 0, y: 0 }, { x: 10, y: 0 }, area), { before: 0, after: 3 }, 'the far corner is 30 + 10 away');
+  assert.deepEqual(gradientReach('conic', { x: 0, y: 0 }, { x: 10, y: 0 }, area), { before: 0, after: 0 }, 'an angle gradient goes round once');
+  assert.ok(['conic', 'reflected', 'diamond'].every(k => GRADIENT_SHAPES.some(s => s[0] === k)));
+});

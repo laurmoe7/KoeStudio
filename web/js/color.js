@@ -47,6 +47,20 @@ export function sanitizePalette(raw) {
   return out.slice(0, PALETTE_MAX);
 }
 
+/**
+ * The average colour of RGBA pixels, each counted by its opacity (so see-through pixels count less and fully
+ * clear ones not at all): [r, g, b, a] 0-255 (a = mean opacity), or null when every pixel is clear.
+ */
+export function averageColor(data) {
+  let r = 0, g = 0, b = 0, a = 0, n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const w = data[i + 3];
+    r += data[i] * w; g += data[i + 1] * w; b += data[i + 2] * w; a += w; n++;
+  }
+  if (!a) return null;
+  return [Math.round(r / a), Math.round(g / a), Math.round(b / a), Math.round(a / n)];
+}
+
 export function rgbToHex(r, g, b) {
   return '#' + [r, g, b].map(n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')).join('');
 }

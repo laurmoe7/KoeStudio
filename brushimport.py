@@ -413,8 +413,9 @@ def _abr_settings(b):
         s['pressureOpacity'] = False
     if b.get('useScatter'):
         s['scatter'] = round(_clamp(_dyn(b, 'scatterDynamics')[1], 0, 2), 2)  # Photoshop: a share of the diameter
-        if (_num(b.get('Cnt '), 1) or 1) > 1:
-            notes.append('Several dabs per step (count)')
+        cnt = _num(b.get('Cnt '), 1) or 1
+        if cnt > 1:
+            s['count'] = int(_clamp(round(cnt), 1, 16))
     tex = None
     t = b.get('Txtr')
     if b.get('useTexture') and isinstance(t, dict):

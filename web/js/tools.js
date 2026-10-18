@@ -11,12 +11,15 @@ import { imageRef } from './brushtip.js';
 
 /** Where Fill and the Magic wand find their area. */
 export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['reference', 'Reference layers']];
+/** Where the Eyedropper picks from, and how many pixels round the point it averages. */
+export const PICK_FROM = [['all', 'All layers'], ['layer', 'This layer']];
+export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5 × 5 average'], ['11', '11 × 11 average']];
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0,
-    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, preset: '' };
+    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, preset: '' };
 }
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
@@ -57,7 +60,7 @@ export const TOOLS = [
     defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, sides: 5, depth: 0.5, fill: false } },
   { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',
     defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, vertical: false, outline: 0, outlineColor: 'white' } },
-  { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', group: 'draw', defaults: {} },
+  { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', group: 'draw', defaults: { pickFrom: 'all', average: '1' } },
   { id: 'select', label: 'Rectangle selection', key: 'm', kind: 'select', icon: 'rectSel', group: 'select', defaults: { mode: 'replace' } },
   { id: 'ellipse', label: 'Ellipse selection', key: 'm', kind: 'select', icon: 'ellipseSel', group: 'select', defaults: { mode: 'replace' } },
   { id: 'lasso', label: 'Lasso selection', key: 'l', kind: 'select', icon: 'lasso', group: 'select', defaults: { mode: 'replace' } },
@@ -100,6 +103,7 @@ export const SETTING_FIELDS = [
   ['tipFollow', 'Turn with the stroke', 'check'],
   ['minFlow', 'Min. density', 'range', 0, 1, 0.01],
   ['scatter', 'Scatter', 'range', 0, 2, 0.01],
+  ['count', 'Count', 'range', 1, 16, 1],
   ['sizeJitter', 'Size jitter', 'range', 0, 1, 0.01],
   ['flowJitter', 'Density jitter', 'range', 0, 1, 0.01],
   ['hueJitter', 'Hue jitter', 'range', 0, 1, 0.01],
@@ -136,6 +140,8 @@ export const SETTING_FIELDS = [
   ['grow', 'Expand', 'range', 0, 6, 1],
   ['gap', 'Close gaps', 'range', 0, 20, 1],
   ['sample', 'Look at', 'choice', SAMPLE_FROM],
+  ['pickFrom', 'Pick from', 'choice', PICK_FROM],
+  ['average', 'Sample', 'choice', PICK_AVERAGE],
   ['contiguous', 'Connected only', 'check'],
   ['aligned', 'Aligned', 'check'],
 ];
@@ -150,7 +156,7 @@ export const SETTING_GROUPS = [
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut']],
   ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
-  ['Variation', ['scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
+  ['Variation', ['scatter', 'count', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert']],
 ];
 
@@ -167,12 +173,14 @@ export const SETTING_HINTS = {
   tolerance: 'How different a colour may be and still count as the same area',
   grow: 'Grows the filled area by this many pixels, so it tucks under line edges',
   gap: 'Fills as if openings in the lines up to about twice this many pixels were closed, so the fill does not leak out (0 = off)',
+  pickFrom: 'All layers: the colour you see. This layer: the colour of the selected layer alone (also through Alt with other tools)',
+  average: 'Takes the average colour of a square round the point, so the grain of a texture or noise does not decide the colour',
   sample: 'Find the area from everything you see, the current layer only, or only layers marked as reference (Layer panel)',
   aligned: 'Keeps the same distance between where it copies from and the brush for every stroke (off: each stroke starts again at the point you Ctrl+clicked)',
   strength: 'How strongly each dab smudges, blurs, lightens, darkens or bends the picture (pen pressure makes it stronger when Pressure → density is on)',
   reach: 'How far along the line (in pixels from where you grab it) the line follows when you drag it',
   liquify: 'Push drags the picture along with the pen; Pinch pulls it in, Bloat swells it, Twirl turns it (these keep working while you hold the pen still)',
-  shape: 'Straight: along the line you drag. Circle: outwards from where you start',
+  shape: 'Straight: along the line you drag. Circle: outwards from where you start. Angle: round the start, beginning in the direction you drag. Reflected: straight, both ways from the start. Diamond: outwards in a turned square',
   dither: 'Adds a faint, even grain so smooth gradients show no bands (steps between colour levels)',
   colors: 'Main and sub are the two colour squares in the Color panel; the named gradients have colours of their own',
   repeat: 'Once: the end colours fill the rest. Repeat: the gradient starts over and over. Mirror: it goes back and forth',
@@ -199,6 +207,7 @@ export const SETTING_HINTS = {
   sizeCurve: 'How pen pressure maps to size (from an imported brush); it replaces the Pressure setting for size',
   flowCurve: 'How pen pressure maps to density (from an imported brush); it replaces the Pressure setting for density',
   textureInvert: 'Swaps the texture: paint goes into the dark parts instead of the light ones',
+  count: 'Dabs at each step: more than 1 lays several at once, each with its own scatter and jitter (spray, foliage, sparkles; turn Scatter up to spread them)',
   scatter: 'Moves each dab a random distance from the stroke, up to this many times the brush size',
   sizeJitter: 'Makes each dab smaller by a random amount, up to this share of its size',
   flowJitter: 'Makes each dab lighter by a random amount, up to this share of its density',

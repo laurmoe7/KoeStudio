@@ -18,7 +18,7 @@ export const GRADIENT_PRESETS = {
   night: ['#05060f', '#141a3a', '#2e2a6b', '#5b3f8c'],
   gray: ['#000000', '#ffffff'],
 };
-export const GRADIENT_SHAPES = [['linear', 'Straight'], ['radial', 'Circle']];
+export const GRADIENT_SHAPES = [['linear', 'Straight'], ['radial', 'Circle'], ['conic', 'Angle'], ['reflected', 'Reflected'], ['diamond', 'Diamond']];
 export const GRADIENT_REPEATS = [['none', 'Once'], ['repeat', 'Repeat'], ['mirror', 'Mirror']];
 const MAX_REPEATS = 1000;
 
@@ -140,9 +140,14 @@ export function gradientReach(shape, start, end, area) {
   if (!(L2 > 0)) return { before: 0, after: 0 };
   const corners = [[area.x, area.y], [area.x + area.w, area.y], [area.x, area.y + area.h], [area.x + area.w, area.y + area.h]];
   let before = 0, after = 0;
-  if (shape === 'radial') {
-    const far = Math.max(...corners.map(([x, y]) => Math.hypot(x - start.x, y - start.y)));
-    after = Math.max(0, Math.ceil(far / Math.sqrt(L2) - 1e-9) - 1);
+  if (shape === 'conic') return { before: 0, after: 0 };  // once round the circle
+  if (shape === 'radial' || shape === 'diamond') {
+    // a diamond's rings are squares turned along the drag: their size is |along| + |across| (the L1 distance)
+    const L = Math.sqrt(L2), ux = dx / L, uy = dy / L;
+    const dist = shape === 'radial' ? ([x, y]) => Math.hypot(x - start.x, y - start.y)
+      : ([x, y]) => Math.abs((x - start.x) * ux + (y - start.y) * uy) + Math.abs(-(x - start.x) * uy + (y - start.y) * ux);
+    const far = Math.max(...corners.map(dist));
+    after = Math.max(0, Math.ceil(far / L - 1e-9) - 1);
   } else {
     const ts = corners.map(([x, y]) => ((x - start.x) * dx + (y - start.y) * dy) / L2);
     before = Math.max(0, Math.ceil(-Math.min(...ts) - 1e-9));
@@ -151,6 +156,28 @@ export function gradientReach(shape, start, end, area) {
   const over = before + after + 1 - MAX_REPEATS;
   if (over > 0) { const cut = Math.ceil(over / 2); before = Math.max(0, before - cut); after = Math.max(0, MAX_REPEATS - 1 - before); }
   return { before, after };
+}
+
+/** A reflected gradient's stops: the gradient from the middle out to both ends (over 0..1, the start at 0.5). */
+export function reflectStops(stops) {
+  return [...stops.slice().reverse().map(([o, c]) => [0.5 - o / 2, c]), ...stops.map(([o, c]) => [0.5 + o / 2, c])];
+}
+
+/**
+ * A diamond gradient as four straight ones: in each quarter round the start (between the drag direction u and the
+ * one across it, v) the colour depends on |along u| + |along v|, which grows straight along the quarter's
+ * diagonal and reaches the end at length r / sqrt(2). Returns per quarter the gradient line {from, to} and the
+ * area it fills (a polygon out to `far` px, overlapping its neighbours by `e` px so no seam shows where they meet).
+ */
+export function diamondQuarters(start, end, r, far, e = 1.5) {
+  const L = Math.hypot(end.x - start.x, end.y - start.y) || 1;
+  const u = [(end.x - start.x) / L, (end.y - start.y) / L], v = [-u[1], u[0]];
+  const at = (a, b, su, sv) => ({ x: start.x + su * a * u[0] + sv * b * v[0], y: start.y + su * a * u[1] + sv * b * v[1] });
+  return [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([su, sv]) => ({
+    from: { x: start.x, y: start.y },
+    to: at(r / 2, r / 2, su, sv),
+    poly: [at(-e, -e, su, sv), at(far, -e, su, sv), at(far, far, su, sv), at(-e, far, su, sv)],
+  }));
 }
 
 /**
