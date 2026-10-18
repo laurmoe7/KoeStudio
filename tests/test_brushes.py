@@ -118,6 +118,9 @@ def make_abr():
         {'Nm  ': 'Round', 'Brsh': {'_class': 'computedBrush', 'Dmtr': ('#Pxl', 9.0), 'Hrdn': ('#Prc', 50.0), 'Spcn': ('#Prc', 25.0)}},
         {'Nm  ': 'Wide', 'Brsh': {'_class': 'sampledBrush', 'Dmtr': ('#Pxl', 2.0), 'sampledData': '$b'}},
         {'Nm  ': 'Pencil again', 'Brsh': {'_class': 'sampledBrush', 'Dmtr': ('#Pxl', 3.0), 'sampledData': '$a'}},
+        {'Nm  ': 'Chalk', 'Brsh': {'_class': 'computedBrush', 'Dmtr': ('#Pxl', 20.0)}, 'useDualBrush': True,
+         'dualBrush': {'_class': 'dualBrush', 'Brsh': {'_class': 'sampledBrush', 'Dmtr': ('#Pxl', 10.0), 'Spcn': ('#Prc', 40.0), 'sampledData': '$b'},
+                       'useScatter': True, 'scatterDynamics': {'bVTy': 0, 'jitter': ('#Prc', 80.0)}}},
     ]
     return (u16(6) + u16(2) + section(b'samp', a + b) + section(b'patt', gray_pattern('$p', 'Paper', 2, 2, bytes([10, 20, 30, 40])))
             + section(b'desc', u32(16) + desc({'Brsh': brushes})))
@@ -162,7 +165,12 @@ class AbrReader(unittest.TestCase):
     def test_brushes(self):
         res = bi.import_brushes('C:\\brushes\\Sketch set.abr', make_abr())
         self.assertEqual(res['name'], 'Sketch set')
-        self.assertEqual([b['name'] for b in res['brushes']], ['Pencil', 'Round', 'Wide', 'Pencil again'])
+        self.assertEqual([b['name'] for b in res['brushes']], ['Pencil', 'Round', 'Wide', 'Pencil again', 'Chalk'])
+        chalk = res['brushes'][4]
+        self.assertEqual({k: chalk['settings'][k] for k in ('dualSize', 'dualSpacing', 'dualScatter')}, {'dualSize': 0.5, 'dualSpacing': 0.4, 'dualScatter': 0.8},
+                         'a dual tip of 10 px under a 20 px brush is half its size')
+        self.assertEqual(chalk['dual'], res['brushes'][2]['tip'], "the dual tip shares Wide's image")
+        self.assertNotIn('Dual brush', chalk['notes'])
         pencil = res['brushes'][0]
         self.assertEqual(pencil['settings'], {
             'size': 30, 'spacing': 0.15, 'tipAngle': 330, 'thickness': 0.5, 'hardness': 1,  # 30° counter-clockwise
@@ -399,7 +407,7 @@ class Library(unittest.TestCase):
 
     def test_import_route_result_is_json(self):
         res = app.import_brushes('set.abr', make_abr())
-        self.assertEqual(len(json.loads(json.dumps(res))['brushes']), 4)
+        self.assertEqual(len(json.loads(json.dumps(res))['brushes']), 5)
 
 
 if __name__ == '__main__':

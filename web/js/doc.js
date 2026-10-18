@@ -572,10 +572,11 @@ export function tonedCanvas(layer) {
  * (live.texture = {tile, scale}, tile being a canvas whose alpha is what the grain removes) is copied to a scratch
  * canvas and the grain cut out of it there; the texture is anchored to the doc, so it never shifts between updates.
  * A stroke inside a selection (live.sel) is cut down to it the same way, once per read: clipping the stroke canvas
- * itself after every dab would apply a feathered selection's partial alpha again and again.
+ * itself after every dab would apply a feathered selection's partial alpha again and again. live.dual (a canvas of
+ * the dual brush's dabs) cuts it down the same way.
  */
 export function liveSource(live, r) {
-  if (!live.texture && !live.sel) return [live.canvas, r.x, r.y];
+  if (!live.texture && !live.sel && !live.dual) return [live.canvas, r.x, r.y];
   const [c, ctx] = scratchCanvas('live', r);
   ctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   if (live.texture) {
@@ -589,6 +590,10 @@ export function liveSource(live, r) {
   if (live.sel) {
     ctx.globalCompositeOperation = 'destination-in';
     ctx.drawImage(live.sel.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  }
+  if (live.dual) {  // the dual brush: the stroke shows only where its second tip landed
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(live.dual, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   }
   ctx.globalCompositeOperation = 'source-over';
   return [c, 0, 0];

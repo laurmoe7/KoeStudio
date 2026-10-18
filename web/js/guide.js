@@ -85,6 +85,8 @@ export const GUIDE = [
       <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.
       <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles).</li>
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.</li>
+      <li><b>Dual brush</b>: a second tip stamped along the stroke (its own size, spacing and scatter); the paint shows
+      only where it lands, for chalk, dry bristles or leaves.</li>
     </ul>
     <figure data-pic="taper"><figcaption>Start and End taper make a stroke begin and end thin, even with a mouse.
     The thin end appears when you lift the pen.</figcaption></figure>

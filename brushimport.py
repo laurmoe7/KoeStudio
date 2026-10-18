@@ -1,7 +1,7 @@
 """Imports brushes from Procreate (.brush, .brushset), Photoshop (.abr), GIMP (.gbr, .gih, .vbr) and Krita (.kpp,
 .bundle) files for KoeStudio's brush library.
 
-import_brushes(filename, data) -> {'name', 'brushes': [{name, settings, tip, texture, notes}], 'images': [{kind,
+import_brushes(filename, data) -> {'name', 'brushes': [{name, settings, tip, texture, dual?, notes}], 'images': [{kind,
 name, png, white}]}: settings are KoeStudio paint-tool settings (checked again in the browser), tip / texture index
 into images (shared images appear once), png is a data URL. white=True marks a Procreate shape, where white is
 paint: the browser turns it into a transparent tip before saving it.
@@ -337,8 +337,12 @@ def _abr_brushes(samples, patterns, desc, filename):
             if not isinstance(b, dict):
                 continue
             name = b.get('Nm  ') if isinstance(b.get('Nm  '), str) else f'Brush {i + 1}'
-            settings, notes, sid, tex = _abr_settings(b)
+            settings, notes, sid, tex, dual_sid = _abr_settings(b)
             tip = tip_image(sid, name) if sid in samples else None
+            dual = tip_image(dual_sid, f'{name} (dual)') if dual_sid in samples else None
+            if dual_sid and dual is None:
+                settings['dualTip'] = 'round'
+                notes.append('Its dual tip image is missing from the file')
             if sid and tip is None:
                 notes.append('Its tip image is missing from the file')
             texture = None
@@ -349,7 +353,10 @@ def _abr_brushes(samples, patterns, desc, filename):
                     notes.append('Its texture is not in the file')
             if tip is None:
                 settings['tip'] = 'round'
-            out.append({'name': name.strip() or f'Brush {i + 1}', 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes})
+            entry = {'name': name.strip() or f'Brush {i + 1}', 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes}
+            if dual is not None:
+                entry['dual'] = dual
+            out.append(entry)
     else:  # no settings: one brush per tip, with Photoshop's default spacing
         for i, (sid, (w, h, _)) in enumerate(list(samples.items())[:MAX_BRUSHES]):
             name = f'{_stem(filename)} {i + 1}'
@@ -423,7 +430,24 @@ def _abr_settings(b):
         s['textureAmount'] = round(_clamp(_num(b.get('textureDepth'), 100) / 100, 0, 1), 2)
         s['textureScale'] = round(_clamp(_num(b.get('textureScale'), 100) / 100, 0.25, 4), 2)
         s['textureInvert'] = bool(b.get('InvT'))
-    for key, label in (('useDualBrush', 'Dual brush'), ('useColorDynamics', 'Color dynamics'), ('Wtdg', 'Wet edges'), ('Nose', 'Noise')):
+    dual_sid = None
+    dual = b.get('dualBrush') if isinstance(b.get('dualBrush'), dict) else None
+    dshape = dual.get('Brsh') if dual and isinstance(dual.get('Brsh'), dict) else None
+    if b.get('useDualBrush') and dshape:  # a second tip the stroke shows through: its own size, spacing and scatter
+        dual_sid = dshape.get('sampledData') if isinstance(dshape.get('sampledData'), str) else None
+        ddm = _num(dshape.get('Dmtr'))
+        if ddm and dm:
+            s['dualSize'] = round(_clamp(ddm / dm, 0.05, 3), 2)
+        dsp = _num(dshape.get('Spcn'))
+        if dsp is not None:
+            s['dualSpacing'] = round(_clamp(dsp / 100, 0.02, 2), 3)
+        if dual.get('useScatter'):
+            s['dualScatter'] = round(_clamp(_dyn(dual, 'scatterDynamics')[1], 0, 3), 2)
+        if not dual_sid:
+            s['dualTip'] = 'round'
+    elif b.get('useDualBrush'):
+        notes.append('Dual brush')
+    for key, label in (('useColorDynamics', 'Color dynamics'), ('Wtdg', 'Wet edges'), ('Nose', 'Noise')):
         if b.get(key):
             notes.append(label)
     opts = b.get('toolOptions') if isinstance(b.get('toolOptions'), dict) else {}
@@ -433,7 +457,7 @@ def _abr_settings(b):
     if fl is not None:
         s['flow'] = round(_clamp(fl / 100, 0.01, 1), 2)
     s['gamma'] = 1
-    return s, notes, sid, tex
+    return s, notes, sid, tex, dual_sid
 
 
 # ---------- Procreate ----------

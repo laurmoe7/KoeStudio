@@ -871,7 +871,7 @@ export class Editor {
   /** Rows for some settings: sliders and choices first, the check boxes together under them. */
   settingsHtml(fs, s) {
     const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
-    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : list;
+    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'dualTip' ? [['none', 'Off'], ...this.tipChoices()] : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : list;
     const row = ([key, label, type, min, max, step]) => type === 'curve'
       ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="Remove the curve (use the Pressure setting instead)">✕</button></div>`
       : type === 'choice'
@@ -1171,10 +1171,12 @@ export class Editor {
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
       raw: s.quickShape && !line ? [] : null,  // QuickShape: the pen's own path, to recognise a line or a loop
+      dual: this.dualBrush(s, layer, sizeAt),  // the dual brush's own dabs, which the stroke shows through (or null)
       vec: layer.vector ? [] : null,  // on a vector layer: the smoothed path, kept as a line at pen-up (vectortools.js)
     };
     // vector lines are kept whole, so the selection does not cut them
-    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), sel: this.sel.active && !layer.vector ? this.sel : null };
+    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), sel: this.sel.active && !layer.vector ? this.sel : null,
+      dual: this.gesture.dual ? this.dualCanvas : null };
     if (line) {
       this.addStampPoint({ ...line, p: pt.p });
       for (const q of linePoints({ ...line, p: pt.p }, pt, 3)) this.addStampPoint(q);
@@ -1224,6 +1226,7 @@ export class Editor {
     q.shape = adjustShape(q.base, q.from, q.to);
     this.resetStroke();
     g.path = new StampPath(g.sizeAt, g.s.spacing);
+    if (g.dual) g.dual.path = new StampPath(g.dual.sizeAt, g.s.dualSpacing);
     g.smoother = new Smoother(0);
     g.prevStamp = null; g.dist = 0; g.held = []; g.bounds = null;
     g.painter.last = [];
@@ -1238,6 +1241,7 @@ export class Editor {
     g.last = pt;
     const sp = g.smoother.add(pt);
     if (g.vec) g.vec.push([sp.x, sp.y, sp.p]);
+    if (g.dual) this.addDualStamps(sp);
     const steps = g.path.add(sp);
     if (!steps.length) return;
     const count = Math.max(1, Math.round(g.s.count || 1));
@@ -1265,6 +1269,43 @@ export class Editor {
       g.held = r.held;
       this.drawStamps(r.ready);
     } else this.drawStamps(stamps);
+  }
+
+  /**
+   * The dual brush for a stroke (Brush settings → Dual brush): its tip dabbed in black along the same path into
+   * this.dualCanvas, at its own size, spacing and scatter; liveSource keeps the stroke only where those dabs are.
+   * null when it is off or on a vector layer (lines keep no second tip).
+   */
+  dualBrush(s, layer, sizeAt) {
+    if (!s.dualTip || s.dualTip === 'none' || layer.vector) return null;
+    const d = this.doc, c = this.dualCanvas ||= document.createElement('canvas');
+    if (c.width !== d.width || c.height !== d.height) { c.width = d.width; c.height = d.height; }
+    const ctx = c.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, d.width, d.height);
+    const dualSizeAt = p => Math.max(0.5, sizeAt(p) * s.dualSize);
+    return {
+      sizeAt: dualSizeAt, path: new StampPath(dualSizeAt, s.dualSpacing),
+      painter: new Painter(ctx, { color: '#000000', hardness: s.hardness, tip: s.dualTip }),
+      reachAt: p => dualSizeAt(p) * tipReach(hasTipImage(s.dualTip)) * 2 * (1 + s.dualScatter),
+    };
+  }
+
+  /** The dual brush's dabs for a smoothed point (with their symmetric copies); what they uncover is redrawn. */
+  addDualStamps(sp) {
+    const g = this.gesture, du = g.dual;
+    const stamps = du.path.add(sp);
+    if (!stamps.length) return;
+    for (const st of stamps) {
+      const j = dabJitter({ scatter: g.s.dualScatter }, du.sizeAt(st.p));
+      st.x += j.dx; st.y += j.dy;
+    }
+    const all = symmetryStamps(this.doc.rulers.symmetry, stamps, this.doc.width, this.doc.height);
+    const per = all.length / stamps.length;
+    all.forEach((st, i) => du.painter.dab(st.x, st.y, du.sizeAt(st.p), 1, i % per));
+    this.updateComp(stampBounds(all, du.reachAt));
   }
 
   /** Dabs a stroke's stamps (with their symmetric copies) into the stroke canvas and recomposites them. */
@@ -1703,7 +1744,7 @@ function fmt(key, v) {
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow'].includes(key)) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);

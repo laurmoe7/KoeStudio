@@ -8,7 +8,7 @@
 // images; the dialog picks which to keep, saves their images (each once) and adds them as presets.
 
 import { api } from '../api.js';
-import { curveAt, stampAt, previewPath, previewSettings } from '../brush.js';
+import { curveAt, stampAt, previewPath, previewSettings, StampPath, dabJitter } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage, liveSource } from '../doc.js';
 import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor } from '../painter.js';
@@ -198,7 +198,20 @@ export const brushMethods = {
         const { size, flow } = stampAt(b, st.p);
         painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c);
       }
-      const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b) }, r);
+      let dual = null;
+      if (s.dualTip && s.dualTip !== 'none') {  // the dual brush along the same path, as painting does it
+        dual = this.previewDual ||= document.createElement('canvas');
+        dual.width = w; dual.height = h;
+        const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: s.dualTip });
+        const dsize = p => Math.max(0.5, stampAt(b, p).size * s.dualSize), path = new StampPath(dsize, s.dualSpacing), rnd = seeded(PREVIEW_SEED + 11);
+        for (const [x, y, p] of line.pts) {
+          for (const st of path.add({ x, y, p })) {
+            const j = dabJitter({ scatter: s.dualScatter }, dsize(st.p), rnd);
+            dp.dab(st.x + j.dx, st.y + j.dy, dsize(st.p), 1);
+          }
+        }
+      }
+      const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), dual }, r);
       ctx.globalAlpha = s.opacity ?? 1;
       ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
       ctx.globalAlpha = 1;
@@ -393,7 +406,7 @@ export const brushMethods = {
     const saved = new Map();
     try {
       for (const b of chosen) {
-        for (const k of [b.tip, b.texture]) {
+        for (const k of [b.tip, b.texture, b.dual]) {
           if (k == null || saved.has(k)) continue;
           const im = res.images[k];
           const entry = await api.addBrushImage(im.kind, im.name, await this.importedImagePng(im));
@@ -410,7 +423,8 @@ export const brushMethods = {
     const presets = chosen.map(b => ({
       id: newId(), name: b.name, source: res.name,
       settings: applySettings({ ...base }, { ...b.settings,
-        tip: b.tip != null ? `img:${saved.get(b.tip)}` : 'round', texture: b.texture != null ? `img:${saved.get(b.texture)}` : 'none' }),
+        tip: b.tip != null ? `img:${saved.get(b.tip)}` : 'round', texture: b.texture != null ? `img:${saved.get(b.texture)}` : 'none',
+        ...(b.dual != null ? { dualTip: `img:${saved.get(b.dual)}` } : {}) }),
     }));
     this.brushLib.presets.push(...presets);
     if (!(await this.savePresetList())) return;
