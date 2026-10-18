@@ -159,6 +159,7 @@ export class Editor {
     this.refObs?.disconnect();
     clearTimeout(this.saveTimer);
     clearTimeout(this.thumbTimer);
+    cancelIdleCallback(this.sampleIdle);
     clearInterval(this.antsTimer);
     this.root.innerHTML = '';
   }
@@ -859,6 +860,7 @@ export class Editor {
     this.cancelFigurePoly();
     this.tool = id;
     if (id !== 'fill' && id !== 'wand') this.compRead = this.refRead = null;  // their kept copies of the pixels (sampleData)
+    else this.prepareSample(id);
     if (id === 'crop' && !this.crop) this.startCrop();
     store('tool', id);
     this.root.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === id));
@@ -1598,6 +1600,17 @@ export class Editor {
       else for (let y = 0; y < r.h; y++) c.data.set(part.subarray(y * row, (y + 1) * row), ((r.y + y) * W + r.x) * 4);
     }
     return c.data;
+  }
+
+  /** Fill or the wand was chosen: their copy of the pixels is made while nothing else happens, not at the first click. */
+  prepareSample(id) {
+    cancelIdleCallback(this.sampleIdle);
+    this.sampleIdle = requestIdleCallback(() => {
+      if (this.destroyed || this.tool !== id || this.gesture) return;
+      const s = this.settings[id].sample;
+      if (s === 'reference' && referenceLayers(this.doc.root).length) this.referencePixels();
+      else if (s !== 'layer') this.compPixels();
+    }, { timeout: 2000 });
   }
 
   /** sampleData's 'reference' pixels, kept while the reference layers are unchanged (filling another layer). */
