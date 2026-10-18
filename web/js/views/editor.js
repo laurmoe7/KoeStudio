@@ -11,8 +11,8 @@ import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping } from '../keys.js';
 import { Painter, textureFor, hasTipImage, tipOutline } from '../painter.js';
-import { union, clip, alphaBounds } from '../rect.js';
-import { drawSnapshot, snapBytes } from '../snapshot.js';
+import { union, clip } from '../rect.js';
+import { trimmedSnapshot, drawSnapshot, snapBytes } from '../snapshot.js';
 import { gradientChoices } from '../gradient.js';
 import { mipLevel, mipSize, mipRect } from '../mips.js';
 import { Selection } from '../selection.js';
@@ -1494,14 +1494,7 @@ export class Editor {
     while (q.length && !this.gesture && (deadline.didTimeout || deadline.timeRemaining() > 4)) {
       const s = q.shift();
       if (!s.canvas) continue;
-      const img = s.canvas.getContext('2d').getImageData(0, 0, s.w, s.h), box = alphaBounds(img.data, s.w, s.h);
-      if (box && (box.w < s.w || box.h < s.h)) {
-        const cut = new ImageData(box.w, box.h), row = box.w * 4;
-        for (let y = 0; y < box.h; y++) cut.data.set(img.data.subarray(((box.y + y) * s.w + box.x) * 4, ((box.y + y) * s.w + box.x) * 4 + row), y * row);
-        s.data = cut;
-      } else s.data = box ? img : null;
-      s.box = box;
-      s.canvas = null;
+      Object.assign(s, trimmedSnapshot(s.canvas.getContext('2d').getImageData(0, 0, s.w, s.h)));
     }
     if (q.length && !this.destroyed) this.snapIdle = requestIdleCallback(dl => this.readSnapshots(dl), { timeout: 4000 });
   }
@@ -1563,7 +1556,7 @@ export class Editor {
    */
   sampleData(sample, t) {
     const d = this.doc;
-    if (sample === 'layer' && t?.canvas) {  // through a canvas in memory: reading the layer itself would move it off the GPU
+    if (sample === 'layer' && t?.canvas) {  // through a canvas in memory: reading the layer itself click after click got slower each time
       const c = document.createElement('canvas');
       c.width = d.width; c.height = d.height;
       const ctx = c.getContext('2d', { willReadFrequently: true });

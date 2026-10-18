@@ -8,6 +8,7 @@ import { Layer } from '../doc.js';
 import { textBounds, drawText, textTransformStart, textMatrixAfter, renderTextLayer } from '../textlayer.js';
 import { strokesInside, removeStrokes, mapStrokes, strokeBounds, brushOf } from '../vector.js';
 import { renderVector } from '../vectorlayer.js';
+import { trimmedSnapshot, snapBytes } from '../snapshot.js';
 import { icon } from '../icons.js';
 import { maskBounds, modeFor, rectBetween, SELECT_MODES } from '../selection.js';
 import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds, homography, project } from '../transform.js';
@@ -329,15 +330,11 @@ export const selectionMethods = {
     const whole = { x: 0, y: 0, w: d.width, h: d.height };
     let r = this.sel.active ? this.sel.bounds : null, full = null, mfull = null;
     if (!r) {  // everything painted on the layer (and its mask): the one readback a transform needs
-      full = layer.ctx.getImageData(0, 0, d.width, d.height);
-      mfull = companion ? companion.ctx.getImageData(0, 0, d.width, d.height) : null;
-      const bounds = img => {
-        const alpha = new Uint8Array(d.width * d.height);
-        for (let i = 0; i < alpha.length; i++) alpha[i] = img.data[i * 4 + 3];
-        return maskBounds(alpha, d.width, d.height);
-      };
-      const a = bounds(full), b = mfull ? bounds(mfull) : null;
-      r = a && b ? union(a, b) : a || b;
+      // kept as the undo copy, cut down to what is painted
+      const read = raster => trimmedSnapshot(raster.ctx.getImageData(0, 0, d.width, d.height));
+      full = read(layer);
+      mfull = companion ? read(companion) : null;
+      r = full.box && mfull?.box ? union(full.box, mfull.box) : full.box || mfull?.box || null;
     }
     if (!r) { toast('There is nothing on this layer to transform.'); return false; }
     // the pixels in the box (inside the selection, if any) are lifted; the rest stays behind in `base`
@@ -446,7 +443,7 @@ export const selectionMethods = {
       this.sel.restore(sel);
       this.changed(null);
     };
-    this.history.push({ label: x.moveOnly ? 'Move' : 'Transform', bytes: d.width * d.height * (linked ? 24 : 16),
+    this.history.push({ label: x.moveOnly ? 'Move' : 'Transform', get bytes() { return [x.before, after, linked?.before, linkedAfter].reduce((n, s) => n + snapBytes(s), 0); },
       undo: () => put(x.before, x.selBefore, linked?.before), redo: () => put(after, selAfter, linkedAfter) });
     layer.touch();
     linked?.raster.touch();

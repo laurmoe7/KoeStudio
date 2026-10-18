@@ -1,5 +1,5 @@
 // Syntax-checks every UI module (and the tests) without running them.  Usage: npm run check
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -24,5 +24,21 @@ for (const f of files) {
     console.error(`✖ ${relative(root, f)}\n${r.stderr.trim()}\n`);
   }
 }
-console.log(bad ? `${bad} of ${files.length} files have syntax errors.` : `✔ ${files.length} files OK`);
-process.exit(bad ? 1 : 0);
+// A call of a function some module exports, in a module that neither imports nor declares it (a forgotten import
+// only fails when that line runs). Crude, by text: calls written as name( with no space.
+const exported = new Set();
+const ui = files.filter(f => f.startsWith(join(root, 'web', 'js')));
+for (const f of ui) for (const m of readFileSync(f, 'utf8').matchAll(/^export (?:async )?(?:function\*?|class|const|let)\s+([A-Za-z_$][\w$]*)/gm)) exported.add(m[1]);
+let missing = 0;
+for (const f of ui) {
+  const src = readFileSync(f, 'utf8'), code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const known = new Set();
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from/g)) for (const part of m[1].split(',')) known.add(part.trim().split(/\s+as\s+/).pop());
+  for (const name of exported) {
+    if (known.has(name) || !new RegExp(`(?<![.\\w$])${name}\\(`).test(code)) continue;
+    const declared = new RegExp(`(?:function\\*?|class|const|let|var)\\s+${name}\\b|[{,(]\\s*${name}\\s*[,})=]|\\b${name}\\s*=>|^\\s*(?:async\\s+)?${name}\\s*\\([^)]*\\)\\s*\\{`, 'm');
+    if (!declared.test(code)) { missing++; console.error(`✖ ${relative(root, f)}: calls ${name}() without importing it`); }
+  }
+}
+console.log(bad || missing ? `${bad} of ${files.length} files have syntax errors, ${missing} missing imports.` : `✔ ${files.length} files OK`);
+process.exit(bad || missing ? 1 : 0);
