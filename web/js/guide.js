@@ -426,6 +426,8 @@ export const GUIDE = [
       <li><b>Move around</b>: hold <kbd>Space</kbd> and drag, or use the Hand <kbd>H</kbd>.</li>
       <li><b>Turn</b>: <kbd>Shift</kbd>+scroll, or <kbd>4</kbd> and <kbd>6</kbd>. <kbd>5</kbd> straightens it.</li>
       <li><b>Mirror</b> <kbd>Shift+M</kbd>: a quick way to spot mistakes in your drawing.</li>
+      <li>On a <b>touch screen</b>: pinch with two fingers to zoom, twist them to turn the canvas and drag them to move
+      it. Tap with two fingers to undo, with three to redo. One finger draws; your palm is ignored while the pen draws.</li>
       <li><b>Grayscale view</b> (View menu) shows the canvas in grays, to check that light and dark read well. Your
       colours stay; click the "Grayscale view" label at the top to turn it off.</li>
       <li>The <b>Navigator</b> shows the whole picture: click or drag in it to jump there.</li>
@@ -463,6 +465,7 @@ export const SHORTCUTS = [
     ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['Ctrl+J / Ctrl+Shift+J', 'Copy / cut to a new layer'], ['F2', 'Rename the layer'],
     ['Ctrl+click / Shift+click', 'Pick several layers']]],
   ['Animation', [[', / .', 'Previous / next frame (with the animation timeline on)']]],
+  ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
   ['View', [['Space (hold)', 'Move the view'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
     ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'],
     ['Ctrl+2 / Ctrl+;', 'Snap to rulers / show guides']]],

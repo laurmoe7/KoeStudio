@@ -245,3 +245,21 @@ test('distort: a homography puts the source corners on the quad', async () => {
   const smooth = warpImage(src, 2, 1, [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }, { x: 0, y: 1 }], new Uint8ClampedArray(8), 0, 0, 2, 1, true);
   assert.deepEqual([...smooth], [255, 0, 0, 255, 0, 0, 255, 255], 'unchanged size: the same pixels');
 });
+
+test('two-finger pinch: zoom, turn and pan about the fingers', async () => {
+  const { pinchView, newView, toScreen, toDoc } = await import('../web/js/view.js');
+  const v = { ...newView(), zoom: 2, panX: 10, panY: 20 };
+  const a0 = { x: 100, y: 100 }, b0 = { x: 200, y: 100 };
+  // fingers spread to twice the distance, centred on the same point: zoom doubles, the middle stays put
+  const z = pinchView(v, a0, b0, { x: 50, y: 100 }, { x: 250, y: 100 });
+  assert.equal(z.zoom, 4);
+  const mid = toDoc(v, 150, 100), s = toScreen(z, mid.x, mid.y);
+  assert.ok(Math.abs(s.x - 150) < 1e-9 && Math.abs(s.y - 100) < 1e-9, 'the point between the fingers stays under them');
+  // both fingers move 30 px right: a pan only
+  const p = pinchView(v, a0, b0, { x: 130, y: 100 }, { x: 230, y: 100 });
+  assert.deepEqual([p.zoom, p.rot, p.panX, p.panY], [2, 0, 40, 20]);
+  // a quarter turn, with a 0.1 rad dead zone taken off
+  const t = pinchView(v, a0, b0, { x: 150, y: 50 }, { x: 150, y: 150 }, 0.1);
+  assert.ok(Math.abs(t.rot - (Math.PI / 2 - 0.1)) < 1e-9);
+  assert.equal(pinchView(v, a0, b0, { x: 100, y: 100 }, { x: 200, y: 105 }, 0.1).rot, 0, 'a small twist inside the dead zone does not turn');
+});

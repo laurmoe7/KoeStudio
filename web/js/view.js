@@ -50,6 +50,25 @@ export function flipAt(v, sx, sy) {
   return { ...n, panX: n.panX + sx - s.x, panY: n.panY + sy - s.y };
 }
 
+/**
+ * Two-finger view change: from view v with the fingers first at a0 and b0 (screen points) and now at a1 and b1,
+ * the canvas zooms by how far apart they moved, turns by how much the line between them turned (less a small
+ * dead zone, `dead` radians, so a plain pinch does not tilt the canvas), and the point between the fingers stays
+ * under them.
+ */
+export function pinchView(v, a0, b0, a1, b1, dead = 0) {
+  const d0 = Math.hypot(b0.x - a0.x, b0.y - a0.y), d1 = Math.hypot(b1.x - a1.x, b1.y - a1.y);
+  const k = d0 > 0 && d1 > 0 ? d1 / d0 : 1;
+  let turn = d0 > 0 && d1 > 0 ? Math.atan2(b1.y - a1.y, b1.x - a1.x) - Math.atan2(b0.y - a0.y, b0.x - a0.x) : 0;
+  turn = Math.atan2(Math.sin(turn), Math.cos(turn));  // -pi..pi
+  turn = Math.abs(turn) <= dead ? 0 : turn - Math.sign(turn) * dead;
+  const c0 = { x: (a0.x + b0.x) / 2, y: (a0.y + b0.y) / 2 }, c1 = { x: (a1.x + b1.x) / 2, y: (a1.y + b1.y) / 2 };
+  const p = toDoc(v, c0.x, c0.y);
+  const n = { ...v, zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.zoom * k)), rot: v.rot + turn };
+  const s = toScreen(n, p.x, p.y);
+  return { ...n, panX: n.panX + c1.x - s.x, panY: n.panY + c1.y - s.y };
+}
+
 /** Whole canvas centred in a vw x vh viewport, with a margin, no rotation. */
 export function fitView(docW, docH, vw, vh, margin = 40) {
   const zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min((vw - margin * 2) / docW, (vh - margin * 2) / docH)));

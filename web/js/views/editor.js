@@ -18,7 +18,7 @@ import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
 import { esc, toast, menu, modal, promptBox, fileToDataUrl, store } from '../ui.js';
 import { exportMethods } from './exporttools.js';
-import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize } from '../view.js';
+import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize, pinchView } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
 import { LayerPanel } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
@@ -55,6 +55,8 @@ const SAVE_DELAY = 800;
 const SAVE_RETRY = 10000;  // after a failed save
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
 const GRID_TOOLS = new Set(['select', 'ellipse', 'polygon']);  // selection tools whose corners snap to the grid
+const TAP_SLOP = 16, TAP_MS = 300;  // two- and three-finger taps: at most this far (px, both fingers) and this long
+const TURN_DEAD = 6 * Math.PI / 180;  // a pinch turns the canvas only once the fingers twist further than this
 
 /** Visible layers marked as reference, or inside a reference folder (bottom first). */
 function referenceLayers(root) {
@@ -889,7 +891,32 @@ export class Editor {
       return pt;
     };
     el.addEventListener('contextmenu', e => e.preventDefault());
+    // Fingers (touch screens): one finger uses the tool; a second one turns it into moving the view (pinch to zoom,
+    // twist to turn, drag to pan), dropping a stroke the first finger had begun. A quick tap with two fingers
+    // undoes, with three redoes. Touches while the pen or mouse is busy are ignored (a resting palm).
+    this.touches = new Map();
+    const touchView = () => {
+      const g = this.gesture;
+      if (g?.type === 'touchview') { g.count = Math.max(g.count, this.touches.size); return; }
+      if (g && !g.touch) return;
+      if (g?.type === 'paint') {  // the first finger's stroke was the start of a pinch
+        this.gesture = null;
+        this.live = null;
+        this.resetStroke();
+        this.updateComp(g.bounds);
+        this.requestRender();
+      } else if (g) {
+        const r = this.viewport.getBoundingClientRect();
+        end({ pointerId: g.id, clientX: r.left + (this.pointer?.x || 0), clientY: r.top + (this.pointer?.y || 0) });
+      }
+      const [ia, ib] = [...this.touches.keys()];
+      this.gesture = { type: 'touchview', ids: [ia, ib], a0: this.touches.get(ia), b0: this.touches.get(ib), view: { ...this.view }, t0: performance.now(), moved: false, count: this.touches.size };
+    };
     el.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'touch') {
+        this.touches.set(e.pointerId, pos(e));
+        if (this.touches.size >= 2) { touchView(); return; }
+      }
       if (this.gesture) return;
       this.stopAnimation();  // drawing during playback: back to the frame being drawn
       try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
@@ -925,6 +952,7 @@ export class Editor {
       else if (tool.kind === 'text') { e.preventDefault(); this.textClick(dp); }
       else if (tool.kind === 'picker') { this.gesture = { type: 'pick', tool: toolId, id: e.pointerId }; this.pickAt(dp); }
       else if (tool.kind === 'move') this.beginMove(dp, e.pointerId);
+      if (this.gesture && e.pointerType === 'touch') this.gesture.touch = true;
       this.drawOverlay();
     });
     el.addEventListener('pointermove', e => {
@@ -932,7 +960,18 @@ export class Editor {
       this.pointer = p;
       this.pointerShift = e.shiftKey;
       const g = this.gesture;
-      if (g && g.id === e.pointerId) {
+      if (e.pointerType === 'touch' && this.touches.has(e.pointerId)) this.touches.set(e.pointerId, p);
+      if (g?.type === 'touchview' && g.ids.includes(e.pointerId)) {
+        const a1 = this.touches.get(g.ids[0]), b1 = this.touches.get(g.ids[1]);
+        if (a1 && b1) {
+          if (Math.hypot(a1.x - g.a0.x, a1.y - g.a0.y) + Math.hypot(b1.x - g.b0.x, b1.y - g.b0.y) > TAP_SLOP) g.moved = true;
+          if (g.moved) {
+            this.view = pinchView(g.view, g.a0, g.b0, a1, b1, TURN_DEAD);
+            this.dirty = 'all';  // a new view: everything redraws, the paper layer too
+            this.requestRender();
+          }
+        }
+      } else if (g && g.id === e.pointerId) {
         if (g.type === 'paint' || g.type === 'smudge' || g.type === 'liquify' || g.type === 'retouch') {
           const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
           for (const ev of evs.length ? evs : [e]) {
@@ -995,8 +1034,20 @@ export class Editor {
       if (g.type === 'xf') this.xfEnd();
       this.drawOverlay();
     };
-    el.addEventListener('pointerup', end);
-    el.addEventListener('pointercancel', end);
+    const lift = e => {
+      if (e.pointerType === 'touch') this.touches.delete(e.pointerId);
+      const g = this.gesture;
+      if (g?.type === 'touchview') {
+        if (!g.ids.includes(e.pointerId)) return;
+        this.gesture = null;  // the other fingers do nothing more until they are lifted too
+        if (e.type === 'pointerup' && !g.moved && performance.now() - g.t0 < TAP_MS) g.count >= 3 ? this.redo() : this.undo();
+        this.drawOverlay();
+        return;
+      }
+      end(e);
+    };
+    el.addEventListener('pointerup', lift);
+    el.addEventListener('pointercancel', lift);
     el.addEventListener('pointerleave', () => { if (!this.gesture) { this.pointer = null; this.drawOverlay(); } });
     el.addEventListener('wheel', e => {
       e.preventDefault();
