@@ -1611,9 +1611,24 @@ export class Editor {
     if (v === this.savedVersion) return;
     this.setStatus('Saving…');
     this.saving = (async () => {
-      const json = await d.toJSON();
-      json.thumb = await canvasToDataUrl(d.flatten(360));
-      const res = await api.save(d.id || '', json);
+      // only the pictures changed since the last save travel; the server fills in the rest (app.py SAVE_CACHE)
+      const thumb = await canvasToDataUrl(d.flatten(360));
+      const send = async have => {
+        const delta = { have, keys: new Set() };
+        const json = await d.toJSON(delta);
+        json.thumb = thumb;
+        return { res: await api.save(d.id || '', json), keys: delta.keys };
+      };
+      const have = this.serverHas && this.serverHas.id === d.id ? await this.serverHas.keys : null;
+      let sent;
+      try {
+        sent = await send(have);
+      } catch (e) {
+        if (!e.data?.missing) throw e;
+        sent = await send(null);  // the server does not have them (restarted, or another window saved): all of it
+      }
+      const res = sent.res;
+      this.serverHas = { id: res.id, keys: sent.keys };
       d.id = res.id;
       store('last', res.id);
       this.savedVersion = v;
@@ -1765,8 +1780,10 @@ export async function openEditor(root, { id, newDoc, onHome, onOpen }) {
   if (newDoc) {
     await ed.open(newDoc, { isNew: true });
   } else {
-    const raw = await api.load(id);
-    await ed.open(await Doc.fromJSON(raw, id));
+    const raw = await api.load(id, true);  // the server keeps its pictures, so saves send only what changes
+    const doc = await Doc.fromJSON(raw, id);
+    await ed.open(doc);
+    ed.serverHas = { id, keys: Promise.all(doc.rasters().map(r => r.pngHash())).then(k => new Set(k), () => null) };
   }
   return ed;
 }

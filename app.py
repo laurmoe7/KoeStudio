@@ -11,6 +11,7 @@ then shows it in a native window via pywebview (WebView2).
 Artwork is stored outside the project, in Pictures\\KoeStudio (KOE_ART_DIR overrides). Window storage and
 error.log live in %LOCALAPPDATA%\\KoeStudio (KOE_APP_DIR overrides).
 """
+import hashlib
 import json
 import os
 import re
@@ -273,15 +274,85 @@ def load_backup(art_id, name):
         return json.load(f)
 
 
+# Saves that send only what changed: a layer or mask picture the server already has may come as "ref:<key>", the
+# key being the SHA-1 of its data URL (pic_key). The pictures of the last save, or of the editor's load, of a few
+# artworks are kept here to fill those in, so the .koe file written is whole as before. A ref that is not here (the
+# server restarted, another window saved) fails the save with `missing`, and the editor sends everything again.
+SAVE_CACHE = {}  # art id -> {pic_key: png data URL} of its last save or load
+SAVE_CACHE_LOCK = threading.Lock()
+SAVE_CACHE_MAX = 3
+
+
+class MissingLayers(Exception):
+    """A save referred to a layer picture this server does not have (see SAVE_CACHE)."""
+
+
+def pic_key(png):
+    """The key of a layer picture: SHA-1 (hex) of its data URL, as the editor's Raster.pngHash computes it."""
+    return hashlib.sha1(png.encode('utf-8')).hexdigest()
+
+
+def _pictures(doc, cached=None):
+    """{pic_key: png} of every layer and mask picture in doc; with `cached`, refs are first replaced (in place) by
+    the pictures they name, raising MissingLayers for one that is not there."""
+    keep = {}
+
+    def fix(holder):
+        png = holder.get('png')
+        if isinstance(png, str) and png.startswith('ref:') and cached is not None:
+            if png[4:] not in cached:
+                raise MissingLayers(png[4:])
+            png = holder['png'] = cached[png[4:]]
+        if isinstance(png, str) and png.startswith('data:'):
+            keep[pic_key(png)] = png
+
+    def walk(nodes):
+        for n in nodes if isinstance(nodes, list) else []:
+            if isinstance(n, dict):
+                fix(n)
+                if isinstance(n.get('mask'), dict):
+                    fix(n['mask'])
+                walk(n.get('children'))
+
+    walk(doc.get('layers'))
+    return keep
+
+
+def _resolve_refs(art_id, doc):
+    """Puts the pictures back where the save sent refs (in place) and returns {pic_key: png} of all of them."""
+    with SAVE_CACHE_LOCK:
+        cached = dict(SAVE_CACHE.get(art_id, {})) if art_id else {}
+    return _pictures(doc, cached)
+
+
+def load_for_editing(art_id):
+    """load_art, remembering the pictures, so the editor's first save can send only what it changed."""
+    doc = load_art(art_id)
+    _remember_save(_check_id(art_id), _pictures(doc))
+    return doc
+
+
+def _remember_save(art_id, keep):
+    with SAVE_CACHE_LOCK:
+        SAVE_CACHE.pop(art_id, None)
+        if keep:
+            SAVE_CACHE[art_id] = keep
+        while len(SAVE_CACHE) > SAVE_CACHE_MAX:
+            SAVE_CACHE.pop(next(iter(SAVE_CACHE)))
+
+
 def save_art(art_id, doc):
-    """Writes the artwork; a missing id makes a new one. The thumbnail travels in doc['thumb'] and is stored apart."""
+    """Writes the artwork; a missing id makes a new one. The thumbnail travels in doc['thumb'] and is stored apart.
+    Layer pictures may be refs to the previous save's (see SAVE_CACHE); the file always holds them whole."""
     if not isinstance(doc, dict) or doc.get('format') != 'koe':
         raise ValueError('Not a KoeStudio document')
     art_id = _check_id(art_id) if art_id else uuid.uuid4().hex[:16]
+    keep = _resolve_refs(art_id, doc)
     path, thumb = _paths(art_id)
     thumb_url = doc.pop('thumb', None)
     _keep_backup(art_id, path)
     _write_atomic(path, json.dumps(doc, separators=(',', ':')).encode('utf-8'))
+    _remember_save(art_id, keep)
     _write_atomic(_meta_path(art_id), json.dumps(_meta_of(doc)).encode('utf-8'))
     if thumb_url:
         _write_atomic(thumb, _decode_data_url(thumb_url))
@@ -617,7 +688,7 @@ class Handler(SimpleHTTPRequestHandler):
             elif route == ('GET', 'art'):
                 self._json(list_art())
             elif route == ('GET', 'art/file'):
-                self._json(load_art(p.get('id', '')))
+                self._json((load_for_editing if p.get('edit') == '1' else load_art)(p.get('id', '')))
             elif route == ('GET', 'art/thumb'):
                 self._send(read_thumb(p.get('id', '')), 'image/png')
             elif route == ('POST', 'art/save'):
@@ -668,6 +739,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(import_brushes(p.get('name', ''), self._raw()))
             else:
                 self._json({'error': 'not found'}, 404)
+        except MissingLayers:
+            self._json({'error': 'Some layers have to be sent again', 'missing': True}, 409)
         except FileExistsError as e:
             self._json({'error': f'{os.path.basename(str(e)) or "That"} already exists', 'exists': True}, 409)
         except FileNotFoundError:

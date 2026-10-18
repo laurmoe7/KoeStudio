@@ -1,6 +1,7 @@
 """Server tests: artwork storage and HTTP routes. Uses a temp folder; never touches the real Pictures\\KoeStudio."""
 import base64
 import http.client
+import hashlib
 import json
 import os
 import sys
@@ -42,6 +43,42 @@ class Storage(unittest.TestCase):
         self.assertEqual(app.list_art(), [])
         self.assertEqual(len(os.listdir(os.path.join(self.tmp.name, '.deleted'))), 3, 'file, thumbnail and details kept in .deleted')
         self.assertFalse(os.path.exists(os.path.join(self.tmp.name, '.thumbs', aid + '.json')), 'details moved along')
+
+    def test_saves_may_send_only_changed_layers(self):
+        app.SAVE_CACHE.clear()
+        a, b = PNG_URL, 'data:image/png;base64,' + 'B' * 8
+        ka, kb = app.pic_key(a), app.pic_key(b)
+        self.assertEqual(kb, hashlib.sha1(b.encode()).hexdigest())
+        first = doc('Delta')
+        first['layers'] = [{'name': 'A', 'png': a, 'mask': {'enabled': True, 'png': b}},
+                           {'type': 'folder', 'name': 'F', 'children': [{'name': 'B', 'png': b}]}]
+        aid = app.save_art('', first)['id']
+        self.assertEqual(set(app.SAVE_CACHE[aid]), {ka, kb})
+        # the next save sends refs for what did not change and a new picture for B
+        def second():
+            d = doc('Delta')
+            d['layers'] = [{'name': 'A', 'png': 'ref:' + ka, 'mask': {'enabled': True, 'png': 'ref:' + kb}},
+                           {'type': 'folder', 'name': 'F', 'children': [{'name': 'B', 'png': a}]}]
+            return d
+        app.save_art(aid, second())
+        saved = app.load_art(aid)
+        self.assertEqual(saved['layers'][0]['png'], a, 'refs filled in from the last save')
+        self.assertEqual(saved['layers'][0]['mask']['png'], b)
+        self.assertEqual(saved['layers'][1]['children'][0]['png'], a)
+        self.assertEqual(set(app.SAVE_CACHE[aid]), {ka, kb}, 'what the last save holds')
+        # a ref to a picture the server does not have fails without touching the file
+        third = doc('Gone')
+        third['layers'] = [{'name': 'B', 'png': 'ref:' + app.pic_key('data:image/png;base64,CC')}]
+        with self.assertRaises(app.MissingLayers):
+            app.save_art(aid, third)
+        self.assertEqual(app.load_art(aid)['title'], 'Delta')
+        app.SAVE_CACHE.clear()  # the server restarted
+        with self.assertRaises(app.MissingLayers):
+            app.save_art(aid, second())
+        # opening it in the editor remembers its pictures again
+        app.load_for_editing(aid)
+        app.save_art(aid, second())
+        self.assertEqual(app.load_art(aid)['layers'][0]['png'], a)
 
     def test_listing_uses_saved_metadata_instead_of_parsing_artwork(self):
         aid = app.save_art('', doc('Quick'))['id']
@@ -294,6 +331,13 @@ class Http(unittest.TestCase):
         self.assertEqual(json.loads(data)['title'], 'Test')
         status, data, _ = self.req('GET', '/api/art/thumb?id=' + aid)
         self.assertEqual(data, PNG)
+
+    def test_save_with_a_missing_ref_answers_409(self):
+        body = doc()
+        body['layers'] = [{'name': 'A', 'png': 'ref:nobody.1.1'}]
+        status, data, _ = self.req('POST', '/api/art/save?id=', json.dumps(body), {'Content-Type': 'application/json'})
+        self.assertEqual(status, 409)
+        self.assertTrue(json.loads(data)['missing'])
 
     def test_unread_body_does_not_spoil_the_next_request(self):
         aid = app.save_art('', doc('Keep'))['id']

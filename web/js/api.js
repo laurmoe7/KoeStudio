@@ -16,7 +16,8 @@ const q = s => encodeURIComponent(s ?? '');
 export const api = {
   config: () => call('GET', 'config'),
   list: () => call('GET', 'art'),
-  load: id => call('GET', `art/file?id=${q(id)}`),
+  /** edit: the server also remembers its pictures for saves that send only changes. */
+  load: (id, edit = false) => call('GET', `art/file?id=${q(id)}${edit ? '&edit=1' : ''}`),
   save: (id, doc) => call('POST', `art/save?id=${q(id)}`, doc),
   remove: id => call('POST', `art/delete?id=${q(id)}`, {}),
   rename: (id, title) => call('POST', `art/rename?id=${q(id)}&title=${q(title)}`, {}),

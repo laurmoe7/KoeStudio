@@ -26,6 +26,7 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
   - `do_POST` always consumes the request body (`_drop_body`): an unread body stays in the kept-alive connection and the next request fails with 501.
   - `Handler._allowed` refuses requests from other web pages (foreign `Host`, foreign `Origin`, `Sec-Fetch-Site` cross-site/same-site).
   - Static files are sent `Cache-Control: no-cache` (revalidated, so a reload picks up edits); API answers `no-store`.
+  - **Saves send only changes:** a layer or mask picture may come as `"ref:<sha1 of its data URL>"` (`pic_key`; the browser's `Raster.pngHash`); `SAVE_CACHE` keeps the pictures of the last save, or of `art/file?edit=1` (`load_for_editing`), of the last few artworks to fill refs in, so the `.koe` written is whole as before. A ref the server lacks raises `MissingLayers` (409 `{missing: true}`) and `save()` in editor.js resends everything (`toJSON(delta)` with `have` = null). `editor.serverHas` = {id, keys} is what the server holds; it is replaced only after a save succeeds.
   - API: `config`, `art` (list), `art/file`, `art/thumb`, `art/save` (new id when none given), `art/delete` (moves the file, thumbnail and gallery details to `.deleted/` as `<id>-<time>.*`), `art/rename`, `art/duplicate`, `art/backups` / `art/backup` (earlier versions), `deleted` / `deleted/thumb` / `deleted/restore`, `fs/list?path=` (folders, picture/project files and places for the file browser; empty path = Exports), `fs/mkdir`, `export?format=&dir=&mode=` (png, jpg, webp, gif, bmp, tga or koe; the body's signature is checked; saved in `dir`, an existing folder, or `Exports/` when empty; when the name is taken `mode` numbers it (default), answers 409 `{exists: true}` (`ask`) or overwrites (`replace`)), `open-file` (the `.koe` given on the command line, handed out once), `open-folder?sub=|path=`. `app.py <file.koe>` queues a project to open. `known_folder(name)` finds Pictures/Desktop/Documents/Downloads (shell known folders).
 - **`web/`**: vanilla ES modules, no framework, no build step. Edit and reload.
   - `js/app.js`: start-up (mute, reload key) and switching between gallery and editor.
@@ -127,7 +128,7 @@ Run `npm test` and `npm run check` before calling a change done, and add tests f
 
 ## Roadmap (not built yet)
 
-per-layer files for faster saves on huge canvases (No comic tools for now: panels, balloons, speed lines.)
+Nothing big is open. (No comic tools for now: panels, balloons, speed lines.)
 
 ## Repo
 

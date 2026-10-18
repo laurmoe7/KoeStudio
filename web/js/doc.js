@@ -104,6 +104,17 @@ class Raster {
     this.png = null;
   }
   touch() { this.version++; }
+  /** SHA-1 (hex) of the cached PNG data URL: how saves that send only changes name it (app.py pic_key). */
+  async pngHash() {
+    const png = this.png;
+    if (!png) return null;
+    if (this.hashOf === png) return this.hash;
+    const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(png));
+    const hash = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    this.hash = hash;  // kept as a pair with the PNG it belongs to (another call may have hashed a newer one meanwhile)
+    this.hashOf = png;
+    return hash;
+  }
   async toPng() {
     if (this.pngVersion !== this.version) {
       const v = this.version;
@@ -268,7 +279,19 @@ export class Doc {
     return d;
   }
 
-  async toJSON() {
+  /**
+   * The document as saved. With `delta` = {have (Set of picture keys the server holds for this artwork, or null),
+   * keys (an empty Set, filled with every picture's key)}, a layer or mask picture the server has is sent as
+   * "ref:<key>" (its pngHash; app.py SAVE_CACHE fills it in).
+   */
+  async toJSON(delta = null) {
+    const pic = async (r, out) => {
+      const png = await r.toPng();
+      if (!delta || !png) { out.png = png; return; }
+      const key = await r.pngHash();
+      delta.keys.add(key);
+      out.png = delta.have?.has(key) ? 'ref:' + key : png;
+    };
     const node = async n => {
       const out = { type: n.kind, name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };
       if (n.locked) out.locked = true;
@@ -280,14 +303,14 @@ export class Doc {
         for (const c of n.children) out.children.push(await node(c));
       } else {
         out.alphaLock = n.alphaLock;
-        out.png = await n.toPng();
+        await pic(n, out);
         if (n.text) out.text = n.text;
         if (n.vector) out.vector = n.vector;
         if (n.tone) out.tone = n.tone;
         if (n.effects) out.effects = n.effects;
         if (n.adjust) out.adjust = n.adjust;
       }
-      if (n.mask) out.mask = { enabled: n.mask.enabled, png: await n.mask.toPng() };
+      if (n.mask) { out.mask = { enabled: n.mask.enabled }; await pic(n.mask, out.mask); }
       return out;
     };
     const layers = [];
