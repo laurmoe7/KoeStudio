@@ -12,18 +12,33 @@ export const TONE_CELL = [2, 100];
 
 export const defaultTone = () => ({ cell: 8, angle: 45, shape: 'dot', color: '#000000' });
 
-/** A valid tone description from anything, or null for none. */
+/**
+ * A valid tone description from anything, or null for none. `x`, `y` (optional, px, kept only when not 0) shift the
+ * dot grid, so two tone layers of the same spacing can sit between each other's dots (or line up).
+ */
 export function sanitizeTone(t) {
   if (!t || typeof t !== 'object') return null;
   const d = defaultTone();
-  const num = (v, lo, hi, def) => (Number.isFinite(+v) ? Math.max(lo, Math.min(hi, +v)) : def);
-  return {
+  const num = (v, lo, hi, def) => (Number.isFinite(+v) && v !== null && v !== '' ? Math.max(lo, Math.min(hi, +v)) : def);
+  const out = {
     cell: Math.round(num(t.cell, TONE_CELL[0], TONE_CELL[1], d.cell) * 10) / 10,
     angle: Math.round(num(t.angle, -90, 90, d.angle)),
     shape: SHAPE_IDS.has(t.shape) ? t.shape : d.shape,
     color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color.toLowerCase() : d.color,
   };
+  for (const k of ['x', 'y']) {
+    const v = Math.round(num(t[k], -TONE_CELL[1], TONE_CELL[1], 0) * 10) / 10;
+    if (v) out[k] = v;
+  }
+  return out;
 }
+
+/** Lines per inch of a tone with this spacing (px) printed at dpi, and the spacing giving lpi lines per inch. */
+export const toneLpi = (cell, dpi) => dpi / cell;
+export const cellForLpi = (lpi, dpi) => Math.round(Math.max(TONE_CELL[0], Math.min(TONE_CELL[1], dpi / Math.max(1, +lpi || 1))) * 10) / 10;
+
+/** Common screentone rulings (lines per inch) for printed comics. */
+export const LPI_PRESETS = [42.5, 50, 55, 60, 65, 70, 75, 80, 85];
 
 /** Tone density of a pixel: how dark it is times how opaque, in [0, 1]. */
 export function toneDensity(r, g, b, a) {
@@ -75,10 +90,11 @@ export function applyTone(data, w, h, ox, oy, tone) {
   const n = parseInt(t.color.slice(1), 16), cr = n >> 16 & 255, cg = n >> 8 & 255, cb = n & 255;
   const noise = t.shape === 'noise';
   const grain = Math.max(1, Math.round(t.cell / 6));
+  const sx = t.x || 0, sy = t.y || 0;  // the grid's shift
   const spot = SPOTS[t.shape], lut = noise ? null : lutFor(t.shape);
   const a = t.angle * Math.PI / 180, cos = Math.cos(a) / t.cell, sin = Math.sin(a) / t.cell;
   for (let y = 0; y < h; y++) {
-    const Y = oy + y + 0.5;
+    const Y = oy + y + 0.5 - sy;
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       const d = toneDensity(data[i], data[i + 1], data[i + 2], data[i + 3]);
@@ -86,9 +102,9 @@ export function applyTone(data, w, h, ox, oy, tone) {
       if (d <= 0.001) cover = 0;
       else if (d >= 0.999) cover = 1;
       else if (noise) {
-        cover = d > hash(Math.floor((ox + x) / grain), Math.floor((oy + y) / grain)) ? 1 : 0;
+        cover = d > hash(Math.floor((ox + x - sx) / grain), Math.floor((oy + y - sy) / grain)) ? 1 : 0;
       } else {
-        const X = ox + x + 0.5;
+        const X = ox + x + 0.5 - sx;
         const u = X * cos + Y * sin, v = Y * cos - X * sin;
         const fx = u - Math.floor(u) - 0.5, fy = v - Math.floor(v) - 0.5;
         const bin = Math.min(BINS - 1, Math.round(spot.raw(fx, fy) * lut.scale));

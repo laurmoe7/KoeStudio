@@ -359,7 +359,13 @@ export const GUIDE = [
     applies it, or deletes it.</p>
     <h4>Screentone</h4>
     <p>Layer → <b>New screentone</b> makes a layer that shows gray as dots, like printed manga. Paint in gray: darker
-    gives bigger dots, erasing removes them. Layer → Screentone settings changes the dot size, angle and shape.</p>`],
+    gives bigger dots, erasing removes them. Layer → Screentone settings changes the dot size, angle and shape.</p>
+    <ul>
+      <li>Set the dot size in pixels (<b>Spacing</b>) or in <b>Lines per inch</b>, as printed tones are sold: it uses
+      the artwork's resolution (Image → Image size). 60 lines per inch at 350 dpi is a common manga tone.</li>
+      <li><b>Shift X / Y</b> moves the dots. Shift a second tone layer by half its spacing so its dots fall between the
+      first one's instead of on top.</li>
+    </ul>`],
 
   ['filters', 'Filters', `
     <p class="lead">The Filter menu changes the current layer, inside the selection if there is one.</p>

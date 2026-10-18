@@ -3,7 +3,7 @@
 // (mixed into Editor.prototype in editor.js).
 
 import { Layer, tonedCanvas } from '../doc.js';
-import { TONE_SHAPES, TONE_CELL, defaultTone, sanitizeTone, applyTone, densityGray } from '../tone.js';
+import { TONE_SHAPES, TONE_CELL, LPI_PRESETS, defaultTone, sanitizeTone, applyTone, densityGray, toneLpi, cellForLpi } from '../tone.js';
 import { isFolder } from '../tree.js';
 import { esc, modal, store, toast } from '../ui.js';
 
@@ -15,7 +15,7 @@ export const toneMethods = {
     this.finishTransform();
     this.finishText();
     const last = store('tone') || {};
-    const res = await toneDialog({ title: 'New screentone', tone: sanitizeTone(last) || defaultTone(), density: last.density ?? 0.3, ok: 'Create' });
+    const res = await toneDialog({ title: 'New screentone', tone: sanitizeTone(last) || defaultTone(), density: last.density ?? 0.3, ok: 'Create', dpi: this.doc.dpi });
     if (!res) return;
     store('tone', { ...res.tone, density: res.density });
     const d = this.doc;
@@ -35,7 +35,7 @@ export const toneMethods = {
   async toneDialog() {
     const n = this.doc.active;
     if (isFolder(n) || n.adjust) return toast('Screentone works on layers with pixels. Select one.');
-    const res = await toneDialog({ title: 'Layer screentone', tone: n.tone || sanitizeTone(store('tone')) || defaultTone(), on: !!n.tone, ok: 'OK' });
+    const res = await toneDialog({ title: 'Layer screentone', tone: n.tone || sanitizeTone(store('tone')) || defaultTone(), on: !!n.tone, ok: 'OK', dpi: this.doc.dpi });
     if (!res) return;
     this.setLayerProp(n, 'tone', res.on ? res.tone : null, res.on ? 'Screentone' : 'Screentone off');
   },
@@ -55,8 +55,12 @@ export const toneMethods = {
   },
 };
 
-/** The tone settings dialog with a preview strip (density 0-100% left to right). Resolves to {tone, density, on} or null. */
-function toneDialog({ title, tone, density = null, on = null, ok }) {
+/**
+ * The tone settings dialog with a preview strip (density 0-100% left to right). Spacing and lines per inch (at the
+ * artwork's dpi) are two ways to set the same thing and follow each other. Resolves to {tone, density, on} or null.
+ */
+function toneDialog({ title, tone, density = null, on = null, ok, dpi = 72 }) {
+  const lpi = v => Math.round(toneLpi(v, dpi) * 10) / 10;
   const shapes = TONE_SHAPES.map(([v, l]) => `<option value="${v}" ${tone.shape === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
   return modal({
     title,
@@ -65,17 +69,24 @@ function toneDialog({ title, tone, density = null, on = null, ok }) {
       <div class="field-row">
         ${density === null ? '' : `<label class="field" title="How much of the area the dots cover"><span>Density (%)</span><input type="number" name="density" min="1" max="100" value="${Math.round(density * 100)}"></label>`}
         <label class="field" title="Distance between dot centres"><span>Spacing (px)</span><input type="number" name="cell" min="${TONE_CELL[0]}" max="${TONE_CELL[1]}" step="0.5" value="${tone.cell}"></label>
+        <label class="field" title="Lines of dots per inch when printed at this artwork's ${dpi} dpi (comics often use 50-70)"><span>Lines per inch</span><input type="number" name="lpi" min="1" step="any" list="tone-lpi" value="${lpi(tone.cell)}"></label>
+        <datalist id="tone-lpi">${LPI_PRESETS.map(v => `<option value="${v}">`).join('')}</datalist>
         <label class="field"><span>Angle (°)</span><input type="number" name="angle" min="-90" max="90" value="${tone.angle}"></label>
       </div>
       <div class="field-row">
         <label class="field"><span>Shape</span><select name="shape">${shapes}</select></label>
         <label class="field"><span>Dot color</span><input type="color" name="color" value="${tone.color}"></label>
+        <label class="field" title="Shifts the dots sideways, so they fall between another tone's dots"><span>Shift X (px)</span><input type="number" name="x" step="0.5" min="${-TONE_CELL[1]}" max="${TONE_CELL[1]}" value="${tone.x || 0}"></label>
+        <label class="field" title="Shifts the dots up or down"><span>Shift Y (px)</span><input type="number" name="y" step="0.5" min="${-TONE_CELL[1]}" max="${TONE_CELL[1]}" value="${tone.y || 0}"></label>
       </div>
       <canvas class="tone-preview" width="${PREVIEW_W}" height="${PREVIEW_H}" aria-label="Preview"></canvas>
       <p class="muted small tone-lpi"></p>`,
     buttons: [{ label: 'Cancel', value: null }, { label: ok, primary: true }],
     onOpen: root => {
-      const draw = () => drawPreview(root, read(root).tone);
+      const draw = () => drawPreview(root, read(root).tone, dpi);
+      const cell = root.querySelector('[name="cell"]'), lines = root.querySelector('[name="lpi"]');
+      cell.addEventListener('input', () => { if (+cell.value) lines.value = lpi(sanitizeTone({ cell: cell.value }).cell); });
+      lines.addEventListener('input', () => { if (+lines.value > 0) cell.value = cellForLpi(lines.value, dpi); });
       root.querySelectorAll('input, select').forEach(el => el.addEventListener('input', draw));
       draw();
     },
@@ -85,7 +96,7 @@ function toneDialog({ title, tone, density = null, on = null, ok }) {
 
 function read(root) {
   const v = name => root.querySelector(`[name="${name}"]`)?.value;
-  const tone = sanitizeTone({ cell: v('cell'), angle: v('angle'), shape: v('shape'), color: v('color') });
+  const tone = sanitizeTone({ cell: v('cell'), angle: v('angle'), shape: v('shape'), color: v('color'), x: v('x'), y: v('y') });
   const dens = root.querySelector('[name="density"]');
   return {
     tone,
@@ -94,7 +105,7 @@ function read(root) {
   };
 }
 
-function drawPreview(root, tone) {
+function drawPreview(root, tone, dpi) {
   const c = root.querySelector('.tone-preview'), ctx = c.getContext('2d');
   const img = ctx.createImageData(PREVIEW_W, PREVIEW_H);
   for (let y = 0; y < PREVIEW_H; y++) {
@@ -111,8 +122,9 @@ function drawPreview(root, tone) {
   tmp.width = PREVIEW_W; tmp.height = PREVIEW_H;
   tmp.getContext('2d').putImageData(img, 0, 0);
   ctx.drawImage(tmp, 0, 0);
-  // print sizes: a 350 dpi page is the usual manga resolution
+  // print sizes: a 350 dpi page is the usual manga resolution, so say what the spacing gives there too
   root.querySelector('.tone-lpi').textContent = tone.shape === 'noise'
     ? 'Noise: spacing sets the grain size.'
-    : `About ${Math.round(350 / tone.cell)} lines per inch when printed at 350 dpi, ${Math.round(600 / tone.cell)} at 600 dpi.`;
+    : `${Math.round(toneLpi(tone.cell, dpi) * 10) / 10} lines per inch at this artwork's ${dpi} dpi`
+      + (dpi === 350 ? '.' : ` (${Math.round(toneLpi(tone.cell, 350))} at 350 dpi, the usual for comic pages).`);
 }

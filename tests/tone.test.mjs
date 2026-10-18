@@ -1,7 +1,7 @@
 // Screentone and brush texture logic. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeTone, defaultTone, toneDensity, densityGray, applyTone, TONE_SHAPES } from '../web/js/tone.js';
+import { sanitizeTone, defaultTone, toneDensity, densityGray, applyTone, TONE_SHAPES, toneLpi, cellForLpi } from '../web/js/tone.js';
 import { textureTile, valueNoise, hash01, grooveAlpha, TEXTURES, TILE } from '../web/js/textures.js';
 import { sanitizeSettings } from '../web/js/tools.js';
 import { sanitizeDoc } from '../web/js/doc.js';
@@ -141,4 +141,25 @@ test('layers keep their tone in the save format', () => {
   assert.deepEqual(d.layers[0].tone, { cell: 6, angle: 0, shape: 'line', color: '#000000' });
   assert.equal(d.layers[1].tone, null, 'old files: no tone');
   assert.ok(!('tone' in d.layers[2]), 'folders have no tone');
+});
+
+test('tone grid shift and lines per inch', () => {
+  assert.deepEqual(sanitizeTone({ x: 3, y: 0 }), { ...defaultTone(), x: 3 }, 'a shift of 0 is not kept');
+  assert.equal(sanitizeTone({ x: 500 }).x, 100);
+  assert.equal(sanitizeTone({ y: -2.26 }).y, -2.3);
+  // 350 dpi with 5 px spacing: 70 lines per inch; 60 lpi at 300 dpi is 5 px
+  assert.equal(toneLpi(5, 350), 70);
+  assert.equal(cellForLpi(60, 300), 5);
+  assert.equal(cellForLpi(60, 350), 5.8, '5.833 rounded to tenths');
+  assert.equal(cellForLpi(1, 72), 72);
+  assert.equal(cellForLpi(1000, 72), 2, 'never finer than the smallest spacing');
+  // shifting the grid by a whole cell gives the same dots; by half a cell (line tone) moves lines into the gaps
+  const gray = () => { const d = new Uint8ClampedArray(8 * 8 * 4); for (let i = 0; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = 128; d[i + 3] = 255; } return d; };
+  const base = { cell: 4, angle: 0, shape: 'line', color: '#000000' };
+  const a = applyTone(gray(), 8, 8, 0, 0, base), b = applyTone(gray(), 8, 8, 0, 0, { ...base, y: 4 });
+  assert.deepEqual([...a], [...b], 'a whole cell is no change');
+  const c = applyTone(gray(), 8, 8, 0, 0, { ...base, y: 2 });
+  const alphaRow = (d, y) => d[(y * 8) * 4 + 3];
+  assert.equal(alphaRow(c, 2), alphaRow(a, 0), 'half a cell down: row 2 shows what row 0 showed');
+  assert.notEqual(alphaRow(a, 0), alphaRow(a, 2), 'line tone: rows 0 and 2 differ (line and gap)');
 });
