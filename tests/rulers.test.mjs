@@ -229,6 +229,12 @@ test('curve rulers', async () => {
   assert.ok(nearestOnPath(curvePath(bend), on).dist < 1e-9, 'projected onto the curve');
   assert.ok(on.y < 0 && on.y > -6);
   assert.equal(snapCandidates(r, { x: 50, y: 40 }, 4, 6).length, 0, 'too far away: free stroke');
+  // a hairpin: arms along y = 0 and y = 20; a stroke on the lower arm stays on it even nearer the upper one
+  const pin = sanitizeShape({ type: 'curve', pts: [[0, 0], [1000, 0], [1000, 20], [0, 20]] });
+  const pc = snapCandidates({ ...defaultRulers(), shapes: [pin] }, { x: 100, y: 1 }, 4, 6)[0];
+  assert.ok(Math.abs(project(pc, { x: 110, y: 2 }).y) < 3);
+  assert.ok(Math.abs(project(pc, { x: 120, y: 15 }).y) < 3, 'kept to the lower arm, 5 px from the upper one');
+  assert.ok(Math.abs(nearestOnPath(curvePath(pin), { x: 120, y: 15 }).p.y - 20) < 3, 'without a place to start from: the nearest arm');
   // handles: one per point plus the middle; dragging a point or the whole curve
   const hs = shapeHandles(bend);
   assert.deepEqual(hs.map(h => h.h), ['p0', 'p1', 'p2', 'mid']);

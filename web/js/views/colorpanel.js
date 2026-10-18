@@ -267,6 +267,7 @@ export class ColorPanel {
   async exportPalette() {
     const pick = await browseFile({ title: 'Export palette', dir: store('exportDir') || '', name: 'KoeStudio palette', ext: 'gpl', okLabel: 'Save' });
     if (!pick) return;
+    store('exportDir', pick.dir);
     const blob = new Blob([gplText(pick.name, this.palette)]);
     try {
       let res;

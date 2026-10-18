@@ -65,15 +65,23 @@ export function curvePath(s) {
   return p;
 }
 
-/** The point of a polyline nearest to pt: {p, d (unit direction there), dist}. */
-export function nearestOnPath(path, pt) {
-  let best = { p: path[0], d: { x: 1, y: 0 }, dist: Infinity };
-  for (let i = 0; i < path.length - 1; i++) {
+/** Segments either side of the last one a stroke following a curve was on that the next point is looked for in. */
+export const CURVE_REACH = 100;
+
+/**
+ * The point of a polyline nearest to pt: {p, d (unit direction there), dist, i (segment)}. With `near` (a segment
+ * index) only the CURVE_REACH segments either side of it count, so a stroke keeps to its part of a curve that comes
+ * back close to itself instead of jumping across.
+ */
+export function nearestOnPath(path, pt, near = null) {
+  let best = { p: path[0], d: { x: 1, y: 0 }, dist: Infinity, i: 0 };
+  const from = near === null ? 0 : Math.max(0, near - CURVE_REACH), to = near === null ? path.length - 1 : Math.min(path.length - 1, near + CURVE_REACH + 1);
+  for (let i = from; i < to; i++) {
     const a = path[i], b = path[i + 1], dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
     if (!L2) continue;
     const t = Math.max(0, Math.min(1, ((pt.x - a.x) * dx + (pt.y - a.y) * dy) / L2));
     const p = { x: a.x + dx * t, y: a.y + dy * t }, dist = Math.hypot(pt.x - p.x, pt.y - p.y);
-    if (dist < best.dist) { const L = Math.sqrt(L2); best = { p, d: { x: dx / L, y: dy / L }, dist }; }
+    if (dist < best.dist) { const L = Math.sqrt(L2); best = { p, d: { x: dx / L, y: dy / L }, dist, i }; }
   }
   return best;
 }
@@ -214,7 +222,7 @@ export function snapCandidates(rulers, start, guideTol, lineTol = guideTol) {
       if (c) out.push(c);
     } else if (s.type === 'curve') {
       const path = curvePath(s), q = nearestOnPath(path, start);
-      if (q.dist <= lineTol) out.push({ p: q.p, d: q.d, kind: 'curve', path });
+      if (q.dist <= lineTol) out.push({ p: q.p, d: q.d, kind: 'curve', path, i: q.i });
     }
   }
   return out;
@@ -241,7 +249,11 @@ export function pickLine(cands, start, cur) {
 /** The point on line nearest to pt; on a concentric ellipse, the point in the same direction from the centre (measured
  *  in the ellipse's own frame, so a circle gives the nearest point too). */
 export function project(line, pt) {
-  if (line.path) return nearestOnPath(line.path, pt).p;
+  if (line.path) {  // along the curve from where the stroke last was (project moves line.i on)
+    const q = nearestOnPath(line.path, pt, line.i ?? null);
+    line.i = q.i;
+    return q.p;
+  }
   if (line.e) {
     const { x, y, rx, ry, cos, sin, k } = line.e, dx = pt.x - x, dy = pt.y - y;
     const th = Math.atan2((-dx * sin + dy * cos) / ry, (dx * cos + dy * sin) / rx);
