@@ -57,9 +57,9 @@ const SAVE_RETRY = 10000;  // after a failed save
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
 const GRID_TOOLS = new Set(['select', 'ellipse', 'polygon']);  // selection tools whose corners snap to the grid
 const TAP_SLOP = 16, TAP_MS = 300;  // two- and three-finger taps: at most this far (px, both fingers) and this long
-const TURN_DEAD = 6 * Math.PI / 180;
-const HOLD_MS = 600, HOLD_PX = 4;
-const PIXEL_GRID_ZOOM = 8;  // zoom (800%) from which View → Pixel grid shows lines between the pixels  // QuickShape: the pen kept within HOLD_PX screen px for HOLD_MS  // a pinch turns the canvas only once the fingers twist further than this
+const TURN_DEAD = 6 * Math.PI / 180;  // a pinch turns the canvas only once the fingers twist further than this
+const HOLD_MS = 600, HOLD_PX = 4;  // QuickShape: the pen kept within HOLD_PX screen px for HOLD_MS
+const PIXEL_GRID_ZOOM = 8;  // zoom (800%) from which View → Pixel grid shows lines between the pixels
 
 /** Visible layers marked as reference, or inside a reference folder (bottom first). */
 function referenceLayers(root) {
@@ -96,8 +96,8 @@ export class Editor {
     this.showRulers = store('edgeRulers') !== false;  // pixel rulers along the view edges (rulertools.js)
     this.rulerMake = ['ellipse', 'curve'].includes(store('rulerMake')) ? store('rulerMake') : 'line';  // what a drag with the Ruler tool makes
     this.rulerPick = -1;  // the picked straight-line or concentric ruler (rulertools.js)
-    this.maskOverlay = store('maskOverlay') === true;
-    this.pixelGrid = store('pixelGrid') !== false;  // lines between pixels when zoomed in far  // tint what a mask hides while painting on it
+    this.maskOverlay = store('maskOverlay') === true;  // tint what a mask hides while painting on it
+    this.pixelGrid = store('pixelGrid') !== false;  // lines between pixels when zoomed in far
     this.poly = null;  // polygon selection being drawn (selecttools.js)
     this.figPoly = null;  // polyline/polygon figure being clicked (figuretool.js)
     this.quickMask = null;  // the Mask tools paint on while Quick mask is on (quickmask.js)
@@ -621,7 +621,9 @@ export class Editor {
     const y0 = Math.max(0, Math.floor(Math.min(...cs.map(p => p.y)))), y1 = Math.min(d.height, Math.ceil(Math.max(...cs.map(p => p.y))));
     if (x1 <= x0 || y1 <= y0) return;
     const [a, b, c, dd, e, f] = matrix(this.view);
-    const sp = (x, y) => [(a * x + c * y + e) * dpr, (b * x + dd * y + f) * dpr];
+    // unturned, each line sits in the middle of one device pixel, so it shows crisp instead of as a blurred pair
+    const crisp = !b && !c, at = v => (crisp ? Math.round(v) + 0.5 : v);
+    const sp = (x, y) => [at((a * x + c * y + e) * dpr), at((b * x + dd * y + f) * dpr)];
     ctx.save();
     ctx.strokeStyle = 'rgba(128,128,136,0.35)';
     ctx.lineWidth = 1;
@@ -1226,7 +1228,11 @@ export class Editor {
     q.shape = adjustShape(q.base, q.from, q.to);
     this.resetStroke();
     g.path = new StampPath(g.sizeAt, g.s.spacing);
-    if (g.dual) g.dual.path = new StampPath(g.dual.sizeAt, g.s.dualSpacing);
+    if (g.dual) {  // the freehand dual dabs would otherwise still let paint through along the old path
+      g.dual.painter.ctx.clearRect(0, 0, this.doc.width, this.doc.height);
+      g.dual.path = new StampPath(g.dual.sizeAt, g.s.dualSpacing);
+      g.dual.painter.last = [];
+    }
     g.smoother = new Smoother(0);
     g.prevStamp = null; g.dist = 0; g.held = []; g.bounds = null;
     g.painter.last = [];
