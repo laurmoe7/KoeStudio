@@ -94,7 +94,7 @@ export class Editor {
     this.picked = new Set();  // layers/folders picked together with Ctrl/Shift+click, doc.active among them (layerops.js multiPicked)
     this.maskEdit = false;  // tools paint on the selected layer's mask instead of the layer (layerops.js)
     this.showRulers = store('edgeRulers') !== false;  // pixel rulers along the view edges (rulertools.js)
-    this.rulerMake = store('rulerMake') === 'ellipse' ? 'ellipse' : 'line';  // what a drag with the Ruler tool makes
+    this.rulerMake = ['ellipse', 'curve'].includes(store('rulerMake')) ? store('rulerMake') : 'line';  // what a drag with the Ruler tool makes
     this.rulerPick = -1;  // the picked straight-line or concentric ruler (rulertools.js)
     this.maskOverlay = store('maskOverlay') === true;
     this.pixelGrid = store('pixelGrid') !== false;  // lines between pixels when zoomed in far  // tint what a mask hides while painting on it

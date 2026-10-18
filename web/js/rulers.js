@@ -11,12 +11,16 @@
 // doc.rulers.shapes holds the straight-line and concentric rulers:
 //   {type: 'line', x1, y1, x2, y2}: a stroke started near the line (or its extension) follows it;
 //   {type: 'ellipse', x, y, rx, ry, angle}: every stroke follows the ellipse with the same centre, shape and turn
-//   that passes through where it started (concentric circles when rx = ry).
+//   that passes through where it started (concentric circles when rx = ry);
+//   {type: 'curve', pts: [[x, y], ...]}: a smooth curve through its points (figure.js splinePoints); a stroke
+//   started near it follows it.
 
 import { defaultSymmetry, sanitizeSymmetry } from './symmetry.js';
+import { splinePoints } from './figure.js';
 
 export const MAX_GUIDES = 100;
 export const MAX_SHAPES = 50;
+export const MAX_CURVE_POINTS = 24;
 const FAR = 200000;  // vanishing points may sit far outside the canvas (20 x the largest canvas side)
 
 export function defaultRulers() {
@@ -40,7 +44,74 @@ export function sanitizeShape(s) {
     const a = fin(s.angle) ?? 0, turn = Math.atan2(Math.sin(a), Math.cos(a));  // kept within -pi..pi
     return { type: 'ellipse', x: r2(x), y: r2(y), rx: r2(rx), ry: r2(ry), angle: Math.round(turn * 1e6) / 1e6 || 0 };
   }
+  if (s.type === 'curve' && Array.isArray(s.pts)) {
+    const pts = [];
+    for (const p of s.pts.slice(0, MAX_CURVE_POINTS)) {
+      const x = fin(Array.isArray(p) ? p[0] : p?.x), y = fin(Array.isArray(p) ? p[1] : p?.y);
+      if (x === null || y === null) continue;
+      const q = [r2(x), r2(y)], last = pts[pts.length - 1];
+      if (!last || last[0] !== q[0] || last[1] !== q[1]) pts.push(q);
+    }
+    return pts.length >= 2 ? { type: 'curve', pts } : null;
+  }
   return null;
+}
+
+const paths = new WeakMap();
+/** A curve ruler as a polyline of doc points about 2 px apart (worked out once per ruler object). */
+export function curvePath(s) {
+  let p = paths.get(s);
+  if (!p) paths.set(s, (p = splinePoints(s.pts.map(([x, y]) => ({ x, y })), false, 2)));
+  return p;
+}
+
+/** The point of a polyline nearest to pt: {p, d (unit direction there), dist}. */
+export function nearestOnPath(path, pt) {
+  let best = { p: path[0], d: { x: 1, y: 0 }, dist: Infinity };
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1], dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+    if (!L2) continue;
+    const t = Math.max(0, Math.min(1, ((pt.x - a.x) * dx + (pt.y - a.y) * dy) / L2));
+    const p = { x: a.x + dx * t, y: a.y + dy * t }, dist = Math.hypot(pt.x - p.x, pt.y - p.y);
+    if (dist < best.dist) { const L = Math.sqrt(L2); best = { p, d: { x: dx / L, y: dy / L }, dist }; }
+  }
+  return best;
+}
+
+/**
+ * A curve ruler from a freehand drag: the path thinned to the points that matter (Ramer-Douglas-Peucker: a
+ * point is kept when the path strays more than tol from the straight line past it), at most MAX_CURVE_POINTS.
+ */
+export function curveFromStroke(pts, tol = 3) {
+  if (pts.length < 2) return null;
+  let t = tol, keep;
+  do {
+    keep = simplify(pts, t);
+    t *= 1.5;
+  } while (keep.length > MAX_CURVE_POINTS);
+  return sanitizeShape({ type: 'curve', pts: keep.map(p => [p.x, p.y]) });
+}
+
+function simplify(pts, tol) {
+  const keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [i, j] = stack.pop(), a = pts[i], b = pts[j];
+    let far = -1, fd = tol;
+    for (let k = i + 1; k < j; k++) {
+      const d = segPointDist(pts[k], a, b);
+      if (d > fd) { fd = d; far = k; }
+    }
+    if (far >= 0) { keep[far] = 1; stack.push([i, far], [far, j]); }
+  }
+  return pts.filter((_, k) => keep[k]);
+}
+
+function segPointDist(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+  const t = L2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2)) : 0;
+  return Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t);
 }
 
 export const defaultGrid = () => ({ show: false, size: 100, div: 4, snap: false });
@@ -141,12 +212,15 @@ export function snapCandidates(rulers, start, guideTol, lineTol = guideTol) {
     } else if (s.type === 'ellipse') {
       const c = concentricThrough(s, start);
       if (c) out.push(c);
+    } else if (s.type === 'curve') {
+      const path = curvePath(s), q = nearestOnPath(path, start);
+      if (q.dist <= lineTol) out.push({ p: q.p, d: q.d, kind: 'curve', path });
     }
   }
   return out;
 }
 
-const LOCAL = new Set(['guide', 'grid', 'line']);  // lines the stroke started on (the others reach everywhere)
+const LOCAL = new Set(['guide', 'grid', 'line', 'curve']);  // lines the stroke started on (the others reach everywhere)
 const ALONG = Math.cos(Math.PI / 6);               // moving within 30° of a line the stroke started on keeps to it
 
 /** The candidate line closest in direction to the movement from start to cur; null without candidates. A guide, grid
@@ -167,6 +241,7 @@ export function pickLine(cands, start, cur) {
 /** The point on line nearest to pt; on a concentric ellipse, the point in the same direction from the centre (measured
  *  in the ellipse's own frame, so a circle gives the nearest point too). */
 export function project(line, pt) {
+  if (line.path) return nearestOnPath(line.path, pt).p;
   if (line.e) {
     const { x, y, rx, ry, cos, sin, k } = line.e, dx = pt.x - x, dy = pt.y - y;
     const th = Math.atan2((-dx * sin + dy * cos) / ry, (dx * cos + dy * sin) / rx);
@@ -195,6 +270,10 @@ const snapAngle = (dx, dy) => {
 
 /** The drag handles of a straight-line or concentric ruler: [{h, x, y}]. 'mid' / 'c' move the whole ruler. */
 export function shapeHandles(s) {
+  if (s.type === 'curve') {
+    const path = curvePath(s), mid = path[Math.floor(path.length / 2)];
+    return [...s.pts.map(([x, y], i) => ({ h: `p${i}`, x, y })), { h: 'mid', x: mid.x, y: mid.y }];
+  }
   if (s.type === 'line') return [{ h: 'a', x: s.x1, y: s.y1 }, { h: 'b', x: s.x2, y: s.y2 }, { h: 'mid', x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 }];
   const cos = Math.cos(s.angle), sin = Math.sin(s.angle);
   return [{ h: 'c', x: s.x, y: s.y }, { h: 'rx', x: s.x + s.rx * cos, y: s.y + s.rx * sin }, { h: 'ry', x: s.x - s.ry * sin, y: s.y + s.ry * cos }];
@@ -202,6 +281,14 @@ export function shapeHandles(s) {
 
 /** The ruler with handle h dragged to pt. Shift keeps a straight ruler at 15° steps and makes an ellipse a circle. */
 export function dragShapeHandle(s, h, pt, shift = false) {
+  if (s.type === 'curve') {
+    if (h === 'mid') {
+      const m = shapeHandles(s).find(x => x.h === 'mid'), dx = pt.x - m.x, dy = pt.y - m.y;
+      return { ...s, pts: s.pts.map(([x, y]) => [x + dx, y + dy]) };
+    }
+    const k = +h.slice(1);
+    return { ...s, pts: s.pts.map((p, i) => (i === k ? [pt.x, pt.y] : p)) };
+  }
   if (s.type === 'line') {
     if (h === 'mid') {
       const dx = pt.x - (s.x1 + s.x2) / 2, dy = pt.y - (s.y1 + s.y2) / 2;
@@ -264,6 +351,7 @@ export function mapRulers(r, m, oldW, oldH, newW, newH) {
   });
   const perspective = r.perspective && { points: r.perspective.points.map(p => { const q = pt(p.x, p.y); return { x: round(q.x), y: round(q.y) }; }) };
   const shapes = r.shapes.map(s => {
+    if (s.type === 'curve') return sanitizeShape({ type: 'curve', pts: s.pts.map(([x, y]) => { const q = pt(x, y); return [q.x, q.y]; }) });
     if (s.type === 'line') {
       const p = pt(s.x1, s.y1), q = pt(s.x2, s.y2);
       return sanitizeShape({ type: 'line', x1: p.x, y1: p.y, x2: q.x, y2: q.y });

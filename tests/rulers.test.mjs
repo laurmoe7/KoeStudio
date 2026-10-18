@@ -205,3 +205,38 @@ test('selection and figure corners snap to nearby guides', async () => {
   assert.deepEqual(snapToGuides(guides, { x: 90, y: 60 }, 5), { x: 90, y: 60 }, '10 px away: left alone');
   assert.deepEqual(snapToGuides([], { x: 1, y: 2 }, 5), { x: 1, y: 2 });
 });
+
+test('curve rulers', async () => {
+  const { sanitizeShape, curveFromStroke, curvePath, nearestOnPath, snapCandidates, project, shapeHandles, dragShapeHandle, mapRulers, defaultRulers, MAX_CURVE_POINTS } = await import('../web/js/rulers.js');
+  assert.deepEqual(sanitizeShape({ type: 'curve', pts: [[0, 0], [0, 0], { x: 10.123, y: 5 }, ['x', 1]] }), { type: 'curve', pts: [[0, 0], [10.12, 5]] },
+    'repeats and bad points dropped, rounded');
+  assert.equal(sanitizeShape({ type: 'curve', pts: [[1, 1]] }), null, 'one point is not a curve');
+  // a straight drag with a small wobble keeps only its ends; a corner is kept
+  const flat = curveFromStroke(Array.from({ length: 21 }, (_, i) => ({ x: i * 5, y: i % 2 })), 3);
+  assert.deepEqual(flat.pts, [[0, 0], [100, 0]]);
+  const bend = curveFromStroke([...Array.from({ length: 11 }, (_, i) => ({ x: i * 10, y: 0 })), ...Array.from({ length: 10 }, (_, i) => ({ x: 100, y: (i + 1) * 10 }))], 3);
+  assert.deepEqual(bend.pts, [[0, 0], [100, 0], [100, 100]]);
+  const zig = curveFromStroke(Array.from({ length: 200 }, (_, i) => ({ x: i * 4, y: (i % 2) * 40 })), 1);
+  assert.ok(zig.pts.length <= MAX_CURVE_POINTS, 'never more than the most points');
+  const q = nearestOnPath([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], { x: 12, y: 6 });
+  assert.deepEqual([q.p, q.d, q.dist], [{ x: 10, y: 6 }, { x: 0, y: 1 }, 2], 'the nearest point on the second leg');
+  // a stroke started near the curve gets it as a candidate, and points are pulled onto it
+  const r = { ...defaultRulers(), shapes: [bend] };
+  const cands = snapCandidates(r, { x: 50, y: -3 }, 4, 6);  // the curve bows up to y = -5.4 here on its way to the corner
+  assert.equal(cands.length, 1);
+  assert.equal(cands[0].kind, 'curve');
+  const on = project(cands[0], { x: 40, y: 7 });
+  assert.ok(nearestOnPath(curvePath(bend), on).dist < 1e-9, 'projected onto the curve');
+  assert.ok(on.y < 0 && on.y > -6);
+  assert.equal(snapCandidates(r, { x: 50, y: 40 }, 4, 6).length, 0, 'too far away: free stroke');
+  // handles: one per point plus the middle; dragging a point or the whole curve
+  const hs = shapeHandles(bend);
+  assert.deepEqual(hs.map(h => h.h), ['p0', 'p1', 'p2', 'mid']);
+  assert.deepEqual(dragShapeHandle(bend, 'p1', { x: 90, y: 10 }).pts[1], [90, 10]);
+  const mid = hs[3], moved = dragShapeHandle(bend, 'mid', { x: mid.x + 5, y: mid.y - 2 });
+  assert.deepEqual(moved.pts[0], [5, -2], 'the whole curve moves');
+  assert.ok(curvePath(bend).length > 10);
+  // canvas changes carry the points along (here: everything moves 10 right)
+  const m = mapRulers({ ...defaultRulers(), shapes: [bend] }, [1, 0, 0, 1, 10, 0], 200, 200);
+  assert.deepEqual(m.shapes[0].pts[2], [110, 100]);
+});

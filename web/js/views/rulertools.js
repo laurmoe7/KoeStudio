@@ -6,7 +6,7 @@
 
 import { icon } from '../icons.js';
 import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, snapToGrid, snapToGuides, sanitizeGrid, MAX_GUIDES,
-  MAX_SHAPES, sanitizeShape, shapeHandles, shapeHandleAt, dragShapeHandle, shapeFromDrag } from '../rulers.js';
+  MAX_SHAPES, sanitizeShape, shapeHandles, shapeHandleAt, dragShapeHandle, shapeFromDrag, curveFromStroke, curvePath } from '../rulers.js';
 import { modal, store, toast } from '../ui.js';
 import { matrix, toScreen, toDoc } from '../view.js';
 
@@ -20,6 +20,7 @@ const HANDLE_PX = 8;          // grab distance of straight-line and concentric r
 const MAKE_PX = 6;            // a drag on empty canvas shorter than this makes no new ruler
 const SHAPE_COLOR = 'rgba(70, 220, 160, 0.9)';
 const SHAPE_FAINT = 'rgba(70, 220, 160, 0.3)';
+const SHAPE_LABELS = { line: 'Straight-line ruler', ellipse: 'Concentric ruler', curve: 'Curve ruler' };  // undo step names, by kind
 const LINE_COLOR = 'rgba(64, 200, 255, 0.85)';
 const PERSPECTIVE_COLOR = 'rgba(190, 120, 255, 0.35)';
 const HORIZON_COLOR = 'rgba(190, 120, 255, 0.9)';
@@ -88,9 +89,11 @@ export const rulerMethods = {
     if (r.shapes.length >= MAX_SHAPES) return toast(`There can be at most ${MAX_SHAPES} rulers.`);
     const box = this.viewport.getBoundingClientRect();
     const c = toDoc(this.view, box.width / 2, box.height / 2), reach = Math.min(box.width, box.height) / 4 / this.view.zoom;
-    const shape = sanitizeShape(shapeFromDrag(kind, c, { x: c.x + reach, y: c.y }));
+    const shape = kind === 'curve'  // a gentle S across the middle of the view
+      ? sanitizeShape({ type: 'curve', pts: [[c.x - reach, c.y], [c.x - reach / 3, c.y - reach / 3], [c.x + reach / 3, c.y + reach / 3], [c.x + reach, c.y]] })
+      : sanitizeShape(shapeFromDrag(kind, c, { x: c.x + reach, y: c.y }));
     if (kind === 'line') { shape.x1 = c.x - reach; shape.x2 = c.x + reach; }
-    this.editRulers(kind === 'line' ? 'Straight-line ruler' : 'Concentric ruler', () => { r.shapes.push(shape); r.visible = true; });
+    this.editRulers(SHAPE_LABELS[kind], () => { r.shapes.push(shape); r.visible = true; });
     this.rulerPick = r.shapes.length - 1;
     this.renderToolProps();
   },
@@ -214,7 +217,7 @@ export const rulerMethods = {
     }
     if (this.rulerPick >= 0) { this.rulerPick = -1; this.renderToolProps(); }
     if (r.shapes.length >= MAX_SHAPES) return;
-    this.gesture = { type: 'shape', tool: 'ruler', id, index: -1, start: { x: dp.x, y: dp.y }, kind: this.rulerMake || 'line', before: clone(r) };
+    this.gesture = { type: 'shape', tool: 'ruler', id, index: -1, start: { x: dp.x, y: dp.y }, kind: this.rulerMake || 'line', path: [{ x: dp.x, y: dp.y }], before: clone(r) };
   },
 
   vpAt(dp) {
@@ -227,7 +230,10 @@ export const rulerMethods = {
     const g = this.gesture, r = this.doc.rulers;
     if (g.type === 'shape' && g.index < 0) {  // dragging out a new ruler: shown once the drag is long enough
       const far = Math.hypot(dp.x - g.start.x, dp.y - g.start.y) * this.view.zoom >= MAKE_PX;
-      g.shape = far ? sanitizeShape(shapeFromDrag(g.kind, g.start, dp, shift)) : null;
+      if (g.kind === 'curve') {  // drawn freehand, thinned to a few points (3 screen px off at most)
+        g.path.push({ x: dp.x, y: dp.y });
+        g.shape = far || g.path.length > 8 ? curveFromStroke(g.path, 3 / this.view.zoom) : null;
+      } else g.shape = far ? sanitizeShape(shapeFromDrag(g.kind, g.start, dp, shift)) : null;
     } else if (g.type === 'shape') {
       r.shapes[g.index] = dragShapeHandle(r.shapes[g.index], g.h, { x: dp.x - g.off.x, y: dp.y - g.off.y }, shift);
     } else if (g.type === 'vp' && g.index === 'sym') r.symmetry = { ...r.symmetry, x: Math.round(dp.x), y: Math.round(dp.y) };
@@ -248,7 +254,7 @@ export const rulerMethods = {
         return this.editRulers('Move ruler', () => { if (s) r.shapes[g.index] = s; else r.shapes.splice(g.index, 1); }, g.before);
       }
       if (!g.shape) return;
-      this.editRulers(g.kind === 'line' ? 'Straight-line ruler' : 'Concentric ruler', () => { r.shapes.push(g.shape); }, g.before);
+      this.editRulers(SHAPE_LABELS[g.kind], () => { r.shapes.push(g.shape); }, g.before);
       this.rulerPick = r.shapes.length - 1;
       return this.renderToolProps();
     }
@@ -375,7 +381,9 @@ export const rulerMethods = {
     shapes.forEach((s, i) => {
       ctx.lineWidth = (i === pick ? 2 : 1.5) * dpr;
       ctx.beginPath();
-      if (s.type === 'line') {
+      if (s.type === 'curve') {
+        curvePath(s).forEach((q, k) => (k ? ctx.lineTo(...sp(q.x, q.y)) : ctx.moveTo(...sp(q.x, q.y))));
+      } else if (s.type === 'line') {
         const l = Math.hypot(s.x2 - s.x1, s.y2 - s.y1) || 1, ux = (s.x2 - s.x1) / l, uy = (s.y2 - s.y1) / l;
         ctx.strokeStyle = SHAPE_FAINT;
         ctx.moveTo(...sp(s.x1 - ux * FAR, s.y1 - uy * FAR)); ctx.lineTo(...sp(s.x2 + ux * FAR, s.y2 + uy * FAR));
@@ -491,19 +499,20 @@ export const rulerMethods = {
 
   renderRulerProps(box) {
     const r = this.doc.rulers, n = r.perspective?.points.length || 0, pick = this.pickedShape();
-    const make = this.rulerMake === 'ellipse' ? 'ellipse' : 'line';
+    const make = SHAPE_LABELS[this.rulerMake] ? this.rulerMake : 'line';
     box.innerHTML = `
       <div class="field"><span>Perspective ruler</span>
         <div class="seg">${[1, 2, 3].map(k => `<button data-r="p${k}" class="${n === k ? 'on' : ''}">${k}-point</button>`).join('')}
         <button data-r="p0" ${n ? '' : 'disabled'} title="Remove the perspective ruler">${icon('trash', 14)}</button></div>
       </div>
       <div class="field"><span>Drag on the canvas for</span>
-        <div class="seg">${[['line', 'Straight line'], ['ellipse', 'Concentric']].map(([k, label]) =>
-          `<button data-make="${k}" class="${make === k ? 'on' : ''}" title="${k === 'line' ? 'Strokes started near the line follow it' : 'Every stroke follows a circle (or ellipse) around the same centre'}">${label}</button>`).join('')}</div>
+        <div class="seg">${[['line', 'Straight line'], ['ellipse', 'Concentric'], ['curve', 'Curve']].map(([k, label]) =>
+          `<button data-make="${k}" class="${make === k ? 'on' : ''}" title="${k === 'line' ? 'Strokes started near the line follow it' : k === 'curve' ? 'Draw the curve freehand; strokes started near it follow it. Drag its points to reshape it' : 'Every stroke follows a circle (or ellipse) around the same centre'}">${label}</button>`).join('')}</div>
       </div>
       <div class="btn-row">
         <button data-r="addline" title="Add a straight-line ruler in the middle of the view">+ Line</button>
         <button data-r="addellipse" title="Add a concentric ruler in the middle of the view">+ Concentric</button>
+        <button data-r="addcurve" title="Add a curve ruler in the middle of the view">+ Curve</button>
         <button data-r="delshape" ${pick >= 0 ? '' : 'disabled'} title="Remove the picked ruler (Del)">${icon('trash', 14)}</button>
       </div>
       <div class="checks">
@@ -517,7 +526,7 @@ export const rulerMethods = {
     const acts = {
       p1: () => this.setPerspective(1), p2: () => this.setPerspective(2), p3: () => this.setPerspective(3), p0: () => this.setPerspective(0),
       clear: () => this.clearGuides(), clearshapes: () => this.clearShapes(),
-      addline: () => this.addShape('line'), addellipse: () => this.addShape('ellipse'), delshape: () => this.deleteShape(),
+      addline: () => this.addShape('line'), addellipse: () => this.addShape('ellipse'), addcurve: () => this.addShape('curve'), delshape: () => this.deleteShape(),
     };
     box.querySelectorAll('button[data-r]').forEach(bt => { bt.onclick = () => acts[bt.dataset.r](); });
     box.querySelectorAll('button[data-make]').forEach(bt => {

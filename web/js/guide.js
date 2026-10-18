@@ -402,8 +402,10 @@ export const GUIDE = [
     <h4>Guides, lines and the grid</h4>
     <ul>
       <li><b>Edge rulers</b> (View menu): drag out of them to add a guide; drag it back to remove it.</li>
-      <li>The Ruler tool also makes <b>straight-line</b> rulers and <b>concentric</b> rulers (strokes go round in
-      circles or ellipses). Drag their handles to change them; <kbd>Del</kbd> removes one.</li>
+      <li>The Ruler tool also makes <b>straight-line</b> rulers, <b>concentric</b> rulers (strokes go round in
+      circles or ellipses) and <b>curve</b> rulers: pick Curve in its settings and draw the curve freehand; it is
+      smoothed, and strokes started on it follow it. Drag their handles (for a curve: its points, or the round one to
+      move it all) to change them; <kbd>Del</kbd> removes one.</li>
       <li><b>Grid</b> <kbd>Ctrl+'</kbd>. In View → Grid settings… tick Snap so lines, shapes and selections follow it.</li>
     </ul>`],
 
