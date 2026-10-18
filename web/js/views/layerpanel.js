@@ -10,6 +10,29 @@ import { esc, promptBox } from '../ui.js';
 
 const TW = 40, TH = 30, INDENT = 14, DRAG_PX = 5;
 
+const halves = [];  // scratch canvases for shrinkInto, one per halving step
+
+/**
+ * Draws src into rect (x, y, w, h) of ctx, halving it step by step first (each step an exact average of 2 x 2
+ * pixels) so thin lines on a big layer still show in a tiny thumbnail, instead of being skipped by one big step.
+ */
+function shrinkInto(ctx, src, x, y, w, h) {
+  let cur = src, cw = src.width, ch = src.height;
+  for (let k = 0; cw > 2 * w && ch > 2 * h; k++) {
+    const nw = Math.ceil(cw / 2), nh = Math.ceil(ch / 2);
+    const c = halves[k] ||= document.createElement('canvas');
+    if (c.width < nw || c.height < nh) { c.width = Math.max(c.width, nw); c.height = Math.max(c.height, nh); }
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, nw, nh);
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'low';
+    g.drawImage(cur, 0, 0, cw, ch, 0, 0, cw / 2, ch / 2);
+    cur = c; cw = cw / 2; ch = ch / 2;
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(cur, 0, 0, cw, ch, x, y, w, h);
+}
+
 export class LayerPanel {
   constructor(root, editor) {
     this.root = root;
@@ -151,7 +174,7 @@ export class LayerPanel {
       else if (thumb) {
         const ctx = thumb.getContext('2d');
         ctx.clearRect(0, 0, TW, TH);
-        ctx.drawImage(n.canvas, x, y, w, h);
+        shrinkInto(ctx, n.canvas, x, y, w, h);
       }
       const mask = row.querySelector('.lp-mask');
       if (mask) {  // white = shown, black = hidden
@@ -159,7 +182,7 @@ export class LayerPanel {
         ctx.clearRect(0, 0, TW, TH);
         ctx.fillStyle = '#fff';
         ctx.fillRect(x, y, w, h);
-        ctx.drawImage(n.mask.canvas, x, y, w, h);
+        shrinkInto(ctx, n.mask.canvas, x, y, w, h);
       }
     }
   }
