@@ -77,6 +77,8 @@ export const GUIDE = [
       <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke.</li>
       <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
       <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>
+      <li><b>Tilt and speed</b>: tilt the pen to make the brush bigger or lighter (like shading with the side of a
+      pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. Tilt needs a pen that reports it.</li>
       <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.</li>
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.</li>
     </ul>

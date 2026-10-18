@@ -60,12 +60,13 @@ export class Painter {
   }
 
   /** One dab; k numbers the symmetric copy it belongs to, so each copy follows its own direction. With a colour,
-   * this dab (and the next ones) take it. */
-  dab(x, y, size, alpha, k = 0, color = null) {
+   * this dab (and the next ones) take it. dir (radians), when given, turns the tip that way instead of with the
+   * stroke (the pen's lean). */
+  dab(x, y, size, alpha, k = 0, color = null, dir = null) {
     if (color) this.setColor(color);
     const ctx = this.ctx;
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-    const rot = this.rotation(x, y, k);
+    const rot = this.rotation(x, y, k, dir);
     if (!this.image && !rot && this.squash === 1) {
       if (this.hard) {
         ctx.fillStyle = this.color;
@@ -91,9 +92,10 @@ export class Painter {
     ctx.restore();
   }
 
-  rotation(x, y, k) {
+  rotation(x, y, k, dir = null) {
     let a = this.angle;
-    if (this.follow) {
+    if (dir !== null) a += dir;
+    else if (this.follow) {
       const l = this.last[k] ||= { x, y, dir: 0 };
       const dx = x - l.x, dy = y - l.y;
       if (dx * dx + dy * dy > 0.25) { l.dir = Math.atan2(dy, dx); l.x = x; l.y = y; }

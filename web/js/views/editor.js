@@ -1,7 +1,7 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld, adjustPressure } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor } from '../color.js';
 import { Doc, Layer, composite, canvasToDataUrl, loadImage, liveSource, docEffectReach } from '../doc.js';
@@ -851,6 +851,22 @@ export class Editor {
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
     const pressure = e => e.pointerType === 'mouse' ? 1 : e.pointerType === 'pen' ? adjustPressure(this.pressureCurve, e.pressure || 0.01) : (e.pressure || 1);
+    // a point for painting: position, pressure, pen tilt (t, and az: the way it leans, as a doc direction) and speed
+    const penPoint = (e, q) => {
+      const pt = { ...toDoc(this.view, q.x, q.y), p: pressure(e) };
+      const { t, az } = e.pointerType === 'pen' ? tiltFrom(e.tiltX, e.tiltY) : { t: 0, az: null };
+      pt.t = t;
+      if (az === null) pt.az = null;
+      else { const b = toDoc(this.view, q.x + Math.cos(az) * 16, q.y + Math.sin(az) * 16); pt.az = Math.atan2(b.y - pt.y, b.x - pt.x); }
+      const tr = this.penTrack, dt = tr ? e.timeStamp - tr.time : 0;
+      if (!tr) this.penTrack = { x: q.x, y: q.y, time: e.timeStamp, speed: 0 };
+      else if (dt > 0) {  // screen px per ms, evened out over a few events
+        tr.speed = tr.speed * 0.6 + (Math.hypot(q.x - tr.x, q.y - tr.y) / dt) * 0.4;
+        tr.x = q.x; tr.y = q.y; tr.time = e.timeStamp;
+      }
+      pt.v = Math.min(1, this.penTrack.speed / SPEED_FULL);
+      return pt;
+    };
     el.addEventListener('contextmenu', e => e.preventDefault());
     el.addEventListener('pointerdown', e => {
       if (this.gesture) return;
@@ -875,7 +891,7 @@ export class Editor {
         // with a selection, the Move tool moves only the selected pixels (a quick transform)
         if (this.beginTransform({ moveOnly: true })) this.gesture = { type: 'xf', tool: 'move', id: e.pointerId, grab: 'move', t0: { ...this.xf.t }, p0: dp };
       }
-      else if (tool.kind === 'paint') this.beginPaint(toolId, dp, e.pointerId, e.shiftKey);
+      else if (tool.kind === 'paint') { this.penTrack = null; this.beginPaint(toolId, penPoint(e, p), e.pointerId, e.shiftKey); }
       else if (tool.kind === 'smudge') this.beginSmudge(dp, e.pointerId);
       else if (tool.kind === 'liquify') this.beginLiquify(dp, e.pointerId);
       else if (tool.kind === 'retouch') this.beginRetouch(toolId, dp, e.pointerId, e.ctrlKey);
@@ -898,7 +914,7 @@ export class Editor {
         if (g.type === 'paint' || g.type === 'smudge' || g.type === 'liquify' || g.type === 'retouch') {
           const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
           for (const ev of evs.length ? evs : [e]) {
-            const q = pos(ev), pt = { ...toDoc(this.view, q.x, q.y), p: pressure(ev) };
+            const q = pos(ev), pt = g.type === 'paint' ? penPoint(ev, q) : { ...toDoc(this.view, q.x, q.y), p: pressure(ev) };
             if (g.type === 'paint') this.addPoint(pt);
             else if (g.type === 'liquify') this.liquifyPoint(pt);
             else if (g.type === 'retouch') this.retouchPoint(pt);
@@ -997,14 +1013,16 @@ export class Editor {
     if (layer.vector && tool.erase) return this.beginVectorErase(toolId, pt, id, layer);  // erases lines, not pixels
     this.resetStroke();
     const sizeAt = p => stampAt(s, p).size;
-    const reach = tipReach(hasTipImage(s.tip)) * 2;
+    // vector lines keep only position and pressure, so tilt and speed would vanish once the line is kept
+    const dyn = !layer.vector && !!(s.tiltSize || s.tiltFlow || s.tiltAngle || s.speedSize || s.speedFlow);
+    const reach = tipReach(hasTipImage(s.tip)) * 2 * (dyn ? dynamicsReach(s) : 1);
     const line = shift && this.lastStroke && this.lastStroke.layer === layer ? this.lastStroke.pt : null;
     // colour jitter: erasers and masks keep their black; per stroke the varied colour is picked once here
     const ink = tool.erase ? '#000000' : this.inkFor(layer), varies = !tool.erase && layer.kind !== 'mask' && !!colorJitter(s);
     const color = varies && s.colorJitterStroke ? shiftColor(ink, colorJitter(s)) : ink;
     this.gesture = {
       type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
-      color, dabColors: varies && !s.colorJitterStroke,
+      color, dabColors: varies && !s.colorJitterStroke, dyn,
       painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
         tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow }),
       smoother: new Smoother(s.smoothing),
@@ -1043,6 +1061,12 @@ export class Editor {
       st.k = j.sizeK * taperIn(g.dist, g.s.taperIn);
       st.f = j.flowK;
       st.d = g.dist;
+      if (g.dyn) {  // pen tilt and speed (Brush settings, Tilt and speed page)
+        const k = dynamicsAt(g.s, st.t, st.v);
+        st.k *= k.sizeK;
+        st.f *= k.flowK;
+        if (g.s.tiltAngle && st.az != null) st.a = st.az;
+      }
       if (g.dabColors) st.c = shiftColor(g.color, colorJitter(g.s));
     }
     if (g.s.taperOut > 0) {  // the end taper holds the last stretch back until the pen lifts
@@ -1060,7 +1084,7 @@ export class Editor {
     const per = all.length / stamps.length;  // copies of each stamp, in order
     all.forEach((st, i) => {
       const { size, flow } = stampAt(g.s, st.p);
-      g.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per, st.c);
+      g.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per, st.c, st.a ?? null);
     });
     const r = stampBounds(all, g.reachAt);
     g.bounds = union(g.bounds, r);
@@ -1461,7 +1485,7 @@ function fmt(key, v) {
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale'].includes(key)) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);

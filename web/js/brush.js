@@ -134,6 +134,45 @@ export function stampFor(settings, p) {
  * Lazy-pull smoothing ("stabilization" in other painting programs): each new point moves only part of the way
  * toward the pen, so wobbles even out. strength 0 is off, 1-20 is increasingly smooth.
  */
+/** Screen speed (px per ms) that counts as fully fast for the speed settings. */
+export const SPEED_FULL = 4;
+
+/**
+ * How far a pen leans, from the pointer's tiltX / tiltY (degrees, -90..90): t 0 (upright) to 1 (flat), and the
+ * screen direction it leans towards (radians, 0 = right, clockwise as y goes down), null when upright.
+ */
+export function tiltFrom(tiltX = 0, tiltY = 0) {
+  const tan = d => Math.tan(Math.max(-89.9, Math.min(89.9, d || 0)) * Math.PI / 180);
+  const tx = tan(tiltX), ty = tan(tiltY), r = Math.hypot(tx, ty);
+  if (r < 1e-6) return { t: 0, az: null };
+  return { t: 1 - Math.atan(1 / r) / (Math.PI / 2), az: Math.atan2(ty, tx) };
+}
+
+/**
+ * Size and density factors of a dab from pen tilt t (0-1) and speed v (0-1): tilting grows the brush up to
+ * 1 + 2 x tiltSize times and lightens it by tiltFlow; speed scales by 1 - speedSize x v (negative: thicker).
+ */
+export function dynamicsAt(s, t = 0, v = 0) {
+  const sizeK = (1 + 2 * (s.tiltSize || 0) * (t || 0)) * Math.max(0.1, 1 - (s.speedSize || 0) * (v || 0));
+  const flowK = (1 - (s.tiltFlow || 0) * (t || 0)) * Math.max(0.05, 1 - (s.speedFlow || 0) * (v || 0));
+  return { sizeK, flowK: Math.max(0, flowK) };
+}
+
+/** The most tilt and speed can grow a dab (for redraw bounds). */
+export const dynamicsReach = s => (1 + 2 * Math.max(0, s.tiltSize || 0)) * (1 + Math.max(0, -(s.speedSize || 0)));
+
+/**
+ * A point part way (k, 0-1) from a to b: position and pressure, and when the points have them, tilt t and speed v;
+ * the lean direction az is b's (directions do not mix by straight interpolation).
+ */
+export function mixPoint(a, b, k) {
+  const o = { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, p: a.p + (b.p - a.p) * k };
+  if (b.t !== undefined) o.t = (a.t ?? b.t) + (b.t - (a.t ?? b.t)) * k;
+  if (b.v !== undefined) o.v = (a.v ?? b.v) + (b.v - (a.v ?? b.v)) * k;
+  if (b.az !== undefined) o.az = b.az ?? a.az ?? null;
+  return o;
+}
+
 export class Smoother {
   constructor(strength = 0) {
     this.k = 1 / (1 + Math.max(0, strength) * 0.6);
@@ -141,8 +180,7 @@ export class Smoother {
   }
   add(pt) {
     if (!this.last || this.k === 1) return (this.last = { ...pt });
-    const l = this.last, k = this.k;
-    return (this.last = { x: l.x + (pt.x - l.x) * k, y: l.y + (pt.y - l.y) * k, p: l.p + (pt.p - l.p) * k });
+    return (this.last = mixPoint(this.last, pt, this.k));
   }
   /** How far the smoothed point still is from pt (Infinity before the first point); the stroke is finished when it is ~0. */
   distanceTo(pt) {
@@ -181,7 +219,7 @@ export class StampPath {
       }
       t += need / len;
       this.carry = 0;
-      out.push({ x: a.x + dx * t, y: a.y + dy * t, p: a.p + (pt.p - a.p) * t });
+      out.push(mixPoint(a, pt, t));
     }
     this.prev = pt;
     return out;

@@ -302,14 +302,14 @@ class ProcreateReader(unittest.TestCase):
     def test_single_brush(self):
         data = make_zip({'Brush.archive': keyed_archive({'name': 'Charcoal', 'paintSize': 0.5, 'plotSpacing': 0.08, 'shapeScatter': 0.3,
                                                          'dynamicsPressureSize': 0.6, 'shapeInverted': True, 'grainDepth': 0.7,
-                                                         'plotJitter': 0.25, 'dynamicsJitterSize': 0.5}),
+                                                         'plotJitter': 0.25, 'dynamicsJitterSize': 0.5, 'dynamicsSpeedSize': 0.3}),
                          'Shape.png': PNG, 'Grain.png': PNG, 'QuickLook/Thumbnail.png': PNG})
         res = bi.import_brushes('Charcoal.brush', data)
         b = res['brushes'][0]
         self.assertEqual(b['name'], 'Charcoal')
         # size 3 + 297 * 0.5² = 77.25
         self.assertEqual(b['settings'], {'hardness': 1, 'gamma': 1, 'size': 77, 'spacing': 0.08, 'tipRandom': 0.3,
-                                         'pressureSize': True, 'minSize': 0.4, 'textureAmount': 0.7, 'scatter': 0.25, 'sizeJitter': 0.5})
+                                         'pressureSize': True, 'minSize': 0.4, 'textureAmount': 0.7, 'scatter': 0.25, 'sizeJitter': 0.5, 'speedSize': 0.3})
         tip, grain = res['images'][b['tip']], res['images'][b['texture']]
         self.assertEqual((tip['kind'], tip['white'], tip['invert']), ('tip', True, True))
         self.assertEqual((grain['kind'], grain['name']), ('texture', 'Charcoal grain'))

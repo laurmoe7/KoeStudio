@@ -94,3 +94,25 @@ test('pen pressure curve', () => {
   const samples = Array.from({ length: 100 }, (_, i) => (i + 1) / 100);
   assert.deepEqual(pressureFromStrokes(samples), [[0, 0], [0.5, 0.5], [0.95, 1], [1, 1]], 'median 0.5 → half, 95th percentile 0.95 → full');
 });
+
+test('pen tilt, speed and the points between', async () => {
+  const { tiltFrom, dynamicsAt, dynamicsReach, mixPoint } = await import('../web/js/brush.js');
+  assert.deepEqual(tiltFrom(0, 0), { t: 0, az: null }, 'upright');
+  const half = tiltFrom(45, 0);
+  near(half.t, 0.5, '45° to the right is half way to flat');
+  near(half.az, 0, 'leaning right');
+  near(tiltFrom(0, 45).az, Math.PI / 2, 'leaning down the screen');
+  near(tiltFrom(90, 0).t, 1 - 0.1 / 90, 'flat is clamped just short of 90°');
+  assert.deepEqual(dynamicsAt({}, 1, 1), { sizeK: 1, flowK: 1 }, 'no settings: no change');
+  assert.equal(dynamicsAt({ tiltSize: 1 }, 0.5, 0).sizeK, 2);
+  assert.equal(dynamicsAt({ tiltFlow: 0.5 }, 1, 0).flowK, 0.5);
+  assert.equal(dynamicsAt({ speedSize: 0.5 }, 0, 1).sizeK, 0.5, 'fast is thinner');
+  assert.equal(dynamicsAt({ speedSize: -1 }, 0, 1).sizeK, 2, 'or thicker');
+  assert.equal(dynamicsAt({ speedSize: 1 }, 0, 1).sizeK, 0.1, 'never thinner than a tenth');
+  assert.equal(dynamicsReach({ tiltSize: 1, speedSize: -0.5 }), 4.5);
+  assert.deepEqual(mixPoint({ x: 0, y: 0, p: 0, t: 0, v: 1, az: 1 }, { x: 10, y: 0, p: 1, t: 1, v: 0, az: 2 }, 0.25),
+    { x: 2.5, y: 0, p: 0.25, t: 0.25, v: 0.75, az: 2 });
+  assert.deepEqual(mixPoint({ x: 0, y: 0, p: 0 }, { x: 4, y: 2, p: 1 }, 0.5), { x: 2, y: 1, p: 0.5 }, 'plain points stay plain');
+  const s = sanitizeSettings({ pen: { tiltSize: 5, speedSize: -3, tiltAngle: 1 } }).pen;
+  assert.deepEqual([s.tiltSize, s.speedSize, s.tiltAngle], [1, -1, true]);
+});

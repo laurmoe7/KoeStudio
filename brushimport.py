@@ -571,8 +571,10 @@ def _procreate_settings(b):
         v = _pnum(b, key)
         if v is not None:
             s[setting] = round(v, 2)
-    if b.get('dynamicsSpeedSize') or b.get('dynamicsSpeedOpacity'):
-        notes.append('Speed effects')
+    for key, setting in (('dynamicsSpeedSize', 'speedSize'), ('dynamicsSpeedOpacity', 'speedFlow')):
+        v = _pnum(b, key, -1, 1)
+        if v:  # faster = thinner / lighter, as Procreate does it
+            s[setting] = round(v, 2)
     if b.get('dynamicsWetEdges') or b.get('dynamicsMix'):
         notes.append('Wet mixing')
     return s, notes
