@@ -75,6 +75,8 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 
 ## Shortcuts
 
+Hold a tool's key instead of tapping it to use that tool only until you let go (hold E, erase, release: back to the pen).
+
 | Key | Action | Key | Action |
 | --- | --- | --- | --- |
 | P / N / B / A | Pen / Pencil / Brush / Airbrush | Space (hold) | Pan (with Shift: turn, Ctrl: zoom) |

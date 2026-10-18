@@ -9,7 +9,7 @@ import { isFolder } from '../tree.js';
 import { floodMask, growMask, closeGapFill } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
-import { comboOf, isTyping } from '../keys.js';
+import { comboOf, isTyping, springBack } from '../keys.js';
 import { Painter, textureFor, hasTipImage, tipOutline } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { trimmedSnapshot, drawSnapshot, snapBytes } from '../snapshot.js';
@@ -1044,6 +1044,7 @@ export class Editor {
         if (this.touches.size >= 2) { touchView(); return; }
       }
       if (this.gesture) return;
+      if (this.spring) this.spring.used = true;  // the held tool key's tool was used: back to the other on release
       this.stopAnimation();  // drawing during playback: back to the frame being drawn
       try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
       const p = pos(e);
@@ -1163,6 +1164,7 @@ export class Editor {
       else if (g.type === 'brushsize') this.endBrushSize();
       this.gesture = null;
       if (g.type === 'xf') this.xfEnd();
+      if (this.springAfter) { const t = this.springAfter; this.springAfter = null; this.selectTool(t); }
       this.drawOverlay();
     };
     const lift = e => {
@@ -1836,7 +1838,13 @@ export class Editor {
       return;
     }
     const t = toolForKey(c, this.tool);
-    if (t) { this.selectTool(t); return; }
+    if (t) {
+      if (e.repeat) return;  // a held key: not one tool after the other (G is Fill, Gradient and Lasso fill)
+      const from = this.tool;
+      this.selectTool(t);
+      this.spring = { key: c, from, at: e.timeStamp, used: false };  // onKeyUp may go back to `from`
+      return;
+    }
     const s = this.settings[this.tool];
     const map = {
       '[': () => s.size && this.setSize(nextSize(s.size, -1)),
@@ -1892,6 +1900,16 @@ export class Editor {
   }
 
   onKeyUp(e) {
+    const sp = this.spring;
+    if (sp && (e?.type === 'blur' || e?.key?.toLowerCase() === sp.key)) {
+      // spring-loaded tools: hold E to erase a moment, let go and the pen is back (a quick tap just switches)
+      this.spring = null;
+      if (e.type === 'keyup' && springBack(e.timeStamp - sp.at, sp.used) && this.tool !== sp.from) {
+        if (this.gesture) this.springAfter = sp.from;  // still drawing: once the stroke ends
+        else this.selectTool(sp.from);
+      }
+      if (e.type === 'keyup') return;
+    }
     const key = e?.key === ' ' ? 'space' : e?.key === 'Alt' ? 'alt' : null;
     if (e?.type === 'blur') {
       this.held.space = this.held.alt = false;

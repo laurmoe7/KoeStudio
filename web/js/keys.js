@@ -25,3 +25,11 @@ export function isTyping(target) {
   if (tag !== 'INPUT') return false;
   return !['range', 'checkbox', 'radio', 'button', 'color'].includes(target.type);
 }
+
+/** Holding a tool key this long (ms), or using the tool while it is held, makes its release go back to the tool before. */
+export const SPRING_MS = 500;
+
+/** Whether letting go of a held tool key returns to the tool used before it (spring-loaded tools, as in Clip Studio Paint). */
+export function springBack(heldMs, used) {
+  return used || heldMs >= SPRING_MS;
+}

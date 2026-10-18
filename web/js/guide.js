@@ -50,7 +50,9 @@ export const GUIDE = [
     <ul>
       <li><b>Pen</b> <kbd>P</kbd> for clean lines, <b>Pencil</b> <kbd>N</kbd> for sketching, <b>Brush</b> <kbd>B</kbd> for
       soft paint, <b>Airbrush</b> <kbd>A</kbd> for gentle shading.</li>
-      <li><b>Eraser</b> <kbd>E</kbd> takes paint away. The eraser end of your pen does too.</li>
+      <li><b>Eraser</b> <kbd>E</kbd> takes paint away. The eraser end of your pen does too. <b>Hold</b> a tool's key
+      instead of tapping it to use that tool for a moment: hold <kbd>E</kbd>, erase, let go, and you are back on
+      the pen.</li>
       <li><kbd>[</kbd> and <kbd>]</kbd> make the brush smaller and bigger. Or hold <kbd>Ctrl+Alt</kbd> and drag on
       the canvas: the circle grows as you drag right and shrinks as you drag left, with its size shown above it.</li>
       <li><b>Shift+click</b> draws a straight line from where your last stroke ended.</li>
@@ -503,7 +505,7 @@ export const GUIDE = [
 
 /** Shortcuts other than the tool keys (those come from TOOLS): [group, [[keys, what], ...]]. */
 export const SHORTCUTS = [
-  ['Painting', [['[ / ]', 'Smaller / bigger brush'], ['Ctrl+Alt+drag', 'Set the brush size on the canvas'], ['X', 'Swap main and sub colour'], ['Alt (hold)', 'Pick a colour'],
+  ['Painting', [['Hold a tool key', 'Use that tool until you let go'], ['[ / ]', 'Smaller / bigger brush'], ['Ctrl+Alt+drag', 'Set the brush size on the canvas'], ['X', 'Swap main and sub colour'], ['Alt (hold)', 'Pick a colour'],
     ['Shift+click', 'Straight line from the last stroke']]],
   ['Edit', [['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy / cut / paste'], ['Ctrl+T', 'Transform'],
     ['Del', 'Clear the selection or layer'], ['Alt+Del', 'Fill the selection or layer'], ['Ctrl+F', 'Repeat the last filter']]],

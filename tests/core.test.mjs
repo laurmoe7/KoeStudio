@@ -5,7 +5,7 @@ import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb } from '../web/js/color.js';
 import { pressureCurve, stampFor, Smoother, StampPath, stampBounds } from '../web/js/brush.js';
 import { floodMask, growMask } from '../web/js/fill.js';
 import { History } from '../web/js/history.js';
-import { isReloadKey, comboOf, isTyping } from '../web/js/keys.js';
+import { isReloadKey, comboOf, isTyping, springBack } from '../web/js/keys.js';
 import { union, clip, alphaBounds } from '../web/js/rect.js';
 import { newView, toDoc, toScreen, zoomAt, rotateAt, flipAt, fitView } from '../web/js/view.js';
 import { sanitizeSettings, nextSize, TOOLS } from '../web/js/tools.js';
@@ -286,4 +286,10 @@ test('the rect round the painted pixels', () => {
   px[(1 * 4 + 3) * 4] = 255;  // red with no alpha does not count
   assert.deepEqual(alphaBounds(px, 4, 3), { x: 1, y: 0, w: 2, h: 3 });
   assert.equal(alphaBounds(new Uint8ClampedArray(16), 2, 2), null);
+});
+
+test('a held tool key springs back to the tool before', () => {
+  assert.equal(springBack(120, false), false, 'a tap switches tools for good');
+  assert.equal(springBack(120, true), true, 'drawing while holding it: back on release');
+  assert.equal(springBack(800, false), true, 'held a while: back on release');
 });
