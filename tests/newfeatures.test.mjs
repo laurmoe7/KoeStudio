@@ -166,3 +166,12 @@ test('colour wheel', async () => {
   assert.deepEqual(wheelHit(0, 0, 200, 18, 'square'), { part: 'square', s: 0, v: 1 }, 'a square drag clamps to its edge');
   assert.equal(wheelHit(100, 100, 200, 18, 'ring').part, 'ring', 'a ring drag stays on the ring');
 });
+
+test('hard-pixel dabs for pixel art', async () => {
+  const { pixelSpans } = await import('../web/js/brush.js');
+  assert.deepEqual(pixelSpans(10.7, 5.2, 1), [[10, 5, 1]], '1 px: the pixel under the point');
+  assert.deepEqual(pixelSpans(10.5, 5.5, 3), [[10, 4, 1], [9, 5, 3], [10, 6, 1]], '3 px: a plus');
+  assert.deepEqual(pixelSpans(10.4, 5.6, 2), [[9, 5, 2], [9, 6, 2]], '2 px: a square round the nearest corner');
+  assert.deepEqual(pixelSpans(0.5, 0.5, 5), [[-1, -2, 3], [-2, -1, 5], [-2, 0, 5], [-2, 1, 5], [-1, 2, 3]], '5 px: a square without its corners');
+  assert.equal(sanitizeSettings({ pen: { pixel: 1 } }).pen.pixel, true);
+});

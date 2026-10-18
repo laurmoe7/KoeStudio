@@ -31,7 +31,7 @@ export function renderVector(layer, rect = null) {
     sctx.globalAlpha = 1;
     sctx.globalCompositeOperation = 'source-over';
     sctx.clearRect(q.x, q.y, q.w, q.h);
-    const painter = new Painter(sctx, { color: s.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle,
+    const painter = new Painter(sctx, { color: s.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
       random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7) });
     for (const st of strokeStamps(s, b)) {
       const { size, flow } = stampAt(b, st.p);

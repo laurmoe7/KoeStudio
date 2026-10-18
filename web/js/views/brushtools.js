@@ -192,7 +192,7 @@ export const brushMethods = {
       const scratch = this.previewScratch ||= document.createElement('canvas');
       scratch.width = w; scratch.height = h;
       const sctx = scratch.getContext('2d');
-      const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle,
+      const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
         random: b.tipRandom, follow: b.tipFollow, rnd: seeded(PREVIEW_SEED + 7) });
       for (const st of strokeStamps(line, b)) {
         const { size, flow } = stampAt(b, st.p);

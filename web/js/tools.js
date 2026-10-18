@@ -17,7 +17,7 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
-  return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false,
+  return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0,
     tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false, preset: '' };
 }
@@ -101,6 +101,7 @@ export const SETTING_FIELDS = [
   ['tipAngle', 'Angle', 'range', 0, 360, 1],
   ['tipRandom', 'Random turn', 'range', 0, 1, 0.01],
   ['tipFollow', 'Turn with the stroke', 'check'],
+  ['pixel', 'Hard pixels', 'check'],
   ['minFlow', 'Min. density', 'range', 0, 1, 0.01],
   ['scatter', 'Scatter', 'range', 0, 2, 0.01],
   ['count', 'Count', 'range', 1, 16, 1],
@@ -153,7 +154,7 @@ export const BASIC_PAINT = ['vectorErase', 'size', 'opacity', 'flow', 'hardness'
 /** The pages of the Brush settings window, and which settings each holds (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
   ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness']],
-  ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow']],
+  ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow', 'pixel']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'quickShape']],
   ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
@@ -204,6 +205,7 @@ export const SETTING_HINTS = {
   tipAngle: 'Turns the tip (most useful with a squashed or image tip)',
   tipRandom: 'Turns each dab by a random amount, up to this share of a half turn either way',
   tipFollow: 'Turns the tip with the direction the stroke is going',
+  pixel: 'Pixel art: every dab is whole pixels with no soft edge (1 px draws single pixels). The tip shape, hardness and turning are not used',
   minFlow: 'Density at the lightest pen pressure, as a share of Density',
   sizeCurve: 'How pen pressure maps to size (from an imported brush); it replaces the Pressure setting for size',
   flowCurve: 'How pen pressure maps to density (from an imported brush); it replaces the Pressure setting for density',

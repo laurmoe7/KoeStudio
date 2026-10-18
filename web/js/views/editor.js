@@ -298,6 +298,7 @@ export class Editor {
         { label: 'Save now', key: 'Ctrl+S', run: () => this.save() },
         { label: 'Export as PNG', key: 'Ctrl+Shift+S', run: () => this.exportAs('png') },
         { label: 'Export…', key: 'Ctrl+Alt+Shift+S', run: () => this.exportAs() },
+        { label: 'Export layers (one PNG each)…', run: () => this.exportLayers() },
         { label: 'Export animation (GIF, frames)…', run: () => this.exportAnimation(), disabled: !d.anim.on },
         { label: 'Save project file (.koe)…', run: () => this.saveProjectFile() },
         '-',
@@ -1165,7 +1166,7 @@ export class Editor {
       type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
       color, dabColors: varies && !s.colorJitterStroke, dyn,
       painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
-        tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow }),
+        tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)

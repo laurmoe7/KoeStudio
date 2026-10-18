@@ -28,7 +28,7 @@ const NUM = {
   scatter: [0, 0, 2], count: [1, 1, 16], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500],
   textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4],
 };
-const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, textureInvert: false, colorJitterStroke: false };
+const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, textureInvert: false, colorJitterStroke: false, pixel: false };
 const CURVES = ['sizeCurve', 'flowCurve'];
 export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture'];
 

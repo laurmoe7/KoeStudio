@@ -76,7 +76,8 @@ export const GUIDE = [
     open; drag it by its title bar.</p>
     <ul>
       <li><b>Paint</b>: size, opacity, density, hardness.</li>
-      <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke.</li>
+      <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke.
+      <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).</li>
       <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
       <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>
       <li><b>Tilt and speed</b>: tilt the pen to make the brush bigger or lighter (like shading with the side of a
@@ -457,7 +458,9 @@ export const GUIDE = [
       any folder.</li>
       <li><kbd>Ctrl+Shift+S</kbd> saves a PNG straight away, in the same folder as last time.</li>
       <li><b>File → Save project file (.koe)…</b> keeps all the layers, to move to another computer or keep as a backup.</li>
-    </ul>`],
+    </ul>
+    <p>File → <b>Export layers</b> saves every layer (or every top-level layer and folder) as its own transparent PNG,
+    each the size of the canvas, for other programs and game engines.</p>`],
 ];
 
 /** Shortcuts other than the tool keys (those come from TOOLS): [group, [[keys, what], ...]]. */

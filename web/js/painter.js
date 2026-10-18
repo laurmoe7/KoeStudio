@@ -6,6 +6,7 @@
 
 import { textureTile, grooveAlpha, TILE } from './textures.js';
 import { imageRef } from './brushtip.js';
+import { pixelSpans } from './brush.js';
 
 const TIP = 128;
 const tipImages = new Map();      // image id -> canvas whose alpha is the tip shape
@@ -35,8 +36,9 @@ export class Painter {
   /** opts: color, hardness, and optionally tip ('round' or 'img:<id>'), thickness (0-1), angle (degrees),
    * random (0-1: share of a half turn either way), follow (turn with the stroke), rnd (random numbers 0-1; a seeded
    * source makes the random turns repeatable, as vector lines need). */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random }) {
+  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false }) {
     this.ctx = ctx;
+    this.pixel = !!pixel;  // hard pixels (pixel art): whole-pixel round dabs, no soft edge, tip image or turn
     this.color = color;
     this.hardness = hardness;
     this.mask = tipImages.get(imageRef(tip)) || null;
@@ -66,6 +68,11 @@ export class Painter {
     if (color) this.setColor(color);
     const ctx = this.ctx;
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    if (this.pixel) {
+      ctx.fillStyle = this.color;
+      for (const [x0, y0, w] of pixelSpans(x, y, size)) ctx.fillRect(x0, y0, w, 1);
+      return;
+    }
     const rot = this.rotation(x, y, k, dir);
     if (!this.image && !rot && this.squash === 1) {
       if (this.hard) {

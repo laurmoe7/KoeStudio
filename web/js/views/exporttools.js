@@ -3,7 +3,8 @@
 // (koe.exportDir for pictures, koe.projectDir for project files; '' is Pictures\KoeStudio\Exports).
 
 import { api } from '../api.js';
-import { composite } from '../doc.js';
+import { composite, renderFolder } from '../doc.js';
+import { allLayers } from '../tree.js';
 import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, encodeGifAnimation, exportSize, sanitizeExportOptions } from '../imageformats.js';
 import { animFrames, frameDelays } from '../anim.js';
 import { pngWithDpi, jpegWithDpi } from '../resolution.js';
@@ -261,6 +262,74 @@ export const exportMethods = {
         }
       }
       if (last) toast(`Exported ${n} frames to ${last.folder}`, { action: showFolder(last.folder), ms: 6000 });
+    } catch (e) {
+      toast('Export failed: ' + e.message, { error: true });
+    }
+  },
+
+  /**
+   * File → Export layers…: each layer (or each top-level layer and folder, as it looks) as its own canvas-sized
+   * transparent PNG, named "<name>-01-<layer name>.png" from the bottom up, for other programs and game engines.
+   */
+  async exportLayers() {
+    const d = this.doc;
+    this.finishText();
+    this.stopAnimation?.();
+    let dir = store('exportDir') || '';
+    const saved = store('layerExport') || {};
+    const res = await modal({
+      title: 'Export layers',
+      body: `
+        <label class="field"><span>File names start with</span><input type="text" name="name" value="${esc(d.title)}" maxlength="60"></label>
+        <label class="field"><span>Export</span><select name="which">
+          <option value="top"${saved.which !== 'all' ? ' selected' : ''}>Each top-level layer or folder (a folder as one picture)</option>
+          <option value="all"${saved.which === 'all' ? ' selected' : ''}>Every layer on its own</option></select></label>
+        <label class="check"><input type="checkbox" name="hidden"${saved.hidden ? ' checked' : ''}> Hidden layers too</label>
+        <p class="muted small">Each file is the size of the canvas, with a transparent background, so the parts line up when they are put together again.</p>
+        <label class="field"><span>Save in</span>
+          <div class="fb-dest"><span class="fb-path" data-dest></span><button type="button" data-browse>Browse…</button></div></label>`,
+      buttons: [{ label: 'Cancel', value: null }, { label: 'Export', primary: true }],
+      onOpen: root => {
+        const dest = root.querySelector('[data-dest]');
+        const showDir = () => { dest.textContent = dirLabel(dir); dest.title = dirLabel(dir); };
+        root.querySelector('[data-browse]').onclick = async () => {
+          const pick = await browseFile({ title: 'Export to', dir, name: d.title, ext: 'png', okLabel: 'Choose' });
+          if (pick) { dir = pick.dir; showDir(); }
+        };
+        showDir();
+      },
+      collect: root => ({ name: root.querySelector('[name="name"]').value.trim() || d.title,
+        which: root.querySelector('[name="which"]').value, hidden: root.querySelector('[name="hidden"]').checked }),
+    });
+    if (!res) return;
+    store('layerExport', { which: res.which, hidden: res.hidden });
+    store('exportDir', dir);
+    const shown = n => res.hidden || n.visible;
+    const nodes = res.which === 'all' ? allLayers(d.root).filter(n => { for (let x = n; x && x !== d.root; x = x.parent) if (!shown(x)) return false; return true; })
+      : d.root.children.filter(shown);
+    if (!nodes.length) return toast('There are no layers to export.');
+    const full = { x: 0, y: 0, w: d.width, h: d.height };
+    let mode = 'ask', last = null;
+    try {
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i], c = document.createElement('canvas');
+        c.width = d.width; c.height = d.height;
+        const vis = n.visible;
+        n.visible = true;  // a hidden layer, when asked for, as if shown
+        try { renderFolder(c.getContext('2d'), { children: [n] }, full); } finally { n.visible = vis; }
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        const png = new Blob([pngWithDpi(new Uint8Array(await blob.arrayBuffer()), d.dpi)], { type: 'image/png' });
+        const name = `${res.name}-${String(i + 1).padStart(2, '0')}-${n.name}`;
+        try {
+          last = await api.exportImage(name, 'png', png, { dir, mode });
+        } catch (e) {
+          if (!e.data?.exists) throw e;
+          if (!await confirmBox('Replace files', `${name}.png already exists in ${dirLabel(dir)}. Replace it and any other layer files of the same name?`, 'Replace')) return;
+          mode = 'replace';
+          last = await api.exportImage(name, 'png', png, { dir, mode });
+        }
+      }
+      if (last) toast(`Exported ${nodes.length} layer${nodes.length === 1 ? '' : 's'} to ${last.folder}`, { action: showFolder(last.folder), ms: 6000 });
     } catch (e) {
       toast('Export failed: ' + e.message, { error: true });
     }

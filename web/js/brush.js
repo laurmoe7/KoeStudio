@@ -134,6 +134,29 @@ export function stampFor(settings, p) {
  * Lazy-pull smoothing ("stabilization" in other painting programs): each new point moves only part of the way
  * toward the pen, so wobbles even out. strength 0 is off, 1-20 is increasingly smooth.
  */
+/**
+ * A hard-pixel dab (pixel art): the whole pixels a round dab of `size` px at (x, y) covers, as rows [x0, y, width].
+ * An odd size is centred on the pixel under the point, an even one on the nearest pixel corner, and pixels count
+ * when their centre is inside the circle shrunk by a little, so small sizes give the usual pixel-art round shapes
+ * (3 px: a plus, 5 px: a square without its corners); 1 px is the pixel itself.
+ */
+export function pixelSpans(x, y, size) {
+  const d = Math.max(1, Math.round(size));
+  if (d === 1) return [[Math.floor(x), Math.floor(y), 1]];
+  const odd = d % 2 === 1, cx = odd ? Math.floor(x) + 0.5 : Math.round(x), cy = odd ? Math.floor(y) + 0.5 : Math.round(y);
+  const lim = Math.max(0, (d / 2) ** 2 - 0.5), out = [];
+  for (let j = Math.floor(cy - d / 2); j < cy + d / 2; j++) {
+    const dy = j + 0.5 - cy;
+    let x0 = null, x1 = null;
+    for (let i = Math.floor(cx - d / 2); i < cx + d / 2; i++) {
+      const dx = i + 0.5 - cx;
+      if (dx * dx + dy * dy <= lim) { if (x0 === null) x0 = i; x1 = i; }
+    }
+    if (x0 !== null) out.push([x0, j, x1 - x0 + 1]);
+  }
+  return out;
+}
+
 /** Screen speed (px per ms) that counts as fully fast for the speed settings. */
 export const SPEED_FULL = 4;
 
