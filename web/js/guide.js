@@ -317,7 +317,8 @@ export const GUIDE = [
       <li>The <b>onion skin</b> shows the frame before in blue and the frame after in green, faintly, so you can see
       how far things move.</li>
       <li>Press <b>▶</b> to play it. Set the speed in <b>fps</b> (frames per second): 8 to 12 suits most drawings.</li>
-      <li>File → <b>Export animation</b> saves it as an animated GIF, or as PNG frames (one file per frame).</li>
+      <li>File → <b>Export animation</b> saves it as an animated GIF, a <b>WebM video</b>, or as PNG frames (one file
+      per frame). The video is recorded while the animation plays, so it takes as long as the animation.</li>
     </ol>
     <ul>
       <li>Click a frame in the timeline to draw on it, or press <kbd>,</kbd> and <kbd>.</kbd> to go back and forward.</li>

@@ -36,6 +36,51 @@ async function writeExport(name, ext, blob, dir, ask) {
   }
 }
 
+/** The WebM type this browser can record (VP9, else VP8), or null when it cannot record video. */
+function webmType() {
+  if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) return null;
+  return ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t)) || null;
+}
+
+/**
+ * Records the frames as a WebM video: each frame (frame(i) gives its canvas) is drawn into a captured canvas and
+ * held for its hold at fps. Video records in real time, so the next frame is rendered while the current one shows,
+ * and frames are timed from the start (a slow render shortens the next wait instead of adding up).
+ */
+async function recordWebm(frame, holds, fps) {
+  const first = frame(0), c = document.createElement('canvas');
+  c.width = first.width; c.height = first.height;
+  const ctx = c.getContext('2d'), stream = c.captureStream(0), track = stream.getVideoTracks()[0];
+  const type = webmType(), chunks = [];
+  const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: Math.min(40e6, Math.max(2e6, c.width * c.height * fps * 0.2)) });
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const stopped = new Promise((ok, fail) => { rec.onstop = ok; rec.onerror = e => fail(e.error || new Error('Recording failed')); });
+  const wait = ms => new Promise(r => setTimeout(r, Math.max(0, ms)));
+  rec.start();
+  const t0 = performance.now();
+  let next = first, t = 0;
+  for (let i = 0; i < holds.length; i++) {
+    ctx.drawImage(next, 0, 0);
+    track.requestFrame();
+    t += holds[i] * 1000 / fps;
+    if (i + 1 < holds.length) next = frame(i + 1);
+    await wait(t0 + t - performance.now());
+  }
+  // the last frame again, so players keep it up for its whole hold; the browser drops a frame that has not changed,
+  // so one corner pixel changes by a level or two
+  ctx.fillStyle = 'rgba(128, 128, 128, 0.02)';
+  ctx.fillRect(0, 0, 1, 1);
+  track.requestFrame();
+  await wait(100);  // stopping at once would drop that frame too
+  rec.stop();
+  track.stop();
+  await Promise.race([stopped, wait(5000)]);
+  const video = new Blob(chunks, { type: 'video/webm' });
+  // a window that cannot encode video (hidden, or headless) gives only the file header
+  if (video.size < 300) throw new Error('this window could not record video. Try GIF or PNG frames.');
+  return video;
+}
+
 export const exportMethods = {
   /**
    * Exports the flattened picture. exportAs('png') exports straight away (whole canvas, 100%, with paper, into the
@@ -177,7 +222,9 @@ export const exportMethods = {
   /**
    * File → Export animation…: every frame (anim.js) as an animated GIF at the animation's speed, or as numbered PNG
    * files (name-001.png, …) for video editors. Onion skins are never exported. A held frame stays up its hold in the
-   * GIF and is written once per frame time in the PNG frames, so they play at the animation's fps.
+   * GIF and is written once per frame time in the PNG frames, so they play at the animation's fps. WebM video is
+   * recorded in real time from the frames (MediaRecorder), so it takes as long as the animation plays, on white
+   * paper when the artwork has none (video has no transparency).
    */
   async exportAnimation() {
     const d = this.doc;
@@ -191,7 +238,7 @@ export const exportMethods = {
     const read = root => {
       const f = k => root.querySelector(`[name="${k}"]`);
       return { ...sanitizeExportOptions({ scale: f('scale').value, paper: d.paper ? f('paper').checked : saved.paper !== false }),
-        format: f('format').value === 'png' ? 'png' : 'gif', name: f('name').value.trim() || d.title };
+        format: ['png', 'webm'].includes(f('format').value) ? f('format').value : 'gif', name: f('name').value.trim() || d.title };
     };
     const res = await modal({
       title: 'Export animation',
@@ -200,7 +247,8 @@ export const exportMethods = {
         <div class="field-row">
           <label class="field"><span>Format</span><select name="format">
             <option value="gif"${saved.format !== 'png' ? ' selected' : ''}>Animated GIF</option>
-            <option value="png"${saved.format === 'png' ? ' selected' : ''}>PNG frames (one file per frame)</option></select></label>
+            <option value="png"${saved.format === 'png' ? ' selected' : ''}>PNG frames (one file per frame)</option>
+            ${webmType() ? `<option value="webm"${saved.format === 'webm' ? ' selected' : ''}>WebM video</option>` : ''}</select></label>
           <label class="field"><span>Size (%)</span><input type="number" name="scale" min="1" max="800" step="any" value="${sanitizeExportOptions(saved).scale}"></label>
         </div>
         <label class="check"><input type="checkbox" name="paper"${saved.paper !== false && d.paper ? ' checked' : ''}${d.paper ? '' : ' disabled'}> Include the paper colour</label>
@@ -214,6 +262,7 @@ export const exportMethods = {
           const el = root.querySelector('[data-size]');
           el.textContent = `${n} frames of ${size.w} × ${size.h} px at ${d.anim.fps} fps (${(ticks / d.anim.fps).toFixed(2)} s)`
             + (p.format === 'gif' ? (d.anim.loop ? ', looping' : ', playing once') + '. GIF has at most 256 colours per frame.'
+              : p.format === 'webm' ? `, played once. Recording takes as long as the animation (${(ticks / d.anim.fps).toFixed(1)} s).`
               : `: ${ticks} files, ${p.name}-001.png and on${ticks > n ? ' (held frames repeat)' : ''}.`)
             + (size.tooBig ? ` Too big: at most ${EXPORT_MAX_SIDE} px a side.` : '');
           el.classList.toggle('error', size.tooBig);
@@ -234,8 +283,15 @@ export const exportMethods = {
     if (!res) return;
     store('animExport', { format: res.format, scale: res.scale, paper: res.paper });
     store('exportDir', dir);
-    const frame = i => this.exportCanvas({ ...res, area: 'canvas', view: { frame: i, onion: false } }, EXPORT_BY_ID[res.format]);
+    const frame = i => this.exportCanvas({ ...res, area: 'canvas', view: { frame: i, onion: false } }, EXPORT_BY_ID[res.format === 'webm' ? 'jpg' : res.format]);
     try {
+      if (res.format === 'webm') {
+        toast(`Recording the video (${(ticks / d.anim.fps).toFixed(1)} s)…`, { ms: Math.max(3000, ticks / d.anim.fps * 1000) });
+        const video = await recordWebm(frame, holds, d.anim.fps);
+        const r = await writeExport(res.name, 'webm', video, dir, true);
+        if (r) toast(`Exported a ${n}-frame video to ${r.path}`, { action: showFolder(r.folder), ms: 6000 });
+        return;
+      }
       if (res.format === 'gif') {
         let w = 0, h = 0;
         const pixels = [];

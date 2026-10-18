@@ -200,7 +200,7 @@ class Storage(unittest.TestCase):
     def test_export_other_formats(self):
         samples = {'gif': b'GIF89a....', 'bmp': b'BM....', 'jpg': b'\xff\xd8\xff....',
                    'webp': b'RIFF\x00\x00\x00\x00WEBPVP8 ', 'tga': b'\x00' * 18 + b'TRUEVISION-XFILE.\x00',
-                   'gpl': b'GIMP Palette\nName: x\n'}
+                   'gpl': b'GIMP Palette\nName: x\n', 'webm': b'\x1a\x45\xdf\xa3\x9f'}
         for fmt, data in samples.items():
             path = app.export_image('pic', data, fmt)['path']
             self.assertEqual(os.path.basename(path), f'pic.{fmt}')
