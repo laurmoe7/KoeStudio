@@ -8,7 +8,7 @@ import { Layer } from '../doc.js';
 import { icon } from '../icons.js';
 import { maskBounds, modeFor, rectBetween, SELECT_MODES } from '../selection.js';
 import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds } from '../transform.js';
-import { clip } from '../rect.js';
+import { clip, union } from '../rect.js';
 import { esc, modal, store, toast } from '../ui.js';
 import { matrix, toDoc, toScreen } from '../view.js';
 
@@ -311,36 +311,49 @@ export const selectionMethods = {
 
   /**
    * Starts transforming the selected pixels of the current layer (or all of its pixels when nothing is selected).
-   * moveOnly: started by the Move tool, applied as soon as the drag ends.
+   * A layer with a mask takes its mask along (xf.linked), so the two stay lined up; painting on the mask itself
+   * transforms only the mask. moveOnly: started by the Move tool, applied as soon as the drag ends.
    */
   beginTransform({ moveOnly = false } = {}) {
     if (this.xf) return true;
     const d = this.doc, layer = this.target('transform');
     if (!layer) return false;
+    const companion = !this.quickMask && !this.maskEdit && layer.kind === 'layer' && layer.mask ? layer.mask : null;
     const full = layer.ctx.getImageData(0, 0, d.width, d.height);
+    const mfull = companion ? companion.ctx.getImageData(0, 0, d.width, d.height) : null;
     let r = this.sel.active ? this.sel.bounds : null;
-    if (!r) {
-      const alpha = new Uint8Array(d.width * d.height);
-      for (let i = 0; i < alpha.length; i++) alpha[i] = full.data[i * 4 + 3];
-      r = maskBounds(alpha, d.width, d.height);
+    if (!r) {  // everything painted on the layer (and its mask)
+      const bounds = img => {
+        const alpha = new Uint8Array(d.width * d.height);
+        for (let i = 0; i < alpha.length; i++) alpha[i] = img.data[i * 4 + 3];
+        return maskBounds(alpha, d.width, d.height);
+      };
+      const a = bounds(full), b = mfull ? bounds(mfull) : null;
+      r = a && b ? union(a, b) : a || b;
     }
     if (!r) { toast('There is nothing on this layer to transform.'); return false; }
-    const src = canvasOf(r.w, r.h);
-    const sctx = src.getContext('2d');
-    sctx.drawImage(layer.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    // the pixels in the box (inside the selection, if any) are lifted; the rest stays behind in `base`
+    const lift = raster => {
+      const src = canvasOf(r.w, r.h), sctx = src.getContext('2d');
+      sctx.drawImage(raster.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+      const base = canvasOf(d.width, d.height), bctx = base.getContext('2d');
+      if (this.sel.active) {
+        sctx.globalCompositeOperation = 'destination-in';
+        sctx.drawImage(this.sel.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+        bctx.drawImage(raster.canvas, 0, 0);
+        bctx.globalCompositeOperation = 'destination-out';
+        bctx.drawImage(this.sel.canvas, 0, 0);
+      }
+      return { src, base };
+    };
+    const { src, base } = lift(layer);
     let mask = null;
-    const base = canvasOf(d.width, d.height);
-    const bctx = base.getContext('2d');
     if (this.sel.active) {
-      sctx.globalCompositeOperation = 'destination-in';
-      sctx.drawImage(this.sel.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
       mask = canvasOf(r.w, r.h);
       mask.getContext('2d').drawImage(this.sel.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-      bctx.drawImage(layer.canvas, 0, 0);
-      bctx.globalCompositeOperation = 'destination-out';
-      bctx.drawImage(this.sel.canvas, 0, 0);
     }
-    this.xf = { layer, src, mask, base, before: full, selBefore: this.sel.snapshot(), r, t: newTransform(r),
+    const linked = companion ? { raster: companion, before: mfull, ...lift(companion) } : null;
+    this.xf = { layer, src, mask, base, linked, before: full, selBefore: this.sel.snapshot(), r, t: newTransform(r),
       keepAspect: false, smooth: true, moveOnly };
     if (!moveOnly) this.showTransformBar();
     this.renderTransform();
@@ -348,20 +361,24 @@ export const selectionMethods = {
   },
 
   renderTransform() {
-    const x = this.xf, d = this.doc, ctx = x.layer.ctx;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, d.width, d.height);
-    ctx.drawImage(x.base, 0, 0);
-    if (x.mesh) this.drawMeshed(ctx, x.srcData, x.src.width, x.src.height, x.mesh, x.smooth);
-    else if (x.quad) this.drawWarped(ctx, x.srcData, x.src.width, x.src.height, x.quad, x.smooth);
-    else {
-      ctx.setTransform(...xfMatrix(x.t));
-      ctx.imageSmoothingEnabled = x.smooth;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(x.src, 0, 0);
-    }
-    ctx.restore();
+    const x = this.xf, d = this.doc;
+    const draw = (ctx, base, src, srcData) => {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, d.width, d.height);
+      ctx.drawImage(base, 0, 0);
+      if (x.mesh) this.drawMeshed(ctx, srcData, src.width, src.height, x.mesh, x.smooth);
+      else if (x.quad) this.drawWarped(ctx, srcData, src.width, src.height, x.quad, x.smooth);
+      else {
+        ctx.setTransform(...xfMatrix(x.t));
+        ctx.imageSmoothingEnabled = x.smooth;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(src, 0, 0);
+      }
+      ctx.restore();
+    };
+    draw(x.layer.ctx, x.base, x.src, x.srcData);
+    if (x.linked) draw(x.linked.raster.ctx, x.linked.base, x.linked.src, x.linked.srcData);
     this.updateComp(null);
     this.requestRender();
     this.drawOverlay();
@@ -377,8 +394,9 @@ export const selectionMethods = {
     const start = corners(newTransform(x.r));
     const same = (a, b) => a.every((p, i) => p.x === b[i].x && p.y === b[i].y);
     if (x.mesh ? same(x.mesh.pts, x.mesh.start) : x.quad ? same(x.quad, start) : isIdentity(x.t, x.r)) return this.cancelTransformState(x);
-    const d = this.doc, layer = x.layer;
+    const d = this.doc, layer = x.layer, linked = x.linked;
     const after = layer.ctx.getImageData(0, 0, d.width, d.height);
+    const linkedAfter = linked ? linked.raster.ctx.getImageData(0, 0, d.width, d.height) : null;
     if (x.mask) {  // the selection follows the pixels
       const c = this.sel.ctx;
       c.save();
@@ -394,10 +412,17 @@ export const selectionMethods = {
       this.sel.refresh();
     }
     const selAfter = this.sel.snapshot();
-    const put = (img, sel) => { layer.ctx.putImageData(img, 0, 0); layer.touch(); this.sel.restore(sel); this.changed(null); };
-    this.history.push({ label: x.moveOnly ? 'Move' : 'Transform', bytes: d.width * d.height * 16,
-      undo: () => put(x.before, x.selBefore), redo: () => put(after, selAfter) });
+    const put = (img, sel, mimg) => {
+      layer.ctx.putImageData(img, 0, 0);
+      layer.touch();
+      if (linked) { linked.raster.ctx.putImageData(mimg, 0, 0); linked.raster.touch(); }
+      this.sel.restore(sel);
+      this.changed(null);
+    };
+    this.history.push({ label: x.moveOnly ? 'Move' : 'Transform', bytes: d.width * d.height * (linked ? 24 : 16),
+      undo: () => put(x.before, x.selBefore, linked?.before), redo: () => put(after, selAfter, linkedAfter) });
     layer.touch();
+    linked?.raster.touch();
     this.changed(null);
     this.drawOverlay();
   },
@@ -413,6 +438,7 @@ export const selectionMethods = {
 
   cancelTransformState(x) {
     x.layer.ctx.putImageData(x.before, 0, 0);
+    if (x.linked) x.linked.raster.ctx.putImageData(x.linked.before, 0, 0);
     this.updateComp(null);
     this.requestRender();
     this.drawOverlay();
@@ -452,6 +478,7 @@ export const selectionMethods = {
   readTransformSource(x) {
     x.srcData ||= x.src.getContext('2d').getImageData(0, 0, x.src.width, x.src.height).data;
     x.maskData ||= x.mask ? x.mask.getContext('2d').getImageData(0, 0, x.mask.width, x.mask.height).data : null;
+    if (x.linked) x.linked.srcData ||= x.linked.src.getContext('2d').getImageData(0, 0, x.linked.src.width, x.linked.src.height).data;
   },
 
   /**
