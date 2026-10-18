@@ -31,7 +31,8 @@ export const selectionMethods = {
     fn();
     const after = this.sel.snapshot();
     const restore = s => { this.sel.restore(s); this.drawOverlay(); };
-    this.history.push({ label, bytes: this.doc.width * this.doc.height * 8, undo: () => restore(before), redo: () => restore(after) });
+    const bytes = [before, after].reduce((n, s) => n + s.canvas.width * s.canvas.height * 4 + s.segments.length * 40, 0);
+    this.history.push({ label, bytes, undo: () => restore(before), redo: () => restore(after) });
     this.drawOverlay();
   },
 
@@ -160,12 +161,12 @@ export const selectionMethods = {
     if (g.tool === 'select' || g.tool === 'ellipse') {
       const r = rectBetween(g.start, g.cur);
       if (r.w < 1 || r.h < 1) return this.clickedWithoutShape(g.mode);
-      if (g.tool === 'select') this.changeSelection('Rectangle selection', () => this.sel.combine(g.mode, ctx => ctx.fillRect(r.x, r.y, r.w, r.h)));
+      if (g.tool === 'select') this.changeSelection('Rectangle selection', () => this.sel.combine(g.mode, ctx => ctx.fillRect(r.x, r.y, r.w, r.h), r));
       else this.changeSelection('Ellipse selection', () => this.sel.combine(g.mode, ctx => {
         ctx.beginPath();
         ctx.ellipse(r.x + r.w / 2, r.y + r.h / 2, r.w / 2, r.h / 2, 0, 0, Math.PI * 2);
         ctx.fill();
-      }));
+      }, r));
     } else {
       const pts = g.points;
       const b = maskBoundsOfPoints(pts);
@@ -176,7 +177,7 @@ export const selectionMethods = {
         for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
         ctx.closePath();
         ctx.fill();
-      }));
+      }, pointsRect(pts)));
     }
   },
 
@@ -212,7 +213,7 @@ export const selectionMethods = {
       for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
       ctx.closePath();
       ctx.fill();
-    }));
+    }, pointsRect(pts)));
   },
 
   cancelPolygon() {
@@ -325,10 +326,11 @@ export const selectionMethods = {
     if (layer.text) return this.beginTextTransform(layer, moveOnly);
     if (layer.vector) return this.beginVectorTransform(layer, moveOnly);
     const companion = !this.quickMask && !this.maskEdit && layer.kind === 'layer' && layer.mask ? layer.mask : null;
-    const full = layer.ctx.getImageData(0, 0, d.width, d.height);
-    const mfull = companion ? companion.ctx.getImageData(0, 0, d.width, d.height) : null;
-    let r = this.sel.active ? this.sel.bounds : null;
-    if (!r) {  // everything painted on the layer (and its mask)
+    const whole = { x: 0, y: 0, w: d.width, h: d.height };
+    let r = this.sel.active ? this.sel.bounds : null, full = null, mfull = null;
+    if (!r) {  // everything painted on the layer (and its mask): the one readback a transform needs
+      full = layer.ctx.getImageData(0, 0, d.width, d.height);
+      mfull = companion ? companion.ctx.getImageData(0, 0, d.width, d.height) : null;
       const bounds = img => {
         const alpha = new Uint8Array(d.width * d.height);
         for (let i = 0; i < alpha.length; i++) alpha[i] = img.data[i * 4 + 3];
@@ -358,8 +360,9 @@ export const selectionMethods = {
       mask = canvasOf(r.w, r.h);
       mask.getContext('2d').drawImage(this.sel.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
     }
-    const linked = companion ? { raster: companion, before: mfull, ...lift(companion) } : null;
-    this.xf = { layer, src, mask, base, linked, before: full, selBefore: this.sel.snapshot(), r, t: newTransform(r),
+    // how it was, for undo and Esc: with a selection a GPU copy, so starting a transform does not wait for the GPU
+    const linked = companion ? { raster: companion, before: mfull || this.snapshot(companion, whole), ...lift(companion) } : null;
+    this.xf = { layer, src, mask, base, linked, before: full || this.snapshot(layer, whole), selBefore: this.sel.snapshot(), r, t: newTransform(r),
       keepAspect: false, smooth: true, moveOnly };
     if (!moveOnly) this.showTransformBar();
     this.renderTransform();
@@ -378,7 +381,7 @@ export const selectionMethods = {
     sctx.translate(-b.x, -b.y);
     drawText(sctx, t);
     const base = canvasOf(d.width, d.height);
-    this.xf = { layer, src, mask: null, base, linked: null, before: layer.ctx.getImageData(0, 0, d.width, d.height), selBefore: this.sel.snapshot(),
+    this.xf = { layer, src, mask: null, base, linked: null, before: this.snapshot(layer, { x: 0, y: 0, w: d.width, h: d.height }), selBefore: this.sel.snapshot(),
       r: { x: b.x, y: b.y, w: src.width, h: src.height }, t: textTransformStart(t, { ...b, w: src.width, h: src.height }),
       keepAspect: false, smooth: true, moveOnly, text: { before: t, b: { ...b, w: src.width, h: src.height } } };
     this.xf.text.t0 = { ...this.xf.t };
@@ -406,7 +409,16 @@ export const selectionMethods = {
     };
     draw(x.layer.ctx, x.base, x.src, x.srcData);
     if (x.linked) draw(x.linked.raster.ctx, x.linked.base, x.linked.src, x.linked.srcData);
-    this.updateComp(null);
+    // recomposite only where the lifted pixels were, are now, and were last time (a mesh can bulge: all of it)
+    const pts = x.mesh ? null : x.quad || corners(x.t);
+    let box = null;
+    if (pts) {
+      const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+      const x0 = Math.floor(Math.min(...xs)) - 2, y0 = Math.floor(Math.min(...ys)) - 2;
+      box = union({ x: x0, y: y0, w: Math.ceil(Math.max(...xs)) + 2 - x0, h: Math.ceil(Math.max(...ys)) + 2 - y0 }, x.r);
+    }
+    this.updateComp(box ? union(box, x.lastBox || box) : null);
+    x.lastBox = box;
     this.requestRender();
     this.drawOverlay();
     this.updateTransformBar();
@@ -423,15 +435,14 @@ export const selectionMethods = {
     const same = (a, b) => a.every((p, i) => p.x === b[i].x && p.y === b[i].y);
     if (x.mesh ? same(x.mesh.pts, x.mesh.start) : x.quad ? same(x.quad, start) : isIdentity(x.t, x.r)) return this.cancelTransformState(x);
     if (x.vector) return this.applyVectorTransform(x);
-    const d = this.doc, layer = x.layer, linked = x.linked;
-    const after = layer.ctx.getImageData(0, 0, d.width, d.height);
-    const linkedAfter = linked ? linked.raster.ctx.getImageData(0, 0, d.width, d.height) : null;
+    const d = this.doc, layer = x.layer, linked = x.linked, whole = { x: 0, y: 0, w: d.width, h: d.height };
+    const after = this.snapshot(layer, whole);
+    const linkedAfter = linked ? this.snapshot(linked.raster, whole) : null;
     this.transformSelection(x);
     const selAfter = this.sel.snapshot();
     const put = (img, sel, mimg) => {
-      layer.ctx.putImageData(img, 0, 0);
-      layer.touch();
-      if (linked) { linked.raster.ctx.putImageData(mimg, 0, 0); linked.raster.touch(); }
+      this.putSnapshot(layer, whole, img);
+      if (linked) this.putSnapshot(linked.raster, whole, mimg);
       this.sel.restore(sel);
       this.changed(null);
     };
@@ -457,7 +468,7 @@ export const selectionMethods = {
       c.drawImage(x.mask, 0, 0);
     }
     c.restore();
-    this.sel.refresh();
+    this.sel.refresh(x.mesh ? null : x.lastBox);  // the box renderTransform last drew (a mesh can bulge out of it)
   },
 
   /**
@@ -490,7 +501,7 @@ export const selectionMethods = {
       mask = canvasOf(r.w, r.h);
       mask.getContext('2d').drawImage(this.sel.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
     }
-    this.xf = { layer, src, mask, base, linked: null, before: layer.ctx.getImageData(0, 0, d.width, d.height), selBefore: this.sel.snapshot(), r,
+    this.xf = { layer, src, mask, base, linked: null, before: this.snapshot(layer, { x: 0, y: 0, w: d.width, h: d.height }), selBefore: this.sel.snapshot(), r,
       t: newTransform(r), keepAspect: false, smooth: true, moveOnly, vector: { before: v, idxs } };
     if (!moveOnly) this.showTransformBar();
     this.renderTransform();
@@ -540,8 +551,9 @@ export const selectionMethods = {
   },
 
   cancelTransformState(x) {
-    x.layer.ctx.putImageData(x.before, 0, 0);
-    if (x.linked) x.linked.raster.ctx.putImageData(x.linked.before, 0, 0);
+    const d = this.doc, whole = { x: 0, y: 0, w: d.width, h: d.height };
+    this.putSnapshot(x.layer, whole, x.before);
+    if (x.linked) this.putSnapshot(x.linked.raster, whole, x.linked.before);
     this.updateComp(null);
     this.requestRender();
     this.drawOverlay();
@@ -903,6 +915,12 @@ function ellipsePoints(r, n = 72) {
   const cx = r.x + r.w / 2, cy = r.y + r.h / 2, out = [];
   for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; out.push([cx + Math.cos(a) * r.w / 2, cy + Math.sin(a) * r.h / 2]); }
   return out;
+}
+
+/** The rect round some points, for Selection.combine's area. */
+function pointsRect(pts) {
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y), x = Math.min(...xs), y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
 }
 
 function maskBoundsOfPoints(pts) {

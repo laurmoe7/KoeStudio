@@ -2,6 +2,7 @@
 // Painting, filling, clearing, copying and transforming all respect it. Pure helpers at the bottom are tested.
 
 import { expandMask, shrinkMask, featherMask, borderMask } from './maskops.js';
+import { clip, union } from './rect.js';
 
 export const SELECT_MODES = [['replace', 'New selection'], ['add', 'Add (Shift)'], ['subtract', 'Subtract (Alt)'], ['intersect', 'Intersect (Shift+Alt)']];
 
@@ -28,18 +29,21 @@ export class Selection {
     };
   }
 
-  /** A copy of the mask for undo. */
+  /** A copy of the mask for undo (with its bounds and outline, so restoring it reads nothing back). */
   snapshot() {
-    const c = document.createElement('canvas');
-    c.width = this.w; c.height = this.h;
-    if (this.bounds) c.getContext('2d').drawImage(this.canvas, 0, 0);
-    return { canvas: c, bounds: this.bounds && { ...this.bounds } };
+    const c = document.createElement('canvas'), b = this.bounds;  // only the selected part: outside it the mask is empty
+    c.width = b ? b.w : 1; c.height = b ? b.h : 1;
+    if (b) c.getContext('2d').drawImage(this.canvas, b.x, b.y, b.w, b.h, 0, 0, b.w, b.h);
+    return { canvas: c, bounds: b && { ...b }, segments: this.segments };
   }
 
   restore(snap) {
     this.ctx.clearRect(0, 0, this.w, this.h);
-    if (snap.bounds) this.ctx.drawImage(snap.canvas, 0, 0);
-    this.refresh();
+    if (snap.bounds) this.ctx.drawImage(snap.canvas, snap.bounds.x, snap.bounds.y);
+    if (!snap.segments) return this.refresh(snap.bounds);
+    this.bounds = snap.bounds && { ...snap.bounds };
+    this.segments = snap.segments;
+    this.version = (this.version || 0) + 1;
   }
 
   clear() {
@@ -64,19 +68,34 @@ export class Selection {
     this.refresh();
   }
 
-  /** Combines a shape with the selection. draw(ctx) paints the shape in any opaque colour. */
-  combine(mode, draw) {
+  /**
+   * Combines a shape with the selection. draw(ctx) paints the shape in any opaque colour; area, when given, is a
+   * rect the shape stays inside, so only that much of the mask is read back afterwards.
+   */
+  combine(mode, draw, area = null) {
+    const old = this.bounds;
+    // the shape is drawn into a canvas only as big as its area (anti-aliased edges included), in doc coordinates
+    const pad = area && clip({ x: area.x - 2, y: area.y - 2, w: area.w + 4, h: area.h + 4 }, this.w, this.h);
+    const at = pad || { x: 0, y: 0, w: this.w, h: this.h };
     const tmp = document.createElement('canvas');
-    tmp.width = this.w; tmp.height = this.h;
+    tmp.width = at.w; tmp.height = at.h;
     const t = tmp.getContext('2d');
+    t.translate(-at.x, -at.y);
     t.fillStyle = '#000';
     draw(t);
     const c = this.ctx;
     if (mode === 'replace') c.clearRect(0, 0, this.w, this.h);
     c.globalCompositeOperation = compositeFor(mode);
-    c.drawImage(tmp, 0, 0);
+    if (mode === 'intersect' && pad) {  // keeps nothing outside the shape's area either
+      c.save();
+      c.beginPath(); c.rect(0, 0, this.w, this.h); c.rect(pad.x, pad.y, pad.w, pad.h); c.clip('evenodd');
+      c.clearRect(0, 0, this.w, this.h);
+      c.restore();
+    }
+    c.drawImage(tmp, at.x, at.y);
     c.globalCompositeOperation = 'source-over';
-    this.refresh();
+    if (mode === 'subtract' || mode === 'intersect') this.refresh(old);
+    else this.refresh(pad && (mode === 'replace' ? pad : union(old, pad)));
   }
 
   /** Combines a 0/1 mask (as from fill.js) with the selection. */
@@ -86,8 +105,11 @@ export class Selection {
       for (let y = 0; y < b.h; y++) {
         for (let x = 0; x < b.w; x++) if (mask[(b.y + y) * this.w + b.x + x]) img.data[(y * b.w + x) * 4 + 3] = 255;
       }
-      ctx.putImageData(img, b.x, b.y);
-    });
+      const m = document.createElement('canvas');  // putImageData would ignore combine's translation
+      m.width = b.w; m.height = b.h;
+      m.getContext('2d').putImageData(img, 0, 0);
+      ctx.drawImage(m, b.x, b.y);
+    }, b);
   }
 
   /** The mask as an alpha plane (0-255 per pixel). */
@@ -125,14 +147,18 @@ export class Selection {
     this.setAlphaPlane(featherMask(this.alphaPlane(), this.w, this.h, r));
   }
 
-  /** Recomputes bounds and outline after the mask changed. */
-  refresh() {
-    const data = this.ctx.getImageData(0, 0, this.w, this.h).data;
-    const alpha = new Uint8Array(this.w * this.h);
-    for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
-    this.bounds = maskBounds(alpha, this.w, this.h);
-    this.segments = this.bounds ? outlineSegments(alpha, this.w, this.h, this.bounds) : [];
+  /**
+   * Recomputes bounds and outline after the mask changed. area: a rect outside which the mask is known to be
+   * empty, so only that part is read (a whole 4000 x 6000 mask took a fifth of a second); null reads all of it.
+   */
+  refresh(area = null) {
     this.version = (this.version || 0) + 1;  // the overlay's cached marching ants are redrawn when this changes
+    const r = clip(area || { x: 0, y: 0, w: this.w, h: this.h }, this.w, this.h);
+    if (!r) { this.bounds = null; this.segments = []; return; }
+    const data = this.ctx.getImageData(r.x, r.y, r.w, r.h).data;
+    const alpha = new Uint8Array(r.w * r.h);
+    for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+    Object.assign(this, maskOutline(alpha, r.w, r.h, r.x, r.y));
   }
 
   /** Cuts ctx's content down to the selection inside rect r (no-op without a selection). */
@@ -177,6 +203,19 @@ export function maskBounds(alpha, w, h) {
     }
   }
   return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+/**
+ * Bounds and outline segments of a mask region w x h whose top left is at (ox, oy) in the doc; the doc is taken
+ * to be empty outside the region.
+ */
+export function maskOutline(alpha, w, h, ox = 0, oy = 0) {
+  const b = maskBounds(alpha, w, h);
+  if (!b) return { bounds: null, segments: [] };
+  return {
+    bounds: { x: b.x + ox, y: b.y + oy, w: b.w, h: b.h },
+    segments: outlineSegments(alpha, w, h, b).map(([x1, y1, x2, y2]) => [x1 + ox, y1 + oy, x2 + ox, y2 + oy]),
+  };
 }
 
 /**

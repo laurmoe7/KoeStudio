@@ -493,61 +493,101 @@ export const layerMethods = {
 
   /** The Move tool: the layer and its mask, everything in a folder, or only the mask while editing it. */
   beginMove(pt, id) {
+    const parts = this.moveParts();
+    if (parts) this.gesture = { type: 'move', tool: 'move', id, parts, start: pt, dx: 0, dy: 0 };
+  },
+
+  /**
+   * What the Move tool moves (layerRasters), each with a GPU snapshot of how it was (no readback, which would
+   * wait for the GPU: a 4000 x 4000 layer took a good part of a second); null, with a toast, when it may not.
+   */
+  moveParts() {
     const d = this.doc, n = d.active;
     for (const m of this.quickMask ? [] : this.multiPicked() || [n]) {
-      if (!m.visible) return toast(`"${m.name}" is hidden. Show it to move it.`);
-      if (lockedNode(m)) return toast(`"${lockedNode(m).name}" is locked. Untick Lock in the Layers panel to move it.`);
+      if (!m.visible) { toast(`"${m.name}" is hidden. Show it to move it.`); return null; }
+      if (lockedNode(m)) { toast(`"${lockedNode(m).name}" is locked. Untick Lock in the Layers panel to move it.`); return null; }
     }
-    const rasters = this.layerRasters();
-    const parts = rasters.map(r => {
-      const copy = document.createElement('canvas');
-      copy.width = d.width; copy.height = d.height;
-      copy.getContext('2d').drawImage(r.canvas, 0, 0);
-      return { r, copy, before: r.ctx.getImageData(0, 0, d.width, d.height) };
-    });
-    this.gesture = { type: 'move', tool: 'move', id, parts, start: pt, dx: 0, dy: 0 };
+    const full = { x: 0, y: 0, w: d.width, h: d.height };
+    return this.layerRasters().map(r => ({ r, before: this.snapshot(r, full), textBefore: r.text, vectorBefore: r.vector }));
   },
 
   moveTo(pt) {
-    const g = this.gesture, d = this.doc;
-    g.dx = Math.round(pt.x - g.start.x);
-    g.dy = Math.round(pt.y - g.start.y);
-    for (const p of g.parts) {
-      p.r.ctx.clearRect(0, 0, d.width, d.height);
-      p.r.ctx.drawImage(p.copy, g.dx, g.dy);
+    const g = this.gesture, dx = Math.round(pt.x - g.start.x), dy = Math.round(pt.y - g.start.y);
+    if (dx === g.dx && dy === g.dy) return;  // a pen sends many moves within one pixel
+    g.dx = dx; g.dy = dy;
+    this.shiftParts(g.parts, dx, dy);
+  },
+
+  /** Draws each part's snapshot shifted by (dx, dy) in place of its pixels. */
+  shiftParts(parts, dx, dy) {
+    const d = this.doc;
+    for (const p of parts) {
+      const ctx = p.r.ctx, s = p.before;
+      ctx.clearRect(0, 0, d.width, d.height);
+      if (s.data) ctx.putImageData(s.data, dx, dy);
+      else ctx.drawImage(s.canvas, dx, dy);
     }
     this.updateComp(null);
     this.requestRender();
   },
 
   endMove() {
-    const g = this.gesture, d = this.doc;
-    if (!g.dx && !g.dy) return;
-    for (const p of g.parts) {
-      p.after = p.r.ctx.getImageData(0, 0, d.width, d.height);
+    const g = this.gesture;
+    if (g.dx || g.dy) this.recordMove(g.parts, g.dx, g.dy);
+  },
+
+  /**
+   * The parts have been shifted by (dx, dy): text and lines follow, and one undo step records it. Called again
+   * with the same parts and a new total (arrow-key nudges), it updates that step instead of adding another.
+   */
+  recordMove(parts, dx, dy, entry = null) {
+    const d = this.doc;
+    for (const p of parts) {
+      if (p.after?.canvas) p.after.canvas = null;  // an earlier nudge's: no need to read it any more
+      p.after = this.snapshot(p.r, { x: 0, y: 0, w: d.width, h: d.height });
       p.r.touch();
-      if (p.r.text) {  // a text layer keeps its text editable: move where it is drawn (a turned text moves its matrix)
-        const t = p.r.text, m = t.m;
-        p.textBefore = t;
-        p.textAfter = m ? { ...t, m: [m[0], m[1], m[2], m[3], m[4] + g.dx, m[5] + g.dy] } : { ...t, x: t.x + g.dx, y: t.y + g.dy };
-        p.r.text = p.textAfter;
+      if (p.textBefore) {  // a text layer keeps its text editable: move where it is drawn (a turned text moves its matrix)
+        const t = p.textBefore, m = t.m;
+        p.r.text = p.textAfter = m ? { ...t, m: [m[0], m[1], m[2], m[3], m[4] + dx, m[5] + dy] } : { ...t, x: t.x + dx, y: t.y + dy };
       }
-      if (p.r.vector) {  // a vector layer keeps its lines: move them too
-        p.vectorBefore = p.r.vector;
-        p.vectorAfter = p.r.vector = translateVector(p.r.vector, g.dx, g.dy);
-      }
+      if (p.vectorBefore) p.r.vector = p.vectorAfter = translateVector(p.vectorBefore, dx, dy);  // a vector layer keeps its lines
     }
     const put = key => {
-      for (const p of g.parts) {
-        p.r.ctx.putImageData(p[key], 0, 0);
-        p.r.touch();
+      for (const p of parts) {
+        this.putSnapshot(p.r, { x: 0, y: 0, w: d.width, h: d.height }, p[key]);
         if (p.textBefore) p.r.text = key === 'before' ? p.textBefore : p.textAfter;
         if (p.vectorBefore) p.r.vector = key === 'before' ? p.vectorBefore : p.vectorAfter;
       }
       this.changed(null);
     };
-    this.history.push({ label: 'Move', bytes: g.parts.length * d.width * d.height * 8, undo: () => put('before'), redo: () => put('after') });
+    if (!entry) {
+      entry = { label: 'Move', bytes: parts.length * d.width * d.height * 8, undo: () => put('before'), redo: () => put('after') };
+      this.history.push(entry);
+    }
     this.changed(null);
+    return entry;
+  },
+
+  /**
+   * Arrow keys with the Move tool: moves the layer (or the selected pixels) a pixel, ten with Shift. Presses in a
+   * row make one undo step.
+   */
+  nudgeLayer(dx, dy) {
+    if (this.sel.active && !this.quickMask) {  // the selected pixels, as a drag with the Move tool would
+      if (this.beginTransform({ moveOnly: true })) { this.xfNudge(dx, dy); this.applyTransform(); }
+      return;
+    }
+    const top = this.history.done[this.history.done.length - 1], n = this.nudge;
+    const same = n && n.entry === top && n.active === this.doc.active && n.quick === this.quickMask && n.maskEdit === this.maskEdit;
+    if (!same) {
+      const parts = this.moveParts();
+      if (!parts) return;
+      this.nudge = { parts, dx: 0, dy: 0, entry: null, active: this.doc.active, quick: this.quickMask, maskEdit: this.maskEdit };
+    }
+    const g = this.nudge;
+    g.dx += dx; g.dy += dy;
+    this.shiftParts(g.parts, g.dx, g.dy);
+    g.entry = this.recordMove(g.parts, g.dx, g.dy, g.entry);
   },
 
   /** Clears the selected pixels, or the whole layer when nothing is selected (on a mask: reveals). */
@@ -571,9 +611,9 @@ export const layerMethods = {
       this.live = { layer: t, canvas: this.stroke, alpha: 1, mode: 'destination-out' };
       return this.commitStroke(t, this.sel.bounds, label);
     }
-    const before = t.ctx.getImageData(0, 0, d.width, d.height);
+    const full = { x: 0, y: 0, w: d.width, h: d.height }, before = this.snapshot(t, full);
     t.ctx.clearRect(0, 0, d.width, d.height);
-    this.pushPatch(t, { x: 0, y: 0, w: d.width, h: d.height }, before, t.ctx.getImageData(0, 0, d.width, d.height), label === 'Delete' ? 'Clear layer' : label);
+    this.pushPatch(t, full, before, this.snapshot(t, full), label === 'Delete' ? 'Clear layer' : label);
     t.touch();
     this.changed(null);
   },
@@ -591,13 +631,13 @@ export const layerMethods = {
       this.live = { layer: t, canvas: this.stroke, alpha: 1, mode: this.strokeMode(t, false) };
       return this.commitStroke(t, b, 'Fill selection');
     }
-    const before = t.ctx.getImageData(0, 0, d.width, d.height);
+    const full = { x: 0, y: 0, w: d.width, h: d.height }, before = this.snapshot(t, full);
     t.ctx.save();
     t.ctx.fillStyle = this.inkFor(t);
     t.ctx.globalCompositeOperation = this.strokeMode(t, false);
     t.ctx.fillRect(0, 0, d.width, d.height);
     t.ctx.restore();
-    this.pushPatch(t, { x: 0, y: 0, w: d.width, h: d.height }, before, t.ctx.getImageData(0, 0, d.width, d.height), 'Fill layer');
+    this.pushPatch(t, full, before, this.snapshot(t, full), 'Fill layer');
     t.touch();
     this.changed(null);
   },

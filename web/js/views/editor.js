@@ -1399,22 +1399,25 @@ export class Editor {
 
   /** Records a pixel change of rect r for undo; before/after are ImageData or snapshots. */
   pushPatch(layer, r, before, after, label) {
-    const put = img => {
-      const data = img instanceof ImageData ? img : img.data;
-      if (data) layer.ctx.putImageData(data, r.x, r.y);
-      else {
-        const ctx = layer.ctx;
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'copy';
-        ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
-        ctx.drawImage(img.canvas, r.x, r.y);
-        ctx.restore();
-      }
-      layer.touch(); this.changed(r);
-    };
+    const put = img => { this.putSnapshot(layer, r, img); this.changed(r); };
     this.history.push({ label, bytes: r.w * r.h * 8, undo: () => put(before), redo: () => put(after) });
+  }
+
+  /** Puts an ImageData or a snapshot back into rect r of a layer. */
+  putSnapshot(layer, r, img) {
+    const data = img instanceof ImageData ? img : img.data;
+    if (data) layer.ctx.putImageData(data, r.x, r.y);
+    else {
+      const ctx = layer.ctx;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'copy';
+      ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
+      ctx.drawImage(img.canvas, r.x, r.y);
+      ctx.restore();
+    }
+    layer.touch();
   }
 
   fillAt(pt) {
@@ -1724,6 +1727,10 @@ export class Editor {
     // Ctrl+V pastes what was copied in KoeStudio (in place), unless the user has been in another program since;
     // then the browser's paste event brings in the image from the system clipboard instead (onPaste)
     if (c === 'ctrl+v' && this.clipboard?.fresh) { e.preventDefault(); if (!this.gesture) this.pasteInternal(); return; }
+    if (this.tool === 'move') {  // arrows nudge the layer or the selected pixels (Shift: 10 px)
+      const step = e.shiftKey ? 10 : 1, a = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] }[c.replace('shift+', '')];
+      if (a) map[c] = () => this.nudgeLayer(...a);
+    }
     const fn = map[c];
     if (fn) { e.preventDefault(); if (!this.gesture) fn(); }
   }

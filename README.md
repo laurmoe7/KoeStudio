@@ -87,7 +87,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 | O | Dodge / Burn | S | Clone stamp (Ctrl+click: source) |
 | G | Fill | [ / ] | Smaller / bigger brush |
 | I | Eyedropper | X | Swap main and sub colour |
-| V | Move layer (or selection) | Ctrl+Z / Ctrl+Y | Undo / redo |
+| V | Move layer (or selection); arrows nudge 1 px, Shift+arrows 10 px | Ctrl+Z / Ctrl+Y | Undo / redo |
 | H | Hand | Ctrl+Shift+N | New layer |
 | Ctrl+G | Put in new folder | Ctrl+E | Merge down / merge folder |
 | Ctrl+Shift+Alt+E | Merge visible to new layer | Q | Quick mask (paint the selection) |
