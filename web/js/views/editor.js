@@ -471,7 +471,9 @@ export class Editor {
     this.compQueue = null;
     const area = clip(q, d.width, d.height);  // the canvas may have shrunk since
     if (area) {
-      composite(this.compCtx, d, area, this.live, this.compView());
+      // during a stroke (or a dab-by-dab tool's) the other layers stay as they are: screentone and effects are kept
+      const g = this.gesture, painting = this.live?.layer || (g?.cache && g.layer);
+      composite(this.compCtx, d, area, this.live, this.compView(), painting ? { except: painting } : null);
       this.mipDirty = this.mipDirty ? union(this.mipDirty, area) : area;
       if (this.compRead) this.compRead.dirty = union(this.compRead.dirty, area);  // read again when next needed (compPixels)
     }

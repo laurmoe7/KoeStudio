@@ -413,8 +413,17 @@ const blendOf = n => (n.blend === PASS_THROUGH[0] ? 'source-over' : n.blend);
  * Nodes with clip=true are clipped to the nearest non-clipping sibling below them.
  * With the animation on (doc.anim.on) only one frame is drawn (see drawAnimation); view = {frame, onion} picks it
  * and asks for onion skins, otherwise it is the frame holding the selected layer.
+ * keep = {except: raster} (the editor, while a stroke is going on) lets screentone and effect layers other than
+ * `except` (or the layer whose mask it is) be drawn from kept tiles (keptLook) instead of being worked out again,
+ * with a GPU readback, on every redraw.
  */
-export function composite(ctx, doc, r, live = null, view = null) {
+export function composite(ctx, doc, r, live = null, view = null, keep = null) {
+  const kept = keepLooks;
+  keepLooks = keep;
+  try { compositeInto(ctx, doc, r, live, view); } finally { keepLooks = kept; }
+}
+
+function compositeInto(ctx, doc, r, live, view) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(r.x, r.y, r.w, r.h);
@@ -516,17 +525,11 @@ function drawChildren(ctx, nodes, r, live, depth) {
 function drawNode(ctx, node, r, live, alpha, blend, depth) {
   if (node.adjust) return drawAdjust(ctx, node, r, live, alpha, blend, depth);
   let src = node.canvas, sx = r.x, sy = r.y;
-  if (node.effects && !isFolder(node)) {
-    // the effects reach beyond r, so the layer is built for a bigger area R and the effects drawn under it there
-    const reach = effectReach(node.effects), W = node.canvas.width, H = node.canvas.height;
-    const x0 = Math.max(0, r.x - reach), y0 = Math.max(0, r.y - reach);
-    const R = { x: x0, y: y0, w: Math.min(W, r.x + r.w + reach) - x0, h: Math.min(H, r.y + r.h + reach) - y0 };
-    const [c, cctx] = layerImage(node, R, live, depth, `fxsrc${depth}`);
-    const img = cctx.getImageData(0, 0, R.w, R.h);
-    const [e, ectx] = scratchCanvas(`fx${depth}`, R);
-    ectx.putImageData(new ImageData(effectsImage(img.data, R.w, R.h, node.effects), R.w, R.h), 0, 0);
-    ectx.drawImage(c, 0, 0, R.w, R.h, 0, 0, R.w, R.h);
-    src = e; sx = r.x - R.x; sy = r.y - R.y;
+  const looked = (node.tone || node.effects) && !isFolder(node);
+  if (looked && keepLooks && !changing(node, keepLooks.except) && !changing(node, live?.layer)) {
+    src = keptLook(node, r, depth); sx = 0; sy = 0;
+  } else if (node.effects && !isFolder(node)) {
+    [src, sx, sy] = effectsLook(node, r, live, depth);
   } else if (isFolder(node)) {
     const [c, cctx] = scratchCanvas(`folder${depth}`, r);
     cctx.translate(-r.x, -r.y);
@@ -558,6 +561,76 @@ function drawAdjust(ctx, node, r, live, alpha, blend, depth) {
   ctx.globalAlpha = alpha;
   ctx.globalCompositeOperation = blend === 'source-over' ? 'source-atop' : blend;
   ctx.drawImage(c, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+}
+
+/**
+ * A layer with effects in region r: [canvas, sx, sy, empty]. The effects reach beyond r, so the layer is built for
+ * a bigger area R and the effects drawn under it there; empty = nothing at all in R.
+ */
+function effectsLook(node, r, live, depth) {
+  const reach = effectReach(node.effects), W = node.canvas.width, H = node.canvas.height;
+  const x0 = Math.max(0, r.x - reach), y0 = Math.max(0, r.y - reach);
+  const R = { x: x0, y: y0, w: Math.min(W, r.x + r.w + reach) - x0, h: Math.min(H, r.y + r.h + reach) - y0 };
+  const [c, cctx] = layerImage(node, R, live, depth, `fxsrc${depth}`);
+  const img = cctx.getImageData(0, 0, R.w, R.h).data, fx = effectsImage(img, R.w, R.h, node.effects);
+  let empty = true;
+  for (let i = 3; i < img.length && empty; i += 4) if (img[i] || fx[i]) empty = false;
+  const [e, ectx] = scratchCanvas(`fx${depth}`, R);
+  ectx.putImageData(new ImageData(fx, R.w, R.h), 0, 0);
+  ectx.drawImage(c, 0, 0, R.w, R.h, 0, 0, R.w, R.h);
+  return [e, r.x - R.x, r.y - R.y, empty];
+}
+
+// While a stroke is going on (composite's keep), screentone and effect layers are drawn from tiles of how they look,
+// worked out once per tile instead of on every redraw. A layer's tiles are dropped when its pixels (version), canvas,
+// tone, effects or mask change; the layer being painted on is never drawn from them.
+let keepLooks = null;
+const looks = new WeakMap();
+const LOOK_TILE = 256;
+
+/** Whether raster is node itself or the mask of it (so node is changing while raster is painted). */
+const changing = (node, raster) => !!raster && (raster === node || raster === node.mask);
+
+/** Region r of a screentone or effects layer from its kept tiles, in a scratch canvas whose (0, 0) is r's corner. */
+function keptLook(node, r, depth) {
+  const m = maskOn(node) ? node.mask : null;
+  let k = looks.get(node);
+  if (!k || k.canvas !== node.canvas || k.version !== node.version || k.tone !== node.tone || k.effects !== node.effects
+    || k.mask !== (m && m.canvas) || k.maskVersion !== (m ? m.version : -1)) {
+    k = { canvas: node.canvas, version: node.version, tone: node.tone, effects: node.effects,
+      mask: m && m.canvas, maskVersion: m ? m.version : -1, tiles: new Map() };
+    looks.set(node, k);
+  }
+  // put together in a scratch canvas first: drawing tiles one by one would not do for blends like destination-in
+  const [c, cctx] = scratchCanvas(`look${depth}`, r);
+  const T = LOOK_TILE, W = node.canvas.width, H = node.canvas.height;
+  const x1 = Math.min(W, r.x + r.w), y1 = Math.min(H, r.y + r.h);
+  for (let ty = Math.max(0, Math.floor(r.y / T) * T); ty < y1; ty += T) {
+    for (let tx = Math.max(0, Math.floor(r.x / T) * T); tx < x1; tx += T) {
+      const key = ty * W + tx;
+      let tile = k.tiles.get(key);
+      if (tile === undefined) k.tiles.set(key, tile = lookTile(node, { x: tx, y: ty, w: Math.min(T, W - tx), h: Math.min(T, H - ty) }, depth));
+      if (!tile) continue;  // nothing there
+      const ax = Math.max(r.x, tx), ay = Math.max(r.y, ty);
+      const aw = Math.min(x1, tx + tile.width) - ax, ah = Math.min(y1, ty + tile.height) - ay;
+      if (aw > 0 && ah > 0) cctx.drawImage(tile, ax - tx, ay - ty, aw, ah, ax - r.x, ay - r.y, aw, ah);
+    }
+  }
+  return c;
+}
+
+/** One kept tile t of a screentone or effects layer: a canvas, or null when nothing shows there. */
+function lookTile(node, t, depth) {
+  let src, sx = 0, sy = 0;
+  if (node.effects) {
+    let empty;
+    [src, sx, sy, empty] = effectsLook(node, t, null, depth);
+    if (empty) return null;
+  } else [src] = layerImage(node, t, null, depth, `tone${depth}`);
+  const c = document.createElement('canvas');
+  c.width = t.w; c.height = t.h;
+  c.getContext('2d').drawImage(src, sx, sy, t.w, t.h, 0, 0, t.w, t.h);
+  return c;
 }
 
 /** A layer's region r as shown (live stroke, screentone, mask), in a scratch canvas whose (0, 0) is r's corner. */
