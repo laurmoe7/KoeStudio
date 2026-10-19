@@ -5,6 +5,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Ready-made brushes in the Brush row of every paint tool: G-pen, Fineliner, Brush pen, HB and 6B pencils, Charcoal, Chalk, Gouache, Watercolour, Dry brush, Marker, Soft blend, Spatter, and hard, soft and kneaded erasers.
+- A new Bristles brush tip that leaves streaks like a dry brush.
+- The Brush tool paints a fuller, firmer stroke with a tapered end (for new settings).
 - The tool bar has redrawn icons: one even style with soft fills, and clearer pictures for the airbrush, smudge, fill, eyedropper, dodge (a sun) and burn (a moon).
 - The Pencil works like graphite: a light touch only catches the tops of the paper grain, pressing harder fills it in, and edges break up into grain. Any brush can do this with Brush settings → Texture → Grain by pressure.
 - The Paper texture has a finer, crisper grain instead of soft blotches.

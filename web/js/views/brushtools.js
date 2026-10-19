@@ -15,6 +15,7 @@ import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, gr
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
+import { BUILTIN_BY_ID, builtinBrushesFor } from '../builtinbrushes.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 
 const newId = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -89,14 +90,21 @@ export const brushMethods = {
   tipChoices() { return [...TIPS, ...this.brushImages('tip').map(i => [`img:${i.id}`, i.name])]; },
   textureChoices() { return [...TEXTURES, ...this.brushImages('texture').map(i => [`img:${i.id}`, i.name])]; },
 
-  /** The Brush row at the top of a paint tool's panel: the saved brush it came from, and the brush menu. */
+  /** The Brush row at the top of a paint tool's panel: the built-in or saved brush it came from, and the brush menu. */
   presetRowHtml(s) {
-    const presets = this.brushLib?.presets || [];
-    const cur = presets.some(p => p.id === s.preset) ? s.preset : '';
-    return `<div class="preset-row"><label class="slider" title="Saved brushes: pick one to load its settings"><span>Brush</span>
-      <select data-preset><option value="">Custom</option>${presets.map(p =>
-        `<option value="${esc(p.id)}" ${p.id === cur ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+    const presets = this.brushLib?.presets || [], builtin = builtinBrushesFor(this.tool);
+    const cur = this.presetById(s.preset) ? s.preset : '';
+    const opt = p => `<option value="${esc(p.id)}" ${p.id === cur ? 'selected' : ''}>${esc(p.name)}</option>`;
+    const groups = [...new Set(builtin.map(b => b.group))].map(g =>
+      `<optgroup label="${esc(g)}">${builtin.filter(b => b.group === g).map(opt).join('')}</optgroup>`).join('');
+    return `<div class="preset-row"><label class="slider" title="Ready-made and saved brushes: pick one to load its settings"><span>Brush</span>
+      <select data-preset><option value="">Custom</option>${groups}${presets.length ? `<optgroup label="Your brushes">${presets.map(opt).join('')}</optgroup>` : ''}</select></label>
       <button class="icon-btn" data-brush-menu title="Save, import and manage brushes">⋯</button></div>`;
+  },
+
+  /** A built-in brush (builtinbrushes.js) or one of the user's saved brushes, by id; or undefined. */
+  presetById(id) {
+    return id ? BUILTIN_BY_ID[id] || this.brushLib?.presets.find(p => p.id === id) : undefined;
   },
 
   bindPresetRow(box) {
@@ -156,7 +164,7 @@ export const brushMethods = {
       });
     }
     const s = this.settings[t.id], fields = this.visibleFields(s);
-    const preset = this.brushLib?.presets.find(p => p.id === s.preset);
+    const preset = this.presetById(s.preset);
     w.querySelector('.bw-title').textContent = `Brush settings · ${t.label}${preset ? ` · ${preset.name}` : ''}`;
     const pages = SETTING_GROUPS.map(([name, keys]) => [name, keys.map(k => fields.find(f => f[0] === k)).filter(Boolean)]).filter(([, fs]) => fs.length);
     const page = pages.find(([name]) => name === st.page) || pages[0];
@@ -222,7 +230,7 @@ export const brushMethods = {
   },
 
   brushMenu(button) {
-    const s = this.settings[this.tool], p = this.brushLib?.presets.find(x => x.id === s.preset);
+    const s = this.settings[this.tool], found = this.presetById(s.preset), p = found?.builtin ? null : found;
     menu(button, [
       { label: 'Save as new brush…', run: () => this.saveBrushAs() },
       { label: p ? `Update “${p.name}”` : 'Update brush', disabled: !p, run: () => this.updatePreset(p) },
@@ -250,7 +258,7 @@ export const brushMethods = {
   brushSettingsOf(s) { return Object.fromEntries(BRUSH_KEYS.filter(k => k in s).map(k => [k, s[k]])); },
 
   applyPreset(id) {
-    const p = this.brushLib.presets.find(x => x.id === id), s = this.settings[this.tool];
+    const p = this.presetById(id), s = this.settings[this.tool];
     if (!p || !('tip' in s)) return;
     applySettings(s, p.settings);
     s.preset = p.id;

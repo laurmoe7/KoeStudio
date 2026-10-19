@@ -6,7 +6,7 @@
 // grainPressure, the paper height each dab is cut against (grainFor; see Painter.dab).
 
 import { textureTile, grooveAlpha, TILE } from './textures.js';
-import { imageRef } from './brushtip.js';
+import { imageRef, bristleDots } from './brushtip.js';
 import { pixelSpans } from './brush.js';
 
 const TIP = 128;
@@ -27,10 +27,32 @@ export function forgetBrushImage(id) {
   textureImages.delete(id);
 }
 
-/** Whether a tip setting names an image that is loaded. */
+/** Whether a tip setting names an image that is loaded, or a built-in tip drawn as one (Bristles). */
 export function hasTipImage(tip) {
   const id = imageRef(tip);
-  return !!id && tipImages.has(id);
+  return !!id ? tipImages.has(id) : !!builtinTip(tip);
+}
+
+let bristleTip = null;
+
+/** A built-in tip that is drawn like a tip image (a canvas whose alpha is the shape), or null. */
+function builtinTip(tip) {
+  if (tip !== 'bristle') return null;
+  if (!bristleTip) {
+    bristleTip = document.createElement('canvas');
+    bristleTip.width = bristleTip.height = TIP;
+    const ctx = bristleTip.getContext('2d');
+    for (const d of bristleDots()) {
+      const x = d.x * TIP, y = d.y * TIP, r = d.r * TIP;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(0,0,0,${d.a})`);
+      g.addColorStop(0.6, `rgba(0,0,0,${d.a * 0.8})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+  }
+  return bristleTip;
 }
 
 let outlineCache = null;
@@ -90,7 +112,7 @@ export class Painter {
     this.pixel = !!pixel;  // hard pixels (pixel art): whole-pixel round dabs, no soft edge, tip image or turn
     this.color = color;
     this.hardness = hardness;
-    this.mask = tipImages.get(imageRef(tip)) || null;
+    this.mask = tipImages.get(imageRef(tip)) || builtinTip(tip);
     this.image = this.mask ? tinted(this.mask, color) : null;
     this.hard = !this.image && hardness >= 0.99;
     if (!this.image && !this.hard) this.tip = makeTip(color, hardness);

@@ -162,3 +162,40 @@ test('brush preview stroke', async () => {
   assert.deepEqual(s, { size: 40, taperIn: 20, taperOut: 10, flow: 0.5 }, 'shrunk by 40 / 200');
   assert.equal(previewSettings({ size: 10, taperIn: 30 }, 40).taperIn, 30, 'small brushes stay as they are');
 });
+
+test('built-in brushes', async () => {
+  const { BUILTIN_BRUSHES, BUILTIN_BY_ID, builtinBrushesFor } = await import('../web/js/builtinbrushes.js');
+  const ids = BUILTIN_BRUSHES.map(b => b.id);
+  assert.equal(new Set(ids).size, ids.length, 'ids are unique');
+  for (const b of BUILTIN_BRUSHES) {
+    assert.match(b.id, /^b-[a-z0-9-]+$/);
+    assert.deepEqual(Object.keys(b.settings).sort(), [...BRUSH_KEYS].sort(), `${b.name} has every brush setting`);
+    // every value is one the tools accept as it is (no value clamped or refused)
+    const s = applySettings({ ...b.settings }, b.settings);
+    assert.deepEqual(s, b.settings, `${b.name} settings are valid`);
+  }
+  assert.equal(BUILTIN_BY_ID['b-gpen'].settings.hardness, 1);
+  assert.equal(BUILTIN_BY_ID['b-hard-eraser'].settings.taperOut, 0, "the Brush tool's taper is not passed on");
+  assert.ok(builtinBrushesFor('eraser').every(b => b.group === 'Eraser') && builtinBrushesFor('eraser').length === 3);
+  assert.ok(builtinBrushesFor('pencil').every(b => b.group !== 'Eraser') && builtinBrushesFor('pencil').some(b => b.id === 'b-charcoal'));
+  // a tool remembers a built-in brush (and a saved one); anything else is dropped
+  assert.equal(sanitizeSettings({ pen: { preset: 'b-gpen' } }).pen.preset, 'b-gpen');
+  assert.equal(sanitizeSettings({ pen: { preset: '0a1b' } }).pen.preset, '0a1b');
+  assert.equal(sanitizeSettings({ pen: { preset: 'B-GPEN<' } }).pen.preset, '');
+  // the Bristles tip is a choice for every paint tool, and vector lines keep it
+  assert.equal(applySettings({ tip: 'round' }, { tip: 'bristle' }).tip, 'bristle');
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  assert.equal(sanitizeBrush({ tip: 'bristle' }).tip, 'bristle');
+});
+
+test('bristle dots', async () => {
+  const { bristleDots } = await import('../web/js/brushtip.js');
+  const d = bristleDots();
+  assert.equal(d.length, 12);
+  assert.deepEqual(bristleDots(), d, 'always the same layout');
+  for (const { x, y, r, a } of d) {
+    assert.ok(x - r >= 0 && x + r <= 1, 'inside the tip across');
+    assert.ok(Math.abs(y - 0.5) <= 0.06 && r >= 0.025 && r <= 0.055 && a >= 0.55 && a <= 1);
+  }
+  for (let i = 1; i < d.length; i++) assert.ok(d[i].x > d[i - 1].x, 'in a row from left to right');
+});

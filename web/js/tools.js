@@ -24,8 +24,8 @@ function tex(texture = 'none', textureAmount = 0.5) {
 }
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
-export const TIPS = [['round', 'Round']];
-/** The dual brush's tip: off, or a tip shape as for the main tip. */
+export const TIPS = [['round', 'Round'], ['bristle', 'Bristles']];
+/** The dual brush's tip: off, or a tip shape as for the main tip. Bristles: painter.js builtinTip, brushtip.js bristleDots. */
 export const DUAL_TIPS = [['none', 'Off'], ...TIPS];
 /** How the Eraser works on vector layers (vector.js eraseVector). */
 export const VECTOR_ERASE = [['area', 'Touched area'], ['intersection', 'Up to intersection'], ['line', 'Whole line']];
@@ -36,7 +36,7 @@ export const TOOLS = [
   { id: 'pencil', label: 'Pencil', key: 'n', kind: 'paint', icon: 'pencil', group: 'draw',
     defaults: { size: 6, opacity: 1, flow: 0.7, hardness: 0.6, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.5, smoothing: 1, gamma: 1, ...tex('paper', 0.6), grainPressure: true } },
   { id: 'brush', label: 'Brush', key: 'b', kind: 'paint', icon: 'brush', group: 'draw',
-    defaults: { size: 30, opacity: 1, flow: 0.35, hardness: 0.5, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1, ...tex() } },
+    defaults: { size: 30, opacity: 1, flow: 0.55, hardness: 0.8, spacing: 0.05, pressureSize: true, pressureOpacity: true, minSize: 0.25, smoothing: 2, gamma: 1, ...tex(), taperOut: 20 } },
   { id: 'airbrush', label: 'Airbrush', key: 'a', kind: 'paint', icon: 'air', group: 'draw',
     defaults: { size: 120, opacity: 1, flow: 0.06, hardness: 0, spacing: 0.06, pressureSize: false, pressureOpacity: true, minSize: 0.5, smoothing: 0, gamma: 1, ...tex() } },
   { id: 'eraser', label: 'Eraser', key: 'e', kind: 'paint', icon: 'eraser', erase: true, group: 'draw',
@@ -265,7 +265,7 @@ export function applySettings(s, from) {
     if (type === 'check') s[key] = !!v;
     else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture' || key === 'dualTip') && imageRef(v)) || (key === 'colors' && isUserGradient(v))) s[key] = v; }
     else if (type === 'curve') s[key] = sanitizeCurve(v);
-    else if (type === 'id') s[key] = typeof v === 'string' && /^[0-9a-f]{0,32}$/.test(v) ? v : '';
+    else if (type === 'id') s[key] = typeof v === 'string' && /^(?:[0-9a-f]{0,32}|b-[a-z0-9-]{1,30})$/.test(v) ? v : '';  // saved, or built-in (builtinbrushes.js)
     else if (Number.isFinite(+v) && v !== null && v !== '') s[key] = Math.max(min, Math.min(max, +v));
   }
   return s;

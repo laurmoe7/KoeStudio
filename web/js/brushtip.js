@@ -54,6 +54,23 @@ export function imageRef(v) {
 }
 
 /** How far a dab reaches from its centre, as a share of its size: a rotated image tip reaches into its corners. */
+/**
+ * The Bristles tip: n soft dots in a row across the tip (x, y and radius r in tip widths, 0-1; a = strength), so a
+ * tip turned across the stroke (tipFollow, angle 90) drags each dot into its own streak, as a dry brush does. The
+ * dots sit close enough to overlap a little, with a few thin or faint ones; the layout is always the same.
+ */
+export function bristleDots(n = 12) {
+  let h = 12345;
+  const rnd = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) + 0x9e3779b9 | 0; return ((h >>> 0) % 10000) / 10000; };
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const r = 0.025 + 0.03 * rnd();
+    const x = Math.max(r, Math.min(1 - r, (i + 0.5) / n + (rnd() - 0.5) * 0.5 / n));
+    out.push({ x, y: 0.5 + (rnd() - 0.5) * 0.12, r, a: 0.55 + 0.45 * rnd() });
+  }
+  return out;
+}
+
 export function tipReach(hasImage) {
   return hasImage ? Math.SQRT1_2 : 0.5;
 }

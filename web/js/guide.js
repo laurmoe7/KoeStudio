@@ -96,11 +96,20 @@ export const GUIDE = [
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.
       With <b>Grain by pressure</b> (on for the Pencil) a light touch only catches the tops of the grain and a firm one
       fills it in, as with graphite.</li>
+      <li><b>Tip</b>: Round, or <b>Bristles</b>, a row of hairs; with <b>Turn with the stroke</b> on and the angle at
+      90° each hair leaves its own streak, as a dry brush does.</li>
       <li><b>Dual brush</b>: a second tip stamped along the stroke (its own size, spacing and scatter); the paint shows
       only where it lands, for chalk, dry bristles or leaves.</li>
     </ul>
     <figure data-pic="taper"><figcaption>Start and End taper make a stroke begin and end thin, even with a mouse.
     The thin end appears when you lift the pen.</figcaption></figure>
+    <h4>Ready-made brushes</h4>
+    <p>The <b>Brush</b> row at the top of a paint tool's panel lists brushes that come with KoeStudio: inks (G-pen,
+    Fineliner, Brush pen), pencils and chalk (HB, 6B, Charcoal, Chalk), paints (Gouache, Watercolour, Dry brush,
+    Marker, Soft blend, Spatter) and, for the Eraser, a hard, a soft and a kneaded eraser. Pick one to load its
+    settings, then change anything you like.</p>
+    <p class="tip">To keep a changed ready-made brush, choose <b>⋯ → Save as new brush</b>. The ready-made ones
+    always stay as they came.</p>
     <h4>Saved brushes</h4>
     <ol>
       <li>Set up a brush you like.</li>
