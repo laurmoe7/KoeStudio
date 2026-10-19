@@ -8,10 +8,23 @@ import { PixelCache } from '../pixelcache.js';
 import { clip } from '../rect.js';
 
 export const directPaintMethods = {
-  /** A pixel cache over a canvas (its pixels are read tile by tile, when first touched). */
+  /**
+   * A pixel cache over a canvas (its pixels are read tile by tile, when first touched). Each tile is copied into a
+   * small canvas of its own and read there: reading the layer itself would make the browser move it off the GPU for
+   * good, and every later redraw would upload it again.
+   */
   pixelCache(canvas) {
-    const ctx = canvas.getContext('2d');
-    return new PixelCache(canvas.width, canvas.height, (x, y, w, h) => ctx.getImageData(x, y, w, h).data);
+    let c = null, ctx = null;
+    return new PixelCache(canvas.width, canvas.height, (x, y, w, h) => {
+      if (!c || c.width < w || c.height < h) {
+        c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.globalCompositeOperation = 'copy';
+      }
+      ctx.drawImage(canvas, x, y, w, h, 0, 0, w, h);
+      return ctx.getImageData(0, 0, w, h).data;
+    });
   },
 
   /** Writes the gesture's changed tiles onto its layer and queues region r for redrawing. */
