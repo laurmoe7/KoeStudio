@@ -26,7 +26,7 @@ export const BUILTIN_BRUSHES = [
   B('watercolor', 'Paint', 'Watercolour', { size: 50, opacity: 0.55, flow: 0.6, hardness: 0.8, spacing: 0.05, minSize: 0.7, texture: 'coldpress', textureAmount: 0.4, textureScale: 3, wetEdges: 0.6 }),
   B('drybrush', 'Paint', 'Dry brush', { size: 40, flow: 1, hardness: 0.8, spacing: 0.02, minSize: 0.6, tip: 'bristle', tipFollow: true, tipAngle: 90, texture: 'paper', textureAmount: 0.55, textureScale: 2 }),
   B('marker', 'Paint', 'Marker', { size: 24, opacity: 0.8, wetEdges: 0.2, flow: 1, hardness: 0.95, spacing: 0.04, pressureSize: false, pressureOpacity: false, thickness: 0.35, tipAngle: 45 }),
-  B('oil', 'Paint', 'Oil paint', { size: 36, flow: 1, hardness: 0.85, spacing: 0.03, minSize: 0.5, minFlow: 0.6, tip: 'bristle', tipFollow: true, tipAngle: 90, mix: 0.55, mixStretch: 0.6 }),
+  B('oil', 'Paint', 'Oil paint', { size: 36, flow: 0.9, hardness: 0.8, spacing: 0.04, minSize: 0.5, thickness: 0.4, tipFollow: true, tipAngle: 90, texture: 'canvas', textureAmount: 0.2, mix: 0.55, mixStretch: 0.6 }),
   B('blender', 'Paint', 'Wet blender', { size: 50, flow: 0.5, hardness: 0.5, spacing: 0.04, pressureSize: false, mix: 0.9, mixStretch: 0.8 }),
   B('soft', 'Paint', 'Soft blend', { size: 90, flow: 0.07, hardness: 0, spacing: 0.06, pressureSize: false, minSize: 0.5 }),
   B('spatter', 'Paint', 'Spatter', { size: 10, flow: 1, hardness: 0.9, spacing: 0.5, pressureSize: false, scatter: 2, count: 6, sizeJitter: 0.8, flowJitter: 0.5 }),
@@ -53,7 +53,9 @@ export function brushListGroups(toolId, presets = [], query = '') {
   const q = String(query).trim().toLowerCase();
   const builtin = builtinBrushesFor(toolId);
   const groups = [...new Set(builtin.map(b => b.group))].map(name => ({ name, brushes: builtin.filter(b => b.group === name) }));
-  groups.push({ name: 'Your brushes', brushes: presets });
+  // your own brushes, then each imported pack as a group of its own (in the order they were added)
+  groups.push({ name: 'Your brushes', brushes: presets.filter(p => !p.source) });
+  for (const src of new Set(presets.map(p => p.source).filter(Boolean))) groups.push({ name: src, brushes: presets.filter(p => p.source === src) });
   return groups.map(g => ({ name: g.name, brushes: q && !g.name.toLowerCase().includes(q) ? g.brushes.filter(b => b.name.toLowerCase().includes(q)) : g.brushes }))
     .filter(g => g.brushes.length);
 }

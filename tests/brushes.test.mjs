@@ -221,6 +221,10 @@ test('the Brushes window lists brushes by group, filtered by the search', async 
   assert.deepEqual(names(brushListGroups('pen', mine, '  INK ')), [['Ink', ['G-pen', 'Fineliner', 'Brush pen']], ['Your brushes', ['My Inky Pen']]]);
   assert.deepEqual(names(brushListGroups('pen', mine, 'soft')), [['Pencil and chalk', ['Soft pencil 6B']], ['Paint', ['Soft blend']]]);
   assert.deepEqual(brushListGroups('pen', mine, 'zzz'), []);
+  // imported brushes are grouped by the pack they came from, after your own
+  const packs = [{ name: 'A', source: 'Pastels' }, { name: 'Mine' }, { name: 'B', source: 'Inks' }, { name: 'C', source: 'Pastels' }];
+  assert.deepEqual(names(brushListGroups('eraser', packs)).slice(1), [['Your brushes', ['Mine']], ['Pastels', ['A', 'C']], ['Inks', ['B']]]);
+  assert.deepEqual(names(brushListGroups('eraser', packs, 'pastels')), [['Pastels', ['A', 'C']]], 'a pack found by its name');
 });
 
 test('a brush counts as changed once a setting it keeps differs', async () => {

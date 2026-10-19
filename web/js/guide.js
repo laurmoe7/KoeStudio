@@ -137,7 +137,17 @@ export const GUIDE = [
     </ol>
     <p>The same <b>⋯</b> menu updates, renames and deletes brushes, adds your own tip and texture pictures, and
     <b>imports Procreate, Photoshop, GIMP and Krita brushes</b> (<code>.brush</code>, <code>.brushset</code>,
-    <code>.abr</code>, <code>.gbr</code>, <code>.gih</code>, <code>.vbr</code>, <code>.kpp</code>, <code>.bundle</code>).</p>`],
+    <code>.abr</code>, <code>.gbr</code>, <code>.gih</code>, <code>.vbr</code>, <code>.kpp</code>, <code>.bundle</code>).</p>
+    <h4>Importing a brush pack</h4>
+    <ol>
+      <li>Click <b>⋯</b> next to the Brush row (or <b>Import…</b> in the Brushes window) and choose import.</li>
+      <li>Every brush in the file shows its own stroke. Type in the search box to find brushes by name.</li>
+      <li>Click the brushes you want. Shift+click picks every brush between two clicks; <b>All</b> and <b>None</b>
+      pick the brushes the search shows.</li>
+      <li>Click <b>Import</b>.</li>
+    </ol>
+    <p class="tip">A brush marked <b>!</b> has a setting KoeStudio does not have: point at the ! to see which. Each pack gets
+    its own group in the Brushes window and the Brush row.</p>`],
 
   ['retouch', 'Smudge, blur and retouching', `
     <p class="lead">These tools change paint that is already on the layer, instead of adding new paint.</p>

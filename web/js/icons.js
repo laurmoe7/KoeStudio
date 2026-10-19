@@ -5,6 +5,7 @@ const F = ' fill="currentColor" fill-opacity=".28"';
 
 const P = {
   open: '<path d="M14 3H6a1 1 0 00-1 1v16a1 1 0 001 1h12a1 1 0 001-1V8z"/><path d="M14 3v5h5"/><path d="M12 18v-7M9 14l3-3 3 3"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/><circle cx="12" cy="12" r="6.5"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 .5c0 1.7-2.5 2-2.5 3.5"/><circle cx="12" cy="17" r=".6"/>',
   pen: `<path d="M14.5 4.5l5 5-8.5 8.5-6.5 1.5 1.5-6.5z"${F}/><path d="M5 19l5.3-5.3"/><circle cx="11.5" cy="12.5" r="1.3"/><path d="M14.5 4.5L16 3l5 5-1.5 1.5"/>`,

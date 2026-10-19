@@ -581,11 +581,21 @@ svg.curve rect { fill: var(--panel-2); stroke: var(--line); stroke-width: .5; }
 svg.curve polyline { fill: none; stroke: var(--accent); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .img-pick { display: flex; gap: 6px; }
 .img-pick select { flex: 1; min-width: 0; }
-.import-all { margin-bottom: 8px; }
-.import-list .pick-row { cursor: pointer; }
-.import-list .pick-row img { background: #fff; }
-.import-list .pick-row img.white-tip { background: #000; }
-.round-tip { width: 64px; height: 48px; flex: none; border-radius: 4px; background: radial-gradient(circle, #111 0 14px, #fff 15px); }
+/* Import brushes: a grid of cards with each brush's stroke; click to pick */
+.modal.wide:has(.imp) { width: min(920px, 94vw); }
+.imp-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.imp-search { flex: 1; min-width: 0; max-width: 320px; }
+.imp-count { margin-left: auto; white-space: nowrap; }
+.imp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 56vh; overflow: auto; padding: 2px; align-content: start; }
+.imp-card { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 4px; text-align: left; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); }
+.imp-card:hover { border-color: var(--muted); }
+.imp-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--row-active); }
+.imp-card canvas { width: 100%; height: 44px; border-radius: 4px; background: #fff; }
+.imp-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.imp-tick { position: absolute; top: 7px; right: 7px; width: 18px; height: 18px; border-radius: 50%; display: none; place-items: center; background: var(--accent-2); color: #fff; }
+.imp-card.on .imp-tick { display: grid; }
+.imp-note { position: absolute; bottom: 4px; right: 5px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; font: 700 10px/1 sans-serif; font-style: normal; background: color-mix(in srgb, #e0a030, var(--panel) 30%); color: #000; cursor: help; }
+.imp-card:has(.imp-note) .imp-name { padding-right: 18px; }
 
 /* Curves */
 .curves { display: flex; flex-direction: column; gap: 8px; }

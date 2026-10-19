@@ -18,6 +18,7 @@ import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../
 import { BUILTIN_BY_ID, builtinBrushesFor, brushListGroups, brushChanged } from '../builtinbrushes.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 import { icon } from '../icons.js';
+import { PICK_ALL_UP_TO, pickMatches, rangePick, noteSummary } from '../brushpick.js';
 
 const newId = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
 const IMG_RE = /^image\//;
@@ -50,6 +51,29 @@ function pickFile(accept) {
   });
 }
 
+/** Makes a decoded tip or texture image available to brushes as 'img:<id>' (tips: the shape as alpha). */
+function registerImage(id, kind, img) {
+  const { w, h } = fitSide(img.naturalWidth, img.naturalHeight, kind === 'tip' ? TIP_MAX : TEXTURE_MAX);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h);
+  if (kind === 'tip') {
+    const mask = tipMask(data.data), out = new ImageData(w, h);
+    for (let i = 0; i < mask.length; i++) out.data[i * 4 + 3] = mask[i];
+    ctx.putImageData(out, 0, 0);
+    registerTip(id, c);
+  } else registerTexture(id, textureGray(data.data), w, h);
+}
+
+/** The saved brushes' <optgroup>s for the Brush choice: your own, then one per imported pack. */
+function mineGroups(presets, opt) {
+  const group = (label, list) => list.length ? `<optgroup label="${esc(label)}">${list.map(opt).join('')}</optgroup>` : '';
+  return group('Your brushes', presets.filter(p => !p.source))
+    + [...new Set(presets.map(p => p.source).filter(Boolean))].map(src => group(src, presets.filter(p => p.source === src))).join('');
+}
+
 /** A small picture of a pressure curve (x: pressure, y: result). */
 export function curveSvg(pts) {
   const line = Array.from({ length: 25 }, (_, i) => `${(i / 24 * 40).toFixed(1)},${(16 - curveAt(pts, i / 24) * 16).toFixed(1)}`).join(' ');
@@ -70,19 +94,7 @@ export const brushMethods = {
   },
 
   async registerBrushImage(entry) {
-    const img = await loadImage(api.brushImageUrl(entry.id));
-    const { w, h } = fitSide(img.naturalWidth, img.naturalHeight, entry.kind === 'tip' ? TIP_MAX : TEXTURE_MAX);
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0, w, h);
-    const data = ctx.getImageData(0, 0, w, h);
-    if (entry.kind === 'tip') {
-      const mask = tipMask(data.data), out = new ImageData(w, h);
-      for (let i = 0; i < mask.length; i++) out.data[i * 4 + 3] = mask[i];
-      ctx.putImageData(out, 0, 0);
-      registerTip(entry.id, c);
-    } else registerTexture(entry.id, textureGray(data.data), w, h);
+    registerImage(entry.id, entry.kind, await loadImage(api.brushImageUrl(entry.id)));
     entry.ready = true;
     this.brushThumbs?.clear();
   },
@@ -107,7 +119,7 @@ export const brushMethods = {
     const groups = [...new Set(builtin.map(b => b.group))].map(g =>
       `<optgroup label="${esc(g)}">${builtin.filter(b => b.group === g).map(opt).join('')}</optgroup>`).join('');
     return `<div class="preset-row"><label class="slider" title="Ready-made and saved brushes: pick one to load its settings"><span>Brush</span>
-      <select data-preset><option value="">Custom</option>${groups}${presets.length ? `<optgroup label="Your brushes">${presets.map(opt).join('')}</optgroup>` : ''}</select></label>
+      <select data-preset><option value="">Custom</option>${groups}${mineGroups(presets, opt)}</select></label>
       <button class="icon-btn" data-brush-menu title="Save, import and manage brushes">⋯</button></div>
       <button class="brush-strip${this.brushListWin ? ' on' : ''}" data-brush-list title="The current brush. Click to choose from every brush, each with a sample stroke">
         <canvas></canvas><span class="bs-more">${icon('brush', 14)}</span></button>`;
@@ -588,7 +600,12 @@ export const brushMethods = {
     return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('Could not convert a brush tip.'))), 'image/png'));
   },
 
-  /** Brush menu → Import brushes: a Procreate (.brush, .brushset) or Photoshop (.abr) file; pick which to keep. */
+  /**
+   * Brush menu → Import brushes: a Procreate, Photoshop, GIMP or Krita file; pick which to keep. Every brush shows its
+   * own sample stroke (the pack's images are registered under temporary ids while the dialog is open, and strokes are
+   * drawn only once a card scrolls into view), with a search box, All / None for the brushes shown, Shift+click for a
+   * range, and a badge listing what a brush loses. Big packs start with nothing picked (brushpick.js).
+   */
   async importBrushFile() {
     const file = await pickFile('.brush,.brushset,.abr,.gbr,.gih,.vbr,.kpp,.bundle');
     if (!file) return;
@@ -599,28 +616,90 @@ export const brushMethods = {
       toast(e.message, { error: true });
       return;
     }
-    const thumb = b => {
-      const im = res.images[b.tip];
-      return im ? `<img src="${im.png}" alt=""${im.white ? ' class="white-tip"' : ''}>` : '<span class="round-tip"></span>';
-    };
+    const temp = new Map();  // image index -> temporary id
+    await Promise.all(res.images.map(async (im, k) => {
+      const url = im.white ? URL.createObjectURL(await this.importedImagePng(im)) : im.png;
+      try {
+        const id = newId();
+        registerImage(id, im.kind, await loadImage(url));
+        temp.set(k, id);
+      } catch { /* drawn with a round tip */ } finally { if (im.white) URL.revokeObjectURL(url); }
+    }));
+    const base = this.brushSettingsOf(TOOL_BY_ID.brush.defaults), ref = k => (temp.has(k) ? `img:${temp.get(k)}` : null);
+    const looks = res.brushes.map(b => applySettings({ ...base }, { ...b.settings,
+      tip: ref(b.tip) || 'round', texture: ref(b.texture) || 'none', ...(ref(b.dual) ? { dualTip: ref(b.dual) } : {}) }));
+    const n = res.brushes.length, picked = new Set(n <= PICK_ALL_UP_TO ? res.brushes.keys() : []);
+    const lost = noteSummary(res.brushes);
+    let observer = null, raf = 0;
     const chosen = await modal({
       title: `Import brushes from ${file.name}`,
       wide: true,
-      body: `<label class="check import-all"><input type="checkbox" data-all checked> All ${res.brushes.length} brush${res.brushes.length === 1 ? '' : 'es'}</label>
-        <div class="pick-list import-list">${res.brushes.map((b, i) => `<label class="pick-row"><input type="checkbox" data-i="${i}" checked>${thumb(b)}
-          <div class="grow"><b>${esc(b.name)}</b><div class="muted small">${b.texture != null ? 'With texture' : 'No texture'}${b.notes.length ? ` · not carried over: ${esc(b.notes.join(', '))}` : ''}</div></div></label>`).join('')}</div>
-        <p class="muted small">Size, opacity, spacing, tip angle, squash and rotation, pen pressure and texture strength come from the brushes. Procreate settings are approximate; check the size after importing.</p>`,
+      body: `<div class="imp">
+        <div class="imp-bar"><input type="search" class="imp-search" placeholder="Search ${n} brush${n === 1 ? '' : 'es'}" aria-label="Search the brushes" spellcheck="false" data-own-enter>
+          <button type="button" data-imp="all" title="Pick every brush shown">All</button><button type="button" data-imp="none" title="Pick none of the brushes shown">None</button>
+          <span class="imp-count muted small"></span></div>
+        <div class="imp-grid">${res.brushes.map((b, i) => `<button type="button" class="imp-card" data-i="${i}" title="${esc(b.name)}">
+          <canvas></canvas><span class="imp-name">${esc(b.name)}</span>${b.notes.length ? `<i class="imp-note" title="${esc('Not carried over: ' + b.notes.join(', '))}">!</i>` : ''}<i class="imp-tick">${icon('check', 12)}</i></button>`).join('')}</div>
+        <p class="imp-empty muted small" hidden>No brush has that name.</p>
+        <p class="muted small">Click the brushes to keep (Shift+click picks a range). Size, opacity, spacing, tip, pen pressure, texture and wet mixing come with them; Procreate settings are approximate, so check the size after importing.${lost.length ? ` <span title="${esc(lost.map(([t, c]) => `${t}: ${c}`).join(', '))}">Some brushes lose a setting KoeStudio does not have (marked !).</span>` : ''}</p>
+      </div>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'Import', primary: true }],
       onOpen: root => {
-        const boxes = [...root.querySelectorAll('[data-i]')], all = root.querySelector('[data-all]');
-        all.onchange = () => boxes.forEach(b => { b.checked = all.checked; });
+        const grid = root.querySelector('.imp-grid'), cards = [...grid.children], search = root.querySelector('.imp-search');
+        const ok = root.querySelector('.modal-buttons .primary'), count = root.querySelector('.imp-count');
+        let shown = cards.map((_, i) => i), last = null;
+        const update = () => {
+          cards.forEach((c, i) => c.classList.toggle('on', picked.has(i)));
+          count.textContent = `${picked.size} of ${n} picked`;
+          ok.textContent = picked.size ? `Import ${picked.size}` : 'Import';
+        };
+        // strokes are drawn for cards in view, a few per frame
+        const todo = new Set();
+        const draw = () => {
+          const t0 = performance.now();
+          for (const c of todo) {
+            if (performance.now() - t0 > 12) break;
+            todo.delete(c);
+            const cv = c.querySelector('canvas'), dpr = window.devicePixelRatio || 1;
+            cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(cv.clientHeight * dpr);
+            if (cv.width && cv.height) this.paintPreviewStroke(cv, looks[+c.dataset.i], 0.32);
+          }
+          raf = todo.size && root.isConnected ? requestAnimationFrame(draw) : 0;
+        };
+        observer = new IntersectionObserver(entries => {
+          for (const e of entries) if (e.isIntersecting) { todo.add(e.target); observer.unobserve(e.target); }
+          if (todo.size && !raf) raf = requestAnimationFrame(draw);
+        }, { root: grid, rootMargin: '120px' });
+        cards.forEach(c => observer.observe(c));
+        grid.onclick = e => {
+          const c = e.target.closest('.imp-card');
+          if (!c) return;
+          const i = +c.dataset.i, on = !picked.has(i);
+          for (const k of e.shiftKey ? rangePick(shown, last, i) : [i]) on ? picked.add(k) : picked.delete(k);
+          last = i;
+          update();
+        };
+        search.oninput = () => {
+          shown = pickMatches(res.brushes.map(b => b.name), search.value);
+          const vis = new Set(shown);
+          cards.forEach((c, i) => { c.hidden = !vis.has(i); });
+          root.querySelector('.imp-empty').hidden = shown.length > 0;
+          root.querySelector('[data-imp="all"]').textContent = search.value.trim() ? `All ${shown.length}` : 'All';
+        };
+        root.querySelector('[data-imp="all"]').onclick = () => { shown.forEach(i => picked.add(i)); update(); };
+        root.querySelector('[data-imp="none"]').onclick = () => { shown.forEach(i => picked.delete(i)); update(); };
+        update();
       },
-      collect: root => {
-        const picked = [...root.querySelectorAll('[data-i]:checked')].map(b => res.brushes[+b.dataset.i]);
-        return picked.length ? picked : undefined;
+      collect: () => {
+        if (!picked.size) { toast('Click the brushes you want to import first.'); return undefined; }
+        return [...picked].sort((a, b) => a - b).map(i => res.brushes[i]);
       },
     });
+    observer?.disconnect();
+    cancelAnimationFrame(raf);
+    for (const id of temp.values()) forgetBrushImage(id);
     if (!chosen) return;
+    if (chosen.length > 20) toast(`Importing ${chosen.length} brushes…`);
     // the images the chosen brushes use, each saved once
     const saved = new Map();
     try {
@@ -638,7 +717,6 @@ export const brushMethods = {
       toast('Could not save the brush images: ' + e.message, { error: true });
       return;
     }
-    const base = this.brushSettingsOf(TOOL_BY_ID.brush.defaults);
     const presets = chosen.map(b => ({
       id: newId(), name: b.name, source: res.name,
       settings: applySettings({ ...base }, { ...b.settings,
@@ -649,6 +727,7 @@ export const brushMethods = {
     if (!(await this.savePresetList())) return;
     if (TOOL_BY_ID[this.tool].kind !== 'paint' || TOOL_BY_ID[this.tool].erase) this.selectTool('brush');
     this.applyPreset(presets[0].id);
+    if (presets.length > 1 && !this.brushListState().open) this.toggleBrushList(true);  // the pack, as a group of its own
     toast(presets.length === 1 ? `Imported “${presets[0].name}”` : `Imported ${presets.length} brushes`);
   },
 };
