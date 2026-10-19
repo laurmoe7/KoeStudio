@@ -5,6 +5,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Wet edges (Brush settings → Paint): paint gathers at the edge of the stroke and the middle stays lighter, as watercolour does when it dries.
+- Watercolour now gives see-through washes with darker edges and a mottled grain, and strokes laid over each other get deeper. The Marker's ink gathers slightly at its edges.
+- Gouache covers flat and opaque, and runs dry into the paper grain at a light touch instead of looking sandy all over. The Dry brush leaves bristle streaks instead of scattered dots.
 - Colour themes for the app: Dusty rose, Lavender dusk, Moss, Deep sea, Cocoa and Ink black, besides the usual Midnight. Pick one from View → Theme or the Theme button on the start screen.
 - The Pencil shades more like graphite: a light touch now gives a soft grey line instead of broken black dots, and pressing harder darkens it smoothly to near black. The HB, 6B, Charcoal and Chalk brushes do the same.
 - Brushes window: every brush with a sample stroke in your colour, a search box, and one click to use it. Open it from View → Brushes or by clicking the new stroke of the current brush under the Brush choice.

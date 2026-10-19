@@ -3,7 +3,7 @@
 // pen stroke is committed; so a line looks the same drawn live and redrawn from the data.
 
 import { liveSource } from './doc.js';
-import { Painter, textureFor, grainFor } from './painter.js';
+import { Painter, textureFor, grainFor, wetFor } from './painter.js';
 import { stampAt } from './brush.js';
 import { strokeBounds, strokeStamps, dualStamps, seeded, brushOf } from './vector.js';
 import { clip } from './rect.js';
@@ -46,7 +46,7 @@ export function renderVector(layer, rect = null) {
       const dp = new Painter(dctx, { color: '#000000', hardness: b.hardness, tip: b.dualTip });
       for (const st of dualStamps(s, b)) dp.dab(st.x, st.y, st.size, 1);
     }
-    const [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), dual }, a);
+    const [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), wet: wetFor(b), dual }, a);
     ctx.globalAlpha = s.opacity;
     ctx.drawImage(src, sx, sy, a.w, a.h, a.x, a.y, a.w, a.h);
     ctx.globalAlpha = 1;

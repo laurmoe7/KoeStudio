@@ -11,7 +11,7 @@ import { api } from '../api.js';
 import { curveAt, stampAt, previewPath, previewSettings } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage, liveSource } from '../doc.js';
-import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, grainFor } from '../painter.js';
+import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, grainFor, wetFor } from '../painter.js';
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
@@ -251,7 +251,7 @@ export const brushMethods = {
       const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: b.dualTip });
       for (const st of dualStamps(line, b)) dp.dab(st.x, st.y, st.size, 1);
     }
-    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), dual }, r);
+    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), wet: wetFor(b), dual }, r);
     ctx.globalAlpha = s.opacity ?? 1;
     ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
     ctx.globalAlpha = 1;

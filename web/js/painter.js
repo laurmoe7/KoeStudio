@@ -277,6 +277,12 @@ export function textureFor(s) {
   return grainTile(s);
 }
 
+/** The live.wet for a paint tool's settings, or null: how much of the stroke's middle drains to its edge (0-1), and
+ * how far in from the edge the paint gathers (the blur that finds the edge, in px: a sixth of the brush size). */
+export function wetFor(s) {
+  return s.wetEdges > 0 && !s.pixel ? { amount: Math.min(1, s.wetEdges), blur: Math.max(1, Math.min(40, (s.size || 1) / 6)) } : null;
+}
+
 /** Painter's `grain` for settings with grainPressure: the texture tile (alpha: groove depth times the grain amount),
  * its scale, and the brush's full density (a dab at it reaches the bottom of the grain). */
 export function grainFor(s) {

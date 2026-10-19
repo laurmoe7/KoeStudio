@@ -82,7 +82,8 @@ export const GUIDE = [
     <p>A preview stroke at the top of that window shows every change straight away. You can keep painting while it is
     open; drag it by its title bar.</p>
     <ul>
-      <li><b>Paint</b>: size, opacity, density, hardness.</li>
+      <li><b>Paint</b>: size, opacity, density, hardness. <b>Wet edges</b> lets the paint gather at the edge of the
+      stroke and leaves the middle lighter, as watercolour does when it dries (on for Watercolour and Marker).</li>
       <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke. The
       outline under the pointer takes the tip's shape, so you see what a dab will look like.
       <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).</li>
@@ -108,7 +109,8 @@ export const GUIDE = [
     <p>The <b>Brush</b> row at the top of a paint tool's panel lists brushes that come with KoeStudio: inks (G-pen,
     Fineliner, Brush pen), pencils and chalk (HB, 6B, Charcoal, Chalk), paints (Gouache, Watercolour, Dry brush,
     Marker, Soft blend, Spatter) and, for the Eraser, a hard, a soft and a kneaded eraser. Pick one to load its
-    settings, then change anything you like.</p>
+    settings, then change anything you like. Watercolour washes are see-through with darker edges, so strokes laid
+    over each other get deeper; Gouache covers flat and runs dry at a light touch.</p>
     <p class="tip">To keep a changed ready-made brush, choose <b>⋯ → Save as new brush</b>. The ready-made ones
     always stay as they came.</p>
     <h4>Brushes window</h4>

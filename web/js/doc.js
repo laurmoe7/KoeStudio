@@ -747,6 +747,36 @@ export function tonedCanvas(layer) {
 }
 
 /**
+ * Wet edges (live.wet = {amount k, blur}): region r of the stroke A, already in ctx, becomes A * (1 - k) + 2k * A *
+ * (1 - B), B being A blurred: the middle of the stroke (where B is as full as A) gives up k of its paint, and a rim
+ * just inside the edge (where B has dropped) gains it, as watercolour does when it dries. The blur reads a margin
+ * round r, so a part redrawn on its own matches the whole.
+ */
+function wetEdges(ctx, live, r) {
+  const { amount: k, blur } = live.wet, m = Math.ceil(blur * 3);
+  const R = { x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m };
+  const [bc, bctx] = scratchCanvas('wetBlur', R);
+  bctx.filter = `blur(${blur}px)`;
+  bctx.drawImage(live.canvas, R.x, R.y, R.w, R.h, 0, 0, R.w, R.h);
+  bctx.filter = 'none';
+  const [rim, rctx] = scratchCanvas('wetRim', r);
+  rctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  rctx.globalCompositeOperation = 'destination-out';
+  rctx.drawImage(bc, m, m, r.w, r.h, 0, 0, r.w, r.h);
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.globalAlpha = k;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, r.w, r.h);
+  ctx.globalCompositeOperation = 'lighter';  // same colours, so adding them only adds paint
+  for (let left = 2 * k; left > 0; left -= 1) {
+    ctx.globalAlpha = Math.min(1, left);
+    ctx.drawImage(rim, 0, 0, r.w, r.h, 0, 0, r.w, r.h);
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/**
  * Where to read region r of a live stroke from: [canvas, sx, sy]. A stroke with a brush texture
  * (live.texture = {tile, scale}, tile being a canvas whose alpha is what the grain removes) is copied to a scratch
  * canvas and the grain cut out of it there; the texture is anchored to the doc, so it never shifts between updates.
@@ -755,9 +785,10 @@ export function tonedCanvas(layer) {
  * the dual brush's dabs) and live.inside (where a brush that stays inside reference lines may paint) cut it down the same way.
  */
 export function liveSource(live, r) {
-  if (!live.texture && !live.sel && !live.dual && !live.inside) return [live.canvas, r.x, r.y];
+  if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet) return [live.canvas, r.x, r.y];
   const [c, ctx] = scratchCanvas('live', r);
   ctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  if (live.wet) wetEdges(ctx, live, r);
   if (live.texture) {
     const { tile, scale } = live.texture;
     if (!tile.pattern) tile.pattern = ctx.createPattern(tile, 'repeat');

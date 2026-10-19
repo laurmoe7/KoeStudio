@@ -239,3 +239,27 @@ test('a brush counts as changed once a setting it keeps differs', async () => {
   assert.equal(brushChanged({ ...s, size: 12 }, { settings: { size: 13 } }), true);
   assert.equal(brushChanged(s, undefined), false, 'no brush loaded: Custom');
 });
+
+test('wet edges', async () => {
+  const { wetFor } = await import('../web/js/painter.js');
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  const { BUILTIN_BY_ID } = await import('../web/js/builtinbrushes.js');
+  assert.equal(wetFor({ wetEdges: 0, size: 50 }), null, 'off by default');
+  // the edge is found with a blur of a sixth of the size: 60 px -> 10 px, never under 1 px or over 40
+  assert.deepEqual(wetFor({ wetEdges: 0.6, size: 60 }), { amount: 0.6, blur: 10 });
+  assert.equal(wetFor({ wetEdges: 1, size: 3 }).blur, 1);
+  assert.equal(wetFor({ wetEdges: 1, size: 600 }).blur, 40);
+  assert.equal(wetFor({ wetEdges: 0.5, size: 20, pixel: true }), null, 'hard pixels stay hard');
+  // every paint tool has it (off), saved settings and vector lines keep it within 0-1
+  const all = sanitizeSettings(null);
+  assert.equal(all.brush.wetEdges, 0);
+  assert.equal(sanitizeSettings({ brush: { wetEdges: 3 } }).brush.wetEdges, 1);
+  assert.ok(BRUSH_KEYS.includes('wetEdges'));
+  assert.equal(sanitizeBrush({ wetEdges: 0.4 }).wetEdges, 0.4);
+  assert.equal(sanitizeBrush({}).wetEdges, 0, 'older lines have none');
+  // the Watercolour and Marker use it; the Dry brush streaks with the grain of the whole stroke
+  assert.equal(BUILTIN_BY_ID['b-watercolor'].settings.wetEdges, 0.6);
+  assert.equal(BUILTIN_BY_ID['b-marker'].settings.wetEdges, 0.2);
+  assert.equal(BUILTIN_BY_ID['b-drybrush'].settings.grainPressure, false);
+  assert.equal(BUILTIN_BY_ID['b-gouache'].settings.grainPressure, true, 'gouache runs dry at a light touch');
+});

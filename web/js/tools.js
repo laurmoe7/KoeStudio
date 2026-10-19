@@ -20,7 +20,7 @@ function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0,
     tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false, refStop: false,
-    dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, preset: '' };
+    dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, preset: '' };
 }
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
@@ -135,6 +135,7 @@ export const SETTING_FIELDS = [
   ['preset', 'Brush', 'id'],
   ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
   ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
+  ['wetEdges', 'Wet edges', 'range', 0, 1, 0.01],
   ['leading', 'Line spacing', 'range', 0.5, 4, 0.05],
   ['outline', 'Outline', 'range', 0, 50, 1],
   ['outlineColor', 'Outline in', 'choice', OUTLINE_COLORS],
@@ -163,7 +164,7 @@ export const BASIC_PAINT = ['vectorErase', 'size', 'opacity', 'flow', 'hardness'
 
 /** The pages of the Brush settings window, and which settings each holds (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
-  ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness', 'refStop']],
+  ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness', 'wetEdges', 'refStop']],
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow', 'pixel']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'quickShape']],
@@ -202,6 +203,7 @@ export const SETTING_HINTS = {
   vertical: 'Write top to bottom, with columns from right to left, as in manga',
   texture: 'Paper grain for the whole stroke; it stays fixed to the canvas, so strokes share one grain',
   textureAmount: 'How much paint the grooves of the texture leave out',
+  wetEdges: 'Like watercolour drying: the paint gathers at the edge of the stroke and the middle stays lighter',
   textureScale: 'Size of the texture (100% = as made)',
   figure: 'Drag to draw it; hold Shift for a 45° line, a square or a circle. Polyline and polygon: click each corner; Curve and Closed curve: click points the curve passes through. Double-click or Enter to finish',
   fill: 'Fill the rectangle, ellipse or polygon, not only its outline',
