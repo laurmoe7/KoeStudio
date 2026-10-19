@@ -7,7 +7,7 @@ import { floodMask, growMask } from '../web/js/fill.js';
 import { History } from '../web/js/history.js';
 import { isReloadKey, comboOf, isTyping, springBack } from '../web/js/keys.js';
 import { union, clip, alphaBounds } from '../web/js/rect.js';
-import { newView, toDoc, toScreen, zoomAt, rotateAt, flipAt, fitView, fitRectView } from '../web/js/view.js';
+import { newView, toDoc, toScreen, zoomAt, rotateAt, flipAt, fitView, fitRectView, resizedView } from '../web/js/view.js';
 import { sanitizeSettings, nextSize, TOOLS } from '../web/js/tools.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
@@ -136,6 +136,16 @@ test('view transform round-trips and keeps the anchor point still', () => {
   const f = fitView(1000, 500, 600, 400, 50);
   assert.equal(f.zoom, 0.5, 'min((600-100)/1000, (400-100)/500) = .5');
   assert.deepEqual([f.panX, f.panY], [50, 75], 'centred: (600-500)/2, (400-250)/2');
+  // the area grows from 600 x 400 to 900 x 400 (40 px margins): fitted at min(520/1000, 320/500) = .52 it is fitted
+  // again at min(820/1000, 320/500) = .64, centred: ((900-640)/2, (400-320)/2)
+  const g = resizedView(fitView(1000, 500, 600, 400), 1000, 500, 600, 400, 900, 400);
+  near(g.zoom, 0.64, 1e-9); near(g.panX, 130, 1e-9); near(g.panY, 40, 1e-9);
+  // zoomed in by the user: the same zoom, the middle of the area stays on the same doc point
+  const z = { zoom: 2, rot: 0, flip: false, panX: -300, panY: -100 };
+  const mid = toDoc(z, 300, 200), h = resizedView(z, 1000, 500, 600, 400, 500, 300);
+  assert.deepEqual([h.zoom, h.panX, h.panY], [2, -350, -150], 'pan shifts by half the change: -100/2 each way');
+  const mid2 = toDoc(h, 250, 150);
+  near(mid2.x, mid.x, 1e-9); near(mid2.y, mid.y, 1e-9);
 });
 
 test('tool settings', () => {

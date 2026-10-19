@@ -73,6 +73,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- Resizing the window, hiding the panels (Tab) or the shortcut strip appearing no longer pushes the picture off to one side: a canvas fitted to the window stays fitted, and a zoomed-in view keeps the same spot in the middle.
 - An artwork that fails to open no longer leaves errors behind on the start screen.
 - Task Manager now lists KoeStudio under its own name and cow icon, instead of under "Python launcher (windowed)".
 - The KoeStudio window always belongs to KoeStudio.exe, so programs that recognise apps by their file name no longer mistake other Python programs for KoeStudio.

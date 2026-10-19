@@ -75,6 +75,17 @@ export function fitView(docW, docH, vw, vh, margin = 40) {
   return { zoom, rot: 0, flip: false, panX: (vw - docW * zoom) / 2, panY: (vh - docH * zoom) / 2 };
 }
 
+/**
+ * The view after the canvas area changes size from ow x oh to vw x vh (window resized, panels or the shortcut strip
+ * shown or hidden): a view fitted to the window stays fitted; any other keeps the doc point in the middle of the area
+ * in the middle, at the same zoom.
+ */
+export function resizedView(v, docW, docH, ow, oh, vw, vh) {
+  const f = fitView(docW, docH, ow, oh), eq = (a, b) => Math.abs(a - b) < 1e-6;
+  if (!v.rot && !v.flip && eq(v.zoom, f.zoom) && eq(v.panX, f.panX) && eq(v.panY, f.panY)) return fitView(docW, docH, vw, vh);
+  return { ...v, panX: v.panX + (vw - ow) / 2, panY: v.panY + (vh - oh) / 2 };
+}
+
 /** The view keeping v's turn and mirror that shows doc rectangle r ({x, y, w, h}) as big as fits, centred. */
 export function fitRectView(v, r, vw, vh, margin = 40) {
   const c = Math.abs(Math.cos(v.rot)), s = Math.abs(Math.sin(v.rot));

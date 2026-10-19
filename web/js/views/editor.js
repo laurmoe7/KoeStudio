@@ -19,7 +19,7 @@ import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize } from '../tools.js';
 import { esc, toast, menu, openMenuOwner, modal, promptBox, fileToDataUrl, store, themeMenu, cssVar } from '../ui.js';
 import { exportMethods } from './exporttools.js';
-import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, fitRectView, actualSize, pinchView } from '../view.js';
+import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, fitRectView, actualSize, pinchView, resizedView } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
 import { LayerPanel } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
@@ -499,6 +499,10 @@ export class Editor {
     tools.classList.toggle('two-col', tools.scrollHeight > tools.clientHeight + 1);
     const r = this.viewport.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    // the area changed size (window, panels, shortcut strip): a fitted canvas stays fitted, otherwise the middle stays put
+    if (!this.needsFit && this.vw > 0 && this.vh > 0 && r.width > 0 && r.height > 0 && (r.width !== this.vw || r.height !== this.vh)) {
+      this.view = resizedView(this.view, this.doc.width, this.doc.height, this.vw, this.vh, r.width, r.height);
+    }
     this.vw = r.width; this.vh = r.height; this.dpr = dpr;
     this.placeStrip();  // a floating shortcut strip stays inside the canvas area
     this.bg = cssVar('--canvas-bg', '#34353c');
