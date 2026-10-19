@@ -952,6 +952,7 @@ export class Editor {
         if (out) out.textContent = fmt(k, s[k]);
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged(k);
+        if (k === 'sample' && (t.id === 'fill' || t.id === 'wand')) this.prepareSample(t.id);  // the other pixels, ready too
         if (k === 'texture' || k === 'figure') this.renderToolProps();  // which settings show depends on these
         else this.showSetting(k, inp);
         this.drawBrushPreview();
@@ -1742,6 +1743,8 @@ export class Editor {
     this.updateComp(r);
     this.requestRender();
     if (!this.thumbTimer) this.thumbTimer = setTimeout(() => { this.thumbTimer = 0; this.layerPanel.thumbs(); this.timelineThumbs(); }, 150);
+    // Fill and the wand: bring their copy of the pixels up to date while idle, not at the next click
+    if ((this.compRead || this.refRead) && (this.tool === 'fill' || this.tool === 'wand')) this.prepareSample(this.tool);
     if (save) {
       this.doc.version++;
       this.scheduleSave();
