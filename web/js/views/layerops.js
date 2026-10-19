@@ -601,7 +601,10 @@ export const layerMethods = {
   recordMove(parts, dx, dy, entry = null) {
     const d = this.doc;
     for (const p of parts) {
-      if (p.after?.canvas) p.after.canvas = null;  // an earlier nudge's: no need to read it any more
+      if (p.after?.canvas) {  // an earlier nudge's: no need to read it any more, and its GPU memory goes now
+        p.after.canvas.width = p.after.canvas.height = 0;
+        p.after.canvas = null;
+      }
       p.after = this.snapshot(p.r, { x: 0, y: 0, w: d.width, h: d.height });
       p.r.touch();
       if (p.textBefore) {  // a text layer keeps its text editable: move where it is drawn (a turned text moves its matrix)

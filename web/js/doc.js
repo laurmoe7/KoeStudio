@@ -738,12 +738,13 @@ export function tonedCanvas(layer) {
 function wetEdges(ctx, live, r) {
   const { amount: k, blur } = live.wet, m = Math.ceil(blur * 3);
   const R = { x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m };
+  const [src, sx, sy] = strokeOf(live, R);
   const [bc, bctx] = scratchCanvas('wetBlur', R);
   bctx.filter = `blur(${blur}px)`;
-  bctx.drawImage(live.canvas, R.x, R.y, R.w, R.h, 0, 0, R.w, R.h);
+  bctx.drawImage(src, sx, sy, R.w, R.h, 0, 0, R.w, R.h);
   bctx.filter = 'none';
   const [rim, rctx] = scratchCanvas('wetRim', r);
-  rctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  rctx.drawImage(src, sx + m, sy + m, r.w, r.h, 0, 0, r.w, r.h);
   rctx.globalCompositeOperation = 'destination-out';
   rctx.drawImage(bc, m, m, r.w, r.h, 0, 0, r.w, r.h);
   ctx.globalCompositeOperation = 'destination-out';
@@ -760,17 +761,35 @@ function wetEdges(ctx, live, r) {
 }
 
 /**
+ * Region r of a live stroke with a combined brush's second brush (live.combo = {canvas, op}, its dabs drawn there
+ * normally) blended over it: [canvas, sx, sy]. The blend mode is applied here, once per read, and not dab by dab:
+ * on a big stroke canvas every Multiply / Screen / ... dab made the GPU copy what was under it, and those copies
+ * piled up to gigabytes of GPU memory.
+ */
+function strokeOf(live, r) {
+  if (!live.combo) return [live.canvas, r.x, r.y];
+  const [c, ctx] = scratchCanvas('combo', r);
+  ctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  ctx.globalCompositeOperation = live.combo.op;
+  ctx.drawImage(live.combo.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  ctx.globalCompositeOperation = 'source-over';
+  return [c, 0, 0];
+}
+
+/**
  * Where to read region r of a live stroke from: [canvas, sx, sy]. A stroke with a brush texture
  * (live.texture = {tile, scale}, tile being a canvas whose alpha is what the grain removes) is copied to a scratch
  * canvas and the grain cut out of it there; the texture is anchored to the doc, so it never shifts between updates.
  * A stroke inside a selection (live.sel) is cut down to it the same way, once per read: clipping the stroke canvas
  * itself after every dab would apply a feathered selection's partial alpha again and again. live.dual (a canvas of
  * the dual brush's dabs) and live.inside (where a brush that stays inside reference lines may paint) cut it down the same way.
+ * A combined brush's second brush is blended in first (strokeOf).
  */
 export function liveSource(live, r) {
-  if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet) return [live.canvas, r.x, r.y];
+  if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet) return strokeOf(live, r);
+  const [src, sx, sy] = strokeOf(live, r);
   const [c, ctx] = scratchCanvas('live', r);
-  ctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  ctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);
   if (live.wet) wetEdges(ctx, live, r);
   if (live.texture) {
     const { tile, scale } = live.texture;

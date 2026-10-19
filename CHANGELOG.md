@@ -81,6 +81,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- Combined brushes with a Combine mode other than Normal no longer make the app use a gigabyte or more of extra memory while you paint.
+- Undo copies of each stroke free their graphics memory as soon as they are stored, instead of whenever the browser gets round to it.
 - Procreate brush sets no longer show every brush two or three times (Procreate's reset copies and the halves of combined brushes were read as brushes), and brushes without a name get the set's name and a number instead of a long code. Long brush names no longer spill out of their card.
 - An artwork with one damaged layer picture now opens instead of failing: that layer shows empty with a warning, and its saved picture is kept as it was unless you paint on it.
 - Resizing the window, hiding the panels (Tab) or the shortcut strip appearing no longer pushes the picture off to one side: a canvas fitted to the window stays fitted, and a zoomed-in view keeps the same spot in the middle.

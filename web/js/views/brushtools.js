@@ -264,15 +264,20 @@ export const brushMethods = {
       painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
     }
     const cs = comboSettings(previewSettings(s, h * maxSize));
-    if (cs) {  // a combined brush: the second brush along the same line, over the first
-      const c = sanitizeBrush(cs), cp = new Painter(sctx, { color: line.color, hardness: c.hardness, tip: c.tip, thickness: c.thickness,
-        angle: c.tipAngle, random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel, rnd: seeded(PREVIEW_SEED + 11) });
-      sctx.globalCompositeOperation = comboOp(s.comboMode);
+    let combo = null;
+    if (cs) {  // a combined brush: the second brush along the same line, blended over the first by liveSource
+      const op = comboOp(s.comboMode);
+      if (op !== 'source-over') {
+        const cc = this.previewCombo ||= document.createElement('canvas');
+        cc.width = w; cc.height = h;
+        combo = { canvas: cc, op };
+      }
+      const c = sanitizeBrush(cs), cp = new Painter(combo ? combo.canvas.getContext('2d') : sctx, { color: line.color, hardness: c.hardness, tip: c.tip,
+        thickness: c.thickness, angle: c.tipAngle, random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel, rnd: seeded(PREVIEW_SEED + 11) });
       for (const st of strokeStamps({ ...line, seed: PREVIEW_SEED + 3 }, c)) {
         const { size, flow } = stampAt(c, st.p);
         cp.dab(st.x, st.y, size * st.k, flow * st.f, 0);
       }
-      sctx.globalCompositeOperation = 'source-over';
     }
     let dual = null;
     if (b.dualTip !== 'none') {  // the dual brush along the same path, as vector lines draw it
@@ -281,7 +286,7 @@ export const brushMethods = {
       const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: b.dualTip });
       for (const st of dualStamps(line, b)) dp.dab(st.x, st.y, st.size, 1);
     }
-    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), wet: wetFor(b), dual }, r);
+    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), wet: wetFor(b), dual, combo }, r);
     ctx.globalAlpha = s.opacity ?? 1;
     ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
     ctx.globalAlpha = 1;

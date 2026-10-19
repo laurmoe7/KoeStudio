@@ -1388,6 +1388,7 @@ export class Editor {
     // vector lines are kept whole, so the selection does not cut them
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), wet: wetFor(s), sel: this.sel.active && !layer.vector ? this.sel : null,
       dual: this.gesture.dual ? this.dualCanvas : null,
+      combo: this.gesture.combo?.canvas ? { canvas: this.gesture.combo.canvas, op: this.gesture.combo.op } : null,
       inside: s.refStop && !layer.vector ? this.insideLinesClip(line || pt, s.size / 2) : null };  // stay inside reference lines
     if (line) {
       this.addStampPoint({ ...line, p: pt.p });
@@ -1492,15 +1493,28 @@ export class Editor {
 
   /**
    * The second brush of a combined brush (Brush settings → Combined, combo.js): its own path, spacing, jitter and tip
-   * along the same smoothed points, dabbed into the stroke canvas in the stroke's colour with the comboMode operation.
+   * along the same smoothed points, in the stroke's colour. In Normal mode it dabs straight into the stroke canvas;
+   * other modes dab into this.comboCanvas, which liveSource blends over the stroke with the comboMode operation
+   * (a blend mode dab by dab on the big stroke canvas cost gigabytes of GPU memory).
    */
   comboBrush(s, color) {
     const c = comboSettings(s);
     if (!c) return null;
-    const sizeAt = p => stampAt(c, p).size;
+    const sizeAt = p => stampAt(c, p).size, op = comboOp(s.comboMode);
+    let canvas = null, ctx = this.strokeCtx;
+    if (op !== 'source-over') {
+      const d = this.doc;
+      canvas = this.comboCanvas ||= document.createElement('canvas');
+      if (canvas.width !== d.width || canvas.height !== d.height) { canvas.width = d.width; canvas.height = d.height; }
+      ctx = canvas.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.clearRect(0, 0, d.width, d.height);
+    }
     return {
-      s: c, sizeAt, op: comboOp(s.comboMode), path: new StampPath(sizeAt, c.spacing),
-      painter: new Painter(this.strokeCtx, { color, hardness: c.hardness, tip: c.tip, thickness: c.thickness, angle: c.tipAngle,
+      s: c, sizeAt, op, canvas, path: new StampPath(sizeAt, c.spacing),
+      painter: new Painter(ctx, { color, hardness: c.hardness, tip: c.tip, thickness: c.thickness, angle: c.tipAngle,
         random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel }),
       reachAt: p => sizeAt(p) * tipReach(hasTipImage(c.tip)) * 2 * (1 + c.scatter),
     };
@@ -1514,13 +1528,11 @@ export class Editor {
       st.x += j.dx; st.y += j.dy; st.k = j.sizeK; st.f = j.flowK;
     }
     const all = symmetryStamps(this.doc.rulers.symmetry, stamps, this.doc.width, this.doc.height);
-    const per = all.length / stamps.length, ctx = this.strokeCtx;
-    ctx.globalCompositeOperation = c.op;
+    const per = all.length / stamps.length;
     all.forEach((st, i) => {
       const { size, flow } = stampAt(c.s, st.p);
       c.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per);
     });
-    ctx.globalCompositeOperation = 'source-over';
     const r = stampBounds(all, c.reachAt);
     g.bounds = union(g.bounds, r);
     this.strokeVersion = (this.strokeVersion || 0) + 1;
@@ -1675,8 +1687,11 @@ export class Editor {
     const q = this.snapQueue || [];
     while (q.length && !this.gesture && (deadline.didTimeout || deadline.timeRemaining() > 4)) {
       const s = q.shift();
-      if (!s.canvas) continue;
-      Object.assign(s, trimmedSnapshot(s.canvas.getContext('2d').getImageData(0, 0, s.w, s.h)));
+      const c = s.canvas;
+      if (!c) continue;
+      Object.assign(s, trimmedSnapshot(c.getContext('2d').getImageData(0, 0, s.w, s.h)));
+      // free its GPU memory now: a dropped canvas waits for garbage collection, which a small JS heap rarely runs
+      c.width = c.height = 0;
     }
     if (q.length && !this.destroyed) this.snapIdle = requestIdleCallback(dl => this.readSnapshots(dl), { timeout: 4000 });
   }
