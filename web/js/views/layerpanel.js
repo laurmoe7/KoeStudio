@@ -16,7 +16,7 @@ const halves = [];  // scratch canvases for shrinkInto, one per halving step
  * Draws src into rect (x, y, w, h) of ctx, halving it step by step first (each step an exact average of 2 x 2
  * pixels) so thin lines on a big layer still show in a tiny thumbnail, instead of being skipped by one big step.
  */
-function shrinkInto(ctx, src, x, y, w, h) {
+export function shrinkInto(ctx, src, x, y, w, h) {
   let cur = src, cw = src.width, ch = src.height;
   for (let k = 0; cw > 2 * w && ch > 2 * h; k++) {
     const nw = Math.ceil(cw / 2), nh = Math.ceil(ch / 2);

@@ -5,6 +5,7 @@
 // that long, and the timeline draws the held time as a striped strip after its thumbnail.
 // Editor methods (mixed into Editor.prototype in editor.js).
 
+import { shrinkInto } from './layerpanel.js';
 import { Layer, cloneNode, nodeRasters, renderFolder } from '../doc.js';
 import { animFrames, frameOf, nextFrame, sanitizeAnim, sanitizeHold, holdOf, totalTicks, FPS_MIN, FPS_MAX, ONION_MAX, HOLD_MAX } from '../anim.js';
 import { isFolder, insertNode, removeNode } from '../tree.js';
@@ -136,7 +137,11 @@ export const animMethods = {
       ctx.fillRect(0, 0, w, h);
       ctx.scale(s, s);
       if (isFolder(n) || n.mask || n.effects || n.tone || n.adjust) renderFolder(ctx, { children: [n] }, r);
-      else { ctx.globalAlpha = n.opacity; ctx.drawImage(n.canvas, 0, 0); }
+      else {  // halving step by step, so thin lines still show (layerpanel.js)
+        ctx.setTransform(1, 0, 0, 1, (TW - w) / 2, (TH - h) / 2);
+        ctx.globalAlpha = n.opacity;
+        shrinkInto(ctx, n.canvas, 0, 0, w, h);
+      }
     }
   },
 
