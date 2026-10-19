@@ -517,3 +517,8 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 .ge-mark.on { border-color: var(--accent); box-shadow: 0 0 0 1px #000, 0 0 0 3px var(--accent-2); }
 .ge-stop .field input[type=number] { width: 70px; }
 .xf-bar.mesh [data-xf="mesh"] { background: var(--accent-2); border-color: var(--accent-2); color: #fff; pointer-events: none; }
+
+/* the selection bar under a selection */
+.sel-bar { position: absolute; left: 0; top: 0; z-index: 3; display: flex; gap: 1px; padding: 3px; border-radius: 7px;
+  background: var(--panel, #26272d); border: 1px solid var(--line, #444); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.sel-bar .icon-btn { padding: 4px 6px; }

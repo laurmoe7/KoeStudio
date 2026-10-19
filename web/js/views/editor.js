@@ -23,6 +23,7 @@ import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize, 
 import { ColorPanel } from './colorpanel.js';
 import { LayerPanel, shrinkInto } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
+import { selectionBarMethods } from './selectionbar.js';
 import { canvasMethods } from './canvasops.js';
 import { layerMethods } from './layerops.js';
 import { rulerMethods } from './rulertools.js';
@@ -99,6 +100,7 @@ export class Editor {
     this.rulerPick = -1;  // the picked straight-line or concentric ruler (rulertools.js)
     this.maskOverlay = store('maskOverlay') === true;  // tint what a mask hides while painting on it
     this.pixelGrid = store('pixelGrid') !== false;  // lines between pixels when zoomed in far
+    this.selBarOn = store('selBar') !== false;  // the row of buttons under a selection
     this.poly = null;  // polygon selection being drawn (selecttools.js)
     this.figPoly = null;  // polyline/polygon figure being clicked (figuretool.js)
     this.quickMask = null;  // the Mask tools paint on while Quick mask is on (quickmask.js)
@@ -424,6 +426,7 @@ export class Editor {
         { label: 'Grayscale view (check values)', checked: !!this.grayView, run: () => this.toggleGrayView() },
         { label: 'Tile preview (seamless patterns)', checked: !!this.tileView, run: () => this.toggleTileView() },
         { label: 'Pixel grid (when zoomed in)', checked: this.pixelGrid, run: () => this.togglePixelGrid() },
+        { label: 'Selection bar', checked: this.selBarOn, run: () => this.toggleSelectionBar() },
         '-',
         { label: 'Animation timeline', checked: d.anim.on, run: () => this.toggleAnimation() },
         { label: 'Animation settings…', run: () => this.animSettingsDialog(), disabled: !d.anim.on },
@@ -756,6 +759,7 @@ export class Editor {
     this.drawLineEditOverlay(ctx);
     this.drawCloneOverlay(ctx);
     this.placeTextEditor();
+    this.placeSelectionBar();
     const brush = this.updateCursor(), sizing = this.gesture?.type === 'brushsize' ? this.gesture : null;
     if (brush) this.drawBrushOutline(ctx, brush, sizing ? sizing.start : this.pointer, !!sizing);
     if (this.gesture?.type === 'pick' && this.pointer) this.drawPickRing(ctx, this.gesture.before, this.colors.main);
@@ -1979,7 +1983,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

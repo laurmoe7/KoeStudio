@@ -398,3 +398,23 @@ test('chromatic aberration pushes red out and blue in', async () => {
   assert.equal(d[4 * 4], 204);
   assert.equal(d[2 * 4], 0, 'the centre pixel is not shifted');
 });
+
+test('dust cleaner removes small specks and keeps big ones', async () => {
+  const { removeDust } = await import('../web/js/filters.js');
+  // 10 x 10 clear; a 1-px speck at (2,2), a 2x2 blob at (6,6) (4 px), a speck on the edge at (0,5)
+  const w = 10, h = 10, d = new Uint8ClampedArray(w * h * 4);
+  const put = (x, y, a = 255) => { const o = (y * w + x) * 4; d[o] = d[o + 1] = d[o + 2] = 0; d[o + 3] = a; };
+  put(2, 2); put(6, 6); put(7, 6); put(6, 7); put(7, 7); put(0, 5);
+  put(3, 2, 20);  // faint edge of the speck: cleared with it
+  removeDust(d, w, h, 3);
+  const a = (x, y) => d[(y * w + x) * 4 + 3];
+  assert.equal(a(2, 2), 0, 'speck removed');
+  assert.equal(a(3, 2), 0, 'its faint edge too');
+  assert.equal(a(6, 6), 255, '4-px blob kept (not smaller than 3)');
+  assert.equal(a(0, 5), 255, 'speck on the edge kept');
+  // on white paper the speck becomes white
+  const p = new Uint8ClampedArray(5 * 5 * 4).fill(255);
+  p.set([0, 0, 0, 255], (2 * 5 + 2) * 4);
+  removeDust(p, 5, 5, 2);
+  assert.deepEqual([...p.slice(48, 52)], [255, 255, 255, 255]);
+});

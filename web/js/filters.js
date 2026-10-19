@@ -49,6 +49,9 @@ export const FILTERS = [
   { id: 'lines', label: 'Extract lines…', fields: [f('radius', 'Line width', 1, 100, 1, 16, ' px'), f('threshold', 'Ignore', 0, 128, 1, 12),
     f('softness', 'Softness', 1, 255, 1, 48), f('color', 'Keep color', 0, 100, 1, 0, '%')],
     margin: p => Math.ceil(p.radius) + 4, apply: (d, w, h, p) => extractLines(d, w, h, p) },
+  { id: 'dust', label: 'Dust cleaner…', fields: [f('size', 'Smaller than', 1, 400, 1, 12, ' px')],
+    note: 'Removes specks of paint smaller than the size, filling them with what surrounds them (see-through or paper).',
+    margin: p => Math.min(p.size, 64) + 2, apply: (d, w, h, p) => removeDust(d, w, h, p.size) },
   { id: 'invert', label: 'Invert colors', fields: [], margin: () => 0, apply: d => invert(d) },
   { id: 'recolor', label: 'Change color to main color', fields: [], mainColor: true, margin: () => 0, apply: (d, w, h, p) => recolor(d, p.color || [0, 0, 0]) },
   { id: 'whitealpha', label: 'Brightness to opacity (white → clear)', fields: [], margin: () => 0, apply: d => whiteToAlpha(d) },
@@ -592,6 +595,65 @@ export function posterize(data, levels) {
 
 export function invert(data) {
   for (let i = 0; i < data.length; i += 4) { data[i] = 255 - data[i]; data[i + 1] = 255 - data[i + 1]; data[i + 2] = 255 - data[i + 2]; }
+  return data;
+}
+
+/**
+ * Dust cleaner: every 8-connected speck of paint (alpha > 32 and not near white) with fewer than `size` pixels,
+ * plus its faint one-pixel edge, takes the average of the pixels round it (premultiplied, so a speck on clear
+ * paint becomes clear and one on white paper white). Specks touching the data's edge are kept (they may go on).
+ */
+export function removeDust(data, w, h, size) {
+  const n = w * h, paint = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = i * 4;
+    paint[i] = data[o + 3] > 32 && luminance(data[o], data[o + 1], data[o + 2]) < 230 ? 1 : 0;
+  }
+  const seen = new Uint8Array(n), stack = new Int32Array(n), mark = new Int32Array(n).fill(-1);
+  let comp = [];
+  for (let start = 0; start < n; start++) {
+    if (!paint[start] || seen[start]) continue;
+    // flood the speck, giving up once it is big enough to keep
+    comp.length = 0;
+    let sp = 0, edge = false, big = false;
+    stack[sp++] = start; seen[start] = 1;
+    while (sp) {
+      const i = stack[--sp], x = i % w, y = (i - x) / w;
+      if (!big) { comp.push(i); if (comp.length >= size) big = true; }
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const j = ny * w + nx;
+        if (paint[j] && !seen[j]) { seen[j] = 1; stack[sp++] = j; }
+      }
+    }
+    if (big || edge) continue;
+    // the speck and its faint edge are cleared; the ring of pixels just outside that gives the colour
+    const clear = comp.slice(), id = start;
+    for (const i of comp) mark[i] = id;
+    for (const i of comp) {
+      const x = i % w, y = (i - x) / w;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy, j = ny * w + nx;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || mark[j] === id) continue;
+        if (data[j * 4 + 3] > 0 && !paint[j] && luminance(data[j * 4], data[j * 4 + 1], data[j * 4 + 2]) < 230) { mark[j] = id; clear.push(j); }
+      }
+    }
+    let r = 0, g = 0, b = 0, a = 0, cnt = 0;
+    for (const i of clear) {
+      const x = i % w, y = (i - x) / w;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy, j = ny * w + nx;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || mark[j] === id || mark[j] === -2 - id) continue;
+        mark[j] = -2 - id;
+        const o = j * 4, al = data[o + 3];
+        r += data[o] * al; g += data[o + 1] * al; b += data[o + 2] * al; a += al; cnt++;
+      }
+    }
+    const A = cnt ? a / cnt : 0, R = a ? r / a : 0, G = a ? g / a : 0, B = a ? b / a : 0;
+    for (const i of clear) { const o = i * 4; data[o] = R; data[o + 1] = G; data[o + 2] = B; data[o + 3] = A; }
+  }
   return data;
 }
 

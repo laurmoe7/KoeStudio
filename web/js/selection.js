@@ -256,3 +256,17 @@ export function rectBetween(a, b) {
   const x1 = Math.round(Math.max(a.x, b.x)), y1 = Math.round(Math.max(a.y, b.y));
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
+
+/**
+ * Where the selection bar goes (screen px): centred under the selection's screen points `pts`, `gap` below its
+ * lowest point; above it when there is no room below; at the bottom edge when neither fits. Kept `margin` inside
+ * the vw x vh viewport. Returns {x, y} of the bar's top-left corner.
+ */
+export function selectionBarSpot(pts, barW, barH, vw, vh, gap = 10, margin = 8) {
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const top = Math.min(...ys), bottom = Math.max(...ys), mid = (Math.min(...xs) + Math.max(...xs)) / 2;
+  let y = bottom + gap;
+  if (y + barH > vh - margin) y = top - gap - barH >= margin ? top - gap - barH : vh - margin - barH;
+  const x = Math.max(margin, Math.min(vw - margin - barW, mid - barW / 2));
+  return { x: Math.round(x), y: Math.round(Math.max(margin, y)) };
+}

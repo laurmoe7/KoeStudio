@@ -59,6 +59,8 @@ const P = {
   rotR: '<path d="M20 4v6h-6"/><path d="M19.5 10A8 8 0 1012 20"/>',
   flip: '<path d="M12 3v18"/><path d="M8 7L3 12l5 5z"/><path d="M16 7l5 5-5 5z"/>',
   fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  deselect: '<path d="M4 7V4h3M10 4h4M17 4h3v3M20 10v1M4 14v-4M4 17v3h3M10 20h1"/><path d="M14 14l6 6M20 14l-6 6"/>',
+  invert: '<path d="M4 7V4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4"/><path d="M8 8h8v8z" fill="currentColor" stroke="none"/>',
   sliders: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
 };
 

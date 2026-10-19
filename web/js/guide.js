@@ -218,6 +218,8 @@ export const GUIDE = [
     </ul>
     <figure data-pic="selmodes"><figcaption>Hold a key while you drag to change the selection you already have.</figcaption></figure>
     <p><kbd>Ctrl+A</kbd> selects everything, <kbd>Ctrl+D</kbd> deselects, <kbd>Ctrl+Shift+I</kbd> swaps inside and outside.</p>
+    <p>A small bar under the selection has the usual next steps: deselect, invert, transform, fill, delete, copy to a
+    new layer and crop. Turn it off under View → Selection bar.</p>
     <h4>Select menu</h4>
     <ul>
       <li><b>Color range…</b> selects every pixel close to a colour. Click the canvas to choose it.</li>
@@ -422,6 +424,7 @@ export const GUIDE = [
       <li><b>Brightness to opacity</b> makes white see-through: a scanned pencil drawing becomes lines on a clear layer.</li>
       <li><b>Extract lines</b> keeps only lines darker than their surroundings, for a photo of a sketch. Set
       <b>Line width</b> to at least your thickest line.</li>
+      <li><b>Dust cleaner</b> removes specks smaller than the size you set, such as dust on a scan.</li>
     </ul>
     <figure data-pic="whitealpha"></figure>
     <p class="tip"><kbd>Ctrl+F</kbd> repeats the last filter with the same settings. Filters work on a mask too, while

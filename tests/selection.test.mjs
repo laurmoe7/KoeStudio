@@ -1,7 +1,7 @@
 // Selection and transform maths. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { maskBounds, outlineSegments, maskOutline, modeFor, compositeFor, rectBetween } from '../web/js/selection.js';
+import { maskBounds, outlineSegments, maskOutline, modeFor, compositeFor, rectBetween, selectionBarSpot } from '../web/js/selection.js';
 import { newTransform, xfMatrix, boxPoint, toBox, hitTest, dragHandle, dragRotate, dragMove, xfBounds, isIdentity } from '../web/js/transform.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, msg || `${a} ≈ ${b}`);
@@ -142,4 +142,16 @@ test('stroke selection bands', async () => {
   assert.equal(row(strokeBand(alpha, w, h, 1, 'inside')), '001000100', 'the selection\'s own edge pixels');
   assert.equal(row(strokeBand(alpha, w, h, 1, 'outside')), '010000010', 'one pixel outside each side');
   assert.equal(row(strokeBand(alpha, w, h, 2, 'center')), '011000110', 'one out, one in');
+});
+
+test('selection bar sits under the selection, above it when there is no room, else at the bottom edge', () => {
+  const box = (x0, y0, x1, y1) => [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+  // 200 x 30 bar in a 1000 x 800 view; selection 100..300 x 100..200: centre 200 -> x 100, y 200 + 10
+  assert.deepEqual(selectionBarSpot(box(100, 100, 300, 200), 200, 30, 1000, 800), { x: 100, y: 210 });
+  // selection reaching the bottom: above it (top 500 - 10 - 30)
+  assert.deepEqual(selectionBarSpot(box(100, 500, 300, 790), 200, 30, 1000, 800), { x: 100, y: 460 });
+  // the whole view selected: at the bottom edge (800 - 8 - 30)
+  assert.deepEqual(selectionBarSpot(box(-50, -50, 1050, 850), 200, 30, 1000, 800), { x: 400, y: 762 });
+  // near the left edge: kept 8 px inside
+  assert.deepEqual(selectionBarSpot(box(0, 0, 40, 40), 200, 30, 1000, 800), { x: 8, y: 50 });
 });
