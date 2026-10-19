@@ -384,6 +384,18 @@ class ProcreateReader(unittest.TestCase):
         self.assertEqual(size(paintSize=0.0, maxSize=16.0, minSize=0.0), 1, 'never under 1 px')
         self.assertEqual(size(paintSize=1.0, maxSize=16.0), 1000, 'nor over 1000')
 
+    def test_colour_jitter_and_tilt(self):
+        s, notes = bi._procreate_settings({'dynamicsJitterHue': 0.05, 'dynamicsJitterSaturation': 0.15, 'dynamicsJitterLightness': 0.03,
+                                           'dynamicsJitterDarkness': 0.03, 'dynamicsTiltSize': 0.31, 'dynamicsTiltOpacity': 0.5})
+        self.assertEqual((s['hueJitter'], s['satJitter'], s['valJitter'], s['tiltSize'], s['tiltFlow']), (0.05, 0.15, 0.03, 0.31, 0.5))
+        self.assertNotIn('colorJitterStroke', s)
+        self.assertEqual(notes, [], 'lighter and darker alike: Light jitter is exact')
+        # only the stroke jitter: once per stroke; darkness alone is noted, since Light jitter also lightens
+        s, notes = bi._procreate_settings({'dynamicsJitterStrokeHue': 0.02, 'dynamicsJitterStrokeDarkness': 0.2})
+        self.assertEqual((s['hueJitter'], s['valJitter'], s['colorJitterStroke']), (0.02, 0.2, True))
+        self.assertNotIn('satJitter', s)
+        self.assertEqual(notes, ['Its colour jitter only darkens'])
+
     def test_pressure_taper(self):
         s = bi._procreate_settings({'pencilTaperStartLength': 0.251, 'pencilTaperEndLength': 0.154, 'pencilTaperSize': 0.196,
                                     'pencilTaperOpacity': 0.5, 'taperStartLength': 0.9})[0]

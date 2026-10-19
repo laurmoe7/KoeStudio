@@ -676,6 +676,25 @@ def _procreate_settings(b):
         v = _pnum(b, key, -1, 1)
         if v:  # faster = thinner / lighter, as Procreate does it
             s[setting] = round(v, 2)
+    # Color dynamics: stamp colour jitter (each dab), or else stroke colour jitter (once per stroke). Procreate's
+    # Lightness and Darkness move one way each; KoeStudio's Light jitter goes both ways, so it takes the larger
+    jitter = {}
+    for kind in ('', 'Stroke'):
+        hue, sat = _pnum(b, f'dynamicsJitter{kind}Hue') or 0, _pnum(b, f'dynamicsJitter{kind}Saturation') or 0
+        light, dark = _pnum(b, f'dynamicsJitter{kind}Lightness') or 0, _pnum(b, f'dynamicsJitter{kind}Darkness') or 0
+        if hue or sat or light or dark:
+            jitter = {'hueJitter': round(hue, 2), 'satJitter': round(sat, 2), 'valJitter': round(max(light, dark), 2)}
+            if kind:
+                jitter['colorJitterStroke'] = True
+            if abs(light - dark) > 0.05:
+                notes.append('Its colour jitter only lightens' if light > dark else 'Its colour jitter only darkens')
+            break
+    s.update({k: v for k, v in jitter.items() if v})
+    # Apple Pencil tilt: bigger and lighter as the pen leans
+    for key, setting in (('dynamicsTiltSize', 'tiltSize'), ('dynamicsTiltOpacity', 'tiltFlow')):
+        v = _pnum(b, key)
+        if v:
+            s[setting] = round(v, 2)
     # Stroke taper → Pressure taper (the pen's; taper… without 'pencil' is the finger's Touch taper): lengths 0-1
     start, end = _pnum(b, 'pencilTaperStartLength'), _pnum(b, 'pencilTaperEndLength')
     if start or end:
