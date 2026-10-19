@@ -38,11 +38,16 @@
   <ellipse cx="60" cy="75" rx="17" ry="10" fill="#ffadb8"/>
   <ellipse cx="54" cy="74" rx="2.3" ry="3.1" fill="#c94f66"/><ellipse cx="66" cy="74" rx="2.3" ry="3.1" fill="#c94f66"/>
   <!-- paint palette held up at his side in the left hoof -->
-  <g transform="translate(23 84) rotate(-30) scale(.8) translate(-61 -97)">
-    <path d="M34 92 Q36 82 56 82 Q86 82 88 96 Q90 110 72 112 Q64 112 62 106 Q60 100 52 104 Q38 110 34 102 Z" fill="#f7c873" stroke="#d99a3c" stroke-width="1.6"/>
-    <ellipse cx="45" cy="96" rx="3.6" ry="3" fill="#d99a3c"/>
-    <circle cx="56" cy="89" r="4.2" fill="#ff4f74"/><circle cx="67" cy="88" r="4.2" fill="#2f9cff"/>
-    <circle cx="77" cy="93" r="4.2" fill="#ffb800"/><circle cx="76" cy="104" r="4.2" fill="#2fc874"/>
+  <!-- a classic artist's palette: a rounded oval with a thumb notch cut into one end, a thumb hole beside it
+       and blobs of paint round the wide end -->
+  <g transform="translate(23 84) rotate(-20) scale(.78)">
+    <path d="M2 -20 C18 -20 30 -10 29 2 C28 14 16 21 1 21 C-14 21 -27 13 -28 2 C-28.5 -4 -25 -8 -20 -7
+             C-15 -6 -12 -9 -14 -13 C-15 -17 -9 -20 2 -20 Z" fill="#f7c873" stroke="#d99a3c" stroke-width="2"/>
+    <path d="M-24 10 C-16 18 0 20 14 16" fill="none" stroke="#e6ad55" stroke-width="2.4" stroke-linecap="round"/>
+    <ellipse cx="-16" cy="3" rx="4.2" ry="3.6" fill="#d99a3c"/>
+    <circle cx="-2" cy="-12" r="4.4" fill="#ff4f74"/><circle cx="10" cy="-11" r="4.4" fill="#2f9cff"/>
+    <circle cx="20" cy="-3" r="4.4" fill="#ffb800"/><circle cx="19" cy="9" r="4.4" fill="#2fc874"/>
+    <circle cx="6" cy="12" r="4.4" fill="#a66bff"/>
   </g>
   <!-- the hoof holding it from below -->
   <ellipse cx="28" cy="95" rx="7.5" ry="9" transform="rotate(-20 28 95)" fill="#fff4ea" stroke="#d9b39b" stroke-width="2"/>
