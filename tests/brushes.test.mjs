@@ -125,6 +125,13 @@ test('dab variation and the starting taper', async () => {
   near(taperIn(50, 100), 0.775, 'halfway: 0.1 + 0.9 * 0.5 * 1.5');
   near(taperIn(100, 100), 1, 'full size at the end of the taper');
   near(taperIn(10, 0), 1, 'off');
+  const { taperDab } = await import('../web/js/brush.js');
+  assert.deepEqual(taperDab(1, {}), { k: 1, f: 1 }, 'past the taper');
+  near(taperDab(0.1, {}).k, 0.1, 'the very end, as before: 10%');
+  near(taperDab(0.1, { taperSize: 0.5 }).k, 0.55, 'half the size taper: 1 - 0.9 x 0.5');
+  near(taperDab(0.55, { taperSize: 1 }).k, 0.55, 'half way in: the same as the taper factor');
+  near(taperDab(0.1, { taperOpacity: 1 }).f, 0, 'full opacity taper: the very end fades out');
+  near(taperDab(0.55, { taperOpacity: 0.4 }).f, 0.8, 'half way in: 1 - 0.5 x 0.4');
   const { releaseHeld, taperOut } = await import('../web/js/brush.js');
   const held = [{ d: 0 }, { d: 10 }, { d: 20 }, { d: 30 }];
   assert.deepEqual(releaseHeld(held, 35, 20), { ready: [{ d: 0 }, { d: 10 }], held: [{ d: 20 }, { d: 30 }] }, 'stamps 15 px or more from the end are drawn');

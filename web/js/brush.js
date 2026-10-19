@@ -149,6 +149,17 @@ export function releaseHeld(held, dist, length) {
 /** Size factor of the ending taper for a stamp `left` px before the end: the start taper's curve, mirrored. */
 export const taperOut = (left, length) => taperIn(left, length);
 
+/**
+ * A dab's size and density factors {k, f} for a taper factor t (taperIn / taperOut: 0.1 at the very end, 1 past the
+ * taper), with Taper size (taperSize 0-1, default 1: down to 10% as t says; 0 keeps the full size) and Taper opacity
+ * (taperOpacity 0-1, default 0; 1 fades the very end out), as Procreate's taper Size and Opacity sliders do.
+ */
+export function taperDab(t, s) {
+  if (t >= 1) return { k: 1, f: 1 };
+  const left = (1 - t) / 0.9;  // how far into the taper: 0 where it starts, 1 at the very end
+  return { k: 1 - 0.9 * left * (s.taperSize ?? 1), f: 1 - left * (s.taperOpacity ?? 0) };
+}
+
 /** Size and opacity of one stamp for a tool's settings at pressure p (already curved). */
 export function stampFor(settings, p) {
   const minSize = settings.minSize ?? 0.1;

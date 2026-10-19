@@ -598,6 +598,7 @@ def _procreate_extra(path):
 
 
 PROCREATE_SIZE = 150  # px of a Procreate brush at a size of 1 (its slider at full with a maximum size of 100%)
+PROCREATE_TAPER = 400  # px of a taper with its length slider at full
 
 
 def _is_title_card(z, names, folder, b):
@@ -675,6 +676,18 @@ def _procreate_settings(b):
         v = _pnum(b, key, -1, 1)
         if v:  # faster = thinner / lighter, as Procreate does it
             s[setting] = round(v, 2)
+    # Stroke taper → Pressure taper (the pen's; taper… without 'pencil' is the finger's Touch taper): lengths 0-1
+    start, end = _pnum(b, 'pencilTaperStartLength'), _pnum(b, 'pencilTaperEndLength')
+    if start or end:
+        if start:
+            s['taperIn'] = round(start * PROCREATE_TAPER)
+        if end:
+            s['taperOut'] = round(end * PROCREATE_TAPER)
+        tsize, topac = _pnum(b, 'pencilTaperSize'), _pnum(b, 'pencilTaperOpacity')
+        if tsize is not None:
+            s['taperSize'] = round(tsize, 2)
+        if topac:
+            s['taperOpacity'] = round(topac, 2)
     mix = _pnum(b, 'dynamicsMix')
     if mix:  # wet mix: the paint picks up the colours on the canvas
         s['mix'] = round(mix, 2)

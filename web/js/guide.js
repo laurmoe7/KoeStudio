@@ -122,6 +122,8 @@ export const GUIDE = [
     <button type="button" class="guide-link" data-goto="brushnotes">Special brush settings: notes and tips</button>.</p>
     <figure data-pic="taper"><figcaption>Start and End taper make a stroke begin and end thin, even with a mouse.
     The thin end appears when you lift the pen.</figcaption></figure>
+    <p><b>Taper size</b> sets how thin the ends get (100% comes to a point, 0% stays full width) and <b>Taper
+    opacity</b> how much they fade out. Imported Procreate brushes bring their pen taper with them.</p>
     <h4>Ready-made brushes</h4>
     <p>The <b>Brush</b> row at the top of a paint tool's panel lists brushes that come with KoeStudio: inks (G-pen,
     Fineliner, Brush pen), pencils and chalk (HB, 6B, Charcoal, Chalk), paints (Gouache, Watercolour, Dry brush,

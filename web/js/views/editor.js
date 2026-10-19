@@ -1,7 +1,7 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, taperDab, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor, averageColor } from '../color.js';
 import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach, withoutDrafts } from '../doc.js';
@@ -1496,8 +1496,9 @@ export class Editor {
       }
       const j = dabJitter(g.s, stampAt(g.s, st.p).size);
       st.x += j.dx; st.y += j.dy;
-      st.k = j.sizeK * taperIn(g.dist, g.s.taperIn);
-      st.f = j.flowK;
+      const tp = taperDab(taperIn(g.dist, g.s.taperIn), g.s);
+      st.k = j.sizeK * tp.k;
+      st.f = j.flowK * tp.f;
       st.d = g.dist;
       if (g.dyn) {  // pen tilt and speed (Brush settings, Tilt and speed page)
         const k = dynamicsAt(g.s, st.t, st.v);
@@ -1666,7 +1667,7 @@ export class Editor {
     // stabilization lags behind the pen: catch up to where the pen was lifted
     if (g.s.smoothing && g.last) for (let i = 0; i < 400 && g.smoother.distanceTo(g.last) > 0.5; i++) this.addStampPoint(g.last);
     // the end is known now: the held-back stamps thin out towards it
-    for (const st of g.held) st.k *= taperOut(g.dist - st.d, g.s.taperOut);
+    for (const st of g.held) { const tp = taperDab(taperOut(g.dist - st.d, g.s.taperOut), g.s); st.k *= tp.k; st.f *= tp.f; }
     this.drawStamps(g.held);
     g.held = [];
     // a tap with a tip that turns with the stroke: its dab waited for a direction that never came
@@ -2204,7 +2205,7 @@ function fmt(key, v) {
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'taperSize', 'taperOpacity'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
   if (key === 'tipAngle' || key === 'comboAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
