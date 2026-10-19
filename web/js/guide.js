@@ -551,6 +551,8 @@ export const GUIDE = [
       <li>The <b>Navigator</b> shows the whole picture: click or drag in it to jump there.</li>
       <li><b>Hide panels</b> <kbd>Tab</kbd>: the tool bar and side panels go away so the canvas fills the window.
       Shortcuts still work. Press <kbd>Tab</kbd> again to bring them back.</li>
+      <li><b>Theme</b> (View menu, or the Theme button on the start screen) changes the colours of the app itself:
+      Midnight, Dusty rose, Lavender dusk, Moss, Deep sea, Cocoa or Ink black. Your artwork does not change.</li>
     </ul>
     <h4>Your own shortcuts</h4>
     <ol>

@@ -3,12 +3,13 @@
 import { api } from './api.js';
 import { applyMute } from './mute.js';
 import { isReloadKey } from './keys.js';
-import { toast, closeMenus } from './ui.js';
+import { toast, closeMenus, applyTheme } from './ui.js';
 import { showGallery } from './views/gallery.js';
 import { Doc } from './doc.js';
 import { openEditor } from './views/editor.js';
 import { guideDialog } from './views/help.js';
 
+applyTheme();
 const root = document.getElementById('app');
 let editor = null;
 

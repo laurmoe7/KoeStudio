@@ -445,10 +445,10 @@ export const rulerMethods = {
     const dpr = this.dpr || 1, B = RULER_PX * dpr, W = this.overlay.width, H = this.overlay.height;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#25262c';
+    ctx.fillStyle = this.rulerBg;
     ctx.fillRect(0, 0, W, B);
     ctx.fillRect(0, 0, B, H);
-    ctx.fillStyle = '#3a3b43';
+    ctx.fillStyle = this.rulerLine;
     ctx.fillRect(0, B - dpr, W, dpr);
     ctx.fillRect(B - dpr, 0, dpr, H);
     ctx.font = `${10 * dpr}px "Segoe UI", sans-serif`;
@@ -490,7 +490,7 @@ export const rulerMethods = {
       ctx.fillRect(this.pointer.x * dpr - dpr / 2, 0, dpr, B);
       ctx.fillRect(0, this.pointer.y * dpr - dpr / 2, B, dpr);
     }
-    ctx.fillStyle = '#25262c';
+    ctx.fillStyle = this.rulerBg;
     ctx.fillRect(0, 0, B, B);
     ctx.restore();
   },

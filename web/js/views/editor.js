@@ -17,7 +17,7 @@ import { gradientChoices } from '../gradient.js';
 import { mipLevel, mipSize, mipRect } from '../mips.js';
 import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize } from '../tools.js';
-import { esc, toast, menu, openMenuOwner, modal, promptBox, fileToDataUrl, store } from '../ui.js';
+import { esc, toast, menu, openMenuOwner, modal, promptBox, fileToDataUrl, store, themeMenu, cssVar } from '../ui.js';
 import { exportMethods } from './exporttools.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, fitRectView, actualSize, pinchView } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
@@ -121,6 +121,7 @@ export class Editor {
       });
       this.stripTitles();
     };
+    this.onTheme = () => this.resize();  // View → Theme: the area around the paper and the edge rulers take the new colours
     this.onPaste = this.onPaste.bind(this);
   }
 
@@ -161,6 +162,7 @@ export class Editor {
     window.addEventListener('paste', this.onPaste);
     window.addEventListener('blur', this.onKeyUp);
     window.addEventListener('koe-shortcuts', this.onShortcuts);
+    window.addEventListener('koe-theme', this.onTheme);
     if (isNew) this.save();
     else this.setStatus('Saved');
   }
@@ -174,6 +176,7 @@ export class Editor {
     window.removeEventListener('paste', this.onPaste);
     window.removeEventListener('blur', this.onKeyUp);
     window.removeEventListener('koe-shortcuts', this.onShortcuts);
+    window.removeEventListener('koe-theme', this.onTheme);
     this.resizeObs?.disconnect();
     this.refObs?.disconnect();
     clearTimeout(this.saveTimer);
@@ -457,6 +460,7 @@ export class Editor {
           { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         ] },
         { label: 'Hide panels', key: 'Tab', checked: !!this.panelsHidden, run: () => this.togglePanels() },
+        { label: 'Theme', sub: themeMenu() },
         { label: 'Shortcut strip (pen tablets)', sub: this.stripMenu() },
         '-',
         { label: 'Grid', key: "Ctrl+'", checked: d.rulers.grid.show, run: () => this.toggleGrid() },
@@ -501,7 +505,8 @@ export class Editor {
     const dpr = window.devicePixelRatio || 1;
     this.vw = r.width; this.vh = r.height; this.dpr = dpr;
     this.placeStrip();  // a floating shortcut strip stays inside the canvas area
-    this.bg = getComputedStyle(this.viewport).getPropertyValue('--canvas-bg').trim() || '#2a2b31';
+    this.bg = cssVar('--canvas-bg', '#34353c');
+    this.rulerBg = cssVar('--panel', '#26272d'); this.rulerLine = cssVar('--line', '#3a3b43');
     if (this.needsFit && r.width > 0 && r.height > 0) {
       this.needsFit = false;
       this.view = fitView(this.doc.width, this.doc.height, r.width, r.height);

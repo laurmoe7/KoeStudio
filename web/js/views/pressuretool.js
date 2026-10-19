@@ -4,7 +4,7 @@
 // makes a curve from how hard you pressed on the pad. Editor methods (mixed into Editor.prototype in editor.js).
 
 import { PRESSURE_PRESETS, adjustPressure, curveAt, pressureFromStrokes, sanitizeCurve } from '../brush.js';
-import { modal, store, toast } from '../ui.js';
+import { modal, store, toast, cssVar } from '../ui.js';
 
 const CW = 220, PAD_W = 260, PAD_H = 150;
 
@@ -38,8 +38,8 @@ export const pressureMethods = {
         const S = cv.width, toX = x => x * S, toY = y => (1 - y) * S;
         const draw = () => {
           const ctx = cv.getContext('2d');
-          ctx.fillStyle = '#1e1f24'; ctx.fillRect(0, 0, S, S);
-          ctx.strokeStyle = '#3a3b43'; ctx.lineWidth = 2;
+          ctx.fillStyle = cssVar('--well', '#1e1f24'); ctx.fillRect(0, 0, S, S);
+          ctx.strokeStyle = cssVar('--line', '#3a3b43'); ctx.lineWidth = 2;
           for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(toX(k / 4), 0); ctx.lineTo(toX(k / 4), S); ctx.moveTo(0, toY(k / 4)); ctx.lineTo(S, toY(k / 4)); ctx.stroke(); }
           ctx.strokeStyle = '#55565e'; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, S); ctx.lineTo(S, 0); ctx.stroke(); ctx.setLineDash([]);
           ctx.strokeStyle = '#6ea8ff'; ctx.lineWidth = 4; ctx.beginPath();

@@ -1,4 +1,6 @@
-// Small DOM helpers: escaping, toasts, modal dialogs, dropdown menus.
+// Small DOM helpers: escaping, toasts, modal dialogs, dropdown menus, the colour theme.
+
+import { THEMES, themeById, themeVars } from './themes.js';
 
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -231,4 +233,25 @@ export function store(key, value) {
     localStorage.setItem('koe.' + key, JSON.stringify(value));
   } catch { /* storage can be unavailable; settings are then not remembered */ }
   return null;
+}
+
+/** Puts the saved colour theme (or `id`, which is then saved) on the page; a 'koe-theme' event tells canvases to redraw. */
+export function applyTheme(id) {
+  if (id) store('theme', id);
+  const t = themeById(id || store('theme'));
+  for (const [k, v] of Object.entries(themeVars(t))) document.documentElement.style.setProperty(k, v);
+  document.documentElement.dataset.theme = t.id;
+  window.dispatchEvent(new Event('koe-theme'));
+  return t;
+}
+
+/** Menu items for picking a theme, the current one ticked. */
+export function themeMenu() {
+  const cur = themeById(store('theme')).id;
+  return THEMES.map(t => ({ label: t.name, checked: t.id === cur, run: () => applyTheme(t.id) }));
+}
+
+/** A CSS custom property's current value (for canvases drawn in the theme's colours). */
+export function cssVar(name, fallback = '') {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }

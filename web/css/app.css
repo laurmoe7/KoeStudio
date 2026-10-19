@@ -10,6 +10,27 @@
   --danger: #ff6b6b;
   --canvas-bg: #34353c;
   --radius: 6px;
+  /* mixed from the theme colours above (themes.js sets those) */
+  --hover: color-mix(in srgb, var(--panel-2), var(--text) 5%);
+  --hover-line: color-mix(in srgb, var(--line), var(--text) 18%);
+  --accent-hover: color-mix(in srgb, var(--accent-2), #fff 12%);
+  --accent-text: color-mix(in srgb, var(--accent), #fff 35%);
+  --scroll: color-mix(in srgb, var(--line), var(--text) 10%);
+  --scroll-hover: color-mix(in srgb, var(--line), var(--text) 22%);
+  --well: color-mix(in srgb, var(--bg), #000 25%);
+  --row-line: color-mix(in srgb, var(--panel), var(--line) 45%);
+  --row-active: color-mix(in srgb, var(--panel), var(--accent) 24%);
+  --row-picked: color-mix(in srgb, var(--panel), var(--accent) 14%);
+  --row-note: color-mix(in srgb, var(--panel), var(--accent) 9%);
+  --toast: color-mix(in srgb, var(--panel-2), var(--text) 6%);
+  --toast-line: var(--scroll);
+  --check-a: color-mix(in srgb, var(--panel-2), var(--text) 4%);
+  --check-b: var(--panel-2);
+  --accent-06: color-mix(in srgb, var(--accent) 6%, transparent);
+  --accent-12: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-35: color-mix(in srgb, var(--accent) 35%, transparent);
+  --accent-45: color-mix(in srgb, var(--accent) 45%, transparent);
+  --glass: color-mix(in srgb, var(--bg) 75%, transparent);
   color-scheme: dark;
 }
 
@@ -35,12 +56,12 @@ button {
   align-items: center;
   gap: 6px;
 }
-button:hover:not(:disabled) { border-color: #555765; background: #34353d; }
+button:hover:not(:disabled) { border-color: var(--hover-line); background: var(--hover); }
 button:disabled { opacity: 0.4; cursor: default; }
 button.primary { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
-button.primary:hover { background: #4a7de0; }
+button.primary:hover { background: var(--accent-hover); }
 input[type=text], input[type=number], input[type=search], select {
-  background: #18191d;
+  background: var(--well);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 5px 8px;
@@ -51,11 +72,11 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 input[type=text], input[type=search] { user-select: text; }
 
 /* dark, slim scrollbars to match the panels (the default ones are light gray with arrow buttons) */
-* { scrollbar-width: thin; scrollbar-color: #4a4b55 transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { background: #4a4b55; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background-color: #5d5f6b; }
+::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-hover); }
 ::-webkit-scrollbar-button { display: none; }
 input[type=range] { accent-color: var(--accent); }
 .muted { color: var(--muted); }
@@ -82,17 +103,17 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .empty button { margin-top: 12px; }
 .card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; transition: border-color .12s, transform .12s; }
 .card:hover, .card:focus-visible { border-color: var(--accent); transform: translateY(-2px); outline: none; }
-.card .thumb { aspect-ratio: 4 / 3; background: #1b1c20; display: grid; place-items: center; overflow: hidden; }
+.card .thumb { aspect-ratio: 4 / 3; background: var(--well); display: grid; place-items: center; overflow: hidden; }
 .card .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,.4);
-  background: repeating-conic-gradient(#3a3b42 0 25%, #303137 0 50%) 0 0 / 12px 12px; }  /* checker only where the picture is see-through */
+  background: repeating-conic-gradient(var(--check-a) 0 25%, var(--check-b) 0 50%) 0 0 / 12px 12px; }  /* checker only where the picture is see-through */
 .card-info { padding: 8px 10px 10px; }
 .card-info .muted { line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-more { position: absolute; top: 6px; right: 6px; background: rgba(20,20,24,.75); opacity: 0; }
+.card-more { position: absolute; top: 6px; right: 6px; background: var(--glass); opacity: 0; }
 .card:hover .card-more, .card-more:focus-visible { opacity: 1; }
 .pick-list { display: flex; flex-direction: column; gap: 6px; max-height: 55vh; overflow: auto; }
 .pick-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
-.pick-row img { width: 64px; height: 48px; object-fit: contain; background: repeating-conic-gradient(#2c2d33 0 25%, #26272c 0 50%) 0 0 / 10px 10px; border-radius: 4px; flex: none; }
+.pick-row img { width: 64px; height: 48px; object-fit: contain; background: repeating-conic-gradient(var(--panel-2) 0 25%, var(--panel) 0 50%) 0 0 / 10px 10px; border-radius: 4px; flex: none; }
 .pick-row .grow { min-width: 0; }
 
 /* ---------- editor ---------- */
@@ -149,7 +170,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ed-strip.float.row.collapsed { padding-right: 2px; }
 .ed-strip.float.row.collapsed .strip-fold { width: 28px; height: 48px; }
 .ed-strip.float.row.collapsed .strip-fold .icon { transform: rotate(-90deg); }
-.ed-viewport { --canvas-bg: #34353c; flex: 1; position: relative; overflow: hidden; background: var(--canvas-bg); touch-action: none; }
+.ed-viewport { flex: 1; position: relative; overflow: hidden; background: var(--canvas-bg); touch-action: none; }
 .ed-viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* the canvas with the animation timeline under it */
 .ed-center { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -202,7 +223,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .zoom-label, .rot-label { background: transparent; border-color: transparent; padding: 2px 4px; justify-content: center; font-variant-numeric: tabular-nums; }
 .zoom-label { min-width: 58px; }
 .rot-label { min-width: 46px; }
-.icon-btn.on { color: var(--accent); background: rgba(110, 168, 255, 0.12); border-color: rgba(110, 168, 255, 0.35); }
+.icon-btn.on { color: var(--accent); background: var(--accent-12); border-color: var(--accent-35); }
 .cursor-pos { min-width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* tool settings */
@@ -229,9 +250,9 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .hs-row:hover { background: var(--panel-2); }
 .hs-row.current { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
 .hs-row.undone { color: var(--muted); font-style: italic; }
-.nav-canvas { display: block; margin: 0 auto; border-radius: 4px; background: #17181c; cursor: crosshair; touch-action: none; }
+.nav-canvas { display: block; margin: 0 auto; border-radius: 4px; background: var(--well); cursor: crosshair; touch-action: none; }
 .tool-props [data-brush-win] { display: inline-flex; align-items: center; gap: 6px; }
-.tool-props [data-brush-win].on { color: var(--accent); border-color: rgba(110, 168, 255, 0.45); }
+.tool-props [data-brush-win].on { color: var(--accent); border-color: var(--accent-45); }
 /* Brush settings: a floating window beside the canvas, a page per group */
 .brush-win { position: fixed; z-index: 40; width: 340px; max-height: calc(100vh - 80px); display: flex; flex-direction: column; background: var(--panel);
   border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 14px 36px rgba(0,0,0,.55); }
@@ -249,7 +270,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ref-win { resize: both; overflow: hidden; min-width: 220px; min-height: 160px; max-width: 95vw; max-height: 95vh; }
 .ref-win .bw-head { padding-right: 4px; }
 .ref-win .bw-head .icon-btn { padding: 2px 5px; font-size: 15px; line-height: 1; }
-.ref-body { position: relative; flex: 1; min-height: 0; background: #17181c; border-radius: 0 0 8px 8px; overflow: hidden; }
+.ref-body { position: relative; flex: 1; min-height: 0; background: var(--well); border-radius: 0 0 8px 8px; overflow: hidden; }
 .ref-canvas { display: block; cursor: crosshair; touch-action: none; }
 .ref-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 16px; margin: 0; }
 /* Brushes: every brush of the tool with a sample stroke */
@@ -282,7 +303,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 /* the current brush's stroke under the Brush row: opens the Brushes window */
 .brush-strip { position: relative; display: block; width: 100%; height: 34px; padding: 0; margin: 0 0 6px; border: 1px solid var(--line); border-radius: 5px; background: #fff; overflow: hidden; cursor: pointer; }
 .brush-strip canvas { display: block; width: 100%; height: 100%; }
-.brush-strip .bs-more { position: absolute; right: 0; top: 0; bottom: 0; width: 26px; display: grid; place-items: center; color: #fff; background: rgba(30, 32, 38, .72); }
+.brush-strip .bs-more { position: absolute; right: 0; top: 0; bottom: 0; width: 26px; display: grid; place-items: center; color: #fff; background: var(--glass); }
 .brush-strip:hover { border-color: var(--accent); }
 .brush-strip.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .act-win { width: 300px; max-height: min(520px, calc(100vh - 80px)); }
@@ -348,12 +369,12 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .lp-opacity { display: flex; align-items: center; gap: 4px; flex: 1; }
 .lp-opacity input { width: 70px; }
 .lp-opacity span { font-size: 12px; min-width: 34px; text-align: right; }
-.lp-list { flex: 1; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: #1c1d21; }
-.lp-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid #2a2b31; cursor: pointer; }
-.lp-row:hover { background: #26272d; }
-.lp-row.active { background: #2c3c5c; }
-.lp-row.picked { background: #26324a; }
-.lp-picked { display: flex; align-items: center; gap: 6px; padding: 3px 6px; font-size: 11px; color: var(--muted, #a0a3ad); background: #232a3a; border-bottom: 1px solid #2a2b31; }
+.lp-list { flex: 1; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); }
+.lp-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--row-line); cursor: pointer; }
+.lp-row:hover { background: var(--hover); }
+.lp-row.active { background: var(--row-active); }
+.lp-row.picked { background: var(--row-picked); }
+.lp-picked { display: flex; align-items: center; gap: 6px; padding: 3px 6px; font-size: 11px; color: var(--muted); background: var(--row-note); border-bottom: 1px solid var(--row-line); }
 .lp-picked span { flex: 1; min-width: 0; }
 .lp-picked button { padding: 1px 6px; font-size: 11px; }
 .lp-row.clipped { border-left: 3px solid var(--accent); }
@@ -367,7 +388,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .lp-list.dragging { cursor: grabbing; }
 .lp-row.drop-above { box-shadow: inset 0 2px 0 var(--accent); }
 .lp-row.drop-below { box-shadow: inset 0 -2px 0 var(--accent); }
-.lp-row.drop-into { background: #2c3c5c; outline: 1px dashed var(--accent); outline-offset: -2px; }
+.lp-row.drop-into { background: var(--row-active); outline: 1px dashed var(--accent); outline-offset: -2px; }
 .lp-name { display: flex; flex-direction: column; min-width: 0; }
 .lp-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lp-name small { color: var(--muted); font-size: 11px; }
@@ -405,7 +426,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .guide-page code { font-size: 12.5px; background: var(--panel-2); border-radius: 3px; padding: 0 4px; }
 .guide-page figure { margin: 10px 0 14px; }
 .guide-page .guide-link { display: inline; padding: 0; min-height: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
-.guide-page .guide-link:hover { background: none; color: #9cc3ff; }
+.guide-page .guide-link:hover { background: none; color: var(--accent-text); }
 .guide-turn { display: flex; justify-content: space-between; gap: 8px; margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--line); }
 .guide-turn button { font-size: 12.5px; }
 .guide-page figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -501,7 +522,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .field input[type=color] { width: 100%; height: 30px; padding: 2px; background: none; border: 1px solid var(--line); border-radius: 6px; }
 .tone-preview { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; image-rendering: pixelated; }
 #toasts { position: fixed; bottom: 42px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 200; align-items: center; pointer-events: none; }
-.toast { background: #3a3b44; border: 1px solid #4a4b55; padding: 8px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.4); display: flex; gap: 12px; align-items: center; pointer-events: auto; transition: opacity .35s; max-width: 70vw; }
+.toast { background: var(--toast); border: 1px solid var(--toast-line); padding: 8px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.4); display: flex; gap: 12px; align-items: center; pointer-events: auto; transition: opacity .35s; max-width: 70vw; }
 .toast.error { border-color: var(--danger); }
 .toast.out { opacity: 0; }
 .toast button { padding: 2px 8px; }
@@ -546,8 +567,8 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 /* text editing: the textarea sits over the canvas in doc coordinates (its own text is invisible) */
 .text-edit { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; z-index: 4; }
 .text-edit textarea { position: absolute; pointer-events: auto; margin: 0; padding: 0; border: none; resize: none; overflow: hidden;
-  white-space: pre; background: rgba(110, 168, 255, 0.06); color: transparent; caret-color: #3d6fd1;
-  outline: 1px dashed #6ea8ff; user-select: text; box-sizing: content-box; }
+  white-space: pre; background: var(--accent-06); color: transparent; caret-color: var(--accent-2);
+  outline: 1px dashed var(--accent); user-select: text; box-sizing: content-box; }
 .save-state.error { color: var(--danger); }
 
 /* file browser (filebrowser.js) */
@@ -578,7 +599,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .curve-row .icon-btn { min-width: 22px; height: 20px; padding: 0 4px; font-size: 11px; }
 svg.curve { width: 100%; height: 20px; }
 svg.curve rect { fill: var(--panel-2); stroke: var(--line); stroke-width: .5; }
-svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+svg.curve polyline { fill: none; stroke: var(--accent); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .img-pick { display: flex; gap: 6px; }
 .img-pick select { flex: 1; min-width: 0; }
 .import-all { margin-bottom: 8px; }
@@ -589,7 +610,7 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 
 /* Curves */
 .curves { display: flex; flex-direction: column; gap: 8px; }
-.curve-box { width: 256px; height: 256px; align-self: center; background: #17181c; border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }
+.curve-box { width: 256px; height: 256px; align-self: center; background: var(--well); border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }
 
 .ed-tools::-webkit-scrollbar { display: none; }
 
@@ -625,7 +646,7 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 
 /* the selection bar under a selection */
 .sel-bar { position: absolute; left: 0; top: 0; z-index: 3; display: flex; gap: 1px; padding: 3px; border-radius: 7px;
-  background: var(--panel, #26272d); border: 1px solid var(--line, #444); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  background: var(--panel); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
 .sel-bar .icon-btn { padding: 4px 6px; }
 
 /* finding layers by name */
