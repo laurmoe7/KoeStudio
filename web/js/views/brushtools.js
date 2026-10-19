@@ -15,12 +15,14 @@ import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, gr
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
-import { BUILTIN_BY_ID, builtinBrushesFor, brushListGroups } from '../builtinbrushes.js';
+import { BUILTIN_BY_ID, builtinBrushesFor, brushListGroups, brushChanged } from '../builtinbrushes.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 import { icon } from '../icons.js';
 
 const newId = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
 const IMG_RE = /^image\//;
+/** The Brushes window's stroke sizes: [name, stroke height in CSS px]. */
+const BRUSH_LIST_SIZES = { s: ['Small', 26], m: ['Medium', 40], l: ['Large', 64] };
 const PREVIEW_H = 76;  // height of the stroke preview in the Brush settings window, CSS px
 const PREVIEW_SEED = 12345;  // the preview's jitter is the same every time, so changing a setting shows only that change
 
@@ -93,17 +95,22 @@ export const brushMethods = {
   tipChoices() { return [...TIPS, ...this.brushImages('tip').map(i => [`img:${i.id}`, i.name])]; },
   textureChoices() { return [...TEXTURES, ...this.brushImages('texture').map(i => [`img:${i.id}`, i.name])]; },
 
-  /** The Brush row at the top of a paint tool's panel: the built-in or saved brush it came from, and the brush menu. */
+  /**
+   * The Brush row at the top of a paint tool's panel: the built-in or saved brush it came from (with * once its
+   * settings were changed) and the brush menu, over a strip with the current brush's stroke that opens the Brushes
+   * window.
+   */
   presetRowHtml(s) {
     const presets = this.brushLib?.presets || [], builtin = builtinBrushesFor(this.tool);
-    const cur = this.presetById(s.preset) ? s.preset : '';
-    const opt = p => `<option value="${esc(p.id)}" ${p.id === cur ? 'selected' : ''}>${esc(p.name)}</option>`;
+    const cur = this.presetById(s.preset) ? s.preset : '', star = brushChanged(s, this.presetById(cur)) ? ' *' : '';
+    const opt = p => `<option value="${esc(p.id)}" ${p.id === cur ? `selected data-name="${esc(p.name)}">${esc(p.name + star)}` : `>${esc(p.name)}`}</option>`;
     const groups = [...new Set(builtin.map(b => b.group))].map(g =>
       `<optgroup label="${esc(g)}">${builtin.filter(b => b.group === g).map(opt).join('')}</optgroup>`).join('');
     return `<div class="preset-row"><label class="slider" title="Ready-made and saved brushes: pick one to load its settings"><span>Brush</span>
       <select data-preset><option value="">Custom</option>${groups}${presets.length ? `<optgroup label="Your brushes">${presets.map(opt).join('')}</optgroup>` : ''}</select></label>
-      <button class="icon-btn${this.brushListWin ? ' on' : ''}" data-brush-list title="Brushes window: every brush with a sample stroke">${icon('brush', 14)}</button>
-      <button class="icon-btn" data-brush-menu title="Save, import and manage brushes">⋯</button></div>`;
+      <button class="icon-btn" data-brush-menu title="Save, import and manage brushes">⋯</button></div>
+      <button class="brush-strip${this.brushListWin ? ' on' : ''}" data-brush-list title="The current brush. Click to choose from every brush, each with a sample stroke">
+        <canvas></canvas><span class="bs-more">${icon('brush', 14)}</span></button>`;
   },
 
   /** A built-in brush (builtinbrushes.js) or one of the user's saved brushes, by id; or undefined. */
@@ -185,17 +192,33 @@ export const brushMethods = {
     this.drawBrushPreview();
   },
 
-  /** Redraws the stroke preview at the top of the Brush settings window (once per frame, however often asked). */
+  /**
+   * Redraws the current brush's strokes (the Brush settings window's preview and the strip in the tool panel) and
+   * its changed mark (*), once per frame however often asked.
+   */
   drawBrushPreview() {
-    if (!this.brushWin || this.previewRaf) return;
+    if (this.previewRaf) return;
     this.previewRaf = requestAnimationFrame(() => {
       this.previewRaf = 0;
-      const c = this.brushWin?.querySelector('.bw-preview'), t = TOOL_BY_ID[this.tool];
-      if (!c || t.kind !== 'paint') return;
-      const dpr = window.devicePixelRatio || 1, w = Math.round((c.clientWidth || 320) * dpr), h = Math.round(PREVIEW_H * dpr);
-      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-      this.paintPreviewStroke(c, this.settings[t.id], 1 / 4);
+      const t = TOOL_BY_ID[this.tool];
+      if (t.kind !== 'paint' || this.destroyed) return;
+      const s = this.settings[t.id], dpr = window.devicePixelRatio || 1;
+      for (const [c, maxSize] of [[this.brushWin?.querySelector('.bw-preview'), 1 / 4], [this.root.querySelector('.brush-strip canvas'), 0.35]]) {
+        if (!c?.clientWidth) continue;
+        const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+        this.paintPreviewStroke(c, s, maxSize);
+      }
+      this.markBrushChanged();
     });
+  },
+
+  /** Shows whether the current brush was changed since it was loaded: * after its name in the Brush row and the Brushes window. */
+  markBrushChanged() {
+    const s = this.settings[this.tool], changed = brushChanged(s, this.presetById(s.preset));
+    const opt = this.root.querySelector('.tool-props [data-preset] option[data-name]');
+    if (opt) opt.textContent = opt.dataset.name + (changed ? ' *' : '');
+    this.brushListWin?.querySelectorAll('.bl-row').forEach(r => r.classList.toggle('changed', changed && r.dataset.id === s.preset));
   },
 
   /**
@@ -238,8 +261,9 @@ export const brushMethods = {
 
   /**
    * Opens or closes the Brushes window: every brush the current paint tool can take on (built-in and saved, as in
-   * the Brush choice), each with its name and a sample stroke, and a search box. Clicking one loads it. Its place is
-   * remembered in koe.brushList = {open, x, y}.
+   * the Brush choice), each with its name and a sample stroke, a search box, three stroke sizes and a menu per brush
+   * (right-click). Clicking one loads it; the arrow keys step through them. Its place, size and stroke size are
+   * remembered in koe.brushList = {open, x, y, w, h, size}.
    */
   toggleBrushList(open = !this.brushListState().open) {
     store('brushList', { ...this.brushListState(), open });
@@ -247,47 +271,123 @@ export const brushMethods = {
   },
 
   brushListState() {
-    const st = store('brushList');
-    return { open: !!st?.open, x: Number.isFinite(st?.x) ? st.x : 300, y: Number.isFinite(st?.y) ? st.y : 120 };
+    const st = store('brushList'), num = v => (Number.isFinite(v) ? v : null);
+    return { open: !!st?.open, x: num(st?.x) ?? 300, y: num(st?.y) ?? 120, w: num(st?.w), h: num(st?.h),
+      size: BRUSH_LIST_SIZES[st?.size] ? st.size : 'm' };
   },
 
   /** Shows the window for the current tool (paint tools only), rebuilding its rows; thumbnails come from a cache. */
   renderBrushList() {
     const t = TOOL_BY_ID[this.tool], st = this.brushListState();
-    if (!st.open || t.kind !== 'paint' || this.destroyed) { this.brushListWin?.remove(); this.brushListWin = null; return; }
-    let w = this.brushListWin;
-    if (!w) {
-      w = this.brushListWin = document.createElement('div');
-      w.className = 'brush-win bl-win';
-      w.setAttribute('role', 'dialog');
-      w.innerHTML = `<div class="bw-head"><span class="bw-title"></span><button class="icon-btn" data-bl-close title="Close">✕</button></div>
-        <input class="bl-search" type="search" placeholder="Search" spellcheck="false" aria-label="Search brushes">
-        <div class="bl-list"></div>`;
-      this.root.append(w);
-      this.placeFloating(w, st.x, st.y);
-      this.bindFloatingHead(w, (x, y) => store('brushList', { ...this.brushListState(), x, y }));
-      w.querySelector('[data-bl-close]').onclick = () => this.toggleBrushList(false);
-      const search = w.querySelector('.bl-search');
-      search.value = this.brushListQuery || '';
-      search.oninput = () => { this.brushListQuery = search.value; this.renderBrushList(); };
-      search.onkeydown = e => { e.stopPropagation(); if (e.key === 'Escape') search.blur(); };  // typing is not shortcuts
-      w.querySelector('.bl-list').onclick = e => {
-        const row = e.target.closest('[data-id]');
-        if (row) this.applyPreset(row.dataset.id);
-      };
+    if (!st.open || t.kind !== 'paint' || this.destroyed) {
+      this.brushListObs?.disconnect();
+      this.brushListWin?.remove();
+      this.brushListWin = null;
+      return;
     }
+    const fresh = !this.brushListWin || this.brushListTool !== t.id;
+    const w = this.brushListWin || this.createBrushList(st);
+    this.brushListTool = t.id;
     w.querySelector('.bw-title').textContent = `Brushes · ${t.label}`;
+    w.dataset.size = st.size;
+    w.querySelectorAll('[data-bl-size]').forEach(b => b.classList.toggle('on', b.dataset.blSize === st.size));
     const s = this.settings[t.id], list = w.querySelector('.bl-list'), top = list.scrollTop;
     const groups = brushListGroups(t.id, this.brushLib?.presets || [], this.brushListQuery);
     list.innerHTML = groups.map(g => `<div class="bl-group">${esc(g.name)}</div>${g.brushes.map(b =>
-      `<button class="bl-row${b.id === s.preset ? ' on' : ''}" data-id="${esc(b.id)}" title="${esc(b.name)}"><span class="bl-name">${esc(b.name)}</span><canvas class="bl-thumb"></canvas></button>`).join('')}`).join('')
+      `<button class="bl-row${b.id === s.preset ? ' on' : ''}" data-id="${esc(b.id)}" title="${esc(b.name)}${b.builtin ? '' : ' (your brush)'}. Right-click for more">
+        <span class="bl-name">${esc(b.name)}<i class="bl-star" title="Changed since it was loaded: click to load it again">*</i></span><canvas class="bl-thumb"></canvas></button>`).join('')}`).join('')
       || '<p class="muted small bl-empty">No brush has that name.</p>';
     list.scrollTop = top;
+    this.markBrushChanged();
+    if (fresh) list.querySelector('.bl-row.on')?.scrollIntoView({ block: 'nearest' });
     this.drawBrushList();
   },
 
+  /** Makes the Brushes window (renderBrushList fills it). */
+  createBrushList(st) {
+    const w = this.brushListWin = document.createElement('div');
+    w.className = 'brush-win bl-win';
+    w.setAttribute('role', 'dialog');
+    w.innerHTML = `<div class="bw-head"><span class="bw-title"></span><button class="icon-btn" data-bl-close title="Close">✕</button></div>
+      <div class="bl-bar"><input class="bl-search" type="search" placeholder="Search" spellcheck="false" aria-label="Search brushes" title="Type part of a name; ↑ ↓ pick the brush above or below">
+        <span class="bl-sizes">${Object.entries(BRUSH_LIST_SIZES).map(([k, [label]]) => `<button data-bl-size="${k}" title="${label} strokes"><i class="bl-size-${k}"></i></button>`).join('')}</span></div>
+      <div class="bl-list"></div>
+      <div class="bl-foot"><button data-bl-act="save" title="Keep the current settings as a brush of your own">${icon('plus', 14)} Save as new…</button>
+        <button data-bl-act="import" title="Procreate, Photoshop, GIMP and Krita brushes">Import…</button></div>`;
+    if (st.w) w.style.width = st.w + 'px';
+    if (st.h) w.style.height = st.h + 'px';
+    this.root.append(w);
+    this.placeFloating(w, st.x, st.y);
+    this.bindFloatingHead(w, (x, y) => store('brushList', { ...this.brushListState(), x, y }));
+    w.querySelector('[data-bl-close]').onclick = () => this.toggleBrushList(false);
+    w.querySelector('[data-bl-act="save"]').onclick = () => this.saveBrushAs();
+    w.querySelector('[data-bl-act="import"]').onclick = () => this.importBrushFile();
+    w.querySelectorAll('[data-bl-size]').forEach(b => {
+      b.onclick = () => { store('brushList', { ...this.brushListState(), size: b.dataset.blSize }); this.renderBrushList(); };
+    });
+    const search = w.querySelector('.bl-search');
+    search.value = this.brushListQuery || '';
+    search.oninput = () => { this.brushListQuery = search.value; this.renderBrushList(); };
+    w.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && e.target === search) { search.blur(); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.stepBrushList(e.key === 'ArrowDown' ? 1 : -1);
+    });
+    const list = w.querySelector('.bl-list');
+    list.onclick = e => {
+      const row = e.target.closest('[data-id]');
+      if (row) this.applyPreset(row.dataset.id);
+    };
+    list.oncontextmenu = e => {
+      const row = e.target.closest('[data-id]');
+      if (!row) return;
+      e.preventDefault();
+      this.brushRowMenu(row);
+    };
+    // resizing the window (its corner): remember the size, and redraw the strokes at the new width
+    let timer = 0;
+    this.brushListObs = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!w.isConnected) return;
+        const r = w.getBoundingClientRect();
+        if (r.width && r.height) store('brushList', { ...this.brushListState(), w: Math.round(r.width), h: Math.round(r.height) });
+        this.drawBrushList();
+      }, 150);
+    });
+    this.brushListObs.observe(w);
+    return w;
+  },
+
+  /** Loads the brush below (dir 1) or above (-1) the current one in the Brushes window, as it is filtered now. */
+  stepBrushList(dir) {
+    const rows = [...(this.brushListWin?.querySelectorAll('.bl-row') || [])];
+    if (!rows.length) return;
+    const i = rows.findIndex(r => r.classList.contains('on'));
+    const next = rows[i < 0 ? (dir > 0 ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, i + dir))];
+    this.applyPreset(next.dataset.id);
+    this.brushListWin?.querySelector('.bl-row.on')?.scrollIntoView({ block: 'nearest' });
+  },
+
+  /** The menu of a brush in the Brushes window (right-click). */
+  brushRowMenu(row) {
+    const p = this.presetById(row.dataset.id);
+    if (!p) return;
+    const s = this.settings[this.tool], current = s.preset === p.id, mine = !p.builtin;
+    menu(row, [
+      { label: current && brushChanged(s, p) ? 'Undo my changes (load it again)' : 'Use', run: () => this.applyPreset(p.id) },
+      { label: 'Save a copy as new brush…', run: () => this.saveBrushAs(this.brushSettingsOf(applySettings({ ...s }, p.settings)), `${p.name} copy`) },
+      '-',
+      { label: 'Update with the current settings', disabled: !mine || !current, run: () => this.updatePreset(p) },
+      { label: 'Rename…', disabled: !mine, run: () => this.renamePreset(p) },
+      { label: 'Delete…', disabled: !mine, run: () => this.deletePreset(p) },
+    ]);
+  },
+
   /**
-   * Draws the sample strokes in the Brushes window: a cached picture per brush, settings, colour and width; missing
+   * Draws the sample strokes in the Brushes window: a cached picture per brush, settings, colour and size; missing
    * ones are painted a few per frame so a long list never holds up the screen.
    */
   drawBrushList() {
@@ -297,8 +397,8 @@ export const brushMethods = {
     const todo = [];
     for (const c of w.querySelectorAll('.bl-thumb')) {
       const p = this.presetById(c.closest('[data-id]').dataset.id);
-      if (!p) continue;
-      const cw = Math.round((c.clientWidth || 180) * dpr), ch = Math.round((c.clientHeight || 40) * dpr);
+      if (!p || !c.clientWidth) continue;
+      const cw = Math.round(c.clientWidth * dpr), ch = Math.round(c.clientHeight * dpr);
       const settings = applySettings({ ...s }, p.settings);
       const key = `${t.id}|${cw}x${ch}|${this.colors.main}|${JSON.stringify(settings)}`;
       todo.push({ c, cw, ch, settings, key });
@@ -375,19 +475,27 @@ export const brushMethods = {
     this.drawOverlay();
   },
 
-  async saveBrushAs() {
+  /** Saves settings (the current tool's unless given) as a new brush of the user's, and loads it. */
+  async saveBrushAs(settings = null, suggest = '') {
     const s = this.settings[this.tool];
-    const name = await promptBox('Save as new brush', 'Name', `${TOOL_BY_ID[this.tool].label} ${this.brushLib.presets.length + 1}`);
+    const name = await promptBox('Save as new brush', 'Name', suggest || `${TOOL_BY_ID[this.tool].label} ${this.brushLib.presets.length + 1}`);
     if (!name) return;
-    const p = { id: newId(), name, settings: this.brushSettingsOf(s) };
+    const p = { id: newId(), name, settings: settings || this.brushSettingsOf(s) };
     this.brushLib.presets.push(p);
-    if (await this.savePresetList()) { s.preset = p.id; store('tools', this.settings); toast(`Saved the brush “${name}”`); }
+    if (await this.savePresetList()) {
+      if (settings) applySettings(s, settings);
+      s.preset = p.id;
+      store('tools', this.settings);
+      toast(`Saved the brush “${name}”`);
+    }
     this.renderToolProps();
   },
 
   async updatePreset(p) {
     p.settings = this.brushSettingsOf(this.settings[this.tool]);
     if (await this.savePresetList()) toast(`Updated “${p.name}”`);
+    this.markBrushChanged();
+    this.drawBrushList();
   },
 
   async renamePreset(p) {

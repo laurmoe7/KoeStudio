@@ -3,7 +3,7 @@
 // A tool remembers a built-in brush in its `preset` setting as 'b-<name>'; built-in brushes cannot be changed or
 // deleted (Save as new brush… keeps a changed copy).
 
-import { TOOL_BY_ID, BRUSH_KEYS } from './tools.js';
+import { TOOL_BY_ID, BRUSH_KEYS, applySettings } from './tools.js';
 
 /** Every paint setting a brush keeps, at the Brush tool's defaults without its taper; a built-in brush changes some. */
 const BASE = { ...Object.fromEntries(BRUSH_KEYS.map(k => [k, TOOL_BY_ID.brush.defaults[k]])), taperIn: 0, taperOut: 0 };
@@ -53,4 +53,14 @@ export function brushListGroups(toolId, presets = [], query = '') {
   groups.push({ name: 'Your brushes', brushes: presets });
   return groups.map(g => ({ name: g.name, brushes: q && !g.name.toLowerCase().includes(q) ? g.brushes.filter(b => b.name.toLowerCase().includes(q)) : g.brushes }))
     .filter(g => g.brushes.length);
+}
+
+/**
+ * Whether a tool's settings s have been changed since brush p was loaded: loading p again would change one of the
+ * settings it keeps (as Krita's "Basic-1*"). Pressure curves compare by their points.
+ */
+export function brushChanged(s, p) {
+  if (!p) return false;
+  const again = applySettings({ ...s }, p.settings);
+  return BRUSH_KEYS.some(k => k in s && JSON.stringify(again[k]) !== JSON.stringify(s[k]));
 }

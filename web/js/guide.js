@@ -111,9 +111,18 @@ export const GUIDE = [
     <p class="tip">To keep a changed ready-made brush, choose <b>⋯ → Save as new brush</b>. The ready-made ones
     always stay as they came.</p>
     <h4>Brushes window</h4>
-    <p>To see what each brush looks like before you pick it, click the brush button next to the <b>Brush</b> row
-    (or <b>View → Brushes</b>). A window lists every brush, your saved ones too, with a sample stroke in your current
-    colour. Click one to use it; type in <b>Search</b> to find one by name. It stays open while you paint.</p>
+    <p>The strip under the <b>Brush</b> row shows a stroke of your current brush. A <b>*</b> after the brush's name
+    means you changed its settings since you picked it.</p>
+    <ol>
+      <li>Click the strip (or <b>View → Brushes</b>) to open a window with every brush, your saved ones too, each
+      with a sample stroke in your current colour.</li>
+      <li>Click a brush to use it, or press <kbd>↑</kbd> <kbd>↓</kbd> to step through them. Type in <b>Search</b> to
+      find one by name.</li>
+      <li>The three bars next to Search make the strokes small, medium or large. Drag the window's corner to make it
+      bigger.</li>
+      <li>Right-click a brush to save a copy, or to update, rename or delete one of your own.</li>
+    </ol>
+    <p class="tip">Changed a brush and want it back as it was? Click it again in the Brushes window.</p>
     <h4>Saved brushes</h4>
     <ol>
       <li>Set up a brush you like.</li>

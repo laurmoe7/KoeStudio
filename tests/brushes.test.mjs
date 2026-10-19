@@ -212,3 +212,20 @@ test('the Brushes window lists brushes by group, filtered by the search', async 
   assert.deepEqual(names(brushListGroups('pen', mine, 'soft')), [['Pencil and chalk', ['Soft pencil 6B']], ['Paint', ['Soft blend']]]);
   assert.deepEqual(brushListGroups('pen', mine, 'zzz'), []);
 });
+
+test('a brush counts as changed once a setting it keeps differs', async () => {
+  const { brushChanged, BUILTIN_BY_ID } = await import('../web/js/builtinbrushes.js');
+  const gpen = BUILTIN_BY_ID['b-gpen'];
+  const s = applySettings({ ...sanitizeSettings({}).pen }, gpen.settings);
+  assert.equal(brushChanged(s, gpen), false, 'just loaded');
+  s.size = 9;
+  assert.equal(brushChanged(s, gpen), true, 'size 9 is not the G-pen 8');
+  s.size = 8;
+  assert.equal(brushChanged(s, gpen), false, 'back to 8');
+  s.sizeCurve = [[0, 0], [0.5, 0.8], [1, 1]];
+  assert.equal(brushChanged(s, gpen), true, 'a curve where the G-pen has none');
+  // an older saved brush keeping only a size: the settings it does not keep never count
+  assert.equal(brushChanged({ ...s, size: 12 }, { settings: { size: 12 } }), false);
+  assert.equal(brushChanged({ ...s, size: 12 }, { settings: { size: 13 } }), true);
+  assert.equal(brushChanged(s, undefined), false, 'no brush loaded: Custom');
+});

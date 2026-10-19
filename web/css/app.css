@@ -253,17 +253,38 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ref-canvas { display: block; cursor: crosshair; touch-action: none; }
 .ref-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 16px; margin: 0; }
 /* Brushes: every brush of the tool with a sample stroke */
-.bl-win { width: 300px; max-height: min(620px, calc(100vh - 80px)); }
-.bl-search { margin: 6px 8px 4px; flex: none; }
-.bl-list { flex: 1; min-height: 60px; overflow: auto; padding: 0 6px 6px; }
+.bl-win { width: 300px; height: 460px; min-width: 220px; min-height: 180px; max-width: 90vw; max-height: calc(100vh - 40px); resize: both; overflow: hidden; }
+.bl-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px 4px; flex: none; }
+.bl-search { flex: 1; min-width: 0; }
+.bl-sizes { display: flex; gap: 1px; flex: none; }
+.bl-sizes button { width: 24px; height: 24px; padding: 0; display: grid; place-items: center; background: transparent; border-color: transparent; }
+.bl-sizes button:hover { background: var(--panel-2); }
+.bl-sizes button.on { background: var(--panel-2); border-color: var(--line); }
+.bl-sizes i { display: block; width: 14px; border-radius: 1px; background: currentColor; opacity: .75; }
+.bl-size-s { height: 4px; } .bl-size-m { height: 7px; } .bl-size-l { height: 11px; }
+.bl-list { flex: 1; min-height: 40px; overflow: auto; padding: 0 6px 6px; }
 .bl-group { font-size: 11px; color: var(--muted); padding: 6px 2px 2px; }
 .bl-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 3px; margin-bottom: 3px; text-align: left; border: 1px solid transparent; border-radius: 5px; background: transparent; }
 .bl-row:hover { background: var(--panel-2); }
 .bl-row.on { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
 .bl-name { width: 92px; flex: none; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-star { display: none; font-style: normal; font-weight: 700; margin-left: 2px; }
+.bl-row.changed .bl-star { display: inline; }
 .bl-thumb { flex: 1; min-width: 0; height: 40px; border-radius: 3px; background: #fff; }
+.bl-win[data-size="s"] .bl-thumb { height: 26px; }
+.bl-win[data-size="s"] .bl-row { margin-bottom: 1px; padding: 2px 3px; }
+.bl-win[data-size="l"] .bl-row { flex-direction: column; align-items: stretch; gap: 3px; }
+.bl-win[data-size="l"] .bl-name { width: auto; padding: 0 2px; }
+.bl-win[data-size="l"] .bl-thumb { flex: none; height: 64px; }
 .bl-empty { padding: 8px 4px; }
-.preset-row .icon-btn.on { color: var(--accent); }
+.bl-foot { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--line); flex: none; }
+.bl-foot button { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+/* the current brush's stroke under the Brush row: opens the Brushes window */
+.brush-strip { position: relative; display: block; width: 100%; height: 34px; padding: 0; margin: 0 0 6px; border: 1px solid var(--line); border-radius: 5px; background: #fff; overflow: hidden; cursor: pointer; }
+.brush-strip canvas { display: block; width: 100%; height: 100%; }
+.brush-strip .bs-more { position: absolute; right: 0; top: 0; bottom: 0; width: 26px; display: grid; place-items: center; color: #fff; background: rgba(30, 32, 38, .72); }
+.brush-strip:hover { border-color: var(--accent); }
+.brush-strip.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .act-win { width: 300px; max-height: min(520px, calc(100vh - 80px)); }
 .act-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e5484d; margin-right: 4px; vertical-align: 0; }
 .act-bar { display: flex; gap: 4px; padding: 6px 8px 4px; }

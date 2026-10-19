@@ -978,6 +978,7 @@ export class Editor {
         `<div class="btn-row"><button data-brush-win class="${this.brushWin ? 'on' : ''}" title="Tip, pen pressure, stroke, variation and texture settings">${icon('sliders', 14)} Brush settings…</button></div>`;
       this.bindPresetRow(box);
       box.querySelector('[data-brush-win]').onclick = () => this.toggleBrushWindow();
+      this.drawBrushPreview();  // the stroke strip under the Brush row
     } else box.innerHTML = this.settingsHtml(fields, s);
     if (t.kind === 'picker') box.insertAdjacentHTML('beforeend', '<p class="hint">Click the canvas to pick a colour. Hold Alt with a brush to pick quickly (with these settings).</p>');
     if (t.kind === 'lineedit') this.renderLineEditProps(box);
