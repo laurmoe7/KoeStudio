@@ -5,6 +5,10 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- New filters: Vignette, Emboss, Oil paint, Wave, Find edges, Grayscale and Auto contrast.
+- Filter → Render → Clouds fills with soft clouds from the main to the sub colour.
+- Filter → Color → Reduce to palette colors turns a picture into your palette's colours, with optional dithering, for pixel art.
+- Filter → Line art → Main color to transparency takes a colour (such as the paper of a scan) out of a layer.
 - Ready-made brushes in the Brush row of every paint tool: G-pen, Fineliner, Brush pen, HB and 6B pencils, Charcoal, Chalk, Gouache, Watercolour, Dry brush, Marker, Soft blend, Spatter, and hard, soft and kneaded erasers.
 - A new Bristles brush tip that leaves streaks like a dry brush.
 - The Brush tool paints a fuller, firmer stroke with a tapered end (for new settings).

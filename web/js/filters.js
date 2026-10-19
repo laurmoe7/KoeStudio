@@ -61,15 +61,38 @@ export const FILTERS = [
   { id: 'gradmap', label: 'Gradient map…', fields: [f('mix', 'Strength', 0, 100, 1, 100, '%')], gradient: true,
     note: 'Dark parts take the first colour of the Gradient tool’s Colors choice, light parts the last.',
     margin: () => 0, apply: (d, w, h, p) => gradientMap(d, p.stops || [[0, [0, 0, 0, 255]], [1, [255, 255, 255, 255]]], p.mix / 100) },
+  { id: 'gray', label: 'Grayscale', fields: [], margin: () => 0, apply: d => desaturate(d) },
+  { id: 'autocontrast', label: 'Auto contrast', fields: [], margin: () => 0, apply: d => autoContrast(d) },
+  { id: 'palette', label: 'Reduce to palette colors…', fields: [f('dither', 'Dither', 0, 100, 1, 0, '%')], palette: true,
+    note: 'Every pixel takes the nearest colour of your palette (Color panel), for pixel art. Dither mixes two colours in a fine pattern instead of hard bands.',
+    margin: () => 0, apply: (d, w, h, p, x0, y0) => reduceToPalette(d, w, h, p.palette, p.dither, x0, y0) },
+  { id: 'colorkey', label: 'Main color to transparency', fields: [], mainColor: true,
+    margin: () => 0, apply: (d, w, h, p) => colorToAlpha(d, p.color || [255, 255, 255]) },
+  { id: 'emboss', label: 'Emboss…', fields: [f('angle', 'Light from', 0, 360, 1, 135, '°'), f('height', 'Height', 1, 20, 1, 2, ' px'),
+    f('amount', 'Amount', 10, 500, 1, 100, '%'), f('color', 'Keep color', 0, 100, 1, 0, '%')],
+    margin: p => Math.ceil(p.height) + 1, apply: (d, w, h, p) => emboss(d, w, h, p.angle, p.height, p.amount, p.color) },
+  { id: 'edges', label: 'Find edges', fields: [], margin: () => 1, apply: (d, w, h) => findEdges(d, w, h, 100) },
+  { id: 'vignette', label: 'Vignette…', fields: [f('amount', 'Darken', -100, 100, 1, 50, '%'), f('size', 'Size', 0, 150, 1, 60, '%'), f('softness', 'Softness', 1, 150, 1, 80, '%')],
+    note: 'Negative amounts lighten the edges instead.',
+    margin: () => 0, apply: (d, w, h, p, x0, y0, W, H) => vignette(d, w, h, p.amount, p.size, p.softness, x0, y0, W ?? w, H ?? h) },
+  { id: 'oilpaint', label: 'Oil paint…', fields: [f('radius', 'Brush size', 1, 30, 1, 4, ' px')],
+    note: 'Flattens areas into patches of colour while keeping edges sharp.',
+    margin: p => p.radius, apply: (d, w, h, p) => oilPaint(d, w, h, p.radius) },
+  { id: 'wave', label: 'Wave…', fields: [f('amplitude', 'Height', 1, 100, 1, 6, ' px'), f('wavelength', 'Length', 4, 500, 1, 60, ' px')],
+    margin: p => Math.ceil(p.amplitude) + 1, apply: (d, w, h, p, x0, y0) => wave(d, w, h, p.amplitude, p.wavelength, x0, y0) },
+  { id: 'clouds', label: 'Clouds…', fields: [f('scale', 'Size', 4, 1000, 1, 160, ' px'), f('detail', 'Detail', 1, 8, 1, 5)], twoColors: true,
+    note: 'Fills with soft clouds from the main to the sub colour.',
+    margin: () => 0, apply: (d, w, h, p, x0, y0) => clouds(d, w, h, p.scale, p.detail, p.color || [0, 0, 0], p.color2 || [255, 255, 255], x0, y0) },
 ];
 
 /** The Filter menu: a submenu per group, [name, filter ids]. Every filter is in exactly one group. */
 export const FILTER_MENU = [
   ['Blur', ['blur', 'motion', 'zoom', 'spin']],
   ['Sharpen and noise', ['sharpen', 'median', 'noise']],
-  ['Color', ['balance', 'brightness', 'hsl', 'curves', 'levels', 'posterize', 'threshold', 'invert', 'recolor', 'gradmap']],
-  ['Effects', ['glow', 'chroma', 'mosaic', 'offset']],
-  ['Line art', ['lines', 'dust', 'whitealpha']],
+  ['Color', ['balance', 'brightness', 'hsl', 'curves', 'levels', 'autocontrast', 'posterize', 'threshold', 'gray', 'invert', 'recolor', 'gradmap', 'palette']],
+  ['Effects', ['glow', 'chroma', 'vignette', 'emboss', 'oilpaint', 'wave', 'mosaic', 'offset']],
+  ['Line art', ['lines', 'edges', 'dust', 'whitealpha', 'colorkey']],
+  ['Render', ['clouds']],
 ];
 
 export const FILTER_BY_ID = Object.fromEntries(FILTERS.filter(x => x !== '-').map(x => [x.id, x]));
@@ -813,6 +836,271 @@ export function gradientMap(data, stops, mix = 1) {
     const v = Math.round(luminance(data[i], data[i + 1], data[i + 2])) * 4;
     for (let c = 0; c < 3; c++) data[i + c] += (lut[v + c] - data[i + c]) * mix;
     data[i + 3] += (data[i + 3] * lut[v + 3] / 255 - data[i + 3]) * mix;
+  }
+  return data;
+}
+
+// ---------- relief, edges, painterly and render filters ----------
+
+/** Each pixel's lightness seen over white paper (so clear pixels count as white), 0-255. */
+export function lumaOverWhite(data) {
+  const n = data.length >> 2, L = new Float32Array(n);
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    const a = data[i + 3] / 255;
+    L[p] = luminance(data[i], data[i + 1], data[i + 2]) * a + 255 * (1 - a);
+  }
+  return L;
+}
+
+/**
+ * Emboss: the picture as a relief lit from `angle` degrees (0 = from the right, 90 = from above). Each pixel
+ * compares the lightness `height` px away from the light with the lightness the same distance towards it: 128
+ * (mid gray) where they match, lighter where the surface faces the light. amount (%) scales the relief; color
+ * (0-100 %) keeps that much of the original colour under it. Alpha is kept.
+ */
+export function emboss(data, w, h, angle, height, amount, color = 0) {
+  const L = lumaOverWhite(data), rad = angle * Math.PI / 180, k = amount / 100, mix = Math.max(0, Math.min(100, color)) / 100;
+  const dx = Math.round(Math.cos(rad) * height), dy = Math.round(-Math.sin(rad) * height);
+  const at = (x, y) => L[Math.max(0, Math.min(h - 1, y)) * w + Math.max(0, Math.min(w - 1, x))];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, relief = (at(x - dx, y - dy) - at(x + dx, y + dy)) * k;
+      for (let c = 0; c < 3; c++) data[i + c] = (128 + relief) * (1 - mix) + (data[i + c] + relief) * mix;
+    }
+  }
+  return data;
+}
+
+/**
+ * Find edges: dark lines where the lightness changes (a Sobel filter over white), white where it is flat.
+ * strength (%) 100 makes a jump from black to white fully black. Alpha is kept.
+ */
+export function findEdges(data, w, h, strength = 100) {
+  const L = lumaOverWhite(data), k = strength / 100 / 4;
+  const at = (x, y) => L[Math.max(0, Math.min(h - 1, y)) * w + Math.max(0, Math.min(w - 1, x))];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const tl = at(x - 1, y - 1), t = at(x, y - 1), tr = at(x + 1, y - 1), l = at(x - 1, y), r = at(x + 1, y);
+      const bl = at(x - 1, y + 1), b = at(x, y + 1), br = at(x + 1, y + 1);
+      const gx = tr + 2 * r + br - tl - 2 * l - bl, gy = bl + 2 * b + br - tl - 2 * t - tr;
+      const v = 255 - Math.min(255, Math.hypot(gx, gy) * k), i = (y * w + x) * 4;
+      data[i] = data[i + 1] = data[i + 2] = v;
+    }
+  }
+  return data;
+}
+
+const smoothstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a || 1e-9))); return t * t * (3 - 2 * t); };
+
+/**
+ * Vignette: darkens (amount > 0) or lightens (amount < 0) towards the edges of the canvas W x H. The distance from
+ * the centre is measured so the middle of each edge is 1 (an ellipse fitted to the canvas); the effect starts at
+ * size (%) of that and reaches full strength softness (%) further out. x0, y0: where the data sits in the canvas.
+ */
+export function vignette(data, w, h, amount, size, softness, x0 = 0, y0 = 0, W = w, H = h) {
+  const k = Math.max(-100, Math.min(100, amount)) / 100, a = size / 100, b = a + Math.max(0.01, softness / 100);
+  for (let y = 0; y < h; y++) {
+    const ny = (y + y0 + 0.5 - H / 2) / (H / 2);
+    for (let x = 0; x < w; x++) {
+      const nx = (x + x0 + 0.5 - W / 2) / (W / 2), t = smoothstep(a, b, Math.hypot(nx, ny)) * Math.abs(k);
+      if (!t) continue;
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) data[i + c] = k > 0 ? data[i + c] * (1 - t) : data[i + c] + (255 - data[i + c]) * t;
+    }
+  }
+  return data;
+}
+
+/**
+ * Oil paint (a Kuwahara filter): each pixel takes the average colour of whichever of the four (radius+1)-px squares
+ * meeting at it is the most even in lightness, so areas flatten into patches of colour while edges stay sharp.
+ * Worked in strips with summed-area tables, so the cost does not grow with the radius.
+ */
+export function oilPaint(data, w, h, radius) {
+  const r = Math.max(1, Math.round(radius)), src = new Uint8ClampedArray(data), STRIP = 128, W1 = w + 1;
+  for (let ys = 0; ys < h; ys += STRIP) {
+    const ye = Math.min(h, ys + STRIP), by0 = Math.max(0, ys - r), by1 = Math.min(h, ye + r), bh = by1 - by0;
+    const [sR, sG, sB, sA, sL, sQ] = Array.from({ length: 6 }, () => new Float64Array(W1 * (bh + 1)));
+    for (let y = 0; y < bh; y++) {
+      let r0 = 0, g0 = 0, b0 = 0, a0 = 0, l0 = 0, q0 = 0;
+      const row = (y + 1) * W1, up = y * W1;
+      for (let x = 0; x < w; x++) {
+        const i = ((by0 + y) * w + x) * 4, al = src[i + 3], f = al / 255;
+        const lum = luminance(src[i], src[i + 1], src[i + 2]) * f + 255 * (1 - f);
+        r0 += src[i] * al; g0 += src[i + 1] * al; b0 += src[i + 2] * al; a0 += al; l0 += lum; q0 += lum * lum;
+        const j = row + x + 1, u = up + x + 1;
+        sR[j] = sR[u] + r0; sG[j] = sG[u] + g0; sB[j] = sB[u] + b0; sA[j] = sA[u] + a0; sL[j] = sL[u] + l0; sQ[j] = sQ[u] + q0;
+      }
+    }
+    const box = (s, xa, ya, xb, yb) => s[yb * W1 + xb] - s[ya * W1 + xb] - s[yb * W1 + xa] + s[ya * W1 + xa];
+    for (let y = ys; y < ye; y++) {
+      for (let x = 0; x < w; x++) {
+        let best = Infinity, qx0 = 0, qy0 = 0, qx1 = 0, qy1 = 0;
+        for (let q = 0; q < 4; q++) {
+          const xa = Math.max(0, q & 1 ? x : x - r), xb = Math.min(w, q & 1 ? x + r + 1 : x + 1);
+          const ya = Math.max(by0, q & 2 ? y : y - r) - by0, yb = Math.min(by1, q & 2 ? y + r + 1 : y + 1) - by0;
+          const n = (xb - xa) * (yb - ya), m = box(sL, xa, ya, xb, yb) / n, v = box(sQ, xa, ya, xb, yb) / n - m * m;
+          if (v < best - 1e-6) { best = v; qx0 = xa; qy0 = ya; qx1 = xb; qy1 = yb; }
+        }
+        const i = (y * w + x) * 4, n = (qx1 - qx0) * (qy1 - qy0), a = box(sA, qx0, qy0, qx1, qy1);
+        if (a > 0) {
+          data[i] = box(sR, qx0, qy0, qx1, qy1) / a; data[i + 1] = box(sG, qx0, qy0, qx1, qy1) / a; data[i + 2] = box(sB, qx0, qy0, qx1, qy1) / a;
+        }
+        data[i + 3] = a / n;
+      }
+    }
+  }
+  return data;
+}
+
+/**
+ * Wave: shifts each row sideways and each column up or down along sine waves `wavelength` px long, by up to
+ * `amplitude` px, anchored to the document (x0, y0) so the waves line up across a selection's edge. Samples
+ * between pixels are mixed (premultiplied, so clear pixels do not darken edges); outside the data the edge repeats.
+ */
+export function wave(data, w, h, amplitude, wavelength, x0 = 0, y0 = 0) {
+  const src = new Uint8ClampedArray(data), k = 2 * Math.PI / Math.max(1, wavelength);
+  const shiftX = new Float32Array(h), shiftY = new Float32Array(w);
+  for (let y = 0; y < h; y++) shiftX[y] = amplitude * Math.sin((y + y0) * k);
+  for (let x = 0; x < w; x++) shiftY[x] = amplitude * Math.sin((x + x0) * k);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const sx = Math.max(0, Math.min(w - 1, x + shiftX[y])), sy = Math.max(0, Math.min(h - 1, y + shiftY[x]));
+      const xa = Math.floor(sx), ya = Math.floor(sy), xb = Math.min(w - 1, xa + 1), yb = Math.min(h - 1, ya + 1), fx = sx - xa, fy = sy - ya;
+      const j00 = (ya * w + xa) * 4, j10 = (ya * w + xb) * 4, j01 = (yb * w + xa) * 4, j11 = (yb * w + xb) * 4;
+      const w00 = (1 - fx) * (1 - fy) * src[j00 + 3], w10 = fx * (1 - fy) * src[j10 + 3], w01 = (1 - fx) * fy * src[j01 + 3], w11 = fx * fy * src[j11 + 3];
+      const a = w00 + w10 + w01 + w11, i = (y * w + x) * 4;
+      if (a > 0) {
+        for (let c = 0; c < 3; c++) data[i + c] = (src[j00 + c] * w00 + src[j10 + c] * w10 + src[j01 + c] * w01 + src[j11 + c] * w11) / a;
+      }
+      data[i + 3] = a;
+    }
+  }
+  return data;
+}
+
+/** Fractal value noise at a document pixel (0..sum of the octaves' strengths): smooth between lattice points. */
+export function cloudAt(x, y, scale, octaves) {
+  let v = 0, s = Math.max(1, scale), amp = 1;
+  for (let o = 0; o < octaves; o++, s /= 2, amp /= 2) {
+    const gx = x / s, gy = y / s, ix = Math.floor(gx), iy = Math.floor(gy);
+    const fx = gx - ix, fy = gy - iy, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy), seed = 4 + o;
+    const a = noiseAt(ix, iy, seed), b = noiseAt(ix + 1, iy, seed), c = noiseAt(ix, iy + 1, seed), d = noiseAt(ix + 1, iy + 1, seed);
+    v += amp * (a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy);
+  }
+  return v;
+}
+
+/**
+ * Clouds: fills with soft fractal noise between colours c1 and c2 ([r, g, b]). scale is the size of the biggest
+ * puffs in px; each of `detail` layers adds puffs half the size at half the strength. Anchored to the document
+ * (x0, y0), so a preview and the result match and a selection's clouds join up with the rest. Fully opaque.
+ */
+export function clouds(data, w, h, scale, detail, c1, c2, x0 = 0, y0 = 0) {
+  const oct = Math.max(1, Math.min(8, Math.round(detail)));
+  let total = 0;
+  for (let o = 0; o < oct; o++) total += 0.5 ** o;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = cloudAt(x + x0, y + y0, scale, oct) / total, i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) data[i + c] = c1[c] + (c2[c] - c1[c]) * v;
+      data[i + 3] = 255;
+    }
+  }
+  return data;
+}
+
+/** Grayscale: each pixel's lightness in every channel. Alpha is kept. */
+export function desaturate(data) {
+  for (let i = 0; i < data.length; i += 4) data[i] = data[i + 1] = data[i + 2] = luminance(data[i], data[i + 1], data[i + 2]);
+  return data;
+}
+
+/**
+ * Auto contrast: a curve that stretches the lightness range of the painted pixels to full black and white,
+ * ignoring the darkest and lightest `clip` share (outliers). The same curve goes on every channel, so colours
+ * keep their hue.
+ */
+export function autoContrastLut(data, clip = 0.005) {
+  const hist = new Uint32Array(256);
+  let n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (!data[i + 3]) continue;
+    hist[Math.round(luminance(data[i], data[i + 1], data[i + 2]))]++;
+    n++;
+  }
+  const lut = new Uint8ClampedArray(256).map((_, v) => v);
+  if (!n) return lut;
+  const skip = Math.floor(n * clip);
+  let lo = 0, hi = 255, acc = 0;
+  for (; lo < 255; lo++) { acc += hist[lo]; if (acc > skip) break; }
+  acc = 0;
+  for (; hi > 0; hi--) { acc += hist[hi]; if (acc > skip) break; }
+  if (hi <= lo) return lut;
+  for (let v = 0; v < 256; v++) lut[v] = Math.round((v - lo) * 255 / (hi - lo));
+  return lut;
+}
+
+export function autoContrast(data) { return applyLut(data, autoContrastLut(data)); }
+
+/** The 8 x 8 ordered-dither (Bayer) threshold at a pixel, 0-63, each value once per 8 x 8 cell. */
+export function bayer8(x, y) {
+  let v = 0;
+  for (let i = 0; i < 3; i++) {
+    const xb = (x >> i) & 1, yb = (y >> i) & 1;
+    v += (((xb ^ yb) << 1) | yb) << (2 * (2 - i));
+  }
+  return v;
+}
+
+/**
+ * Reduces the colours to the nearest of a palette ([[r, g, b], ...]), for pixel art. dither (0-100 %) mixes
+ * neighbouring palette colours in an 8 x 8 ordered pattern (anchored to the document at x0, y0) instead of
+ * banding. Alpha is kept.
+ */
+export function reduceToPalette(data, w, h, palette, dither = 0, x0 = 0, y0 = 0) {
+  if (!palette?.length) return data;
+  const spread = Math.max(0, Math.min(100, dither)) / 100 * 128, memo = new Map();
+  const nearest = (r, g, b) => {
+    const key = (r << 16) | (g << 8) | b;
+    let best = memo.get(key);
+    if (best !== undefined) return best;
+    let bd = Infinity;
+    for (let k = 0; k < palette.length; k++) {
+      // weighted by how strongly the eye sees each channel
+      const c = palette[k], dr = r - c[0], dg = g - c[1], db = b - c[2], d = 3 * dr * dr + 4 * dg * dg + 2 * db * db;
+      if (d < bd) { bd = d; best = k; }
+    }
+    memo.set(key, best);
+    return best;
+  };
+  const clamp = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (!data[i + 3]) continue;
+      const off = spread ? ((bayer8((x + x0) & 7, (y + y0) & 7) + 0.5) / 64 - 0.5) * spread : 0;
+      const c = palette[nearest(clamp(data[i] + off), clamp(data[i + 1] + off), clamp(data[i + 2] + off))];
+      data[i] = c[0]; data[i + 1] = c[1]; data[i + 2] = c[2];
+    }
+  }
+  return data;
+}
+
+/**
+ * Colour to transparency (as GIMP's Color to Alpha): takes the colour k ([r, g, b]) out of every pixel, leaving
+ * the least opacity that still gives the same colour over k. k itself becomes clear, mixes with it see-through.
+ */
+export function colorToAlpha(data, k) {
+  for (let i = 0; i < data.length; i += 4) {
+    let a = 0;
+    for (let c = 0; c < 3; c++) {
+      const v = data[i + c], kc = k[c];
+      const ac = v > kc ? (v - kc) / (255 - kc) : v < kc ? (kc - v) / kc : 0;
+      if (ac > a) a = ac;
+    }
+    if (a > 0) for (let c = 0; c < 3; c++) data[i + c] = (data[i + c] - k[c]) / a + k[c];
+    data[i + 3] = data[i + 3] * a;
   }
   return data;
 }

@@ -44,6 +44,11 @@ export const filterMethods = {
       job.extra = { stops: gradientStops(this.settings.gradient.colors, this.colors.main, this.colors.sub, this.userGrads()).map(([o, c]) => [o, parseStopColor(c)]) };
     }
     if (filter.mainColor) job.extra = { color: hexToRgb(this.colors.main) };  // Change color: the main colour, as it is now
+    if (filter.twoColors) job.extra = { color: hexToRgb(this.colors.main), color2: hexToRgb(this.colors.sub) };
+    if (filter.palette) {
+      if (!this.colors.palette.length) return toast('Your palette is empty: add colours to it in the Color panel first.');
+      job.extra = { palette: this.colors.palette.map(hexToRgb).filter(Boolean) };
+    }
     this.filtering = job;
     let params;
     if (fixed) {

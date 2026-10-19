@@ -433,6 +433,12 @@ export const GUIDE = [
       Threshold (black and white only) and Invert. To keep changing them later, use a
       <button type="button" class="guide-link" data-goto="adjust">correction layer</button> instead.</li>
       <li><b>Gradient map</b> recolours by lightness, using the Gradient tool's colours: try Sunset or Night.</li>
+      <li><b>Grayscale</b> takes the colour out; <b>Auto contrast</b> stretches a dull picture to full black and white.</li>
+      <li><b>Reduce to palette colors</b> gives every pixel the nearest colour of your palette (Color panel), for
+      pixel art. <b>Dither</b> mixes two colours in a fine pattern instead of hard bands.</li>
+      <li><b>Vignette</b> darkens (or lightens) the corners; <b>Emboss</b> turns the picture into a relief;
+      <b>Oil paint</b> flattens areas into patches of colour; <b>Wave</b> bends it along ripples.</li>
+      <li><b>Render → Clouds</b> fills with soft clouds from the main to the sub colour, for skies and textures.</li>
     </ul>
     <h4>For line art</h4>
     <ul>
@@ -441,6 +447,9 @@ export const GUIDE = [
       <li><b>Extract lines</b> keeps only lines darker than their surroundings, for a photo of a sketch. Set
       <b>Line width</b> to at least your thickest line.</li>
       <li><b>Dust cleaner</b> removes specks smaller than the size you set, such as dust on a scan.</li>
+      <li><b>Find edges</b> draws dark lines wherever the picture changes, like a quick outline of a photo.</li>
+      <li><b>Main color to transparency</b> takes the main colour out of the layer: set it to the paper colour of a
+      scan and the paper becomes see-through, keeping soft edges.</li>
     </ul>
     <figure data-pic="whitealpha"></figure>
     <p class="tip"><kbd>Ctrl+F</kbd> repeats the last filter with the same settings. Filters work on a mask too, while
