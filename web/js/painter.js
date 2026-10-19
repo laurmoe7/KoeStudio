@@ -6,7 +6,7 @@
 // grainPressure, the paper height each dab is cut against (grainFor; see Painter.dab).
 
 import { textureTile, grooveAlpha, TILE } from './textures.js';
-import { imageRef, bristleDots } from './brushtip.js';
+import { imageRef, bristleDots, flatDots } from './brushtip.js';
 import { pixelSpans } from './brush.js';
 
 const TIP = 128;
@@ -33,16 +33,18 @@ export function hasTipImage(tip) {
   return !!id ? tipImages.has(id) : !!builtinTip(tip);
 }
 
-let bristleTip = null;
+const HAIRS = { bristle: bristleDots, flat: flatDots };  // built-in tips made of hairs (brushtip.js)
+const hairTips = {};
 
 /** A built-in tip that is drawn like a tip image (a canvas whose alpha is the shape), or null. */
 function builtinTip(tip) {
-  if (tip !== 'bristle') return null;
-  if (!bristleTip) {
-    bristleTip = document.createElement('canvas');
-    bristleTip.width = bristleTip.height = TIP;
-    const ctx = bristleTip.getContext('2d');
-    for (const d of bristleDots()) {
+  if (!HAIRS[tip]) return null;
+  let c = hairTips[tip];
+  if (!c) {
+    c = hairTips[tip] = document.createElement('canvas');
+    c.width = c.height = TIP;
+    const ctx = c.getContext('2d');
+    for (const d of HAIRS[tip]()) {
       const x = d.x * TIP, y = d.y * TIP, r = d.r * TIP;
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
       g.addColorStop(0, `rgba(0,0,0,${d.a})`);
@@ -52,7 +54,7 @@ function builtinTip(tip) {
       ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
     }
   }
-  return bristleTip;
+  return c;
 }
 
 let outlineCache = null;
@@ -105,9 +107,11 @@ export function tipOutline(tip, long) {
 export class Painter {
   /** opts: color, hardness, and optionally tip ('round' or 'img:<id>'), thickness (0-1), angle (degrees),
    * random (0-1: share of a half turn either way), follow (turn with the stroke), rnd (random numbers 0-1; a seeded
-   * source makes the random turns repeatable, as vector lines need). */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null }) {
+   * source makes the random turns repeatable, as vector lines need), height ({ctx, k}: Impasto's height canvas, which
+   * gets every dab too, in black at k times its density, so the hairs' streaks build up as ridges without saturating). */
+  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null }) {
     this.ctx = ctx;
+    this.height = pixel ? null : height;
     this.grain = pixel ? null : grain;  // grainFor(s): every dab is cut against the paper (pressure fills the grooves)
     this.pixel = !!pixel;  // hard pixels (pixel art): whole-pixel round dabs, no soft edge, tip image or turn
     this.color = color;
@@ -128,8 +132,24 @@ export class Painter {
   setColor(color) {
     if (color === this.color) return;
     this.color = color;
-    if (this.image) this.image = tinted(this.mask, color, this.image);
-    else if (!this.hard) this.tip = makeTip(color, this.hardness, this.tip);
+    if (this.image) {
+      this.image = tinted(this.mask, color, this.image);
+      if (this.small) { const mips = mipsOf(this.mask); this.small = this.small.map((c, i) => tinted(mips[i], color, c)); }
+    } else if (!this.hard) this.tip = makeTip(color, this.hardness, this.tip);
+  }
+
+  /**
+   * The tinted tip image to draw a dab of `size` px from: the tip itself, or for a small dab the smallest halved copy
+   * still at least that size (mipsOf). Drawn straight down from 128 px or more to a few px, the browser samples a
+   * tip's thin hairs here and there, and small strokes of a hairy tip turned into a chain pattern.
+   */
+  imageAt(size) {
+    const mips = mipsOf(this.mask);
+    let i = 0;
+    while (i + 1 < mips.length && Math.max(mips[i + 1].width, mips[i + 1].height) >= size) i++;
+    if (!i) return this.image;
+    const small = this.small ||= [];
+    return small[i] ||= tinted(mips[i], this.color);
   }
 
   /** One dab; k numbers the symmetric copy it belongs to, so each copy follows its own direction. With a colour,
@@ -137,8 +157,10 @@ export class Painter {
    * stroke (the pen's lean). */
   dab(x, y, size, alpha, k = 0, color = null, dir = null) {
     if (color) this.setColor(color);
-    if (this.grain) return this.grainDab(x, y, size, alpha, k, dir);
-    this.draw(this.ctx, x, y, size, alpha, k, dir);
+    const rot = this.pixel ? 0 : this.rotation(x, y, k, dir);  // once, so the height canvas gets the same turn
+    if (this.grain) this.grainDab(x, y, size, alpha, rot);
+    else this.draw(this.ctx, x, y, size, alpha, rot);
+    if (this.height) this.draw(this.height.ctx, x, y, size, alpha * this.height.k, rot);
   }
 
   /**
@@ -151,7 +173,7 @@ export class Painter {
    * density on the tooth without filling the grain in. The subtraction is done on the GPU:
    * xor with an opaque fill turns alpha x into 1 - x, 'lighter' adds the groove, and a second xor turns it back.
    */
-  grainDab(x, y, size, alpha, k, dir) {
+  grainDab(x, y, size, alpha, rot) {
     const reach = size * 0.75 + 2;  // half the diagonal of a turned tip, and a margin
     const x0 = Math.floor(x - reach), y0 = Math.floor(y - reach), n = Math.ceil(2 * reach) + 1;
     const c = grainScratch ||= document.createElement('canvas');
@@ -161,7 +183,7 @@ export class Painter {
     g.globalAlpha = 1;
     g.clearRect(0, 0, n, n);
     const a = Math.max(0, Math.min(1, alpha));
-    this.draw(g, x - x0, y - y0, size, Math.sqrt(Math.min(1, a / (this.grain.full || 1))), k, dir);
+    this.draw(g, x - x0, y - y0, size, Math.sqrt(Math.min(1, a / (this.grain.full || 1))), rot);
     g.globalAlpha = 1;
     g.fillStyle = '#000';
     g.globalCompositeOperation = 'xor';
@@ -182,15 +204,14 @@ export class Painter {
     this.ctx.drawImage(c, 0, 0, n, n, x0, y0, n, n);
   }
 
-  /** Draws one dab onto ctx at density alpha. */
-  draw(ctx, x, y, size, alpha, k, dir) {
+  /** Draws one dab onto ctx at density alpha, turned rot radians. */
+  draw(ctx, x, y, size, alpha, rot) {
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     if (this.pixel) {
       ctx.fillStyle = this.color;
       for (const [x0, y0, w] of pixelSpans(x, y, size)) ctx.fillRect(x0, y0, w, 1);
       return;
     }
-    const rot = this.rotation(x, y, k, dir);
     if (!this.image && !rot && this.squash === 1) {
       if (this.hard) {
         ctx.fillStyle = this.color;
@@ -205,8 +226,8 @@ export class Painter {
     if (rot) ctx.rotate(rot);
     if (this.squash < 1) ctx.scale(1, this.squash);
     if (this.image) {  // the longer side of the image is the brush size
-      const { width: w, height: h } = this.image, m = size / Math.max(w, h);
-      ctx.drawImage(this.image, -w * m / 2, -h * m / 2, w * m, h * m);
+      const img = this.imageAt(size), { width: w, height: h } = img, m = size / Math.max(w, h);
+      ctx.drawImage(img, -w * m / 2, -h * m / 2, w * m, h * m);
     } else if (this.hard) {
       ctx.fillStyle = this.color;
       ctx.beginPath();
@@ -228,6 +249,28 @@ export class Painter {
     if (this.random) a += (this.rnd() * 2 - 1) * Math.PI * this.random;
     return a;
   }
+}
+
+const tipMips = new WeakMap();  // tip mask -> [mask, its halves down to 4 px]
+
+/** A tip mask and copies of it halved step by step (each an average of 2 x 2 pixels), down to 4 px on the longer side. */
+function mipsOf(mask) {
+  let mips = tipMips.get(mask);
+  if (!mips) {
+    mips = [mask];
+    for (let c = mask; Math.max(c.width, c.height) > 8;) {
+      const n = document.createElement('canvas');
+      n.width = Math.max(1, Math.ceil(c.width / 2)); n.height = Math.max(1, Math.ceil(c.height / 2));
+      const g = n.getContext('2d');
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = 'low';  // halving exactly: bilinear is the 2 x 2 average
+      g.drawImage(c, 0, 0, c.width, c.height, 0, 0, c.width / 2, c.height / 2);
+      mips.push(n);
+      c = n;
+    }
+    tipMips.set(mask, mips);
+  }
+  return mips;
 }
 
 /** The tip shape filled with the brush colour (into canvas c when given). */
@@ -281,6 +324,29 @@ export function textureFor(s) {
  * how far in from the edge the paint gathers (the blur that finds the edge, in px: a sixth of the brush size). */
 export function wetFor(s) {
   return s.wetEdges > 0 && !s.pixel ? { amount: Math.min(1, s.wetEdges), blur: Math.max(1, Math.min(40, (s.size || 1) / 6)) } : null;
+}
+
+/** How much of each dab's density goes into Impasto's height canvas (Painter `height`). */
+export const HEIGHT_SHARE = 0.25;
+
+/**
+ * The live.impasto for a paint tool's settings, or null: how strongly the paint's ridges are lit and shaded (0-1),
+ * how far the light looks across them (depth, px: a thirtieth of the size, 1-4), and the height canvas the stroke's
+ * Painter stamps (null: the stroke's own density is the height).
+ */
+export function impastoFor(s, canvas = null) {
+  return s.impasto > 0 && !s.pixel ? { amount: Math.min(1, s.impasto), depth: Math.max(1, Math.min(4, (s.size || 1) / 30)), canvas } : null;
+}
+
+/** Impasto's height canvas c at w x h, cleared in r (all of it when r is left out), as a Painter `height`. */
+export function heightFor(c, w, h, r = null) {
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  if (r) ctx.clearRect(r.x, r.y, r.w, r.h); else ctx.clearRect(0, 0, w, h);
+  return { ctx, k: HEIGHT_SHARE };
 }
 
 /** Painter's `grain` for settings with grainPressure: the texture tile (alpha: groove depth times the grain amount),

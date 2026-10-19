@@ -269,3 +269,63 @@ test('wet edges', async () => {
   assert.equal(BUILTIN_BY_ID['b-drybrush'].settings.grainPressure, false);
   assert.equal(BUILTIN_BY_ID['b-gouache'].settings.grainPressure, true, 'gouache runs dry at a light touch');
 });
+
+test('flat brush hairs', async () => {
+  const { flatDots } = await import('../web/js/brushtip.js');
+  const d = flatDots();
+  assert.equal(d.length, 40);
+  assert.deepEqual(flatDots(), d, 'always the same layout');
+  for (const { x, y, r, a } of d) {
+    assert.ok(x - r >= 0 && x + r <= 1, 'inside the tip across');
+    assert.ok(Math.abs(y - 0.5) <= 0.025 && a >= 0.45 && a <= 1);
+  }
+  // hairs touch their neighbours, so a dab has no gaps: centres closer than the two radii together
+  for (let i = 1; i < d.length; i++) assert.ok(d[i].x - d[i - 1].x < d[i].r + d[i - 1].r, `hair ${i} touches the one before`);
+  // worn ends: the outer hairs are thinner than the middle ones (r = 0.02 + 0.03 * edge + up to 0.012)
+  assert.ok(d[0].r < 0.035 && d[39].r < 0.035 && d[20].r > 0.045);
+  // a choice for every paint tool, and vector lines keep it
+  assert.equal(applySettings({ tip: 'round' }, { tip: 'flat' }).tip, 'flat');
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  assert.equal(sanitizeBrush({ tip: 'flat' }).tip, 'flat');
+});
+
+test('impasto', async () => {
+  const { impastoFor, HEIGHT_SHARE } = await import('../web/js/painter.js');
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  const { BUILTIN_BY_ID } = await import('../web/js/builtinbrushes.js');
+  assert.equal(impastoFor({ impasto: 0, size: 50 }), null, 'off by default');
+  // the light looks a thirtieth of the size across: 60 px -> 2 px, never under 1 px or over 4
+  assert.deepEqual(impastoFor({ impasto: 0.5, size: 60 }), { amount: 0.5, depth: 2, canvas: null });
+  assert.equal(impastoFor({ impasto: 1, size: 10 }).depth, 1);
+  assert.equal(impastoFor({ impasto: 1, size: 600 }).depth, 4);
+  assert.equal(impastoFor({ impasto: 3, size: 30 }).amount, 1);
+  assert.equal(impastoFor({ impasto: 0.5, size: 20, pixel: true }), null, 'hard pixels stay flat');
+  const c = {};
+  assert.equal(impastoFor({ impasto: 0.5, size: 30 }, c).canvas, c, 'the height canvas the dabs go into');
+  assert.ok(HEIGHT_SHARE > 0 && HEIGHT_SHARE < 1, 'each dab adds only part of its density to the height');
+  // every paint tool has it (off), saved settings and vector lines keep it within 0-1
+  assert.equal(sanitizeSettings(null).brush.impasto, 0);
+  assert.equal(sanitizeSettings({ brush: { impasto: 2 } }).brush.impasto, 1);
+  assert.ok(BRUSH_KEYS.includes('impasto'));
+  assert.equal(sanitizeBrush({ impasto: 0.4 }).impasto, 0.4);
+  assert.equal(sanitizeBrush({}).impasto, 0, 'older lines have none');
+  // Oil paint: a flat brush with impasto, mixing with the colours under it
+  const oil = BUILTIN_BY_ID['b-oil'].settings;
+  assert.equal(oil.tip, 'flat');
+  assert.equal(oil.impasto, 0.5);
+  assert.ok(oil.mix > 0 && oil.tipFollow);
+});
+
+test('paint load', async () => {
+  const { loadShare } = await import('../web/js/wetmix.js');
+  const { BUILTIN_BY_ID } = await import('../web/js/builtinbrushes.js');
+  assert.equal(loadShare(1, 0), 1, 'a fully loaded brush paints full on bare paper');
+  assert.equal(loadShare(0.1, 0), 0.1, 'a blender leaves little on bare paper');
+  assert.equal(loadShare(0.1, 1), 1, 'and moves all the colour it picked up');
+  near(loadShare(0.1, 0.5), 0.55, 'half cover: 0.1 + 0.9 * 0.5');
+  assert.equal(loadShare(undefined, 0), 1, 'older settings: full');
+  assert.equal(loadShare(-1, 2), 1, 'clamped: load 0, cover 1');
+  assert.equal(sanitizeSettings(null).brush.paintLoad, 1);
+  assert.equal(sanitizeSettings({ brush: { paintLoad: 5 } }).brush.paintLoad, 1);
+  assert.equal(BUILTIN_BY_ID['b-blender'].settings.paintLoad, 0.1);
+});

@@ -71,6 +71,25 @@ export function bristleDots(n = 12) {
   return out;
 }
 
+/**
+ * The hairs of the Flat brush tip (a flat oil brush seen edge on, turned across the stroke by Follow): many
+ * overlapping hairs in a row, so the dab is solid, but each hair has its own strength, so every stroke is streaked
+ * along its length. Hairs are a little shorter towards the ends of the row, like a worn flat. Positions and radii
+ * are shares of the tip square; the same every time.
+ */
+export function flatDots(n = 40) {
+  let h = 777;
+  const rnd = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) + 0x9e3779b9 | 0; return ((h >>> 0) % 10000) / 10000; };
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n, edge = 1 - Math.pow(Math.abs(t - 0.5) * 2, 3);  // 1 in the middle, 0 at the ends
+    const r = 0.02 + 0.03 * edge + 0.012 * rnd();
+    const x = Math.max(r, Math.min(1 - r, 0.03 + 0.94 * t + (rnd() - 0.5) * 0.4 / n));
+    out.push({ x, y: 0.5 + (rnd() - 0.5) * 0.05, r, a: 0.45 + 0.55 * rnd() });
+  }
+  return out;
+}
+
 export function tipReach(hasImage) {
   return hasImage ? Math.SQRT1_2 : 0.5;
 }

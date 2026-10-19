@@ -61,6 +61,16 @@ export class WetPaint {
   }
 }
 
+/**
+ * How strong a dab of a mixing brush is, as a share of its density: its own paint (load, Paint load 0-1) plus the
+ * picked-up colour where the canvas had some (cover 0-1). At load 1 every dab is full; a blender with a low load
+ * moves the colours already there and leaves little on bare paper.
+ */
+export function loadShare(load, cover) {
+  const l = Math.max(0, Math.min(1, load ?? 1)), c = Math.max(0, Math.min(1, cover || 0));
+  return l + (1 - l) * c;
+}
+
 /** a + (b - a) t for colours {r, g, b}. */
 export function mixRgb(a, b, t) {
   return { r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t };

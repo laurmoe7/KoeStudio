@@ -84,9 +84,12 @@ export const GUIDE = [
     <ul>
       <li><b>Paint</b>: size, opacity, density, hardness. <b>Wet edges</b> lets the paint gather at the edge of the
       stroke and leaves the middle lighter, as watercolour does when it dries (on for Watercolour and Marker).
+      <b>Impasto</b> makes the paint look thick: light catches the top-left edge of each stroke and its bristle
+      ridges, and the other side is shaded (on for Oil paint).
       <b>Color mixing</b> makes the paint wet: the brush picks up the colours already on the layer and blends them
-      into its own, and <b>Color stretch</b> sets how far it drags them along. Try the Oil paint and Wet blender
-      brushes. It mixes with the layer you paint on, so paint on the same layer as the colours to blend.</li>
+      into its own, and <b>Color stretch</b> sets how far it drags them along. <b>Paint load</b> is how much paint of
+      its own the brush carries: turn it down for a blender that moves the colours already there and leaves little on
+      bare paper. Try the Oil paint and Wet blender brushes. It mixes with the layer you paint on, so paint on the same layer as the colours to blend.</li>
       <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke. The
       outline under the pointer takes the tip's shape, so you see what a dab will look like.
       <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).</li>
@@ -102,7 +105,8 @@ export const GUIDE = [
       fills it in, as with graphite. Keep <b>Density</b> low (the Pencil uses 45%) so light lines stay grey: pressure
       decides how deep the grain fills, Density how dark each pass is.</li>
       <li><b>Tip</b>: Round, or <b>Bristles</b>, a row of hairs; with <b>Turn with the stroke</b> on and the angle at
-      90° each hair leaves its own streak, as a dry brush does.</li>
+      90° each hair leaves its own streak, as a dry brush does. <b>Flat brush</b> is a full row of hairs that
+      touch, like a flat oil brush: solid paint with fine streaks along the stroke (Oil paint uses it).</li>
       <li><b>Dual brush</b>: a second tip stamped along the stroke (its own size, spacing and scatter); the paint shows
       only where it lands, for chalk, dry bristles or leaves.</li>
       <li><b>Combined</b>: a second brush that paints along the same stroke, as Procreate's combined brushes do. Pick

@@ -10,8 +10,8 @@ import { floodMask, growMask, closeGapFill, insideLines } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping, springBack } from '../keys.js';
-import { Painter, textureFor, grainFor, wetFor, hasTipImage, tipOutline } from '../painter.js';
-import { WetPaint, averageUnder, rgbHex } from '../wetmix.js';
+import { Painter, textureFor, grainFor, wetFor, impastoFor, heightFor, hasTipImage, tipOutline } from '../painter.js';
+import { WetPaint, averageUnder, rgbHex, loadShare } from '../wetmix.js';
 import { comboSettings, comboOp } from '../combo.js';
 import { union, clip } from '../rect.js';
 import { trimmedSnapshot, drawSnapshot, snapBytes } from '../snapshot.js';
@@ -205,7 +205,7 @@ export class Editor {
     for (const r of this.doc?.rasters() || []) free(r.canvas);
     for (const c of this.mips || []) free(c);
     for (const s of this.snapQueue || []) free(s.canvas);
-    [this.stroke, this.dualCanvas, this.comboCanvas, this.sel?.canvas, this.paperLayer, this.insideClip?.canvas].forEach(free);
+    [this.stroke, this.dualCanvas, this.comboCanvas, this.heightCanvas, this.sel?.canvas, this.paperLayer, this.insideClip?.canvas].forEach(free);
     this.snapQueue = [];
     this.history = new History();  // its undo copies go too
     this.compRead = null;
@@ -1390,12 +1390,14 @@ export class Editor {
     // colour jitter: erasers and masks keep their black; per stroke the varied colour is picked once here
     const ink = tool.erase ? '#000000' : this.inkFor(layer), varies = !tool.erase && layer.kind !== 'mask' && !!colorJitter(s);
     const color = varies && s.colorJitterStroke ? shiftColor(ink, colorJitter(s)) : ink;
+    // Impasto: the dabs are stamped faintly into a height canvas too, which liveSource lights
+    const imp = tool.erase || layer.kind === 'mask' ? null : impastoFor(s, this.heightCanvas ||= document.createElement('canvas'));
     this.gesture = {
       type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
       color, dabColors: varies && !s.colorJitterStroke, dyn,
       painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
         tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel,
-        grain: grainFor(s) }),
+        grain: grainFor(s), height: imp && heightFor(imp.canvas, this.doc.width, this.doc.height) }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
@@ -1408,6 +1410,7 @@ export class Editor {
     };
     // vector lines are kept whole, so the selection does not cut them
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), wet: wetFor(s), sel: this.sel.active && !layer.vector ? this.sel : null,
+      impasto: imp,
       dual: this.gesture.dual ? this.dualCanvas : null,
       combo: this.gesture.combo?.canvas ? { canvas: this.gesture.combo.canvas, op: this.gesture.combo.op } : null,
       inside: s.refStop && !layer.vector ? this.insideLinesClip(line || pt, s.size / 2) : null };  // stay inside reference lines
@@ -1634,7 +1637,8 @@ export class Editor {
     const per = all.length / stamps.length;  // copies of each stamp, in order
     all.forEach((st, i) => {
       const { size, flow } = stampAt(g.s, st.p);
-      g.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per, g.wet ? this.wetColor(g, st, size * st.k, i % per) : st.c, st.a ?? null);
+      const wet = g.wet ? this.wetColor(g, st, size * st.k, i % per) : null;
+      g.painter.dab(st.x, st.y, size * st.k, flow * st.f * (wet ? wet.share : 1), i % per, wet ? wet.color : st.c, st.a ?? null);
     });
     const r = stampBounds(all, g.reachAt);
     g.bounds = union(g.bounds, r);
@@ -1642,11 +1646,15 @@ export class Editor {
     this.updateComp(r);
   }
 
-  /** Color mixing: the colour of a dab of diameter size, its brush colour mixed with what it passes over (per symmetric copy k). */
+  /**
+   * Color mixing: {color, share} of a dab of diameter size: its brush colour mixed with what it passes over (per
+   * symmetric copy k), and the share of its density it keeps (loadShare: Paint load and how much colour it picked up).
+   */
   wetColor(g, st, size, k) {
     const [r, gr, b] = hexToRgb(st.c || g.color), cache = g.wet.cache;
     const paint = g.wet.copies[k] ||= new WetPaint(g.s.mix, g.s.mixStretch);
-    return rgbHex(paint.next(st.x, st.y, size, averageUnder((x, y) => cache.pixel(x, y), st.x, st.y, size), { r, g: gr, b }));
+    const color = rgbHex(paint.next(st.x, st.y, size, averageUnder((x, y) => cache.pixel(x, y), st.x, st.y, size), { r, g: gr, b }));
+    return { color, share: loadShare(g.s.paintLoad, paint.picked.cover) };
   }
 
   endPaint() {
@@ -2193,7 +2201,7 @@ function fmt(key, v) {
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'mix', 'mixStretch'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'mix', 'mixStretch', 'paintLoad'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
   if (key === 'tipAngle' || key === 'comboAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);

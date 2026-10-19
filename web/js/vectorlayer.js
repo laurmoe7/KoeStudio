@@ -3,12 +3,12 @@
 // pen stroke is committed; so a line looks the same drawn live and redrawn from the data.
 
 import { liveSource } from './doc.js';
-import { Painter, textureFor, grainFor, wetFor } from './painter.js';
+import { Painter, textureFor, grainFor, wetFor, impastoFor, heightFor } from './painter.js';
 import { stampAt } from './brush.js';
 import { strokeBounds, strokeStamps, dualStamps, seeded, brushOf } from './vector.js';
 import { clip } from './rect.js';
 
-let scratch = null, dualScratch = null;
+let scratch = null, dualScratch = null, heightScratch = null;
 
 /** Redraws the layer's lines inside rect (doc px; the whole layer when null), clearing that area first. */
 export function renderVector(layer, rect = null) {
@@ -31,8 +31,10 @@ export function renderVector(layer, rect = null) {
     sctx.globalAlpha = 1;
     sctx.globalCompositeOperation = 'source-over';
     sctx.clearRect(q.x, q.y, q.w, q.h);
+    let imp = impastoFor(b);
+    if (imp) imp = { ...imp, canvas: heightScratch ||= document.createElement('canvas') };
     const painter = new Painter(sctx, { color: s.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-      random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7), grain: grainFor(b) });
+      random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q) });
     for (const st of strokeStamps(s, b)) {
       const { size, flow } = stampAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
@@ -46,7 +48,7 @@ export function renderVector(layer, rect = null) {
       const dp = new Painter(dctx, { color: '#000000', hardness: b.hardness, tip: b.dualTip });
       for (const st of dualStamps(s, b)) dp.dab(st.x, st.y, st.size, 1);
     }
-    const [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), wet: wetFor(b), dual }, a);
+    const [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), wet: wetFor(b), impasto: imp, dual }, a);
     ctx.globalAlpha = s.opacity;
     ctx.drawImage(src, sx, sy, a.w, a.h, a.x, a.y, a.w, a.h);
     ctx.globalAlpha = 1;

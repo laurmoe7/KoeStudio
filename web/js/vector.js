@@ -29,7 +29,7 @@ const NUM = {
   size: [6, 0.5, 1000], flow: [1, 0.01, 1], hardness: [1, 0, 1], spacing: [0.08, 0.02, 1], minSize: [0.15, 0, 1],
   minFlow: [0, 0, 1], gamma: [1, 0.3, 3], thickness: [1, 0.05, 1], tipAngle: [0, 0, 360], tipRandom: [0, 0, 1],
   scatter: [0, 0, 2], count: [1, 1, 16], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500],
-  textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4], wetEdges: [0, 0, 1],
+  textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4], wetEdges: [0, 0, 1], impasto: [0, 0, 1],
   tiltSize: [0, 0, 1], tiltFlow: [0, 0, 1], speedSize: [0, -1, 1], speedFlow: [0, -1, 1],
   dualSize: [0.6, 0.05, 3], dualSpacing: [0.25, 0.02, 2], dualScatter: [0.5, 0, 3],
 };

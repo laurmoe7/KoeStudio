@@ -761,6 +761,34 @@ function wetEdges(ctx, live, r) {
 }
 
 /**
+ * Impasto (live.impasto = {amount k, depth d, canvas}): the paint's height (the canvas the dabs were stamped into
+ * faintly, so the hairs' streaks stay; else the stroke's own density) is lit from the top left. Where
+ * it is higher than d px towards the light (the top-left rim of the stroke, the near side of each bristle ridge) it
+ * takes white, where it is higher than d px away from the light, black, both laid source-atop over the paint (r of
+ * the stroke already in ctx), so thick paint shows its edges and streaks. Heights are read with a margin round r, so
+ * a part redrawn on its own matches the whole; the grain and the selection cut it afterwards, like the paint.
+ */
+function impasto(ctx, live, r) {
+  const { amount: k, depth: d } = live.impasto, m = Math.ceil(d);
+  const R = { x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m };
+  const [src, sx, sy] = live.impasto.canvas ? [live.impasto.canvas, R.x, R.y] : strokeOf(live, R);
+  for (const [key, dir, color, a] of [['impLight', 1, '#ffffff', 0.55 * k], ['impShade', -1, '#000000', 0.4 * k]]) {
+    const [c, cx] = scratchCanvas(key, r);
+    cx.drawImage(src, sx + m, sy + m, r.w, r.h, 0, 0, r.w, r.h);
+    cx.globalCompositeOperation = 'destination-out';  // what is left: how much higher than d px towards (or away from) the light
+    cx.drawImage(src, sx + m - dir * d, sy + m - dir * d, r.w, r.h, 0, 0, r.w, r.h);
+    cx.globalCompositeOperation = 'source-in';
+    cx.fillStyle = color;
+    cx.fillRect(0, 0, r.w, r.h);
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = a;
+    ctx.drawImage(c, 0, 0, r.w, r.h, 0, 0, r.w, r.h);
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/**
  * Region r of a live stroke with a combined brush's second brush (live.combo = {canvas, op}, its dabs drawn there
  * normally) blended over it: [canvas, sx, sy]. The blend mode is applied here, once per read, and not dab by dab:
  * on a big stroke canvas every Multiply / Screen / ... dab made the GPU copy what was under it, and those copies
@@ -786,11 +814,12 @@ function strokeOf(live, r) {
  * A combined brush's second brush is blended in first (strokeOf).
  */
 export function liveSource(live, r) {
-  if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet) return strokeOf(live, r);
+  if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet && !live.impasto) return strokeOf(live, r);
   const [src, sx, sy] = strokeOf(live, r);
   const [c, ctx] = scratchCanvas('live', r);
   ctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);
   if (live.wet) wetEdges(ctx, live, r);
+  if (live.impasto) impasto(ctx, live, r);
   if (live.texture) {
     const { tile, scale } = live.texture;
     if (!tile.pattern) tile.pattern = ctx.createPattern(tile, 'repeat');

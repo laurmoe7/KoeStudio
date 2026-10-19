@@ -5,6 +5,10 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Oil paint is redone: a flat brush tip lays solid paint with fine bristle streaks and square ends, the new Impasto setting makes the ridges and edges catch the light like thick paint, and it picks up the colours it crosses without turning see-through. The old canvas pattern that looked like a net is gone.
+- Brush settings → Paint has two new settings: Impasto (thick paint that catches the light) and Paint load (how much paint of its own a mixing brush carries).
+- A new Flat brush tip (Brush settings → Tip): a solid row of hairs that leaves fine streaks.
+- The Wet blender now mostly moves the colours already there instead of painting its own colour over bare paper.
 - Combined brushes (Brush settings → Combined): a second brush paints along the same stroke, with its own tip, size, spacing and scatter, and a Combine mode (Multiply, Darken, Screen and more). Copy a brush… makes any brush the second one, and Procreate combined brushes now import with both halves.
 - Brush import: Only complete brushes hides and skips the brushes marked !, which lose a setting KoeStudio does not have. It stays on for the next import.
 - Brush import: choose which group the brushes go into (the pack's name, or a group you already have), and Import stays greyed out until you pick a brush.
@@ -81,6 +85,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- Small strokes with a hairy tip (Dry brush, Bristles, or an imported tip) no longer break up into a chain pattern.
+- Watercolour strokes no longer show a pattern of beads along their length.
 - Closing an artwork gives back its memory straight away instead of holding a few hundred MB for a while.
 - Selection changes in the undo history take a quarter of the memory and no graphics memory (Select all on a big canvas held about 48 MB per step).
 - Combined brushes with a Combine mode other than Normal no longer make the app use a gigabyte or more of extra memory while you paint.
