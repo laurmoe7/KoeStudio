@@ -5,6 +5,7 @@
 import { gradientStops, snapEnd, gradientReach, repeatStops, reflectStops, diamondQuarters, ditherData } from '../gradient.js';
 import { clip } from '../rect.js';
 import { matrix } from '../view.js';
+import { readPixels } from '../doc.js';
 
 export const gradientMethods = {
   beginGradient(dp, id) {
@@ -85,12 +86,7 @@ export const gradientMethods = {
     }
     const r = clip(g.area, this.doc.width, this.doc.height);
     if (g.s.dither && r) {  // only once, at the end: it is too faint to matter while dragging
-      // read through a canvas of its own: reading the stroke canvas would move it off the GPU for every later stroke
-      const c = document.createElement('canvas');
-      c.width = r.w; c.height = r.h;
-      const cctx = c.getContext('2d', { willReadFrequently: true });
-      cctx.drawImage(this.stroke, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-      const img = cctx.getImageData(0, 0, r.w, r.h);
+      const img = readPixels(this.stroke, r.x, r.y, r.w, r.h);  // the stroke canvas itself stays on the GPU
       this.strokeCtx.putImageData(new ImageData(ditherData(img.data, r.w, r.h, r.x, r.y), r.w, r.h), r.x, r.y);
     }
     this.commitStroke(g.t, r, 'Gradient');

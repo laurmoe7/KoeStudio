@@ -4,7 +4,7 @@
 import { floodMask } from '../fill.js';
 import { hexToRgb, rgbToHex } from '../color.js';
 import { colorRangeMask, strokeBand } from '../maskops.js';
-import { Layer } from '../doc.js';
+import { Layer, readPixels } from '../doc.js';
 import { isFolder } from '../tree.js';
 import { textBounds, drawText, textTransformStart, textMatrixAfter, renderTextLayer } from '../textlayer.js';
 import { strokesInside, removeStrokes, mapStrokes, strokeBounds, brushOf } from '../vector.js';
@@ -338,7 +338,7 @@ export const selectionMethods = {
     let r = this.sel.active ? this.sel.bounds : null, full = null, mfull = null;
     if (!r) {  // everything painted on the layer (and its mask): the one readback a transform needs
       // kept as the undo copy, cut down to what is painted
-      const read = raster => trimmedSnapshot(raster.ctx.getImageData(0, 0, d.width, d.height));
+      const read = raster => trimmedSnapshot(readPixels(raster.canvas, 0, 0, d.width, d.height));
       full = read(layer);
       mfull = companion ? read(companion) : null;
       r = full.box && mfull?.box ? union(full.box, mfull.box) : full.box || mfull?.box || null;

@@ -8,6 +8,7 @@ import { hexToRgb } from '../color.js';
 import { curveAt } from '../brush.js';
 import { clip } from '../rect.js';
 import { esc, modal, store, toast } from '../ui.js';
+import { readPixels } from '../doc.js';
 
 export const filterMethods = {
   /** Menu items for the Filter menu. */
@@ -36,7 +37,7 @@ export const filterMethods = {
     if (!t) return;
     const d = this.doc, W = d.width, H = d.height;
     const area = this.sel.active ? { ...this.sel.bounds } : { x: 0, y: 0, w: W, h: H };
-    const orig = t.ctx.getImageData(0, 0, W, H);
+    const orig = readPixels(t.canvas, 0, 0, W, H);
     const selData = this.sel.active ? this.sel.ctx.getImageData(0, 0, W, H).data : null;
     const job = { filter, t, orig, selData, area, params: sanitizeParams(filter, defaultParams(filter)) };
     if (filter.gradient) {  // Gradient map: the Gradient tool's colours, as they are now

@@ -654,6 +654,19 @@ function layerImage(node, r, live, depth, key) {
   return [c, cctx];
 }
 
+/**
+ * Pixels of a GPU canvas (a layer, mask or the stroke canvas) as ImageData, read through a canvas of their own:
+ * getImageData on the canvas itself makes the browser move it off the GPU for good, and every later redraw then
+ * uploads it again.
+ */
+export function readPixels(canvas, x, y, w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(canvas, x, y, w, h, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
+}
+
 /** A layer's pixels with its effects drawn under them (for merging and rasterizing), as a new canvas. */
 export function effectsCanvas(layer, canvas = layer.canvas) {
   const W = canvas.width, H = canvas.height;
@@ -661,7 +674,7 @@ export function effectsCanvas(layer, canvas = layer.canvas) {
   c.width = W; c.height = H;
   const ctx = c.getContext('2d', { willReadFrequently: true });
   if (layer.effects) {
-    const src = canvas.getContext('2d').getImageData(0, 0, W, H);
+    const src = readPixels(canvas, 0, 0, W, H);
     ctx.putImageData(new ImageData(effectsImage(src.data, W, H, layer.effects), W, H), 0, 0);
   }
   ctx.drawImage(canvas, 0, 0);
