@@ -130,6 +130,7 @@ export const animMethods = {
       b._key = key;
       const ctx = c.getContext('2d');
       ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;  // a layer's opacity from the last time this cell was drawn
       ctx.clearRect(0, 0, TW, TH);
       ctx.fillStyle = d.paper || '#e4e4ea';
       const w = d.width * s, h = d.height * s;
