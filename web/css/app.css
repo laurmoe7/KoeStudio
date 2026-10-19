@@ -110,6 +110,21 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .tool-sep { width: 26px; height: 1px; background: var(--line); margin: 5px 0; flex: none; }
 .tool-btn { width: 38px; height: 38px; padding: 0; justify-content: center; background: transparent; border-color: transparent; }
 .tool-btn.active { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+/* the shortcut strip (striptool.js): big buttons beside the canvas for a pen tablet without a keyboard */
+.ed-strip { flex: none; width: 60px; background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0 8px; overflow-y: auto; scrollbar-width: none; touch-action: none; }
+.ed-strip.left { border-left: 0; border-right: 1px solid var(--line); }
+.ed-strip::-webkit-scrollbar { display: none; }
+.strip-btn { flex: none; width: 48px; height: 48px; padding: 0; justify-content: center; background: var(--panel-2); border-color: var(--line); border-radius: 8px; touch-action: none; }
+.strip-btn.down, .strip-btn.down:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.strip-sep { flex: none; width: 32px; height: 1px; background: var(--line); margin: 4px 0; }
+.strip-fold { flex: none; width: 48px; height: 22px; padding: 0; justify-content: center; background: transparent; border-color: transparent; color: var(--muted); }
+.strip-fold .icon { transform: rotate(-90deg); }  /* points the way it folds: towards the edge it sits on */
+.ed-strip.left .strip-fold .icon { transform: rotate(90deg); }
+.ed-strip.collapsed { width: 26px; }
+.ed-strip.collapsed > :not(.strip-fold) { display: none; }
+.ed-strip.collapsed .strip-fold { width: 24px; height: 56px; }
+.ed-strip.collapsed .strip-fold .icon { transform: rotate(90deg); }
+.ed-strip.collapsed.left .strip-fold .icon { transform: rotate(-90deg); }
 .ed-viewport { --canvas-bg: #34353c; flex: 1; position: relative; overflow: hidden; background: var(--canvas-bg); touch-action: none; }
 .ed-viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* the canvas with the animation timeline under it */

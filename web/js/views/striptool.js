@@ -1,0 +1,158 @@
+// The shortcut strip (View → Shortcut strip): a column of big buttons beside the canvas for drawing on a pen tablet
+// without a keyboard (undo, redo, brush size, swap colours, hold to pick a colour, hold to move the view, fit).
+// The buttons call the editor's own methods; the hold buttons set `this.held` like holding Alt / Space. A finger on
+// the strip never reaches the canvas's pointer handlers, so it cannot drop or end the pen's stroke there.
+// Settings in `koe.strip` (sanitizeStrip); `koe.penSeen` is set by the first pen or finger on the canvas.
+// Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
+
+import { icon } from '../icons.js';
+import { menuKeyLabel } from '../shortcuts.js';
+import { HoldTracker, REPEAT_DELAY, REPEAT_EVERY, STRIP_BUTTONS, sanitizeStrip, stripShown } from '../strip.js';
+import { nextSize } from '../tools.js';
+import { esc, store } from '../ui.js';
+import { keyBindings } from './shortcutsdialog.js';
+
+const BY_ID = Object.fromEntries(STRIP_BUTTONS.filter(b => b !== '-').map(b => [b.id, b]));
+
+export const stripMethods = {
+  stripState() { return sanitizeStrip(store('strip')); },
+
+  setStripState(change) {
+    store('strip', { ...this.stripState(), ...change });
+    this.applyStrip();
+  },
+
+  /** View → Shortcut strip items. */
+  stripMenu() {
+    const s = this.stripState(), shown = stripShown(s, store('penSeen'));
+    return [
+      { label: 'Show shortcut strip', checked: shown, run: () => this.setStripState({ on: !shown }) },
+      '-',
+      { label: 'On the left', checked: s.side === 'left', run: () => this.setStripState({ side: 'left', on: true }) },
+      { label: 'On the right', checked: s.side === 'right', run: () => this.setStripState({ side: 'right', on: true }) },
+      { label: 'Folded up', checked: s.collapsed, run: () => this.setStripState({ collapsed: !s.collapsed, on: true }) },
+    ];
+  },
+
+  /** Shows or hides the strip and puts it on its side (the viewport's ResizeObserver then resizes the view). */
+  applyStrip() {
+    const s = this.stripState(), shown = stripShown(s, store('penSeen'));
+    let strip = this.strip;
+    if (!shown) {
+      if (strip) strip.hidden = true;
+      this.releaseStripHolds();
+      return;
+    }
+    if (!strip) strip = this.buildStrip();
+    strip.hidden = false;
+    strip.classList.toggle('collapsed', s.collapsed);
+    strip.classList.toggle('left', s.side === 'left');
+    const fold = strip.querySelector('.strip-fold');
+    fold.title = s.collapsed ? 'Unfold the shortcut strip' : 'Fold the shortcut strip away';
+    fold.setAttribute('aria-expanded', String(!s.collapsed));
+    const body = this.root.querySelector('.ed-body'), center = this.root.querySelector('.ed-center');
+    const before = s.side === 'left' ? center : center.nextSibling;
+    if (strip.nextSibling !== before || strip.parentNode !== body) body.insertBefore(strip, before);
+    if (s.collapsed) this.releaseStripHolds();
+  },
+
+  /** A pen or finger touched the canvas: the first time, the strip appears (unless it was turned off) once it lifts. */
+  notePenUsed() {
+    if (store('penSeen')) return;
+    store('penSeen', true);
+    if (this.stripState().on === null) window.addEventListener('pointerup', () => { if (!this.destroyed) this.applyStrip(); }, { once: true });
+  },
+
+  /** The tooltips, with the user's own keys (Help → Change shortcuts…). */
+  stripTitles() {
+    if (!this.strip) return;
+    const { binds } = keyBindings();
+    this.strip.querySelectorAll('[data-strip]').forEach(btn => {
+      const b = BY_ID[btn.dataset.strip], key = menuKeyLabel(b.key, binds);
+      btn.title = b.label + (key ? ` (${key})` : '');
+    });
+  },
+
+  buildStrip() {
+    const strip = this.strip = document.createElement('div');
+    strip.className = 'ed-strip';
+    strip.setAttribute('role', 'toolbar');
+    strip.setAttribute('aria-label', 'Shortcut strip');
+    strip.setAttribute('aria-orientation', 'vertical');
+    strip.innerHTML = `<button class="strip-fold" aria-label="Fold the shortcut strip">${icon('chevron', 14)}</button>` +
+      STRIP_BUTTONS.map(b => (b === '-' ? '<span class="strip-sep"></span>'
+        : `<button class="strip-btn" data-strip="${b.id}" aria-label="${esc(b.label)}">${icon(b.icon, 24)}</button>`)).join('');
+    this.stripHolds = new HoldTracker();
+    this.stripPress = new Map();  // pointer id → {btn, timer} for buttons that run when let go or repeat
+    strip.querySelector('.strip-fold').onclick = () => this.setStripState({ collapsed: !this.stripState().collapsed });
+    strip.addEventListener('pointerdown', e => {
+      const btn = e.target.closest('[data-strip]');
+      if (!btn) return;
+      e.preventDefault();  // no focus moving to the button, no text selection
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      try { btn.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+      const b = BY_ID[btn.dataset.strip];
+      btn.classList.add('down');
+      if (b.hold) {
+        if (this.stripHolds.press(b.hold, e.pointerId)) { this.held[b.hold] = true; this.drawOverlay(); }
+        return;
+      }
+      const press = { btn, timer: 0 };
+      this.stripPress.set(e.pointerId, press);
+      if (b.repeat) {
+        this.stripRun(b.id);
+        const again = () => { this.stripRun(b.id); press.timer = setTimeout(again, REPEAT_EVERY); };
+        press.timer = setTimeout(again, REPEAT_DELAY);
+      }
+    });
+    const up = e => {
+      const press = this.stripPress.get(e.pointerId);
+      if (press) {
+        this.stripPress.delete(e.pointerId);
+        clearTimeout(press.timer);
+        press.btn.classList.remove('down');
+        const b = BY_ID[press.btn.dataset.strip], r = press.btn.getBoundingClientRect();
+        const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        if (e.type === 'pointerup' && inside && !b.repeat) this.stripRun(b.id);  // slid off the button: nothing
+        return;
+      }
+      const kind = this.stripHolds?.release(e.pointerId);
+      if (kind) { this.held[kind] = false; this.drawOverlay(); }
+      for (const btn of strip.querySelectorAll('[data-strip].down')) {
+        const hold = BY_ID[btn.dataset.strip].hold;
+        if (hold && !this.stripHolds.isHeld(hold)) btn.classList.remove('down');
+      }
+    };
+    strip.addEventListener('pointerup', up);
+    strip.addEventListener('pointercancel', up);
+    strip.addEventListener('lostpointercapture', up);
+    strip.addEventListener('contextmenu', e => e.preventDefault());  // a long press with a finger
+    // Enter / Space on a focused button (keyboard): pointer presses are handled above, so only clicks without one
+    strip.addEventListener('click', e => {
+      const btn = e.target.closest('[data-strip]');
+      if (btn && e.detail === 0 && !BY_ID[btn.dataset.strip].hold) this.stripRun(btn.dataset.strip);
+    });
+    this.stripTitles();
+    return strip;
+  },
+
+  /** One button's action. Like their keys, they wait while a stroke or other gesture is under way. */
+  stripRun(id) {
+    if (this.gesture || this.destroyed) return;
+    const s = this.settings[this.tool];
+    if (id === 'undo') this.undo();
+    else if (id === 'redo') this.redo();
+    else if (id === 'sizeDown' || id === 'sizeUp') { if (s.size) this.setSize(nextSize(s.size, id === 'sizeUp' ? 1 : -1)); }
+    else if (id === 'swap') this.colors.swap();
+    else if (id === 'fit') this.fit();
+  },
+
+  /** Lets go of the hold buttons (the window lost focus, the strip was hidden or folded). */
+  releaseStripHolds() {
+    if (!this.stripHolds) return;
+    for (const kind of this.stripHolds.clear()) this.held[kind] = false;
+    for (const press of this.stripPress.values()) clearTimeout(press.timer);
+    this.stripPress.clear();
+    this.strip?.querySelectorAll('.down').forEach(b => b.classList.remove('down'));
+  },
+};

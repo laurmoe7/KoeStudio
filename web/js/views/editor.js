@@ -43,6 +43,7 @@ import { refMethods } from './reftools.js';
 import { smudgeMethods } from './smudgetool.js';
 import { liquifyMethods } from './liquifytool.js';
 import { retouchMethods } from './retouchtool.js';
+import { stripMethods } from './striptool.js';
 import { directPaintMethods } from './directpaint.js';
 import { effectMethods } from './effecttools.js';
 import { gradientEditMethods } from './gradienteditor.js';
@@ -114,6 +115,7 @@ export class Editor {
         const t = TOOL_BY_ID[b.dataset.tool], k = toolKeyLabel(t.id);
         b.title = t.label + (k ? ` (${k})` : '');
       });
+      this.stripTitles();
     };
     this.onPaste = this.onPaste.bind(this);
   }
@@ -175,6 +177,7 @@ export class Editor {
     clearTimeout(this.lapseTimer);
     cancelIdleCallback(this.sampleIdle);
     clearInterval(this.antsTimer);
+    this.releaseStripHolds();
     this.root.innerHTML = '';
   }
 
@@ -311,6 +314,7 @@ export class Editor {
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
     this.bindPointer();
+    this.applyStrip();  // the shortcut strip beside the canvas (striptool.js)
     this.bindNavigator();
     this.renderHistory();
     this.renderRefWindow();
@@ -444,6 +448,7 @@ export class Editor {
           { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         ] },
         { label: 'Hide panels', key: 'Tab', checked: !!this.panelsHidden, run: () => this.togglePanels() },
+        { label: 'Shortcut strip (pen tablets)', sub: this.stripMenu() },
         '-',
         { label: 'Grid', key: "Ctrl+'", checked: d.rulers.grid.show, run: () => this.toggleGrid() },
         { label: 'Grid settings…', run: () => this.gridDialog() },
@@ -1102,6 +1107,7 @@ export class Editor {
       this.gesture = { type: 'touchview', ids: [ia, ib], a0: this.touches.get(ia), b0: this.touches.get(ib), view: { ...this.view }, t0: performance.now(), moved: false, count: this.touches.size };
     };
     el.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse') this.notePenUsed();  // the shortcut strip shows from then on
       if (e.pointerType === 'touch') {
         this.touches.set(e.pointerId, pos(e));
         if (this.touches.size >= 2) { touchView(); return; }
@@ -2014,9 +2020,10 @@ export class Editor {
     const key = e?.key === ' ' ? 'space' : e?.key === 'Alt' ? 'alt' : null;
     if (e?.type === 'blur') {
       this.held.space = this.held.alt = false;
+      this.releaseStripHolds();
       if (this.clipboard) this.clipboard.fresh = false;  // the user may copy something in another program
     }
-    else if (key) { this.held[key] = false; if (key === 'alt') e.preventDefault(); }
+    else if (key) { this.held[key] = !!this.stripHolds?.isHeld(key); if (key === 'alt') e.preventDefault(); }
     else return;
     this.drawOverlay();
   }
@@ -2033,7 +2040,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods, stripMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
