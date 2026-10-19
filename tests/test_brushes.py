@@ -461,6 +461,184 @@ class ProcreateReader(unittest.TestCase):
             bi.import_brushes('x.brush', make_zip({'readme.txt': b'hi'}))
 
 
+# ---------- Clip Studio Paint file pieces ----------
+
+def sqlite_bytes(build, page_size=1024):
+    """The bytes of an SQLite database made by build(db)."""
+    import sqlite3
+    db = sqlite3.connect(':memory:')
+    db.execute(f'PRAGMA page_size = {page_size}')
+    build(db)
+    db.commit()
+    data = db.serialize()
+    db.close()
+    return data
+
+
+def csp_name(s):
+    b = s.encode('utf-16-be')
+    return u32(len(s)) + b
+
+
+def csp_block(index, raw=None):
+    """One BlockData entry: a 256 x 256 block of 2 bytes a pixel, empty or holding raw (alpha plane, gray plane)."""
+    body = csp_name('BlockDataBeginChunk') + u32(index) + u32(2 * 65536) + u32(256) + u32(256) + u32(raw is not None)
+    if raw is not None:
+        z = zlib.compress(raw)
+        body += u32(len(z) + 4) + struct.pack('<I', len(z)) + z
+    body += csp_name('BlockDataEndChunk')
+    return u32(len(body) + 4) + body
+
+
+def csp_layer(w, h, pixels, page_size=1024):
+    """A material's .layer file holding a w x h (at most 256 x 256) picture given as {(x, y): (alpha, gray)}: a C2F
+    file whose database has its first 5 KB scrambled (as CLIP STUDIO's are) and the rest plain."""
+    alpha, gray = bytearray(65536), bytearray(b'\xff' * 65536)
+    for (x, y), (a, g) in pixels.items():
+        alpha[y * 256 + x], gray[y * 256 + x] = a, g
+    attr = (u32(16) + u32(0x66) + u32(0x2a) + u32(0x100) + csp_name('Parameter') + u32(w) + u32(h) + u32(2) + u32(1)
+            + u32(17) + u32(1) + u32(1) + u32(2) + bytes(40))
+    # the picture is in the first of two blocks; the checksums after the blocks make the row spill over 4+ pages
+    blocks = csp_block(0, bytes(alpha) + bytes(gray)) + csp_block(1) + u32(3008) + csp_name('BlockStatus') + bytes(range(256)) * 11
+
+    def build(db):
+        db.execute('CREATE TABLE Filler(x BLOB)')  # the first pages, scrambled in the file
+        db.execute('INSERT INTO Filler VALUES (?)', (bytes(7000),))
+        db.execute('CREATE TABLE Offscreen(_PW_ID INTEGER PRIMARY KEY, MainId INTEGER, LayerId INTEGER, Attribute BLOB, BlockData BLOB)')
+        db.execute('INSERT INTO Offscreen VALUES (NULL, 3, 2, ?, ?)', (attr, blocks))
+    data = sqlite_bytes(build, page_size)
+    chunk = lambda body: struct.pack('<I', len(body)) + b'dATA' + body + b'hash'
+    return (b'\x89C2F\r\n\x1a\n' + bytes(4) + b'HEAD' + b'hash' + chunk(b'\x01\x00' + bytes(range(8)) + bytes(5120))
+            + chunk(b'\0\0' + data[5120:]) + bytes(4) + b'TAIL' + b'hash')
+
+
+def csp_package(layer):
+    """A MaterialFile's FileData: a tar holding the material's files."""
+    import tarfile
+    out = io.BytesIO()
+    with tarfile.open(fileobj=out, mode='w', format=tarfile.USTAR_FORMAT) as t:
+        for name, body in (('thumbnail/thumbnail.png', PNG), ('data/material_0.layer', layer)):
+            info = tarfile.TarInfo(name)
+            info.size = len(body)
+            t.addfile(info, io.BytesIO(body))
+    return out.getvalue()
+
+
+def csp_refs(*items):
+    """A Variant's list of materials: (path, name) each."""
+    body = b''
+    for path, name in items:
+        p, n = path.encode('utf-16-le'), name.encode('utf-16-le')
+        item = u32(len(p)) + p + u32(1) + u32(4) + 'id'.encode('utf-16-le') + u32(2) + u32(len(n)) + n  # tag, length, text
+        body += u32(len(item) + 4) + item
+    return u32(8) + u32(len(items)) + body
+
+
+def csp_effector(on, pressure_min=0, random_min=0, curve=None):
+    head = struct.pack('>11i', 44, 0x1f0, on, pressure_min, 0, 0, random_min, 0, 0, 0, 0)
+    if curve:
+        head += struct.pack('>3i', 12, len(curve), 16) + b''.join(struct.pack('>2d', x, y) for x, y in curve)
+    return head
+
+
+def make_sut(variant, materials=()):
+    """A .sut file: one brush 'Graphite' with the given Variant columns, and MaterialFile rows (path, FileData)."""
+    def build(db):
+        db.execute('CREATE TABLE Node(_PW_ID INTEGER PRIMARY KEY, NodeName TEXT, NodeVariantID INTEGER)')
+        db.execute("INSERT INTO Node VALUES (1, 'Pencils', 0), (2, 'Graphite', 7)")
+        cols = ['VariantID'] + list(variant)
+        db.execute(f'CREATE TABLE Variant({", ".join(cols)})')
+        db.execute(f'INSERT INTO Variant VALUES ({", ".join("?" * len(cols))})', [7] + list(variant.values()))
+        db.execute('CREATE TABLE MaterialFile(_PW_ID INTEGER PRIMARY KEY, OriginalPath TEXT, FileData BLOB)')
+        for path, blob in materials:
+            db.execute('INSERT INTO MaterialFile VALUES (NULL, ?, ?)', (path, blob))
+    return sqlite_bytes(build, 4096)
+
+
+class ClipStudioReader(unittest.TestCase):
+    TIP, TEX = '.:01:02:aa:data:material_0.layer', '.:03:04:bb:data:material_0.layer'
+
+    def test_settings(self):
+        res = bi.import_brushes('graphite.sut', make_sut({
+            'BrushSize': 30.0, 'Opacity': 80, 'BrushFlow': 50, 'BrushHardness': 40, 'BrushInterval': 12.0, 'FlickerReduction': 25,
+            'BrushThickness': 50, 'BrushVerticalThicknes': 0, 'BrushRotation': 30.0, 'BrushRotationEffector': 0x81,
+            'BrushRotationRandomScale': 20, 'BrushPatternReverseHorizontal': 2,
+            'BrushSizeEffector': csp_effector(0x90, 30, 60, [(0, 0), (0.5, 0.25), (1, 1)]),
+            'BrushFlowEffector': csp_effector(0x10, 10, 0, [(0, 0), (1, 1)]),
+            'BrushUseIn': 1, 'BrushInLength': 40.0, 'BrushInLengthUnit': 0, 'BrushUseOut': 1, 'BrushOutLength': 20.0, 'BrushOutLengthUnit': 2,
+            'BrushChangeStrokeColor': 1, 'BrushStrokeHueChange': 36, 'BrushStrokeSaturationChange': 0, 'BrushStrokeValueChange': 25,
+            'BrushUseWaterColor': 1, 'BrushMixColor': 70, 'UseDualBrush': 1}))
+        self.assertEqual(res['name'], 'Graphite')
+        b = res['brushes'][0]
+        self.assertEqual(b['name'], 'Graphite')
+        # 50% thick and horizontal turns it 90° more; the size curve is kept (not straight), the density one is not;
+        # stabilization 25 of 100 is 5 of 20; hue 36° of 180, value 25%
+        self.assertEqual(b['settings'], {
+            'gamma': 1, 'size': 30.0, 'opacity': 0.8, 'flow': 0.5, 'hardness': 0.4, 'spacing': 0.12, 'smoothing': 5,
+            'thickness': 0.5, 'tipAngle': 120, 'tipRandom': 0.2, 'tipFollow': True, 'flipX': True,
+            'pressureSize': True, 'minSize': 0.3, 'sizeCurve': [[0, 0], [0.5, 0.25], [1, 1]], 'sizeJitter': 0.4,
+            'pressureOpacity': True, 'minFlow': 0.1, 'taperIn': 40, 'hueJitter': 0.2, 'valJitter': 0.25, 'colorJitterStroke': True,
+            'mix': 0.7})
+        self.assertEqual(b['notes'], ['End taper as a share of the stroke', 'Dual brush'])
+        self.assertIsNone(b['tip'])
+        self.assertEqual(res['images'], [])
+
+    def test_tip_and_texture_pictures(self):
+        # a 3 x 2 ink mark (with a half-strength pixel) inside a 6 x 5 material; a 4 x 4 grain
+        tip = csp_layer(6, 5, {(2, 1): (255, 0), (3, 1): (255, 0), (4, 1): (128, 0), (2, 2): (255, 0), (3, 2): (255, 0), (4, 2): (255, 0)})
+        tex = csp_layer(4, 4, {(x, y): (255, 0) for x in range(4) for y in range(4) if (x + y) % 2}, page_size=2048)
+        res = bi.import_brushes('graphite.sut', make_sut({
+            'BrushSize': 20.0, 'BrushUsePatternImage': 1, 'BrushPatternImageArray': csp_refs((self.TIP, 'nib')),
+            'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40, 'TextureScale2': 50.0, 'TextureReverseDensity': 0},
+            [(self.TIP, csp_package(tip)), (self.TEX, csp_package(tex))]))
+        b = res['brushes'][0]
+        self.assertEqual(b['notes'], [])
+        nib, grain = res['images'][b['tip']], res['images'][b['texture']]
+        self.assertEqual((nib['kind'], nib['name'], nib['white'], nib['invert']), ('tip', 'nib', True, True))
+        w, h, ct, raw = png_pixels(from_url(nib['png']))
+        self.assertEqual((w, h, ct), (3, 2, 4), 'cut down to the ink')
+        self.assertEqual(raw[1::2], bytes([255, 255, 128, 255, 255, 255]), 'the alpha')
+        self.assertEqual(raw[0::2], bytes(6), 'black ink')
+        self.assertEqual(grain['kind'], 'texture')
+        self.assertEqual(png_pixels(from_url(grain['png']))[:2], (4, 4), 'a texture keeps its margins')
+        # half of a 4 px texture is 2 px: as small as KoeStudio scales it is 1/4 of the picture
+        self.assertNotIn('side', grain)
+        self.assertEqual(b['settings']['textureScale'], 0.25)
+        self.assertEqual(b['settings']['textureAmount'], 0.4)
+        self.assertIs(b['settings']['textureInvert'], True, 'CLIP STUDIO paints where the texture is dark')
+
+    def test_texture_size(self):
+        tex = csp_layer(200, 100, {(0, 0): (255, 0)})
+        sut = lambda scale: make_sut({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Paper')), 'TextureDensity': 100,
+                                      'TextureScale2': scale}, [(self.TEX, csp_package(tex))])
+        half = bi.import_brushes('p.sut', sut(50.0))
+        im, s = half['images'][0], half['brushes'][0]['settings']
+        self.assertEqual((im['side'], s['textureScale']), (100, 1), '50% of 200 px: the picture is saved 100 px wide')
+        same = bi.import_brushes('p.sut', sut(100.0))
+        self.assertNotIn('side', same['images'][0])
+        self.assertEqual(same['brushes'][0]['settings']['textureScale'], 1)
+
+    def test_missing_and_unreadable_pictures(self):
+        res = bi.import_brushes('g.sut', make_sut({'BrushSize': 20.0, 'BrushUsePatternImage': 1,
+                                                   'BrushPatternImageArray': csp_refs((self.TIP, 'nib'), ('.:9', 'other')),
+                                                   'TextureImage': csp_refs((self.TEX, 'Paper')), 'TextureDensity': 50},
+                                                  [(self.TEX, b'not a tar')]))
+        b = res['brushes'][0]
+        self.assertEqual(b['settings']['tip'], 'round')
+        self.assertNotIn('textureAmount', b['settings'])
+        self.assertEqual(b['notes'], ['It switches between 2 tip pictures (the first is used)', 'Its tip picture (nib) is not in the file',
+                                      'Its texture (Paper) could not be read'])
+
+    def test_not_a_brush(self):
+        def tools_only(db):
+            db.execute('CREATE TABLE Node(_PW_ID INTEGER PRIMARY KEY, NodeName TEXT, NodeVariantID INTEGER)')
+            db.execute("INSERT INTO Node VALUES (1, 'Group', 0)")
+        with self.assertRaisesRegex(ValueError, 'no brush'):
+            bi.import_brushes('group.sut', sqlite_bytes(tools_only))
+        with self.assertRaisesRegex(ValueError, 'could not be read'):
+            bi.import_brushes('bad.sut', b'SQLite format 3\0' + bytes(100))
+
+
 class Library(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

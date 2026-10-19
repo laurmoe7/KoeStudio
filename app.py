@@ -960,7 +960,7 @@ def save_presets(presets):
 
 
 def import_brushes(name, data):
-    """The brushes in a Procreate or Photoshop brush file (brushimport.py)."""
+    """The brushes in a brush file from another program (brushimport.py)."""
     import brushimport
     return brushimport.import_brushes(name, data)
 

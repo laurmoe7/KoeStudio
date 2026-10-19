@@ -1,4 +1,5 @@
-// Saved brushes, tip and texture images, and importing Procreate, Photoshop, GIMP and Krita brushes, as Editor methods.
+// Saved brushes, tip and texture images, and importing Procreate, Photoshop, Clip Studio Paint, GIMP and Krita
+// brushes, as Editor methods.
 //
 // The brush library lives in the app folder (app.py: <app dir>/brushes): images ({id, name, kind: 'tip' |
 // 'texture'}) and presets ({id, name, settings, source}). Paint tools name an image as 'img:<id>' in their tip or
@@ -352,7 +353,7 @@ export const brushMethods = {
         <span class="bl-sizes">${Object.entries(BRUSH_LIST_SIZES).map(([k, [label]]) => `<button data-bl-size="${k}" title="${label} strokes"><i class="bl-size-${k}"></i></button>`).join('')}</span></div>
       <div class="bl-list"></div>
       <div class="bl-foot"><button data-bl-act="save" title="Keep the current settings as a brush of your own">${icon('plus', 14)} Save as new…</button>
-        <button data-bl-act="import" title="Procreate, Photoshop, GIMP and Krita brushes">Import…</button>
+        <button data-bl-act="import" title="Procreate, Photoshop, Clip Studio Paint, GIMP and Krita brushes">Import…</button>
         <button data-bl-act="manage" title="Put your brushes in groups and in order, hide groups, delete brushes">Manage…</button></div>`;
     if (st.w) w.style.width = st.w + 'px';
     if (st.h) w.style.height = st.h + 'px';
@@ -504,7 +505,7 @@ export const brushMethods = {
       { label: 'Delete brush…', disabled: !p, run: () => this.deletePreset(p) },
       '-',
       { label: 'Manage brushes (groups, order, delete)…', run: () => this.manageBrushes() },
-      { label: 'Import brushes (Procreate, Photoshop, GIMP, Krita)…', run: () => this.importBrushFile() },
+      { label: 'Import brushes (Procreate, Photoshop, Clip Studio, GIMP, Krita)…', run: () => this.importBrushFile() },
       '-',
       { label: 'Add tip image…', run: () => this.addBrushImageFile('tip') },
       { label: 'Add texture image…', run: () => this.addBrushImageFile('texture') },
@@ -634,28 +635,35 @@ export const brushMethods = {
     });
   },
 
-  /** A brush file's image as PNG bytes to save: Procreate shapes (white on black) become see-through tips. */
+  /**
+   * A brush file's image as PNG bytes to save: Procreate shapes (white on black) become see-through tips, and an image
+   * with a `side` (a Clip Studio Paint texture, sized by its own scale) is made that size along its longer side.
+   */
   async importedImagePng(im) {
-    if (!im.white) return (await fetch(im.png)).blob();
+    if (!im.white && !im.side) return (await fetch(im.png)).blob();
     const img = await loadImage(im.png);
+    const k = im.side ? Math.min(1, im.side / Math.max(img.naturalWidth, img.naturalHeight)) : 1;
     const c = document.createElement('canvas');
-    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
     const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0);
-    const data = ctx.getImageData(0, 0, c.width, c.height);
-    whiteToAlpha(data.data, im.invert);
-    ctx.putImageData(data, 0, 0);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    if (im.white) {
+      const data = ctx.getImageData(0, 0, c.width, c.height);
+      whiteToAlpha(data.data, im.invert);
+      ctx.putImageData(data, 0, 0);
+    }
     return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('Could not convert a brush tip.'))), 'image/png'));
   },
 
   /**
-   * Brush menu → Import brushes: a Procreate, Photoshop, GIMP or Krita file; pick which to keep. Every brush shows its
-   * own sample stroke (the pack's images are registered under temporary ids while the dialog is open, and strokes are
+   * Brush menu → Import brushes: a Procreate, Photoshop, Clip Studio Paint, GIMP or Krita file; pick which to keep.
+   * Every brush shows its own sample stroke (the pack's images are registered under temporary ids while the dialog is open, and strokes are
    * drawn only once a card scrolls into view), with a search box, All / None for the brushes shown, Shift+click for a
    * range, and a badge listing what a brush loses. Big packs start with nothing picked (brushpick.js).
    */
   async importBrushFile() {
-    const file = await pickFile('.brush,.brushset,.abr,.gbr,.gih,.vbr,.kpp,.bundle');
+    const file = await pickFile('.brush,.brushset,.abr,.sut,.gbr,.gih,.vbr,.kpp,.bundle');
     if (!file) return;
     let res;
     try {
@@ -666,12 +674,12 @@ export const brushMethods = {
     }
     const temp = new Map();  // image index -> temporary id
     await Promise.all(res.images.map(async (im, k) => {
-      const url = im.white ? URL.createObjectURL(await this.importedImagePng(im)) : im.png;
+      const made = im.white || im.side, url = made ? URL.createObjectURL(await this.importedImagePng(im)) : im.png;
       try {
         const id = newId();
         registerImage(id, im.kind, await loadImage(url));
         temp.set(k, id);
-      } catch { /* drawn with a round tip */ } finally { if (im.white) URL.revokeObjectURL(url); }
+      } catch { /* drawn with a round tip */ } finally { if (made) URL.revokeObjectURL(url); }
     }));
     const base = this.brushSettingsOf(TOOL_BY_ID.brush.defaults), ref = k => (temp.has(k) ? `img:${temp.get(k)}` : null);
     const looks = res.brushes.map(b => applySettings({ ...base }, { ...b.settings,

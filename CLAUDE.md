@@ -30,7 +30,7 @@ Windows desktop drawing and painting program, aiming to be a full-purpose tool i
 
 Detailed notes per area (data shapes, function names, how each feature hangs together) are in **`docs/architecture.md`**. Read the section for the area before changing it.
 
-- **`app.py`**: stdlib `ThreadingHTTPServer` on 127.0.0.1 (port 8770, or the next free one) serving `web/` and a small JSON API (`/api/...`), shown in a pywebview (WebView2) window. Flags: `--browser` (serve only), `--hidden` (window never shown), `--muted`. Env: `KOE_ART_DIR`, `KOE_APP_DIR`, `KOE_PORT`, `KOE_MUTE`. `brushimport.py` reads Procreate, Photoshop, GIMP and Krita brush files.
+- **`app.py`**: stdlib `ThreadingHTTPServer` on 127.0.0.1 (port 8770, or the next free one) serving `web/` and a small JSON API (`/api/...`), shown in a pywebview (WebView2) window. Flags: `--browser` (serve only), `--hidden` (window never shown), `--muted`. Env: `KOE_ART_DIR`, `KOE_APP_DIR`, `KOE_PORT`, `KOE_MUTE`. `brushimport.py` reads Procreate, Photoshop, Clip Studio Paint, GIMP and Krita brush files.
 - **`web/`**: vanilla ES modules, no framework, no build step. Edit and reload.
   - `js/app.js` start-up and switching screens; `js/api.js` every call to the server; `js/ui.js` shared UI helpers (`esc`, `toast`, `modal`, `menu`, `confirmBox`, `promptBox`, `store`); `js/mute.js`.
   - `js/views/gallery.js` the start screen; `js/views/editor.js` the drawing screen (viewport, pointer input, painting, undo, autosave, menus, `onKey`). Editor features live in mixins assigned to `Editor.prototype`: `layerops.js`, `selecttools.js`, `canvasops.js` and the `*tools.js` / `*tool.js` files in `js/views/`. Side panels: `colorpanel.js`, `layerpanel.js`, `navpanels.js` (they change the document only through editor methods).

@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Clip Studio Paint brushes (.sut files) can be imported again, now with their own tip and texture pictures, pen pressure curves, jitter, tapers, colour jitter and colour mixing.
 - Spacing can go as low as 0.5%, for brushes whose dabs must sit very close together.
 - Squash jitter and Random flip (Brush settings → Tip): each dab is squashed or mirrored at random, so tip pictures such as fur or leaves don't repeat the same way.
 - Imported Photoshop brushes bring their Color Dynamics (hue, saturation and brightness jitter), roundness jitter and flip jitter; imported Procreate brushes bring their flip and roundness jitter.

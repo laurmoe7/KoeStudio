@@ -153,8 +153,8 @@ export const GUIDE = [
       <li>Pick it from the Brush row whenever you want it back.</li>
     </ol>
     <p>The same <b>⋯</b> menu updates, renames and deletes brushes, adds your own tip and texture pictures, and
-    <b>imports Procreate, Photoshop, GIMP and Krita brushes</b> (<code>.brush</code>, <code>.brushset</code>,
-    <code>.abr</code>, <code>.gbr</code>, <code>.gih</code>, <code>.vbr</code>, <code>.kpp</code>, <code>.bundle</code>).</p>
+    <b>imports Procreate, Photoshop, Clip Studio Paint, GIMP and Krita brushes</b> (<code>.brush</code>,
+    <code>.brushset</code>, <code>.abr</code>, <code>.sut</code>, <code>.gbr</code>, <code>.gih</code>, <code>.vbr</code>, <code>.kpp</code>, <code>.bundle</code>).</p>
     <h4>Importing a brush pack</h4>
     <ol>
       <li>Click <b>⋯</b> next to the Brush row (or <b>Import…</b> in the Brushes window) and choose import.</li>
@@ -163,6 +163,7 @@ export const GUIDE = [
       pick the brushes the search shows.</li>
       <li>Click <b>Import</b>.</li>
     </ol>
+    <p>A Clip Studio Paint <code>.sut</code> file holds one brush; it comes with its own tip and texture pictures.</p>
     <p>Procreate brushes keep the size they have in Procreate. A pack's title cards (a logo or a "free sample" banner
     shown as a brush) are left out.</p>
     <p class="tip">A brush marked <b>!</b> has a setting KoeStudio does not have: point at the ! to see which. Tick <b>Only

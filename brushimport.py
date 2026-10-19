@@ -1,5 +1,5 @@
-"""Imports brushes from Procreate (.brush, .brushset), Photoshop (.abr), GIMP (.gbr, .gih, .vbr) and Krita (.kpp,
-.bundle) files for KoeStudio's brush library.
+"""Imports brushes from Procreate (.brush, .brushset), Photoshop (.abr), Clip Studio Paint (.sut), GIMP (.gbr,
+.gih, .vbr) and Krita (.kpp, .bundle) files for KoeStudio's brush library.
 
 import_brushes(filename, data) -> {'name', 'brushes': [{name, settings, tip, texture, dual?, notes}], 'images': [{kind,
 name, png, white}]}: settings are KoeStudio paint-tool settings (checked again in the browser), tip / texture index
@@ -23,6 +23,19 @@ Krita .kpp: a PNG (the preset's picture) with a text chunk 'preset' holding XML:
 <param name=..> values; 'brush_definition' is itself XML (<Brush type spacing angle> with an auto brush's
 <MaskGenerator diameter ratio hfade vfade>, or a tip file's name). A .bundle is a ZIP with paintoppresets/*.kpp and
 the tip files under brushes/. Krita's names are not documented as a format either, so all are optional.
+
+Clip Studio Paint .sut (one exported sub tool): an SQLite database. Node names the brush and points at its Variant
+row, whose columns are the settings (sizes, percentages, and "effector" blobs saying what pen pressure, tilt, speed
+and randomness do to a setting). MaterialFile holds the tip and texture pictures, each a tar of a CLIP STUDIO material
+package; its data/material_0.layer is a "C2F" file of chunks ([u32 little-endian length]['dATA'][body][u32], up to
+'TAIL'), each body starting with a flag: 1 = scrambled, 0 = plain. Put together the bodies make another SQLite
+database (8 more bytes in front of a scrambled body); only its first pages, SQLite's own header among them, are
+scrambled, so the rest is read page by page here (csp_pages). Its Offscreen rows hold the picture as in .clip files:
+an Attribute blob (after 'Parameter': width, height, columns and rows of 256 px blocks, then 4 numbers, the last the
+bytes per pixel: 1 alpha, 2 alpha + gray, 5 alpha + BGRx) and BlockData: per block [u32 size of the whole block]
+['BlockDataBeginChunk' as u32 length + UTF-16BE][u32 index, unpacked size, width, height, has data] and with data
+[u32 length][u32 little-endian length] zlib bytes, then ['BlockDataEndChunk']. A block unpacks to its alpha plane
+followed by its colour planes.
 """
 import base64
 import io
@@ -30,7 +43,9 @@ import math
 import plistlib
 import posixpath
 import re
+import sqlite3
 import struct
+import tarfile
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
@@ -1044,6 +1059,464 @@ def read_krita_bundle(z, filename):
     return {'name': title, 'brushes': out, 'images': images}
 
 
+# ---------- Clip Studio Paint ----------
+
+CSP_PRESSURE, CSP_TILT, CSP_VELOCITY, CSP_RANDOM = 0x10, 0x20, 0x40, 0x80
+CSP_BLOCK = 256
+
+
+def csp_effector(blob):
+    """An effector blob (big-endian): 11 int32 (header size 44, available inputs, enabled inputs, then each input's
+    minimum in percent: pressure, tilt, velocity, random), then curves: int32 header size 12, point count, point size
+    16, then (x, y) float64 pairs; the first is the pen pressure curve. {'pressure', 'tilt', 'velocity', 'random':
+    bools, 'pressureMin', 'randomMin': 0-1, 'curve': [[x, y], ...] or None}, or None when missing or not understood."""
+    if not isinstance(blob, bytes) or len(blob) < 44:
+        return None
+    ints = struct.unpack('>11i', blob[:44])
+    if ints[0] < 44 or ints[0] > len(blob):
+        return None
+    on = ints[2]
+    out = {'pressure': bool(on & CSP_PRESSURE), 'tilt': bool(on & CSP_TILT), 'velocity': bool(on & CSP_VELOCITY),
+           'random': bool(on & CSP_RANDOM), 'pressureMin': _clamp(ints[3] / 100, 0, 1), 'randomMin': _clamp(ints[6] / 100, 0, 1), 'curve': None}
+    pos = ints[0]
+    if pos + 12 <= len(blob):
+        head, n, size = struct.unpack('>3i', blob[pos:pos + 12])
+        if head >= 12 and size >= 16 and 2 <= n <= 64 and pos + head + n * size <= len(blob):
+            pts = []
+            for i in range(n):
+                x, y = struct.unpack('>2d', blob[pos + head + i * size:pos + head + i * size + 16])
+                if math.isfinite(x) and math.isfinite(y):
+                    pts.append([round(_clamp(x, 0, 1), 4), round(_clamp(y, 0, 1), 4)])
+            out['curve'] = pts if len(pts) >= 2 else None
+    return out
+
+
+def _straight(curve):
+    """Whether a pressure curve is the plain diagonal (or missing), which the default response already does."""
+    return not curve or all(abs(x - y) < 0.005 for x, y in curve)
+
+
+def csp_materials(blob):
+    """The materials (tip images, a texture) a Variant blob refers to, as [(path in the file, name)]: [u32 header
+    size, u32 count], then per item u32 size, u32 byte length + the UTF-16LE path, and tagged fields (tag 2 = name)."""
+    out = []
+    if not isinstance(blob, bytes) or len(blob) < 8:
+        return out
+    head, count = struct.unpack('>2I', blob[:8])
+    pos = head
+    for _ in range(min(count, 256)):
+        if pos + 8 > len(blob):
+            break
+        size = struct.unpack('>I', blob[pos:pos + 4])[0]
+        if size < 8 or pos + size > len(blob):
+            break
+        item = blob[pos:pos + size]
+        n = struct.unpack('>I', item[4:8])[0]
+        path, p, name = item[8:8 + n].decode('utf-16-le', 'replace').rstrip('\0'), 8 + n, ''
+        while p + 8 <= len(item):
+            tag, n = struct.unpack('>2I', item[p:p + 8])
+            if n > len(item) - p - 8:
+                break
+            if tag == 2:
+                name = item[p + 8:p + 8 + n].decode('utf-16-le', 'replace').rstrip('\0')
+                break
+            p += 8 + n
+        out.append((path, name or f'Material {len(out) + 1}'))
+        pos += size
+    return out
+
+
+def _c2f_database(layer):
+    """The database inside a material's .layer (C2F) file as [(offset, plain bytes)], or None."""
+    if not layer.startswith(b'\x89C2F\r\n\x1a\n') or layer[12:16] != b'HEAD':
+        return None
+    parts, pos, at = [], 20, 0
+    while pos + 8 <= len(layer):
+        n, tag = struct.unpack('<I', layer[pos:pos + 4])[0], layer[pos + 4:pos + 8]
+        if tag != b'dATA' or n < 2 or pos + 8 + n > len(layer):
+            break
+        body = layer[pos + 8:pos + 8 + n]
+        if body[:2] == b'\0\0':
+            parts.append((at, body[2:]))
+            at += n - 2
+        else:
+            at += n - 10  # a scrambled body has 8 bytes of its own in front
+        pos += 12 + n
+    return parts or None
+
+
+def _reader(parts):
+    def at(off, n):
+        for start, b in parts:
+            if start <= off and off + n <= start + len(b):
+                return b[off - start:off - start + n]
+        return None
+    return at, max(start + len(b) for start, b in parts)
+
+
+def csp_page_sizes(parts):
+    """The likely page sizes of an SQLite database given as [(offset, bytes)] whose first page (which says the size)
+    is missing, most likely first: the biggest sizes at which most pages still look like b-tree pages (every page
+    also lines up with the smaller sizes, so those count as many or a few more)."""
+    at, end = _reader(parts)
+    good = {}
+    for size in (512 << i for i in range(8)):
+        good[size] = 0
+        for k in range(end // size):
+            pg = at(k * size, 8)
+            if pg and pg[0] in (2, 5, 10, 13) and 0 < int.from_bytes(pg[3:5], 'big') < size // 4:
+                good[size] += 1
+    top = max(good.values())
+    likely = [s for s in sorted(good, reverse=True) if top and good[s] >= 0.75 * top]
+    return likely + [s for s in sorted(good, key=good.get, reverse=True) if s not in likely and good[s]]
+
+
+def csp_pages(parts, size):
+    """The rows of every table on the readable pages (of `size` bytes) of an SQLite database given as [(offset,
+    bytes)]: [[values], ...]. Rows spilling onto pages that cannot be read are left out."""
+    at, end = _reader(parts)
+    rows = []
+    for k in range(end // size):
+        pg = at(k * size, size)
+        if not pg or pg[0] != 13:
+            continue
+        cells = int.from_bytes(pg[3:5], 'big')
+        if 8 + 2 * cells > size:
+            continue
+        for c in range(cells):
+            try:
+                row = _sqlite_row(pg, int.from_bytes(pg[8 + 2 * c:10 + 2 * c], 'big'), size, at)
+            except (IndexError, ValueError, struct.error):
+                continue
+            if row is not None:
+                rows.append(row)
+    return rows
+
+
+def _varint(b, i):
+    v = 0
+    for k in range(9):
+        c = b[i + k]
+        if k == 8:
+            return (v << 8) | c, i + 9
+        v = (v << 7) | (c & 0x7f)
+        if c < 0x80:
+            return v, i + k + 1
+
+
+def _sqlite_row(pg, off, size, at):
+    """One table-leaf cell as a list of values, following overflow pages; None when part of it cannot be read."""
+    total, i = _varint(pg, off)
+    _, i = _varint(pg, i)  # rowid
+    room = size - 35
+    if total <= room:
+        payload = pg[i:i + total]
+    else:
+        least = (size - 12) * 32 // 255 - 23
+        local = least + (total - least) % (size - 4)
+        local = local if local <= room else least
+        payload, nxt, hops = bytearray(pg[i:i + local]), struct.unpack('>I', pg[i + local:i + local + 4])[0], 0
+        while len(payload) < total and nxt and hops < 1 << 20:
+            op = at((nxt - 1) * size, size)
+            if op is None:
+                return None
+            payload += op[4:]
+            nxt, hops = struct.unpack('>I', op[:4])[0], hops + 1
+        if len(payload) < total:
+            return None
+        payload = bytes(payload[:total])
+    head, i = _varint(payload, 0)
+    types = []
+    while i < head:
+        t, i = _varint(payload, i)
+        types.append(t)
+    vals, j = [], head
+    for t in types:
+        if 1 <= t <= 6:
+            n = (0, 1, 2, 3, 4, 6, 8)[t]
+            vals.append(int.from_bytes(payload[j:j + n], 'big', signed=True))
+            j += n
+        elif t == 7:
+            vals.append(struct.unpack('>d', payload[j:j + 8])[0])
+            j += 8
+        elif t >= 12:
+            n = (t - 12) // 2
+            vals.append(payload[j:j + n] if t % 2 == 0 else payload[j:j + n].decode('utf-8', 'replace'))
+            j += n
+        else:
+            vals.append(None if t == 0 else t - 8)
+    return vals
+
+
+BEGIN = 'BlockDataBeginChunk'.encode('utf-16-be')
+
+
+def _offscreen(attr, data):
+    """The picture of one Offscreen row: (width, height, gray, alpha, blocks with data), or None."""
+    if not attr.startswith(b'\0\0\0\x10') or attr[20:38] != 'Parameter'.encode('utf-16-be'):
+        return None
+    w, h, cols, rows = struct.unpack('>4I', attr[38:54])
+    bpp = struct.unpack('>I', attr[66:70])[0]
+    if not (0 < w <= MAX_SIDE and 0 < h <= MAX_SIDE) or cols * CSP_BLOCK < w or rows * CSP_BLOCK < h or bpp not in (1, 2, 5):
+        return None
+    tile = CSP_BLOCK * CSP_BLOCK
+    gray, alpha = bytearray(b'\xff' * (w * h)), bytearray(w * h)
+    pos, filled = 0, 0
+    while pos + 8 <= len(data):
+        size = struct.unpack('>I', data[pos:pos + 4])[0]
+        n = struct.unpack('>I', data[pos + 4:pos + 8])[0]
+        q = pos + 8 + 2 * n
+        if data[pos + 8:q] != BEGIN or size < 8 or pos + size > len(data):
+            break  # BlockStatus and BlockCheckSum follow the blocks
+        idx, unpacked, bw, bh, has = struct.unpack('>5I', data[q:q + 20])
+        if has and idx < cols * rows and (bw, bh) == (CSP_BLOCK, CSP_BLOCK) and unpacked == tile * bpp:
+            n = struct.unpack('<I', data[q + 24:q + 28])[0]
+            z = zlib.decompressobj()
+            raw = z.decompress(data[q + 28:q + 28 + n], unpacked)
+            if len(raw) == unpacked:
+                filled += 1
+                _put_block(raw, idx % cols * CSP_BLOCK, idx // cols * CSP_BLOCK, w, h, bpp, gray, alpha)
+        pos += size
+    return w, h, gray, alpha, filled
+
+
+def _put_block(raw, bx, by, w, h, bpp, gray, alpha):
+    tile, n = CSP_BLOCK * CSP_BLOCK, min(CSP_BLOCK, w - bx)
+    for y in range(min(CSP_BLOCK, h - by)):
+        row, src = (by + y) * w + bx, y * CSP_BLOCK
+        alpha[row:row + n] = raw[src:src + n]
+        if bpp == 2:
+            gray[row:row + n] = raw[tile + src:tile + src + n]
+        elif bpp == 5:  # B, G, R, x
+            px = raw[tile + 4 * src:tile + 4 * (src + n)]
+            gray[row:row + n] = bytes((114 * px[i] + 587 * px[i + 1] + 299 * px[i + 2] + 500) // 1000 for i in range(0, 4 * n, 4))
+        else:
+            gray[row:row + n] = bytes(n)
+
+
+def csp_material(blob):
+    """The picture of a CLIP STUDIO material package (MaterialFile.FileData): (width, height, gray, alpha) of the
+    layer holding the most, or None. Ink is dark paint: a pixel's strength is alpha x (255 - gray)."""
+    try:
+        with tarfile.open(fileobj=io.BytesIO(blob)) as t:
+            m = next((m for m in t.getmembers() if m.isfile() and m.name.endswith('.layer') and m.size <= MAX_UNZIPPED), None)
+            layer = t.extractfile(m).read() if m else None
+    except (tarfile.TarError, OSError, EOFError):
+        return None
+    parts = _c2f_database(layer) if layer else None
+    if not parts:
+        return None
+    for size in csp_page_sizes(parts):
+        best = None
+        for row in csp_pages(parts, size):
+            attr = next((v for v in row if isinstance(v, bytes) and v[20:38] == 'Parameter'.encode('utf-16-be')), None)
+            data = next((v for v in row if isinstance(v, bytes) and v[8:8 + len(BEGIN)] == BEGIN), None)
+            if attr is None or data is None:
+                continue
+            try:
+                pic = _offscreen(attr, data)
+            except (struct.error, zlib.error, IndexError):
+                continue
+            if pic and pic[4] and (best is None or pic[4] > best[4]):
+                best = pic
+        if best:
+            return best[:4]
+    return None
+
+
+def _trim(w, h, gray, alpha):
+    """A picture cut down to where its alpha is not 0 (a tip's empty margin would make it paint smaller)."""
+    rows = [y for y in range(h) if alpha[y * w:(y + 1) * w].count(0) != w]
+    if not rows:
+        return w, h, gray, alpha
+    top, bottom = rows[0], rows[-1] + 1
+    left = min(len(alpha[y * w:(y + 1) * w]) - len(alpha[y * w:(y + 1) * w].lstrip(b'\0')) for y in rows)
+    right = max(len(alpha[y * w:(y + 1) * w].rstrip(b'\0')) for y in rows)
+    nw = right - left
+    cut = lambda plane: bytes(b''.join(plane[y * w + left:y * w + right] for y in range(top, bottom)))
+    return nw, bottom - top, cut(gray), cut(alpha)
+
+
+def _mirror(w, h, gray, alpha, flip_x, flip_y):
+    order = range(h - 1, -1, -1) if flip_y else range(h)
+    pick = (lambda r: r[::-1]) if flip_x else (lambda r: r)
+    plane = lambda p: b''.join(pick(p[y * w:(y + 1) * w]) for y in order)
+    return w, h, plane(gray), plane(alpha)
+
+
+def read_sut(data, filename):
+    try:
+        db = sqlite3.connect(':memory:')
+        db.deserialize(data)
+    except (sqlite3.DatabaseError, OverflowError, ValueError):
+        raise ValueError('That Clip Studio Paint brush file could not be read.')
+    try:
+        node = _sql_row(db, 'SELECT * FROM Node WHERE NodeVariantID IS NOT NULL AND NodeVariantID > 0 ORDER BY _PW_ID LIMIT 1')
+        if not node:
+            raise ValueError('That file has no brush in it (it may be a group of tools).')
+        v = _sql_row(db, 'SELECT * FROM Variant WHERE VariantID = ?', (node['NodeVariantID'],))
+        if not v or v.get('BrushSize') is None:
+            raise ValueError('That file is not a brush (it may be another kind of tool).')
+        try:
+            files = {str(p): b for p, b in db.execute('SELECT OriginalPath, FileData FROM MaterialFile') if isinstance(b, bytes)}
+        except sqlite3.DatabaseError:
+            files = {}
+    except sqlite3.DatabaseError:
+        raise ValueError('That Clip Studio Paint brush file could not be read.')
+    finally:
+        db.close()
+    name = node.get('NodeName')
+    name = (name.decode('utf-8', 'replace') if isinstance(name, bytes) else str(name or '')).strip()[:120] or _stem(filename)
+    settings, notes, tip_ref, tex_ref = _sut_settings(v)
+    images, tip, texture = [], None, None
+    if tip_ref:
+        pic = csp_material(files[tip_ref[0]]) if tip_ref[0] in files else None
+        if pic:
+            pic = _trim(*pic)
+            if v.get('BrushPatternReverseHorizontal') == 1 or v.get('BrushPatternReverseVertical') == 1:
+                pic = _mirror(*pic, v.get('BrushPatternReverseHorizontal') == 1, v.get('BrushPatternReverseVertical') == 1)
+            w, h, gray, alpha = pic
+            images.append({'kind': 'tip', 'name': tip_ref[1], 'png': data_url(png_bytes(w, h, gray, alpha)), 'white': True, 'invert': True})
+            tip = 0
+        else:
+            settings['tip'] = 'round'
+            notes.append(f'Its tip picture ({tip_ref[1]}) ' + ('could not be read' if tip_ref[0] in files else 'is not in the file'))
+    if tex_ref:
+        pic = csp_material(files[tex_ref[0]]) if tex_ref[0] in files else None
+        if pic:
+            w, h, gray, alpha = pic
+            # CLIP STUDIO scales the texture by a percentage of its own size; KoeStudio draws it at the picture's size,
+            # so the picture is made that size when saved (up to TEXTURE_SIDE, scaled up beyond that)
+            want = max(w, h) * (_num(v.get('TextureScale2'), 100) or 100) / 100
+            side = round(_clamp(want, 16, TEXTURE_SIDE))
+            settings['textureScale'] = round(_clamp(want / side, 0.25, 4), 2)
+            im = {'kind': 'texture', 'name': tex_ref[1], 'png': data_url(png_bytes(w, h, gray, alpha)), 'white': False}
+            if side < max(w, h):
+                im['side'] = side
+            images.append(im)
+            texture = len(images) - 1
+        else:
+            for k in ('textureAmount', 'textureScale', 'textureInvert'):
+                settings.pop(k, None)
+            notes.append(f'Its texture ({tex_ref[1]}) ' + ('could not be read' if tex_ref[0] in files else 'is not in the file'))
+    return {'name': name, 'brushes': [{'name': name, 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes}], 'images': images}
+
+
+TEXTURE_SIDE = 1024  # the browser loads textures up to this side (TEXTURE_MAX in brushtip.js)
+
+
+def _sql_row(db, sql, args=()):
+    cur = db.execute(sql, args)
+    r = cur.fetchone()
+    return dict(zip([c[0] for c in cur.description], r)) if r else None
+
+
+def _sut_settings(v):
+    """KoeStudio settings, notes, and the (path, name) of the tip and texture pictures, from a Variant row."""
+    g = lambda k, d=0: d if not isinstance(v.get(k), (int, float)) or isinstance(v.get(k), bool) else v[k]
+    s, notes = {'gamma': 1}, []
+    s['size'] = round(_clamp(g('BrushSize', 10), 1, 1000), 1)
+    if g('BrushSizeUnit'):
+        notes.append('Its size in mm or points (check the size)')
+    s['opacity'] = round(_clamp(g('Opacity', 100) / 100, 0.01, 1), 2)
+    s['flow'] = round(_clamp(g('BrushFlow', 100) / 100, 0.01, 1), 2)
+    s['hardness'] = round(_clamp(g('BrushHardness', 100) / 100, 0, 1), 2)
+    s['spacing'] = round(_clamp(g('BrushInterval', 10) / 100, MIN_SPACING, 1), 3)
+    if g('FlickerReduction'):  # stabilization 0-100
+        s['smoothing'] = round(_clamp(g('FlickerReduction') / 5, 0, 20))
+
+    # tip: its picture (the first, when it has several), squash, angle and turning
+    tips = csp_materials(v.get('BrushPatternImageArray')) if g('BrushUsePatternImage') else []
+    if len(tips) > 1:
+        notes.append(f'It switches between {len(tips)} tip pictures (the first is used)')
+    s['thickness'] = round(_clamp(g('BrushThickness', 100) / 100, 0.05, 1), 2)
+    angle = g('BrushRotation', 0.0) + (90 if s['thickness'] < 1 and not g('BrushVerticalThicknes', 1) else 0)
+    s['tipAngle'] = round(angle) % 360
+    rot = g('BrushRotationEffector')
+    s['tipRandom'] = round(_clamp(g('BrushRotationRandomScale') / 100, 0, 1), 2) if rot & CSP_RANDOM else 0
+    s['tipFollow'] = bool(rot & 1)
+    if g('BrushPatternReverseHorizontal') == 2:  # 1 mirrors the picture itself, 2 mirrors dabs at random
+        s['flipX'] = True
+    if g('BrushPatternReverseVertical') == 2:
+        s['flipY'] = True
+
+    # pen pressure, randomness and speed on size and density (opacity changes stand in for density when it has none)
+    size = csp_effector(v.get('BrushSizeEffector'))
+    if size:
+        s['pressureSize'] = size['pressure']
+        if size['pressure']:
+            s['minSize'] = round(size['pressureMin'], 2)
+            if not _straight(size['curve']):
+                s['sizeCurve'] = size['curve']
+        if size['random']:
+            s['sizeJitter'] = round(1 - size['randomMin'], 2)
+        _sut_inputs(size, 'Size', notes)
+    flow, op = csp_effector(v.get('BrushFlowEffector')), csp_effector(v.get('BrushOpacityEffector'))
+    dens = flow if flow and (flow['pressure'] or not (op and op['pressure'])) else op
+    if dens:
+        s['pressureOpacity'] = dens['pressure']
+        if dens['pressure']:
+            s['minFlow'] = round(dens['pressureMin'], 2)
+            if not _straight(dens['curve']):
+                s['flowCurve'] = dens['curve']
+    for e, label in ((flow, 'Density'), (op, 'Opacity')):
+        if e and e['random']:
+            s['flowJitter'] = max(s.get('flowJitter', 0), round(1 - e['randomMin'], 2))
+        if e:
+            _sut_inputs(e, label, notes)
+    if flow and op and flow['pressure'] and op['pressure']:
+        notes.append('Opacity changing with pen pressure (density does)')
+
+    # texture: CLIP STUDIO paints where the texture is dark, KoeStudio where its grain is light (so invert)
+    tex = None
+    t = csp_materials(v.get('TextureImage'))
+    if t and g('TextureDensity') > 0:
+        tex = t[0]
+        s['textureAmount'] = round(_clamp(g('TextureDensity') / 100, 0, 1), 2)
+        s['textureInvert'] = not g('TextureReverseDensity')
+        if g('TextureBrightness') or g('TextureContrast'):
+            notes.append('Texture brightness and contrast')
+        te = csp_effector(v.get('TextureDensityEffector'))
+        if te and te['pressure']:
+            notes.append('Texture strength changing with pen pressure')
+
+    # start and end tapers, when given in pixels (a share of the stroke has no match)
+    for use, length, unit, setting, label in (('BrushUseIn', 'BrushInLength', 'BrushInLengthUnit', 'taperIn', 'Start taper'),
+                                              ('BrushUseOut', 'BrushOutLength', 'BrushOutLengthUnit', 'taperOut', 'End taper')):
+        if g(use):
+            if g(unit) == 0 and g(length) > 0:
+                s[setting] = round(_clamp(g(length), 1, 500))
+            else:
+                notes.append(f'{label} as a share of the stroke')
+
+    # colour jitter per dab (hue in degrees either way, saturation and value in percent) or once per stroke
+    for use, keys, stroke in (('BrushChangePatternColor', ('BrushHueChange', 'BrushSaturationChange', 'BrushValueChange'), False),
+                              ('BrushChangeStrokeColor', ('BrushStrokeHueChange', 'BrushStrokeSaturationChange', 'BrushStrokeValueChange'), True)):
+        if g(use):
+            hue, sat, val = (g(k) for k in keys)
+            s.update({k: x for k, x in (('hueJitter', round(_clamp(hue / 180, 0, 1), 2)), ('satJitter', round(_clamp(sat / 100, 0, 1), 2)),
+                                        ('valJitter', round(_clamp(val / 100, 0, 1), 2))) if x})
+            if stroke:
+                s['colorJitterStroke'] = True
+            break
+
+    if g('BrushUseWaterColor') or g('BrushUseWaterColor2'):  # Color mixing: how much of the canvas colour it takes
+        s['mix'] = round(_clamp(g('BrushMixColor', 50) / 100, 0.05, 1), 2)
+    if g('BrushUseWaterEdge'):
+        s['wetEdges'] = round(_clamp(g('BrushWaterEdgeAlphaPower', 50) / 100, 0.05, 1), 2)
+    for col, label in (('BrushUseSpray', 'Spray'), ('UseDualBrush', 'Dual brush'), ('BrushRibbon', 'Ribbon'),
+                       ('BrushUseVectorEraser', 'Vector eraser'), ('CompositeMode', 'Blending mode')):
+        if g(col):
+            notes.append(label)
+    return s, notes, tips[0] if tips else None, tex
+
+
+def _sut_inputs(e, what, notes):
+    for key, label in (('tilt', 'pen tilt'), ('velocity', 'speed')):
+        if e[key]:
+            notes.append(f'{what} changing with {label}')
+
+
 # ---------- entry point ----------
 
 def _stem(filename):
@@ -1062,6 +1535,8 @@ def import_brushes(filename, data):
         if any(n.lower().endswith('.kpp') for n in z.namelist()):
             return read_krita_bundle(z, filename)
         return read_procreate(data, filename)
+    if data.startswith(b'SQLite format 3\0'):
+        return read_sut(data, filename)
     if data.startswith(b'\x89PNG'):
         return read_kpp(data, filename)
     if data.startswith(b'GIMP-VBR'):
@@ -1073,4 +1548,4 @@ def import_brushes(filename, data):
     if len(data) >= 4 and struct.unpack('>H', data[:2])[0] in (1, 2, 6, 7, 9, 10):
         return read_abr(data, filename)
     raise ValueError('That is not a brush file KoeStudio can read (Procreate .brush/.brushset, Photoshop .abr, '
-                     'GIMP .gbr/.gih/.vbr, Krita .kpp/.bundle).')
+                     'Clip Studio Paint .sut, GIMP .gbr/.gih/.vbr, Krita .kpp/.bundle).')
