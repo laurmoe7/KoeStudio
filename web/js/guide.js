@@ -513,7 +513,8 @@ export const GUIDE = [
     each the size of the canvas, for other programs and game engines.</p>
     <h4>Timelapse</h4>
     <ol>
-      <li>Turn on File → <b>Record timelapse</b>. Each time the artwork saves, a small picture of it is kept.</li>
+      <li>Turn on File → <b>Record timelapse</b>. Each time the artwork saves, a small picture of it is kept,
+      and a red <b>Recording timelapse</b> mark shows at the top (click it to pause).</li>
       <li>Draw as usual. Recording stays on for this artwork until you turn it off.</li>
       <li>File → <b>Export timelapse…</b> makes a WebM video of it. Choose how fast it plays and how long it may be:
       a long recording skips pictures evenly to fit.</li>

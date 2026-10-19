@@ -187,6 +187,7 @@ export class Editor {
           <button class="mask-chip tile-chip" hidden title="The canvas is shown repeated round itself, to check a pattern joins up. Click to turn it off.">Tile preview</button>
           <button class="mask-chip panels-chip" hidden title="The tool bar and panels are hidden to give the canvas the room. Click or press Tab to show them again.">Panels hidden</button>
           <button class="mask-chip gray-chip" hidden title="The canvas is shown in grays to check light and dark (your colours are unchanged). Click to show colours again.">Grayscale view</button>
+          <button class="mask-chip lapse-chip" hidden title="A timelapse frame is kept each time the artwork saves. Click to pause recording.">● Recording timelapse</button>
           <button class="mask-chip qmask-chip" hidden title="Tools paint the selection: painting selects, erasing deselects. Click (or press Q) to turn it into the selection.">${icon('mask', 14)} Quick mask</button>
           <div class="grow"></div>
           <button class="icon-btn" data-act="undo" title="Undo (Ctrl+Z)">${icon('undo')}</button>
@@ -285,6 +286,8 @@ export class Editor {
     $('.gray-chip').onclick = () => this.toggleGrayView();
     $('.panels-chip').onclick = () => this.togglePanels();
     $('.tile-chip').onclick = () => this.toggleTileView();
+    $('.lapse-chip').onclick = () => this.toggleTimelapse();
+    $('.lapse-chip').hidden = !doc.timelapse;
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
     this.bindPointer();

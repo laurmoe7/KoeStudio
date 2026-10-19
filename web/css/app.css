@@ -533,3 +533,4 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 .xf-nums { display: flex; gap: 6px; align-items: center; font-variant-numeric: tabular-nums; }
 .xf-nums label { display: flex; align-items: center; gap: 3px; }
 .xf-nums input { width: 58px; padding: 2px 4px; }
+.lapse-chip { background: #5a2a32; border-color: #b0505f; }

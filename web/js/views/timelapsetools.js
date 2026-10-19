@@ -20,6 +20,7 @@ export const timelapseMethods = {
     d.timelapse = !d.timelapse;
     d.version++;  // saved with the artwork
     this.scheduleSave();
+    this.root.querySelector('.lapse-chip').hidden = !d.timelapse;
     toast(d.timelapse ? 'Recording a timelapse: a frame is kept each time the artwork saves. File → Export timelapse makes the video.'
       : 'Timelapse recording paused. The frames so far are kept.', { ms: 5000 });
   },
