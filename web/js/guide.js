@@ -517,7 +517,7 @@ export const SHORTCUTS = [
   ['Painting', [['Hold a tool key', 'Use that tool until you let go'], ['[ / ]', 'Smaller / bigger brush'], ['Ctrl+Alt+drag', 'Set the brush size on the canvas'], ['X', 'Swap main and sub colour'], ['Alt (hold)', 'Pick a colour'],
     ['Shift+click', 'Straight line from the last stroke']]],
   ['Edit', [['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy / cut / paste'], ['Ctrl+T', 'Transform'],
-    ['Del', 'Clear the selection or layer'], ['Alt+Del', 'Fill the selection or layer'], ['Ctrl+F', 'Repeat the last filter']]],
+    ['Del', 'Clear the selection or layer'], ['Alt+Del / Shift+Alt+Del', 'Fill the selection or layer with the main / sub colour'], ['Ctrl+F', 'Repeat the last filter']]],
   ['Selection', [['Ctrl+A / Ctrl+D', 'Select all / deselect'], ['Ctrl+Shift+I', 'Invert the selection'], ['Q', 'Quick mask'],
     ['Shift / Alt (while dragging)', 'Add to / subtract from the selection'], ['Ctrl+click a layer thumbnail', 'Select its pixels (+Shift add, +Alt subtract)']]],
   ['Layers', [['Ctrl+click (Move tool)', 'Pick the layer under the pointer'], ['Arrows / Shift+arrows (Move tool)', 'Move the layer or selection 1 / 10 px'], ['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],

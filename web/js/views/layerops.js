@@ -674,13 +674,15 @@ export const layerMethods = {
   },
 
   /** Fills the selection, or the whole layer when nothing is selected, with the main colour (on a mask: hides). */
-  fillLayer() {
+  /** Fills the selection (or the layer) with the main colour, or with the sub colour when `sub` (a mask: black). */
+  fillLayer(sub = false) {
     const d = this.doc, t = this.target('fill');
     if (!t) return;
+    const ink = sub && t.kind !== 'mask' ? this.colors.sub : this.inkFor(t);
     if (this.sel.active) {
       const b = this.sel.bounds;
       this.resetStroke();
-      this.strokeCtx.fillStyle = this.inkFor(t);
+      this.strokeCtx.fillStyle = ink;
       this.strokeCtx.fillRect(b.x, b.y, b.w, b.h);
       this.sel.clipCanvas(this.strokeCtx, b);
       this.live = { layer: t, canvas: this.stroke, alpha: 1, mode: this.strokeMode(t, false) };
@@ -688,7 +690,7 @@ export const layerMethods = {
     }
     const full = { x: 0, y: 0, w: d.width, h: d.height }, before = this.snapshot(t, full);
     t.ctx.save();
-    t.ctx.fillStyle = this.inkFor(t);
+    t.ctx.fillStyle = ink;
     t.ctx.globalCompositeOperation = this.strokeMode(t, false);
     t.ctx.fillRect(0, 0, d.width, d.height);
     t.ctx.restore();

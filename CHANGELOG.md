@@ -10,6 +10,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Filter → Median reduces grain and noise while keeping edges sharp.
 - Find layers by name with the magnifier under the layer list.
 - View → Zoom to selection (Ctrl+Alt+0) fills the window with the selected part.
+- Shift+Alt+Del fills the selection or layer with the sub colour.
 - Tab hides the tool bar and panels; Tab again brings them back.
 - Ctrl+click a layer thumbnail to select its pixels (Shift adds, Alt takes away).
 - Hold a tool's key to use that tool for a moment; let go to go back.

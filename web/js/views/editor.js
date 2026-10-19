@@ -327,6 +327,7 @@ export class Editor {
         { label: 'Transform…', key: 'Ctrl+T', run: () => this.beginTransform() },
         { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', key: 'Del', run: () => this.clearLayer() },
         { label: this.sel.active ? 'Fill selection with main color' : 'Fill layer with main color', key: 'Alt+Del', run: () => this.fillLayer() },
+        { label: this.sel.active ? 'Fill selection with sub color' : 'Fill layer with sub color', key: 'Shift+Alt+Del', run: () => this.fillLayer(true) },
       ],
       image: [
         { label: 'Canvas size…', key: 'Ctrl+Alt+C', run: () => this.canvasSizeDialog() },
@@ -1922,6 +1923,7 @@ export class Editor {
       'delete': () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
       'backspace': () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
       'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
+      'alt+shift+delete': () => this.fillLayer(true), 'alt+shift+backspace': () => this.fillLayer(true),
       'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
       'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'), 'ctrl+alt+shift+s': () => this.exportAs(),
       'ctrl+e': () => this.mergeDown(), 'ctrl+alt+shift+e': () => this.mergeVisible(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
