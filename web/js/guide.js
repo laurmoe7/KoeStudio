@@ -118,6 +118,8 @@ export const GUIDE = [
       <b>Combine</b> sets how its paint goes over the first: Multiply and Darken only darken, Screen and Lighten only
       lighten. Imported Procreate combined brushes come in set up this way.</li>
     </ul>
+    <p>What the special settings do, good values, and which ones don't go together:
+    <button type="button" class="guide-link" data-goto="brushnotes">Special brush settings: notes and tips</button>.</p>
     <figure data-pic="taper"><figcaption>Start and End taper make a stroke begin and end thin, even with a mouse.
     The thin end appears when you lift the pen.</figcaption></figure>
     <h4>Ready-made brushes</h4>
@@ -171,6 +173,98 @@ export const GUIDE = [
     <p>Each group's heading has buttons to hide it from the Brushes window and the Brush row, move it up or down, rename it or
     delete it with all its brushes. Under <b>Built-in brushes</b>, untick the groups you never use to hide them.</p>
     <p class="tip">Deleting cannot be undone, but brushes you only hide stay ready to show again.</p>`],
+
+  ['brushnotes', 'Special brush settings: notes and tips', `
+    <p class="lead">Some brush settings change how paint behaves, not just how big or dark it is. This page says what
+    each one is for, which values work, and which settings don't go together.</p>
+    <p>All of them are in the <b>Brush settings…</b> window. The preview stroke at the top shows a change straight away, so try a
+    value there before you paint.</p>
+
+    <h4>Wet edges (Paint page)</h4>
+    <p>The paint gathers at the edge of the stroke and the middle gets lighter, as watercolour does when it dries.</p>
+    <ul>
+      <li>Good values: 0.2 for a marker, 0.5-0.6 for watercolour.</li>
+      <li>It needs an even stroke to find the edge. Keep <b>Density</b> high and lower <b>Opacity</b> instead (Watercolour
+      uses 60% density and 55% opacity).</li>
+    </ul>
+
+    <h4>Impasto (Paint page)</h4>
+    <p>Makes the paint look thick: the top-left edge of each stroke and its bristle ridges catch the light, and the
+    other side is shaded.</p>
+    <ul>
+      <li>Best with the <b>Flat brush</b> or <b>Bristles</b> tip and <b>Turn with the stroke</b> on: the hairs make
+      the ridges. On a round tip only the outer edge is lit.</li>
+      <li>Good values: 0.3-0.6. Higher values grey dark colours.</li>
+      <li>The light becomes part of the paint. A mixing brush that passes over it later picks it up, like any colour.</li>
+      <li>Not on the Eraser, masks or Hard pixels.</li>
+    </ul>
+
+    <h4>Runs dry (Paint page)</h4>
+    <p>The brush gives out its paint along the stroke. It starts solid, then the weaker hairs drop out and the end
+    breaks into dry, scratchy streaks. Every new stroke starts loaded again.</p>
+    <ul>
+      <li>Higher runs dry sooner: 1 is dry after about 3 brush widths, 0.3 after about 20 (Oil paint uses 0.3).
+      Short strokes stay solid, so make long strokes for dry tails.</li>
+      <li>It needs a tip with parts to drop: <b>Flat brush</b>, <b>Bristles</b> or a tip picture. On the Round tip it
+      does nothing.</li>
+      <li>With Runs dry on, the <b>Texture</b> shows only where the paint runs dry, so the loaded part stays solid.
+      Paper gives the most painterly breakup.</li>
+    </ul>
+    <p class="tip">Turning Runs dry off makes the texture cover the whole stroke again. For a smooth, fully loaded
+    brush, set <b>Texture</b> to None as well.</p>
+
+    <h4>Color mixing, Color stretch and Paint load (Paint page)</h4>
+    <p><b>Color mixing</b> picks up the colours already on the layer and mixes them into the brush colour.
+    <b>Color stretch</b> is how far it drags them along. <b>Paint load</b> is how much paint of its own the brush
+    carries.</p>
+    <ul>
+      <li>It mixes only with the layer you paint on, as it was when the pen went down. Paint on the same layer as the
+      colours you want to blend. It doesn't mix with its own stroke, and does nothing on vector layers.</li>
+      <li>For paint that covers but smears a little, use mixing 0.3-0.5 (Oil paint: 0.35). Higher values make a dark
+      stroke look see-through over light colours.</li>
+      <li>For a blender, use mixing 0.9 or more and <b>Paint load</b> 0.1-0.2: it moves the colours already there and
+      leaves little on bare paper (the Wet blender).</li>
+    </ul>
+
+    <h4>Texture and Grain by pressure (Texture page)</h4>
+    <ul>
+      <li>The grain is fixed to the canvas, so strokes share it, like real paper.</li>
+      <li><b>Grain by pressure</b>: a light touch catches only the tops of the grain and a firm one fills it in. Use
+      it for pencils and chalk with the Round tip, and keep <b>Density</b> low (Pencil: 45%).</li>
+      <li>Don't use Grain by pressure with the <b>Bristles</b> or <b>Flat brush</b> tip: each thin dab is cut on its
+      own and the stroke turns into hatching. Use <b>Runs dry</b> instead.</li>
+      <li>The <b>Canvas</b> grain is a weave, so over a whole stroke it reads as cloth. For broken, painterly edges,
+      Paper or Chalk look more natural.</li>
+    </ul>
+
+    <h4>Hair tips (Tip page)</h4>
+    <ul>
+      <li><b>Bristles</b>: a sparse row of hairs, for dry-brush streaks with gaps between them.</li>
+      <li><b>Flat brush</b>: a full row of touching hairs with a few strays at the ends, for solid paint with fine
+      streaks and ragged edges.</li>
+      <li>Turn on <b>Turn with the stroke</b> and set the angle to 90° so each hair draws its own streak along the
+      stroke. Without it the hairs keep one direction, so a stroke that curves away from it smears sideways.</li>
+    </ul>
+
+    <h4>Dual brush and Combined (their own pages)</h4>
+    <ul>
+      <li><b>Dual brush</b> only cuts the stroke: the paint shows where its second tip lands. Use it for broken
+      chalk, leaves or dry bristles.</li>
+      <li><b>Combined</b> adds paint: a second brush along the same stroke. A <b>Combine</b> mode other than Normal is
+      blended over the whole stroke, not dab by dab.</li>
+      <li>Texture, Wet edges, Opacity and the selection treat the main and second brush as one stroke. Impasto and
+      Runs dry follow only the main brush.</li>
+    </ul>
+
+    <h4>Settings that don't go together</h4>
+    <ul>
+      <li><b>Hard pixels</b> turns off Wet edges, Impasto, Runs dry and Grain by pressure, so pixel art stays crisp.</li>
+      <li><b>Grain by pressure</b> with a hair tip: hatching (see above).</li>
+      <li><b>Runs dry</b> with the Round tip: no effect.</li>
+      <li><b>Color mixing</b> on a vector layer, or over colours on another layer: nothing to mix with.</li>
+    </ul>
+    <p class="tip">The easiest start is a ready-made brush close to what you want (Oil paint, Watercolour, Dry brush).
+    Change it, then keep it with <b>⋯ → Save as new brush</b>.</p>`],
 
   ['retouch', 'Smudge, blur and retouching', `
     <p class="lead">These tools change paint that is already on the layer, instead of adding new paint.</p>
