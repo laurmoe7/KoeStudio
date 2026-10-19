@@ -489,6 +489,7 @@ export class Editor {
     const r = this.viewport.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     this.vw = r.width; this.vh = r.height; this.dpr = dpr;
+    this.placeStrip();  // a floating shortcut strip stays inside the canvas area
     this.bg = getComputedStyle(this.viewport).getPropertyValue('--canvas-bg').trim() || '#2a2b31';
     if (this.needsFit && r.width > 0 && r.height > 0) {
       this.needsFit = false;

@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- The shortcut strip can float over the canvas: drag it by its grip to anywhere you like, upright or lying flat, and it stays there (View → Shortcut strip → Floating).
 - The shortcut strip can also sit under the canvas (View → Shortcut strip → At the bottom).
 - A shortcut strip beside the canvas for drawing on a pen tablet without a keyboard: big buttons for undo, redo, brush size, swapping colours, fitting the view, and hold-down buttons to pick a colour or move the view while the pen draws. It turns on by itself once you use a pen or touch screen; View → Shortcut strip turns it off, moves it to the other side or folds it up.
 - The Figure tool draws arrows and double arrows.

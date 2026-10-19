@@ -23,15 +23,32 @@ export const REPEAT_DELAY = 450, REPEAT_EVERY = 110;  // ms before a held repeat
 
 /**
  * The stored strip settings (`koe.strip`): `on` is true / false once chosen in the View menu, null until then
- * (then it shows once a pen or finger has been used); `side` 'left', 'right' or 'bottom' of the canvas; `collapsed`.
+ * (then it shows once a pen or finger has been used); `side` 'left', 'right' or 'bottom' of the canvas, or 'float':
+ * over the canvas at `x`, `y` (px from the canvas area's top left, null until first dragged), lying `flat` (a row)
+ * or upright; `collapsed`.
  */
 export function sanitizeStrip(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
   return {
     on: typeof r.on === 'boolean' ? r.on : null,
-    side: r.side === 'left' || r.side === 'bottom' ? r.side : 'right',
+    side: ['left', 'bottom', 'float'].includes(r.side) ? r.side : 'right',
     collapsed: r.collapsed === true,
+    x: Number.isFinite(r.x) ? Math.round(r.x) : null,
+    y: Number.isFinite(r.y) ? Math.round(r.y) : null,
+    flat: r.flat === true,
   };
+}
+
+export const FLOAT_MARGIN = 8;  // px between a floating strip with no spot yet and the canvas area's corner
+
+/**
+ * Where a floating strip of size w × h goes in a canvas area of vw × vh: at x, y kept wholly inside (at 0, 0 when
+ * it is bigger than the area), or in the top right corner when it has no spot yet.
+ */
+export function floatSpot(x, y, w, h, vw, vh) {
+  if (x === null || y === null) { x = vw - w - FLOAT_MARGIN; y = FLOAT_MARGIN; }
+  const fit = (v, size, room) => Math.round(Math.max(0, Math.min(room - size, v)));
+  return { x: fit(x, w, vw), y: fit(y, h, vh) };
 }
 
 /** Whether the strip shows: as chosen, or (never chosen) once a pen or touch screen has been used. */

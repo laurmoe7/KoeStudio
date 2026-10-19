@@ -1,15 +1,18 @@
 // The shortcut strip's settings, buttons and hold tracking. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STRIP_BUTTONS, HoldTracker, sanitizeStrip, stripShown } from '../web/js/strip.js';
+import { STRIP_BUTTONS, HoldTracker, sanitizeStrip, stripShown, floatSpot, FLOAT_MARGIN } from '../web/js/strip.js';
 import { icon } from '../web/js/icons.js';
 
 test('strip settings', () => {
-  assert.deepEqual(sanitizeStrip(undefined), { on: null, side: 'right', collapsed: false }, 'nothing stored: not chosen, on the right');
-  assert.deepEqual(sanitizeStrip({ on: false, side: 'left', collapsed: true }), { on: false, side: 'left', collapsed: true });
+  const plain = { x: null, y: null, flat: false };
+  assert.deepEqual(sanitizeStrip(undefined), { on: null, side: 'right', collapsed: false, ...plain }, 'nothing stored: not chosen, on the right');
+  assert.deepEqual(sanitizeStrip({ on: false, side: 'left', collapsed: true }), { on: false, side: 'left', collapsed: true, ...plain });
+  assert.deepEqual(sanitizeStrip({ side: 'float', x: 40.6, y: 12, flat: true }), { on: null, side: 'float', collapsed: false, x: 41, y: 12, flat: true }, 'floating, with its spot rounded');
+  assert.deepEqual([sanitizeStrip({ x: 'a', y: NaN }).x, sanitizeStrip({ x: 'a', y: NaN }).y], [null, null], 'no usable spot');
   assert.equal(sanitizeStrip({ side: 'bottom' }).side, 'bottom', 'under the canvas');
-  assert.deepEqual(sanitizeStrip({ on: 'yes', side: 'top', collapsed: 1 }), { on: null, side: 'right', collapsed: false }, 'odd values fall back');
-  assert.deepEqual(sanitizeStrip('junk'), { on: null, side: 'right', collapsed: false });
+  assert.deepEqual(sanitizeStrip({ on: 'yes', side: 'top', collapsed: 1, flat: 1 }), { on: null, side: 'right', collapsed: false, ...plain }, 'odd values fall back');
+  assert.deepEqual(sanitizeStrip('junk'), { on: null, side: 'right', collapsed: false, ...plain });
 });
 
 test('the strip shows as chosen, or once a pen or finger was used', () => {
@@ -43,4 +46,15 @@ test('hold buttons stay down while any finger is on them', () => {
   assert.deepEqual(h.clear(), ['alt'], 'letting go of everything reports what was held');
   assert.equal(h.isHeld('alt'), false);
   assert.deepEqual(h.clear(), []);
+});
+
+test('a floating strip stays inside the canvas area', () => {
+  // a 60 x 480 strip in an 800 x 600 area
+  assert.equal(FLOAT_MARGIN, 8);
+  assert.deepEqual(floatSpot(null, null, 60, 480, 800, 600), { x: 732, y: 8 }, 'no spot yet: top right, 8 px in (800 - 60 - 8)');
+  assert.deepEqual(floatSpot(100, 50, 60, 480, 800, 600), { x: 100, y: 50 }, 'inside: where it was put');
+  assert.deepEqual(floatSpot(790, 300, 60, 480, 800, 600), { x: 740, y: 120 }, 'past the right and bottom: against them (800 - 60, 600 - 480)');
+  assert.deepEqual(floatSpot(-30, -5, 60, 480, 800, 600), { x: 0, y: 0 }, 'past the left and top');
+  assert.deepEqual(floatSpot(200, 100, 60, 480, 800, 400), { x: 200, y: 0 }, 'taller than the area: at the top');
+  assert.deepEqual(floatSpot(10.4, 20.6, 60, 480, 800, 600), { x: 10, y: 21 }, 'whole pixels');
 });
