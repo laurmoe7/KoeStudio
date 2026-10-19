@@ -15,8 +15,9 @@ import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, gr
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
-import { BUILTIN_BY_ID, builtinBrushesFor } from '../builtinbrushes.js';
+import { BUILTIN_BY_ID, builtinBrushesFor, brushListGroups } from '../builtinbrushes.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
+import { icon } from '../icons.js';
 
 const newId = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
 const IMG_RE = /^image\//;
@@ -62,6 +63,7 @@ export const brushMethods = {
       this.brushLib = { images: [], presets: [] };
     }
     await Promise.all(this.brushLib.images.map(i => this.registerBrushImage(i).catch(() => {})));
+    this.brushThumbs?.clear();  // strokes drawn before the tip images were ready
     if (!this.destroyed) this.renderToolProps();
   },
 
@@ -80,6 +82,7 @@ export const brushMethods = {
       registerTip(entry.id, c);
     } else registerTexture(entry.id, textureGray(data.data), w, h);
     entry.ready = true;
+    this.brushThumbs?.clear();
   },
 
   brushImages(kind) {
@@ -99,6 +102,7 @@ export const brushMethods = {
       `<optgroup label="${esc(g)}">${builtin.filter(b => b.group === g).map(opt).join('')}</optgroup>`).join('');
     return `<div class="preset-row"><label class="slider" title="Ready-made and saved brushes: pick one to load its settings"><span>Brush</span>
       <select data-preset><option value="">Custom</option>${groups}${presets.length ? `<optgroup label="Your brushes">${presets.map(opt).join('')}</optgroup>` : ''}</select></label>
+      <button class="icon-btn${this.brushListWin ? ' on' : ''}" data-brush-list title="Brushes window: every brush with a sample stroke">${icon('brush', 14)}</button>
       <button class="icon-btn" data-brush-menu title="Save, import and manage brushes">⋯</button></div>`;
   },
 
@@ -112,6 +116,8 @@ export const brushMethods = {
     if (sel) sel.onchange = () => { if (sel.value) this.applyPreset(sel.value); };
     const btn = box.querySelector('[data-brush-menu]');
     if (btn) btn.onclick = () => this.brushMenu(btn);
+    const list = box.querySelector('[data-brush-list]');
+    if (list) list.onclick = () => this.toggleBrushList();
   },
 
   // ---------- the Brush settings window ----------
@@ -188,36 +194,138 @@ export const brushMethods = {
       if (!c || t.kind !== 'paint') return;
       const dpr = window.devicePixelRatio || 1, w = Math.round((c.clientWidth || 320) * dpr), h = Math.round(PREVIEW_H * dpr);
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-      const ctx = c.getContext('2d'), s = this.settings[t.id];
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, w, h);
-      // the real dab pipeline (spacing, pressure, tapers, jitter, colour jitter) as for a vector line
-      // the brush at most a quarter of the height; the curve keeps half a brush from the top and bottom (scatter may
-      // spill over there) and the scatter too from the sides
-      const b = sanitizeBrush(previewSettings(s, h / 4)), half = b.size / 2;
-      const line = { pts: previewPath(w, h, Math.min(half * (1 + 2 * (b.scatter || 0)) + 10 * dpr, w / 4), half + 5 * dpr), seed: PREVIEW_SEED, color: t.erase ? '#6b6f7a' : this.colors.main };
-      const scratch = this.previewScratch ||= document.createElement('canvas');
-      scratch.width = w; scratch.height = h;
-      const sctx = scratch.getContext('2d');
-      const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-        random: b.tipRandom, follow: b.tipFollow, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b) });
-      for (const st of strokeStamps(line, b)) {
-        const { size, flow } = stampAt(b, st.p);
-        painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
-      }
-      let dual = null;
-      if (b.dualTip !== 'none') {  // the dual brush along the same path, as vector lines draw it
-        dual = this.previewDual ||= document.createElement('canvas');
-        dual.width = w; dual.height = h;
-        const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: b.dualTip });
-        for (const st of dualStamps(line, b)) dp.dab(st.x, st.y, st.size, 1);
-      }
-      const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), dual }, r);
-      ctx.globalAlpha = s.opacity ?? 1;
-      ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
-      ctx.globalAlpha = 1;
+      this.paintPreviewStroke(c, this.settings[t.id], 1 / 4);
     });
+  },
+
+  /**
+   * Paints the sample stroke of a brush with settings s across canvas c (its whole size, on white paper), in the
+   * main colour (grey for erasers): the real dab pipeline (spacing, pressure, tapers, jitter, colour jitter) as for
+   * a vector line. The brush is at most `maxSize` of the height.
+   */
+  paintPreviewStroke(c, s, maxSize) {
+    const t = TOOL_BY_ID[this.tool], dpr = window.devicePixelRatio || 1, w = c.width, h = c.height;
+    const ctx = c.getContext('2d');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    // the curve keeps half a brush from the top and bottom (scatter may spill over there) and the scatter too from the sides
+    const b = sanitizeBrush(previewSettings(s, h * maxSize)), half = b.size / 2;
+    const line = { pts: previewPath(w, h, Math.min(half * (1 + 2 * (b.scatter || 0)) + 10 * dpr, w / 4), half + 5 * dpr), seed: PREVIEW_SEED, color: t.erase ? '#6b6f7a' : this.colors.main };
+    const scratch = this.previewScratch ||= document.createElement('canvas');
+    scratch.width = w; scratch.height = h;
+    const sctx = scratch.getContext('2d');
+    const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
+      random: b.tipRandom, follow: b.tipFollow, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b) });
+    for (const st of strokeStamps(line, b)) {
+      const { size, flow } = stampAt(b, st.p);
+      painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
+    }
+    let dual = null;
+    if (b.dualTip !== 'none') {  // the dual brush along the same path, as vector lines draw it
+      dual = this.previewDual ||= document.createElement('canvas');
+      dual.width = w; dual.height = h;
+      const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: b.dualTip });
+      for (const st of dualStamps(line, b)) dp.dab(st.x, st.y, st.size, 1);
+    }
+    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), dual }, r);
+    ctx.globalAlpha = s.opacity ?? 1;
+    ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
+    ctx.globalAlpha = 1;
+  },
+
+  // ---------- the Brushes window ----------
+
+  /**
+   * Opens or closes the Brushes window: every brush the current paint tool can take on (built-in and saved, as in
+   * the Brush choice), each with its name and a sample stroke, and a search box. Clicking one loads it. Its place is
+   * remembered in koe.brushList = {open, x, y}.
+   */
+  toggleBrushList(open = !this.brushListState().open) {
+    store('brushList', { ...this.brushListState(), open });
+    this.renderToolProps();
+  },
+
+  brushListState() {
+    const st = store('brushList');
+    return { open: !!st?.open, x: Number.isFinite(st?.x) ? st.x : 300, y: Number.isFinite(st?.y) ? st.y : 120 };
+  },
+
+  /** Shows the window for the current tool (paint tools only), rebuilding its rows; thumbnails come from a cache. */
+  renderBrushList() {
+    const t = TOOL_BY_ID[this.tool], st = this.brushListState();
+    if (!st.open || t.kind !== 'paint' || this.destroyed) { this.brushListWin?.remove(); this.brushListWin = null; return; }
+    let w = this.brushListWin;
+    if (!w) {
+      w = this.brushListWin = document.createElement('div');
+      w.className = 'brush-win bl-win';
+      w.setAttribute('role', 'dialog');
+      w.innerHTML = `<div class="bw-head"><span class="bw-title"></span><button class="icon-btn" data-bl-close title="Close">✕</button></div>
+        <input class="bl-search" type="search" placeholder="Search" spellcheck="false" aria-label="Search brushes">
+        <div class="bl-list"></div>`;
+      this.root.append(w);
+      this.placeFloating(w, st.x, st.y);
+      this.bindFloatingHead(w, (x, y) => store('brushList', { ...this.brushListState(), x, y }));
+      w.querySelector('[data-bl-close]').onclick = () => this.toggleBrushList(false);
+      const search = w.querySelector('.bl-search');
+      search.value = this.brushListQuery || '';
+      search.oninput = () => { this.brushListQuery = search.value; this.renderBrushList(); };
+      search.onkeydown = e => { e.stopPropagation(); if (e.key === 'Escape') search.blur(); };  // typing is not shortcuts
+      w.querySelector('.bl-list').onclick = e => {
+        const row = e.target.closest('[data-id]');
+        if (row) this.applyPreset(row.dataset.id);
+      };
+    }
+    w.querySelector('.bw-title').textContent = `Brushes · ${t.label}`;
+    const s = this.settings[t.id], list = w.querySelector('.bl-list'), top = list.scrollTop;
+    const groups = brushListGroups(t.id, this.brushLib?.presets || [], this.brushListQuery);
+    list.innerHTML = groups.map(g => `<div class="bl-group">${esc(g.name)}</div>${g.brushes.map(b =>
+      `<button class="bl-row${b.id === s.preset ? ' on' : ''}" data-id="${esc(b.id)}" title="${esc(b.name)}"><span class="bl-name">${esc(b.name)}</span><canvas class="bl-thumb"></canvas></button>`).join('')}`).join('')
+      || '<p class="muted small bl-empty">No brush has that name.</p>';
+    list.scrollTop = top;
+    this.drawBrushList();
+  },
+
+  /**
+   * Draws the sample strokes in the Brushes window: a cached picture per brush, settings, colour and width; missing
+   * ones are painted a few per frame so a long list never holds up the screen.
+   */
+  drawBrushList() {
+    const w = this.brushListWin, t = TOOL_BY_ID[this.tool];
+    if (!w || t.kind !== 'paint') return;
+    const cache = this.brushThumbs ||= new Map(), dpr = window.devicePixelRatio || 1, s = this.settings[t.id];
+    const todo = [];
+    for (const c of w.querySelectorAll('.bl-thumb')) {
+      const p = this.presetById(c.closest('[data-id]').dataset.id);
+      if (!p) continue;
+      const cw = Math.round((c.clientWidth || 180) * dpr), ch = Math.round((c.clientHeight || 40) * dpr);
+      const settings = applySettings({ ...s }, p.settings);
+      const key = `${t.id}|${cw}x${ch}|${this.colors.main}|${JSON.stringify(settings)}`;
+      todo.push({ c, cw, ch, settings, key });
+    }
+    if (cache.size > 400) cache.clear();
+    const show = ({ c, cw, ch, key }) => {
+      if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
+      c.getContext('2d').drawImage(cache.get(key), 0, 0);
+    };
+    const missing = [];
+    for (const job of todo) (cache.has(job.key) ? show(job) : missing.push(job));
+    cancelAnimationFrame(this.brushListRaf);
+    const step = () => {
+      const t0 = performance.now();
+      while (missing.length && performance.now() - t0 < 12) {
+        const job = missing.shift();
+        if (!cache.has(job.key)) {
+          const pic = document.createElement('canvas');
+          pic.width = job.cw; pic.height = job.ch;
+          this.paintPreviewStroke(pic, job.settings, 0.3);
+          cache.set(job.key, pic);
+        }
+        if (job.c.isConnected) show(job);
+      }
+      this.brushListRaf = missing.length && !this.destroyed ? requestAnimationFrame(step) : 0;
+    };
+    if (missing.length) this.brushListRaf = requestAnimationFrame(step);
   },
 
   /** Moves the window to x, y (screen px), kept on screen with its title bar reachable. */

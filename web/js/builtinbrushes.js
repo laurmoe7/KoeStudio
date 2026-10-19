@@ -40,3 +40,17 @@ export function builtinBrushesFor(toolId) {
   const eraser = !!TOOL_BY_ID[toolId]?.erase;
   return BUILTIN_BRUSHES.filter(b => (b.group === 'Eraser') === eraser);
 }
+
+/**
+ * The Brushes window's list for a paint tool: its built-in brushes in their groups, then the user's saved brushes
+ * under 'Your brushes', each group only with the brushes whose name (or group name) holds `query` (any case).
+ * [{name, brushes}], empty groups left out.
+ */
+export function brushListGroups(toolId, presets = [], query = '') {
+  const q = String(query).trim().toLowerCase();
+  const builtin = builtinBrushesFor(toolId);
+  const groups = [...new Set(builtin.map(b => b.group))].map(name => ({ name, brushes: builtin.filter(b => b.group === name) }));
+  groups.push({ name: 'Your brushes', brushes: presets });
+  return groups.map(g => ({ name: g.name, brushes: q && !g.name.toLowerCase().includes(q) ? g.brushes.filter(b => b.name.toLowerCase().includes(q)) : g.brushes }))
+    .filter(g => g.brushes.length);
+}

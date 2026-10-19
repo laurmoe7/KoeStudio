@@ -199,3 +199,16 @@ test('bristle dots', async () => {
   }
   for (let i = 1; i < d.length; i++) assert.ok(d[i].x > d[i - 1].x, 'in a row from left to right');
 });
+
+test('the Brushes window lists brushes by group, filtered by the search', async () => {
+  const { brushListGroups } = await import('../web/js/builtinbrushes.js');
+  const mine = [{ id: 'aa', name: 'My Inky Pen' }, { id: 'bb', name: 'Clouds' }];
+  const names = gs => gs.map(g => [g.name, g.brushes.map(b => b.name)]);
+  assert.deepEqual(names(brushListGroups('eraser', mine)), [
+    ['Eraser', ['Hard eraser', 'Soft eraser', 'Kneaded eraser']], ['Your brushes', ['My Inky Pen', 'Clouds']]]);
+  assert.deepEqual(brushListGroups('pen').map(g => g.name), ['Ink', 'Pencil and chalk', 'Paint'], 'no saved brushes: no empty group');
+  // "ink" is in the name of one saved brush and is a whole group's name, so the group keeps every brush
+  assert.deepEqual(names(brushListGroups('pen', mine, '  INK ')), [['Ink', ['G-pen', 'Fineliner', 'Brush pen']], ['Your brushes', ['My Inky Pen']]]);
+  assert.deepEqual(names(brushListGroups('pen', mine, 'soft')), [['Pencil and chalk', ['Soft pencil 6B']], ['Paint', ['Soft blend']]]);
+  assert.deepEqual(brushListGroups('pen', mine, 'zzz'), []);
+});

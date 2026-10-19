@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Brushes window (the brush button next to the Brush choice, or View → Brushes): every brush with a sample stroke in your colour, a search box, and one click to use it.
 - More canvas sizes to choose from in New canvas, grouped into Screen, Illustration, Print and Social media: 4K, QHD, phone wallpaper, A3, A5, US Letter, postcard, Instagram, stories, YouTube thumbnails, headers, emotes and more.
 - Auto actions (View → Auto actions): record menu commands, their dialog values and Layers panel changes once, then play them again with one click. A Basic set of ready-made actions is included.
 - Colorize (Edit menu) fills every closed shape of your line art with flat colour on a new layer: from a little colour you scribble in each shape, or picked for you from a colour scheme (Harmony, Complementary, Three hues, Pastel or your palette), with Shuffle for other colours.

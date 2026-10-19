@@ -266,7 +266,7 @@ export class Editor {
     this.rotLabel = $('.rot-label');
     this.colors = new ColorPanel($('.color-panel'));
     this.layerPanel = new LayerPanel($('.layer-panel'), this);
-    this.colors.onChange = () => { this.textColorChanged(); this.drawBrushPreview(); this.drawGradientStrip(); };
+    this.colors.onChange = () => { this.textColorChanged(); this.drawBrushPreview(); this.drawBrushList(); this.drawGradientStrip(); };
     this.root.querySelectorAll('[data-tool]').forEach(b => { b.onclick = () => this.selectTool(b.dataset.tool); });
     const acts = {
       home: () => this.goHome(), undo: () => this.undo(), redo: () => this.redo(),
@@ -483,6 +483,7 @@ export class Editor {
         { label: 'Animation settings…', run: () => this.animSettingsDialog(), disabled: !d.anim.on },
         { label: 'Reference window', checked: this.refState().open, run: () => this.toggleRefWindow() },
         { label: 'Auto actions', checked: this.actState().open, run: () => this.toggleActionWindow() },
+        { label: 'Brushes (with stroke previews)', checked: this.brushListState().open, run: () => this.toggleBrushList() },
         '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
       ],
@@ -962,6 +963,7 @@ export class Editor {
     this.root.querySelector('.tool-title').textContent = t.label;
     const box = this.root.querySelector('.tool-props');
     this.renderBrushWindow();
+    this.renderBrushList();
     const fields = this.visibleFields(s);
     if (t.kind === 'ruler') return this.renderRulerProps(box);
     if (!fields.length) {
