@@ -21,7 +21,7 @@ import { esc, toast, menu, modal, promptBox, fileToDataUrl, store } from '../ui.
 import { exportMethods } from './exporttools.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize, pinchView } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
-import { LayerPanel } from './layerpanel.js';
+import { LayerPanel, shrinkInto } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
 import { canvasMethods } from './canvasops.js';
 import { layerMethods } from './layerops.js';
@@ -1815,7 +1815,12 @@ export class Editor {
    */
   thumbCanvas(max) {
     const d = this.doc, view = this.compView();
-    if (view?.onion) return d.flatten(max);  // the composite shows the onion skins: the picture without them
+    if (view?.onion || this.playing) {  // the composite shows onion skins or the frame playing: the picture without them
+      const c = document.createElement('canvas'), s = Math.min(1, max / Math.max(d.width, d.height));
+      c.width = Math.max(1, Math.round(d.width * s)); c.height = Math.max(1, Math.round(d.height * s));
+      shrinkInto(c.getContext('2d'), d.flatten(), 0, 0, c.width, c.height);
+      return c;
+    }
     const big = Math.max(d.width, d.height), k = Math.max(0, Math.floor(Math.log2(big / max)));
     let src = this.comp;
     if (k) src = this.updateMips(k); else this.flushComp();
