@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- The guide window is bigger, and its back and next buttons stay at the bottom while you scroll a page.
 - A new guide page, Special brush settings: notes and tips (Help → Guide), explains Wet edges, Impasto, Runs dry, colour mixing, textures, hair tips, Dual and Combined brushes: good values, and which settings don't go together.
 - Runs dry (Brush settings → Paint): the brush gives out its paint along the stroke, so it starts solid and ends in dry, scratchy streaks on the paper grain, like a real loaded brush. Oil paint now uses it, and the Flat brush tip has ragged edges with a few stray hairs.
 - The app icon's cow has small, rounded pale pink horns instead of tall golden ones, softer spots, outlined ears and dark hooves that stand out.

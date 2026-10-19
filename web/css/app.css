@@ -388,8 +388,11 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; width: min(420px, 92vw); box-shadow: 0 16px 40px rgba(0,0,0,.5); }
 .modal.wide { width: min(640px, 92vw); }
 /* Help: the guide (topics | page), the shortcut list and About */
-.modal.wide:has(.guide), .modal.wide:has(.keys) { width: min(880px, 94vw); }
-.guide { display: grid; grid-template-columns: 200px 1fr; gap: 16px; height: min(560px, 70vh); }
+.modal.wide:has(.keys) { width: min(880px, 94vw); }
+.modal.wide:has(.guide) { width: min(1040px, 94vw); }
+.guide { display: grid; grid-template-columns: 220px 1fr; gap: 16px; height: min(720px, 78vh); }
+.guide-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.guide-main .guide-page { flex: 1; min-height: 0; }
 .guide-side { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .guide-nav { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
 .guide-nav button { text-align: left; justify-content: flex-start; padding: 5px 8px; font-size: 13px; background: transparent; border-color: transparent; }
@@ -406,7 +409,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .guide-page figure { margin: 10px 0 14px; }
 .guide-page .guide-link { display: inline; padding: 0; min-height: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 .guide-page .guide-link:hover { background: none; color: var(--accent-text); }
-.guide-turn { display: flex; justify-content: space-between; gap: 8px; margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--line); }
+.guide-turn { display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .guide-turn button { font-size: 12.5px; }
 .guide-page figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .guide-page .lead { font-size: 15px; }

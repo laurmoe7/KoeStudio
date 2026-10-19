@@ -35,23 +35,27 @@ export async function guideDialog(topic = null) {
           <nav class="guide-nav"></nav>
           <button type="button" class="guide-keys">Keyboard shortcuts</button>
         </aside>
-        <article class="guide-page" tabindex="0"></article>
+        <div class="guide-main">
+          <article class="guide-page" tabindex="0"></article>
+          <div class="guide-turn"></div>
+        </div>
       </div>`,
       buttons: [{ label: 'Close', value: null, primary: true }],
       wide: true,
       onOpen: root => {
         const nav = root.querySelector('.guide-nav'), page = root.querySelector('.guide-page'), search = root.querySelector('.guide-search');
+        const turn = root.querySelector('.guide-turn');
         const show = id => {
           current = id;
           store('guideTopic', id);
           const [, title, html] = GUIDE.find(g => g[0] === id);
           page.innerHTML = `<h3>${esc(title)}</h3>${html}`;
           page.querySelectorAll('figure[data-pic]').forEach(f => f.insertAdjacentHTML('afterbegin', PICS[f.dataset.pic] || ''));
-          // reading on: the pages before and after this one
+          // reading on: the pages before and after this one, kept under the page while it scrolls
           const i = GUIDE.findIndex(g => g[0] === id), prev = GUIDE[i - 1], next = GUIDE[i + 1];
-          page.insertAdjacentHTML('beforeend', `<div class="guide-turn">${prev ? `<button type="button" data-goto="${prev[0]}">‹ ${esc(prev[1])}</button>` : '<span></span>'}${
-            next ? `<button type="button" data-goto="${next[0]}">${esc(next[1])} ›</button>` : ''}</div>`);
-          page.querySelectorAll('[data-goto]').forEach(b => { b.onclick = () => go(b.dataset.goto); });
+          turn.innerHTML = `${prev ? `<button type="button" data-goto="${prev[0]}">‹ ${esc(prev[1])}</button>` : '<span></span>'}${
+            next ? `<button type="button" data-goto="${next[0]}">${esc(next[1])} ›</button>` : ''}`;
+          root.querySelectorAll('[data-goto]').forEach(b => { b.onclick = () => go(b.dataset.goto); });
           page.scrollTop = 0;
           nav.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === id));
         };
