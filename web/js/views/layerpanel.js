@@ -118,6 +118,8 @@ export class LayerPanel {
       start = null;
       editor.setPickedProp('opacity', v, 'Opacity');
     });
+    // a drag that ended without a change event (it can happen with a pen) still becomes an undo step
+    op.addEventListener('blur', () => { if (start !== null) op.dispatchEvent(new Event('change')); });
     root.querySelector('.lp-lock').onchange = e => editor.setPickedProp('alphaLock', e.target.checked, 'Lock alpha');
     root.querySelector('.lp-clip').onchange = e => editor.setPickedProp('clip', e.target.checked, 'Clip to layer below');
     root.querySelector('.lp-locked').onchange = e => editor.setPickedProp('locked', e.target.checked, e.target.checked ? 'Lock layer' : 'Unlock layer');

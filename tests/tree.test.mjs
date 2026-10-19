@@ -161,3 +161,13 @@ test('finding layers by name keeps the folders they are in, even closed ones', (
   assert.equal(names(' '), panelRows(root).map(r => r.node.name + r.depth).join(' '));
   assert.deepEqual(findRows(root, 'c').map(r => r.match), [false, false, true]);
 });
+
+test('a layer at 0% opacity, or in a folder at 0%, is found so painting on it can warn', async () => {
+  const { clearNode } = await import('../web/js/tree.js');
+  const root = { opacity: 1, parent: null }, folder = { name: 'F', opacity: 1, parent: root }, layer = { name: 'L', opacity: 0.5, parent: folder };
+  assert.equal(clearNode(layer), null);
+  folder.opacity = 0;
+  assert.equal(clearNode(layer), folder);
+  layer.opacity = 0;
+  assert.equal(clearNode(layer), layer, 'the layer itself first');
+});

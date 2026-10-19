@@ -5,7 +5,7 @@
 // set by clicking the mask thumbnail). Folders have no pixels of their own, only an optional mask.
 
 import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, effectsCanvas, PASS_THROUGH } from '../doc.js';
-import { isFolder, allLayers, allNodes, soloChange, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase } from '../tree.js';
+import { isFolder, allLayers, allNodes, soloChange, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase, clearNode } from '../tree.js';
 import { toast, menu } from '../ui.js';
 import { animFrames } from '../anim.js';
 import { toneDensity } from '../tone.js';
@@ -32,6 +32,12 @@ export const layerMethods = {
     if (!n.visible) { toast(`This ${isFolder(n) ? 'folder' : 'layer'} is hidden. Show it to ${verb} it.`); return null; }
     const lockedBy = lockedNode(n);
     if (lockedBy) { toast(`${lockedBy === n ? '' : 'Its folder '}"${lockedBy.name}" is locked. Untick Lock in the Layers panel to ${verb} it.`); return null; }
+    const clear = read ? null : clearNode(n);
+    if (clear) {  // at 0% opacity nothing painted would show, which looks like a broken brush
+      toast(`${clear === n ? '' : 'Its folder '}"${clear.name}" has its opacity at 0%, so nothing on it shows.`,
+        { action: { label: 'Set to 100%', run: () => { this.setLayerProp(clear, 'opacity', 1, 'Opacity'); this.layerPanel.render(); } }, ms: 8000 });
+      return null;
+    }
     if (this.maskEdit && n.mask) return n.mask;
     if (isFolder(n)) { toast(`A folder has no pixels of its own. Select a layer inside it to ${verb}, or click the folder's mask.`); return null; }
     if (n.adjust) {

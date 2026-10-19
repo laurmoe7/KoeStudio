@@ -206,3 +206,9 @@ export function moveNodes(nodes, target, where) {
   for (const n of nodes) insertNode(parent, index++, n);
   return records;
 }
+
+/** The node, or a folder round it, whose opacity is 0 (so nothing painted on it shows), or null. */
+export function clearNode(n) {
+  for (let x = n; x; x = x.parent) if (x.opacity <= 0) return x;
+  return null;
+}
