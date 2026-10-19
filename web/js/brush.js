@@ -95,9 +95,11 @@ export function previewPath(w, h, padX, padY = padX, n = 64) {
   return out;
 }
 
-/** Brush settings for a preview: size at most maxSize, with the tapers shrunk along so the stroke looks the same. */
+/** Brush settings for a preview: size at most maxSize, with the tapers shrunk along so the stroke looks the same. A
+ * combined brush's second brush (comboSize times as big) has to fit too. */
 export function previewSettings(s, maxSize) {
-  const k = Math.min(1, maxSize / Math.max(0.5, s.size || 1));
+  const reach = (s.size || 1) * (s.comboTip && s.comboTip !== 'none' ? Math.max(1, s.comboSize || 1) : 1);
+  const k = Math.min(1, maxSize / Math.max(0.5, reach));
   return { ...s, size: (s.size || 1) * k, taperIn: (s.taperIn || 0) * k, taperOut: (s.taperOut || 0) * k };
 }
 

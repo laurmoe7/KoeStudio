@@ -171,6 +171,9 @@ test('brush preview stroke', async () => {
   const s = previewSettings({ size: 200, taperIn: 100, taperOut: 50, flow: 0.5 }, 40);
   assert.deepEqual(s, { size: 40, taperIn: 20, taperOut: 10, flow: 0.5 }, 'shrunk by 40 / 200');
   assert.equal(previewSettings({ size: 10, taperIn: 30 }, 40).taperIn, 30, 'small brushes stay as they are');
+  // a combined brush whose second brush is 3 times the size: 30 x 3 = 90 has to fit in 45, so both are halved
+  assert.equal(previewSettings({ size: 30, comboTip: 'round', comboSize: 3 }, 45).size, 15);
+  assert.equal(previewSettings({ size: 30, comboTip: 'none', comboSize: 3 }, 45).size, 30, 'not combined: only its own size');
 });
 
 test('built-in brushes', async () => {

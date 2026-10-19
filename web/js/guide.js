@@ -160,6 +160,8 @@ export const GUIDE = [
       pick the brushes the search shows.</li>
       <li>Click <b>Import</b>.</li>
     </ol>
+    <p>Procreate brushes keep the size they have in Procreate. A pack's title cards (a logo or a "free sample" banner
+    shown as a brush) are left out.</p>
     <p class="tip">A brush marked <b>!</b> has a setting KoeStudio does not have: point at the ! to see which. Tick <b>Only
     complete brushes</b> to leave those out (it stays ticked for the next pack). Each pack gets
     its own group in the Brushes window and the Brush row.</p>

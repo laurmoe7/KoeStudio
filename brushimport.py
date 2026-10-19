@@ -522,12 +522,15 @@ def read_procreate(data, filename):
             set_name = str(meta.get('name') or set_name)
         except Exception:
             pass
-    out, images = [], []
+    out, images, cards = [], [], 0
     for n in archives[:MAX_BRUSHES]:
         folder = posixpath.dirname(n)
         try:
             b = _unarchive(plistlib.loads(z.read(n)))
         except Exception:
+            continue
+        if _is_title_card(z, names, folder, b):
+            cards += 1
             continue
         # a brush without a name (or one of spaces) is called after the set, numbered
         name = b.get('name').strip() if isinstance(b.get('name'), str) and b.get('name').strip() else f'{set_name} {len(out) + 1}'
@@ -559,8 +562,8 @@ def read_procreate(data, filename):
             entry['combo'] = combo
         out.append(entry)
     if not out:
-        raise ValueError('The brushes in that file could not be read.')
-    return {'name': set_name, 'brushes': out, 'images': images}
+        raise ValueError('That file holds only title cards, no brushes.' if cards else 'The brushes in that file could not be read.')
+    return {'name': set_name, 'brushes': out, 'images': images, 'titleCards': cards}
 
 
 # Procreate blend modes (as numbered in its files) -> the combine modes KoeStudio has; others paint as Normal
@@ -594,12 +597,36 @@ def _procreate_extra(path):
     return any(part == 'Reset' or re.fullmatch(r'Sub\d+', part) for part in path.split('/')[:-1])
 
 
+PROCREATE_SIZE = 150  # px of a Procreate brush at a size of 1 (its slider at full with a maximum size of 100%)
+
+
+def _is_title_card(z, names, folder, b):
+    """Whether a brush is a pack's title card (a logo or 'free sample' banner as its tip, with no name): those are
+    for show in Procreate's brush library, not for painting."""
+    if isinstance(b.get('name'), str) and b['name'].strip():
+        return False
+    shape = posixpath.join(folder, 'Shape.png')
+    if shape not in names:
+        return False
+    head = z.open(shape).read(24)
+    if not head.startswith(b'\x89PNG') or head[12:16] != b'IHDR':
+        return False
+    w, h = int.from_bytes(head[16:20], 'big'), int.from_bytes(head[20:24], 'big')
+    return max(w, h) >= TITLE_CARD_SIDE
+
+
+TITLE_CARD_SIDE = 1024  # a title card's picture is a big banner; tips of unnamed real brushes are smaller
+
+
 def _procreate_settings(b):
     """Approximate KoeStudio settings from Procreate's: sliders are 0-1 there."""
     s, notes = {'hardness': 1, 'gamma': 1}, []
     size = _pnum(b, 'paintSize')
     if size is not None:
-        s['size'] = round(_clamp(3 + 297 * size * size, 1, 1000))  # Procreate's size slider is roughly quadratic
+        # the size slider (0-1) runs between the brush's minimum and maximum size (Brush Studio → Properties)
+        lo, hi = _pnum(b, 'minSize', 0, 100) or 0, _pnum(b, 'maxSize', 0, 100)
+        hi = max(lo, hi if hi is not None else 1)
+        s['size'] = round(_clamp((lo + (hi - lo) * size) * PROCREATE_SIZE, 1, 1000))
     op = _pnum(b, 'paintOpacity')
     if op:
         s['opacity'] = round(_clamp(op, 0.01, 1), 2)

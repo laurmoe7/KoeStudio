@@ -695,7 +695,7 @@ export const brushMethods = {
         <div class="imp-foot"><label class="imp-group" title="The group the brushes go into in the Brushes window and the Brush row: the pack's own name, or one you already have">Add to group
           <input type="text" class="imp-group-name" list="imp-groups" value="${esc(res.name)}" spellcheck="false" data-own-enter></label>
           <datalist id="imp-groups">${presetGroups(this.brushLib.presets).map(g => `<option value="${esc(groupLabel(g.name))}">`).join('')}</datalist></div>
-        <p class="muted small">Click the brushes to keep (Shift+click picks a range). Size, opacity, spacing, tip, pen pressure, texture and wet mixing come with them; Procreate settings are approximate, so check the size after importing.${lost.length ? ` <span title="${esc(lost.map(([t, c]) => `${t}: ${c}`).join(', '))}">Some brushes lose a setting KoeStudio does not have (marked !).</span>` : ''}</p>
+        <p class="muted small">Click the brushes to keep (Shift+click picks a range). Size, opacity, spacing, tip, pen pressure, texture and wet mixing come with them; Procreate settings are approximate, so check the size after importing.${lost.length ? ` <span title="${esc(lost.map(([t, c]) => `${t}: ${c}`).join(', '))}">Some brushes lose a setting KoeStudio does not have (marked !).</span>` : ''}${res.titleCards ? ` ${res.titleCards} title card${res.titleCards === 1 ? '' : 's'} of the pack (a logo or banner, not a brush) left out.` : ''}</p>
       </div>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'Import', primary: true }],
       onOpen: root => {

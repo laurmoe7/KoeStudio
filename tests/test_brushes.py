@@ -323,8 +323,8 @@ class ProcreateReader(unittest.TestCase):
         res = bi.import_brushes('Charcoal.brush', data)
         b = res['brushes'][0]
         self.assertEqual(b['name'], 'Charcoal')
-        # size 3 + 297 * 0.5² = 77.25
-        self.assertEqual(b['settings'], {'hardness': 1, 'gamma': 1, 'size': 77, 'spacing': 0.08, 'tipRandom': 0.3,
+        # no minimum or maximum size given: 0 to 1, so half of 150 px = 75
+        self.assertEqual(b['settings'], {'hardness': 1, 'gamma': 1, 'size': 75, 'spacing': 0.08, 'tipRandom': 0.3,
                                          'pressureSize': True, 'minSize': 0.4, 'textureAmount': 0.7, 'scatter': 0.25, 'sizeJitter': 0.5, 'speedSize': 0.3})
         tip, grain = res['images'][b['tip']], res['images'][b['texture']]
         self.assertEqual((tip['kind'], tip['white'], tip['invert']), ('tip', True, True))
@@ -371,9 +371,33 @@ class ProcreateReader(unittest.TestCase):
         self.assertEqual(pencil['notes'], [], 'the combined brush comes over whole')
         combo = pencil['combo']
         self.assertEqual((combo['name'], combo['mode'], combo['settings']['spacing']), ('Jolly 2', 'multiply', 0.2))
-        self.assertEqual(combo['settings']['size'], 22, '3 + 297 x 0.25² = 21.6: its own size, made a share of the main one on import')
+        self.assertEqual(combo['settings']['size'], 38, '0.25 x 150 = 37.5: its own size, made a share of the main one on import')
         self.assertEqual(res['images'][combo['tip']]['name'], 'Jolly 2')
         self.assertEqual(res['brushes'][1]['notes'], [])
+
+    def test_size_runs_between_minimum_and_maximum(self):
+        size = lambda **k: bi._procreate_settings(k)[0]['size']
+        # Rough Wash: the slider at 0.063 of a maximum of 16 (1600%): 0.063 x 16 x 150 = 151.2
+        self.assertEqual(size(paintSize=0.063, maxSize=16.0, minSize=0.0), 151)
+        # a pencil at 0.067 of 100%, minimum 0.005: (0.005 + 0.995 x 0.067) x 150 = 10.75
+        self.assertEqual(size(paintSize=0.067, maxSize=1.0, minSize=0.005), 11)
+        self.assertEqual(size(paintSize=0.0, maxSize=16.0, minSize=0.0), 1, 'never under 1 px')
+        self.assertEqual(size(paintSize=1.0, maxSize=16.0), 1000, 'nor over 1000')
+
+    def test_title_cards_are_left_out(self):
+        big, small = bi.png_bytes(1024, 8, bytes(1024 * 8)), bi.png_bytes(64, 64, bytes(64 * 64))
+        data = make_zip({
+            'brushset.plist': plistlib.dumps({'name': 'Pack', 'brushes': ['T', 'A', 'U']}, fmt=plistlib.FMT_BINARY),
+            'T/Brush.archive': keyed_archive({'name': '   '}), 'T/Shape.png': big,  # the pack's logo
+            'A/Brush.archive': keyed_archive({'name': 'Ink'}), 'A/Shape.png': big,  # a named brush with a big tip stays
+            'U/Brush.archive': keyed_archive({'name': ''}), 'U/Shape.png': small,  # unnamed, but a tip-sized picture
+        })
+        res = bi.import_brushes('Pack.brushset', data)
+        self.assertEqual([b['name'] for b in res['brushes']], ['Ink', 'Pack 2'])
+        self.assertEqual(res['titleCards'], 1)
+        only = make_zip({'T/Brush.archive': keyed_archive({'name': ' '}), 'T/Shape.png': big})
+        with self.assertRaisesRegex(ValueError, 'only title cards'):
+            bi.import_brushes('Logo.brushset', only)
 
     def test_not_brushes(self):
         with self.assertRaisesRegex(ValueError, 'no Procreate brushes'):
