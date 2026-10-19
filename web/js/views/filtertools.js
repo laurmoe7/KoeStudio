@@ -68,10 +68,10 @@ export const filterMethods = {
       this.previewFilter(job);
     }
     this.filtering = null;
-    if (!params) {  // cancelled: back to how it was
-      t.ctx.putImageData(orig, 0, 0);
+    if (!params) {  // cancelled: back to how it was (previews only ever changed the area)
+      t.ctx.putImageData(orig, 0, 0, area.x, area.y, area.w, area.h);
       t.touch();
-      this.changed(null, { save: false });
+      this.changed(area, { save: false });
       return;
     }
     if (filter.fields.length || filter.curves) store('filters', { ...(store('filters') || {}), [id]: params });
@@ -79,7 +79,7 @@ export const filterMethods = {
     const a = area;
     const before = new ImageData(new Uint8ClampedArray(a.w * a.h * 4), a.w, a.h);
     for (let y = 0; y < a.h; y++) before.data.set(orig.data.subarray(((a.y + y) * W + a.x) * 4, ((a.y + y) * W + a.x + a.w) * 4), y * a.w * 4);
-    const after = t.ctx.getImageData(a.x, a.y, a.w, a.h);
+    const after = job.shown;  // what the last preview put on the layer: no need to read it back
     this.pushPatch(t, a, before, after, filter.label.replace(/…$/, ''));
     t.touch();
     this.changed(a);
@@ -109,10 +109,16 @@ export const filterMethods = {
       }
     }
     mixByMask(src, out, mask);
-    t.ctx.putImageData(orig, 0, 0);
-    t.ctx.putImageData(new ImageData(src, r.w, r.h), r.x, r.y);
+    // only the area changes (the margin is mixed back unchanged), and each preview replaces all of it
+    const a = area, shown = new ImageData(a.w, a.h);
+    for (let y = 0; y < a.h; y++) {
+      const from = ((a.y - r.y + y) * r.w + a.x - r.x) * 4;
+      shown.data.set(src.subarray(from, from + a.w * 4), y * a.w * 4);
+    }
+    job.shown = shown;
+    t.ctx.putImageData(shown, a.x, a.y);
     t.touch();
-    this.changed(r, { save: false });
+    this.changed(a, { save: false });
   },
 };
 
