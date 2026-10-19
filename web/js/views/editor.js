@@ -19,7 +19,7 @@ import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
 import { esc, toast, menu, modal, promptBox, fileToDataUrl, store } from '../ui.js';
 import { exportMethods } from './exporttools.js';
-import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, actualSize, pinchView } from '../view.js';
+import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, fitRectView, actualSize, pinchView } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
 import { LayerPanel, shrinkInto } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
@@ -402,6 +402,7 @@ export class Editor {
         { label: 'Zoom out', key: 'Ctrl+-', run: () => this.zoomStep(-1) },
         { label: 'Actual size (100%)', key: 'Ctrl+1', run: () => this.actual() },
         { label: 'Fit to window', key: 'Ctrl+0', run: () => this.fit() },
+        { label: 'Zoom to selection', key: 'Ctrl+Alt+0', run: () => this.zoomToSelection(), disabled: !this.sel.active },
         { label: 'Hide panels', key: 'Tab', checked: !!this.panelsHidden, run: () => this.togglePanels() },
         '-',
         { label: 'Rotate left', key: '4', run: () => this.rotate(-15) },
@@ -855,6 +856,8 @@ export class Editor {
 
   setView(v) { this.view = v; this.render(); this.drawOverlay(); }
   fit() { this.setView(fitView(this.doc.width, this.doc.height, this.vw, this.vh)); }
+  /** View → Zoom to selection: the selected part fills the window (keeping the view's turn and mirror). */
+  zoomToSelection() { if (this.sel.active) this.setView(fitRectView(this.view, this.sel.bounds, this.vw, this.vh)); }
   actual() { this.setView(actualSize(this.view, this.vw, this.vh)); }
   zoomStep(dir) {
     const z = this.view.zoom;
@@ -1911,7 +1914,7 @@ export class Editor {
       'shift+m': () => this.flipView(),
       'ctrl+a': () => this.selectAll(), 'ctrl+d': () => this.deselect(), 'ctrl+shift+i': () => this.invertSelection(),
       'ctrl+t': () => this.beginTransform(),
-      'ctrl+alt+c': () => this.canvasSizeDialog(), 'ctrl+alt+i': () => this.imageSizeDialog(),
+      'ctrl+alt+0': () => this.zoomToSelection(), 'ctrl+alt+c': () => this.canvasSizeDialog(), 'ctrl+alt+i': () => this.imageSizeDialog(),
       'ctrl+2': () => this.toggleSnap(), 'ctrl+;': () => this.toggleRulerVisibility(), "ctrl+'": () => this.toggleGrid(),
       'ctrl+c': () => this.copySelection(), 'ctrl+x': () => this.copySelection(true),
       'ctrl+j': () => this.layerViaCopy(), 'ctrl+shift+j': () => this.layerViaCopy(true),

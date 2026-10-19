@@ -75,6 +75,15 @@ export function fitView(docW, docH, vw, vh, margin = 40) {
   return { zoom, rot: 0, flip: false, panX: (vw - docW * zoom) / 2, panY: (vh - docH * zoom) / 2 };
 }
 
+/** The view keeping v's turn and mirror that shows doc rectangle r ({x, y, w, h}) as big as fits, centred. */
+export function fitRectView(v, r, vw, vh, margin = 40) {
+  const c = Math.abs(Math.cos(v.rot)), s = Math.abs(Math.sin(v.rot));
+  const bw = Math.max(1, c * r.w + s * r.h), bh = Math.max(1, s * r.w + c * r.h);
+  const zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min((vw - margin * 2) / bw, (vh - margin * 2) / bh)));
+  const at = toScreen({ ...v, zoom, panX: 0, panY: 0 }, r.x + r.w / 2, r.y + r.h / 2);
+  return { ...v, zoom, panX: vw / 2 - at.x, panY: vh / 2 - at.y };
+}
+
 /** Same zoom as v but 100%, centred on the viewport centre. */
 export function actualSize(v, vw, vh) {
   return zoomAt(v, 1 / v.zoom, vw / 2, vh / 2);

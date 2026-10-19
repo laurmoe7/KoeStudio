@@ -7,7 +7,7 @@ import { floodMask, growMask } from '../web/js/fill.js';
 import { History } from '../web/js/history.js';
 import { isReloadKey, comboOf, isTyping, springBack } from '../web/js/keys.js';
 import { union, clip, alphaBounds } from '../web/js/rect.js';
-import { newView, toDoc, toScreen, zoomAt, rotateAt, flipAt, fitView } from '../web/js/view.js';
+import { newView, toDoc, toScreen, zoomAt, rotateAt, flipAt, fitView, fitRectView } from '../web/js/view.js';
 import { sanitizeSettings, nextSize, TOOLS } from '../web/js/tools.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
@@ -303,4 +303,18 @@ test('a held tool key springs back to the tool before', () => {
   assert.equal(springBack(120, false), false, 'a tap switches tools for good');
   assert.equal(springBack(120, true), true, 'drawing while holding it: back on release');
   assert.equal(springBack(800, false), true, 'held a while: back on release');
+});
+
+test('fitting a rectangle of the canvas into the view', () => {
+  // 100 x 50 at (200, 100) in a 600 x 400 view, margin 50: zoom min(500/100, 300/50) = 5, centre (250, 125) -> (300, 200)
+  const v = fitRectView(newView(), { x: 200, y: 100, w: 100, h: 50 }, 600, 400, 50);
+  assert.equal(v.zoom, 5);
+  const c = toScreen(v, 250, 125);
+  assert.ok(Math.abs(c.x - 300) < 1e-9 && Math.abs(c.y - 200) < 1e-9);
+  // turned a quarter: the rectangle stands up (50 wide, 100 tall): zoom min(500/50, 300/100) = 3
+  const t = fitRectView({ ...newView(), rot: Math.PI / 2 }, { x: 200, y: 100, w: 100, h: 50 }, 600, 400, 50);
+  assert.ok(Math.abs(t.zoom - 3) < 1e-9);
+  assert.equal(t.rot, Math.PI / 2);
+  const d = toScreen(t, 250, 125);
+  assert.ok(Math.abs(d.x - 300) < 1e-9 && Math.abs(d.y - 200) < 1e-9);
 });

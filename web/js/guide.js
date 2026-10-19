@@ -473,7 +473,7 @@ export const GUIDE = [
   ['view', 'Zoom, view and undo', `
     <ul>
       <li><b>Zoom</b>: scroll the mouse wheel. <kbd>Ctrl+0</kbd> fits the picture in the window, <kbd>Ctrl+1</kbd>
-      shows it at 100%. Hold <kbd>Ctrl+Space</kbd> and drag right to zoom in where you started, left to zoom out.</li>
+      shows it at 100%, <kbd>Ctrl+Alt+0</kbd> zooms in on the selection. Hold <kbd>Ctrl+Space</kbd> and drag right to zoom in where you started, left to zoom out.</li>
       <li><b>Move around</b>: hold <kbd>Space</kbd> and drag, or use the Hand <kbd>H</kbd>.</li>
       <li><b>Turn</b>: <kbd>Shift</kbd>+scroll, or <kbd>4</kbd> and <kbd>6</kbd>. <kbd>5</kbd> straightens it.
       Hold <kbd>Shift+Space</kbd> and drag round the middle of the window to turn it freely.</li>
@@ -525,7 +525,7 @@ export const SHORTCUTS = [
     ['Ctrl+click / Shift+click', 'Pick several layers'], ['Alt+click an eye', 'Show only that layer (again: the others come back)']]],
   ['Animation', [[', / .', 'Previous / next frame (with the animation timeline on)'], ['Alt+, / Alt+.', 'Hold the current frame one frame time less / longer']]],
   ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
-  ['View', [['Space (hold)', 'Move the view'], ['Shift+Space+drag', 'Turn the view'], ['Ctrl+Space+drag', 'Zoom in (right) / out (left)'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
+  ['View', [['Space (hold)', 'Move the view'], ['Shift+Space+drag', 'Turn the view'], ['Ctrl+Space+drag', 'Zoom in (right) / out (left)'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+Alt+0', 'Zoom to the selection'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
     ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'], ['Tab', 'Hide / show the panels'],
     ['Ctrl+2 / Ctrl+;', 'Snap to rulers / show guides']]],
   ['File and program', [['Ctrl+S', 'Save now'], ['Ctrl+Shift+S', 'Export a PNG'], ['Ctrl+Alt+Shift+S', 'Export…'],
