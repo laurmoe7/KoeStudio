@@ -71,9 +71,8 @@ export const adjustMethods = {
       const wrap = p => sanitizeAdjust({ type, params: p });
       let params;
       if (filter.curves) {
-        this.flushComp();
-        const img = this.compCtx.getImageData(0, 0, this.doc.width, this.doc.height);
-        params = await curvesDialog(filter, adjust.params, p => live(wrap(p)), histogram(img, null));
+        // the kept copy of the picture (compPixels): reading this.comp would move it off the GPU
+        params = await curvesDialog(filter, adjust.params, p => live(wrap(p)), histogram({ data: this.compPixels() }, null));
       } else params = await filterDialog(filter, adjust.params, p => live(wrap(p)));
       res = params ? wrap(params) : null;
     }
