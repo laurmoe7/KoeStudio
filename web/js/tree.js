@@ -15,15 +15,14 @@ export const allLayers = root => allNodes(root).filter(n => !isFolder(n));
 
 /**
  * The layers that can show, top first (for picking a layer by clicking the canvas): visible, inside visible folders,
- * and not correction layers (they have no pixels of their own). `tops` (a Set of top-level nodes) limits it to
- * those, as when only one animation frame shows.
+ * and not correction layers (they have no pixels of their own).
  */
-export function shownLayersTopFirst(root, tops = null) {
+export function shownLayersTopFirst(root) {
   const out = [];
   const walk = f => {
     for (let i = f.children.length - 1; i >= 0; i--) {
       const n = f.children[i];
-      if (!n.visible || (f === root && tops && !tops.has(n))) continue;
+      if (!n.visible) continue;
       if (isFolder(n)) walk(n);
       else if (!n.adjust) out.push(n);
     }

@@ -7,7 +7,6 @@
 import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, effectsCanvas, PASS_THROUGH } from '../doc.js';
 import { isFolder, allLayers, allNodes, soloChange, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase, clearNode } from '../tree.js';
 import { toast, menu } from '../ui.js';
-import { animFrames } from '../anim.js';
 import { toneDensity } from '../tone.js';
 import { translateVector, strokesInside, removeStrokes } from '../vector.js';
 import { adjustFilter } from '../adjust.js';
@@ -97,19 +96,14 @@ export const layerMethods = {
   /**
    * The layers with visible paint at doc point p, top first: their pixel there is not see-through, not hidden by
    * their own or a folder's mask, and (clipped layers) their base has paint there too. Tone layers count where they
-   * show dots. While the animation is on, only the frame shown (and background/foreground) count.
+   * show dots.
    */
   layersAt(p) {
     const d = this.doc, x = Math.floor(p.x), y = Math.floor(p.y);
     if (x < 0 || y < 0 || x >= d.width || y >= d.height) return [];
-    let tops = null;
-    if (d.anim.on) {
-      const { frames, bg, fg } = animFrames(d.root.children, d.anim);
-      tops = new Set([frames[this.drawnFrame()], bg, fg].filter(Boolean));
-    }
     // every pixel needed is copied side by side into one small canvas and read at once: reading the layers
     // themselves would stall once per layer and make the browser move each one off the GPU
-    const shown = shownLayersTopFirst(d.root, tops), at = new Map();
+    const shown = shownLayersTopFirst(d.root), at = new Map();
     const want = n => {
       for (let m = n; m && m !== d.root; m = m.parent) if (m.mask?.enabled && !at.has(m.mask)) at.set(m.mask, at.size);
       if (!isFolder(n) && !at.has(n)) at.set(n, at.size);

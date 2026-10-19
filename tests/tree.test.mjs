@@ -127,7 +127,7 @@ test('layers that can show, for picking on the canvas', () => {
   assert.deepEqual(shownLayersTopFirst(root).map(n => n.name), ['D', 'A'], 'a hidden folder hides what is in it');
   f.visible = true;
   D.adjust = { type: 'levels' };
-  assert.deepEqual(shownLayersTopFirst(root, new Set([A, D])).map(n => n.name), ['A'], 'only the given top-level nodes; no correction layers');
+  assert.deepEqual(shownLayersTopFirst(root).map(n => n.name), ['C', 'B', 'A'], 'no correction layers');
   // clipping: b and c both clip to a, the nearest unclipped sibling below
   const root2 = { kind: 'folder', children: [] }, a = { kind: 'layer', name: 'a' }, b = { kind: 'layer', name: 'b', clip: true }, c = { kind: 'layer', name: 'c', clip: true };
   [a, b, c].forEach((n, i) => insertNode(root2, i, n));

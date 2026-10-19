@@ -554,7 +554,7 @@ EXPORT_TYPES = {
     'koe': lambda d: d.lstrip()[:1] == b'{' and b'"format":"koe"' in d[:2000].replace(b' ', b''),
     'tga': lambda d: d.endswith(b'TRUEVISION-XFILE.\x00'),
     'gpl': lambda d: d.startswith(b'GIMP Palette'),  # a colour palette (Color panel)
-    'webm': lambda d: d.startswith(b'\x1a\x45\xdf\xa3'),  # an animation as video (EBML header)
+    'webm': lambda d: d.startswith(b'\x1a\x45\xdf\xa3'),  # a timelapse video (EBML header)
 }
 
 

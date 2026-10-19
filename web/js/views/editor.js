@@ -21,7 +21,7 @@ import { esc, toast, menu, openMenuOwner, modal, promptBox, fileToDataUrl, store
 import { exportMethods } from './exporttools.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, fitRectView, actualSize, pinchView } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
-import { LayerPanel, shrinkInto } from './layerpanel.js';
+import { LayerPanel } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
 import { selectionBarMethods } from './selectionbar.js';
 import { timelapseMethods } from './timelapsetools.js';
@@ -54,7 +54,6 @@ import { pressureMethods } from './pressuretool.js';
 import { lineEditMethods } from './lineedittool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
-import { animMethods } from './animtools.js';
 import { printLabel } from '../resolution.js';
 import { detectShape, shapePoints, adjustShape } from '../quickshape.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -169,8 +168,6 @@ export class Editor {
 
   destroy() {
     this.destroyed = true;
-    if (this.playing) clearTimeout(this.playing.timer);
-    this.playing = null;
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('paste', this.onPaste);
@@ -230,7 +227,6 @@ export class Editor {
               <canvas class="ed-view"></canvas>
               <canvas class="ed-overlay"></canvas>
             </div>
-            <div class="ed-timeline" hidden aria-label="Animation timeline"></div>
           </div>
           <aside class="ed-side">
             <section class="panel" data-panel="color"><h3><button class="panel-head">${icon('chevron', 12)}<span>Color</span></button></h3><div class="color-panel"></div></section>
@@ -343,7 +339,6 @@ export class Editor {
         { label: 'Export as PNG', key: 'Ctrl+Shift+S', run: () => this.exportAs('png') },
         { label: 'Export…', key: 'Ctrl+Alt+Shift+S', run: () => this.exportAs() },
         { label: 'Export layers (one PNG each)…', run: () => this.exportLayers() },
-        { label: 'Export animation (GIF, frames)…', run: () => this.exportAnimation(), disabled: !d.anim.on },
         { label: 'Save project file (.koe)…', run: () => this.saveProjectFile() },
         '-',
         { label: 'Import image as layer…', run: () => this.pickImage() },
@@ -487,8 +482,6 @@ export class Editor {
         { label: 'Tile preview (seamless patterns)', checked: !!this.tileView, run: () => this.toggleTileView() },
         { label: 'Selection bar', checked: this.selBarOn, run: () => this.toggleSelectionBar() },
         '-',
-        { label: 'Animation timeline', checked: d.anim.on, run: () => this.toggleAnimation() },
-        { label: 'Animation settings…', run: () => this.animSettingsDialog(), disabled: !d.anim.on },
         { label: 'Reference window', checked: this.refState().open, run: () => this.toggleRefWindow() },
         { label: 'Auto actions', checked: this.actState().open, run: () => this.toggleActionWindow() },
         { label: 'Brushes (with stroke previews)', checked: this.brushListState().open, run: () => this.toggleBrushList() },
@@ -546,7 +539,7 @@ export class Editor {
     if (area) {
       // during a stroke (or a dab-by-dab tool's) the other layers stay as they are: screentone and effects are kept
       const g = this.gesture, painting = this.live?.layer || (g?.cache && g.layer);
-      composite(this.compCtx, d, area, this.live, this.compView(), painting ? { except: painting } : null);
+      composite(this.compCtx, d, area, this.live, painting ? { except: painting } : null);
       this.mipDirty = this.mipDirty ? union(this.mipDirty, area) : area;
       if (this.compRead) this.compRead.dirty = union(this.compRead.dirty, area);  // read again when next needed (compPixels)
     }
@@ -1141,7 +1134,6 @@ export class Editor {
       }
       if (this.gesture) return;
       if (this.spring) this.spring.used = true;  // the held tool key's tool was used: back to the other on release
-      this.stopAnimation();  // drawing during playback: back to the frame being drawn
       try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
       const p = pos(e);
       this.pointer = p;
@@ -1718,8 +1710,7 @@ export class Editor {
       sc.width = r.w; sc.height = r.h;
       const sctx = sc.getContext('2d', { willReadFrequently: true });
       sctx.translate(-r.x, -r.y);
-      const view = this.compView();  // the onion skins are only for seeing: fills and the wand look at the frame without them
-      composite(sctx, d, r, null, view && { ...view, onion: false });
+      composite(sctx, d, r);
       const part = sctx.getImageData(0, 0, r.w, r.h).data, row = r.w * 4;
       if (r.w === W) c.data.set(part, r.y * row);
       else for (let y = 0; y < r.h; y++) c.data.set(part.subarray(y * row, (y + 1) * row), ((r.y + y) * W + r.x) * 4);
@@ -1789,14 +1780,14 @@ export class Editor {
       if (x < 0 || y < 0 || x >= d.width || y >= d.height) return;
       const s = this.settings.picker, k = Math.floor((+s.average || 1) / 2);
       const r = clip({ x: x - k, y: y - k, w: 2 * k + 1, h: 2 * k + 1 }, d.width, d.height);
-      // only the square is drawn, in memory: this layer alone (a folder as it looks) or the picture without the
-      // onion skins. Reading this.comp instead would move it off the GPU, and the next frame would upload it again.
-      const n = d.active, view = this.compView(), c = document.createElement('canvas');
+      // only the square is drawn, in memory: this layer alone (a folder as it looks) or the picture. Reading
+      // this.comp instead would move it off the GPU, and the next frame would upload it again.
+      const n = d.active, c = document.createElement('canvas');
       c.width = r.w; c.height = r.h;
       const src = c.getContext('2d', { willReadFrequently: true });
       src.translate(-r.x, -r.y);
       if (s.pickFrom === 'layer') renderFolder(src, { children: [n] }, r);
-      else composite(src, d, r, null, view && { ...view, onion: false });
+      else composite(src, d, r);
       src.setTransform(1, 0, 0, 1, 0, 0);
       const p = averageColor(src.getImageData(0, 0, r.w, r.h).data);
       if (!p) return;
@@ -1868,7 +1859,7 @@ export class Editor {
   changed(r, { save = true } = {}) {
     this.updateComp(r);
     this.requestRender();
-    if (!this.thumbTimer) this.thumbTimer = setTimeout(() => { this.thumbTimer = 0; this.layerPanel.thumbs(); this.timelineThumbs(); }, 150);
+    if (!this.thumbTimer) this.thumbTimer = setTimeout(() => { this.thumbTimer = 0; this.layerPanel.thumbs(); }, 150);
     // Fill and the wand: bring their copy of the pixels up to date while idle, not at the next click
     if ((this.compRead || this.refRead) && (this.tool === 'fill' || this.tool === 'wand')) this.prepareSample(this.tool);
     if (save) {
@@ -1944,13 +1935,7 @@ export class Editor {
    * even average of the picture; shrinking the whole page in one step only picked scattered pixels of the line art.
    */
   thumbCanvas(max) {
-    const d = this.doc, view = this.compView();
-    if (view?.onion || this.playing) {  // the composite shows onion skins or the frame playing: the picture without them
-      const c = document.createElement('canvas'), s = Math.min(1, max / Math.max(d.width, d.height));
-      c.width = Math.max(1, Math.round(d.width * s)); c.height = Math.max(1, Math.round(d.height * s));
-      shrinkInto(c.getContext('2d'), d.flatten(), 0, 0, c.width, c.height);
-      return c;
-    }
+    const d = this.doc;
     const big = Math.max(d.width, d.height), k = Math.max(0, Math.floor(Math.log2(big / max)));
     let src = this.comp;
     if (k) src = this.updateMips(k); else this.flushComp();
@@ -2053,8 +2038,6 @@ export class Editor {
       repeatFilter: () => this.repeatFilter(),
       renameLayer: () => this.renameLayer(), findLayer: () => this.findLayerMode(), panels: () => this.togglePanels(),
       fit: () => this.fit(), actual: () => this.actual(), zoomIn: () => this.zoomStep(1), zoomOut: () => this.zoomStep(-1),
-      prevFrame: () => this.stepFrame(-1), nextFrame: () => this.stepFrame(1),
-      holdLess: () => this.setFrameHold(null, -1), holdMore: () => this.setFrameHold(null, 1),
     };
   }
 
@@ -2106,7 +2089,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods, stripMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, stripMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

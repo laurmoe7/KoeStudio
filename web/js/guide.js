@@ -377,31 +377,6 @@ export const GUIDE = [
     <p class="tip">Try a Gradient map or Hue/Saturation correction on top of a finished picture to test colour
     moods without repainting anything.</p>`],
 
-  ['animation', 'Animation', `
-    <p class="lead">Draw a short animation frame by frame, like a flip book: every layer is one drawing.</p>
-    <figure data-pic="anim"></figure>
-    <ol>
-      <li>Turn on View → <b>Animation timeline</b>. Each visible layer or folder at the top of the Layers panel is
-      now one frame, from the bottom up, and the timeline appears under the canvas.</li>
-      <li>Draw the first frame. Press <b>+ Frame</b> for an empty next frame, or <b>Duplicate</b> to copy this one
-      and change it a little.</li>
-      <li>The <b>onion skin</b> shows the frame before in blue and the frame after in green, faintly, so you can see
-      how far things move.</li>
-      <li>Press <b>▶</b> to play it. Set the speed in <b>fps</b> (frames per second): 8 to 12 suits most drawings.</li>
-      <li>File → <b>Export animation</b> saves it as an animated GIF, a <b>WebM video</b>, or as PNG frames (one file
-      per frame). The video is recorded while the animation plays, so it takes as long as the animation.</li>
-    </ol>
-    <ul>
-      <li>Click a frame in the timeline to draw on it, or press <kbd>,</kbd> and <kbd>.</kbd> to go back and forward.</li>
-      <li>Put the parts of one frame (lines, colours) in a <b>folder</b>: the folder is then the frame.</li>
-      <li><b>Settings…</b> can make the bottom layer a <b>background</b> and the top one a <b>foreground</b> that show
-      on every frame, set how many onion skin frames you see and how strongly, and turn looping off.</li>
-      <li>Hide a layer to leave it out of the animation.</li>
-      <li><b>Hold</b> keeps the current frame up for more than one frame time: 2 is animating "on twos". A held
-      frame gets a striped strip in the timeline. <kbd>Alt</kbd>+<kbd>,</kbd> and <kbd>Alt</kbd>+<kbd>.</kbd> change it.</li>
-    </ul>
-    <p class="tip">Drawing a walk or a bounce? Draw the first and last poses first, then the ones in between.</p>`],
-
   ['vector', 'Vector layers', `
     <p class="lead">A <b>vector layer</b> remembers every line as a line, not as pixels. That makes cleaning up line
     art fast.</p>
@@ -628,7 +603,6 @@ export const SHORTCUTS = [
   ['Layers', [['Ctrl+click (Move tool)', 'Pick the layer under the pointer'], ['Arrows / Shift+arrows (Move tool)', 'Move the layer or selection 1 / 10 px'], ['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],
     ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['Ctrl+J / Ctrl+Shift+J', 'Copy / cut to a new layer'], ['F2', 'Rename the layer'],
     ['Ctrl+click / Shift+click', 'Pick several layers'], ['Alt+click an eye', 'Show only that layer (again: the others come back)']]],
-  ['Animation', [[', / .', 'Previous / next frame (with the animation timeline on)'], ['Alt+, / Alt+.', 'Hold the current frame one frame time less / longer']]],
   ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
   ['View', [['Space (hold)', 'Move the view'], ['Shift+Space+drag', 'Turn the view'], ['Ctrl+Space+drag', 'Zoom in (right) / out (left)'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+Alt+0', 'Zoom to the selection'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
     ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'], ['Tab', 'Hide / show the panels'],

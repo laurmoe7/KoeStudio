@@ -185,7 +185,6 @@ export class LayerPanel {
       this.list.append(row);
     }
     this.thumbs();
-    ed.animLayersChanged?.();
   }
 
   /** Shows or hides the find box (hiding it shows every layer again). */

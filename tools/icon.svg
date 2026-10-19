@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -2 120 124">
   <!-- KoeStudio app icon: a chubby cow ("koe") holding a paint palette, in the style of the BiggTaal and
        Varken Sketchpad pigs (soft flat shapes, no tile). Strong colours rather than an outline make it stand out on
-       light backgrounds: near-black Holstein patches, golden horns, a warm shaded edge on the body and a shadow
-       under the feet. tools/make_icon.mjs renders it. -->
+       light backgrounds: grey patches, golden horns, a warm shaded edge on the body and a shadow under the feet.
+       The palette is held up at the side, clear of the feet. tools/make_icon.mjs renders it. -->
   <defs>
     <clipPath id="body"><ellipse cx="60" cy="70" rx="52" ry="40"/></clipPath>
   </defs>
@@ -18,20 +18,18 @@
   <!-- ears, sticking out sideways -->
   <path d="M22 46 Q9 39 3 46 Q9 58 26 58 Z" fill="#f2dccd"/><path d="M20 49 Q11 45 8 49 Q13 55 22 55 Z" fill="#ff8fa0"/>
   <path d="M98 46 Q111 39 117 46 Q111 58 94 58 Z" fill="#f2dccd"/><path d="M100 49 Q109 45 112 49 Q107 55 98 55 Z" fill="#ff8fa0"/>
-  <!-- body and head in one: cream with a warm shade along the bottom, near-black patches -->
+  <!-- body and head in one: cream with a warm shade along the bottom, grey patches -->
   <ellipse cx="60" cy="70" rx="52" ry="40" fill="#fffaf4"/>
   <g clip-path="url(#body)">
     <ellipse cx="60" cy="118" rx="66" ry="30" fill="#f3dccb"/>
-    <g fill="#3d3a45">
+    <g fill="#86858f">
       <path d="M70 28 Q90 26 104 40 Q110 52 102 58 Q92 60 86 52 Q76 50 74 42 Q66 38 70 28 Z"/>
-      <path d="M6 74 Q18 66 26 76 Q28 90 16 94 Q6 92 6 74 Z"/>
+      <path d="M38 92 Q48 86 56 92 Q58 102 48 104 Q38 102 38 92 Z"/>
       <ellipse cx="44" cy="36" rx="7" ry="5"/>
       <path d="M100 82 Q110 78 114 86 Q112 98 104 98 Q96 94 100 82 Z"/>
     </g>
   </g>
   <ellipse cx="60" cy="70" rx="52" ry="40" fill="none" stroke="#d9b39b" stroke-width="2.6"/>
-  <!-- tuft -->
-  <path d="M52 32 Q55 22 60 30 Q63 20 68 30" fill="none" stroke="#3d3a45" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
   <!-- eyes and cheeks, as on the pigs -->
   <ellipse cx="43" cy="60" rx="6" ry="6.9" fill="#2a1218"/><circle cx="41.3" cy="57.4" r="2.4" fill="#fff"/><circle cx="45" cy="62.7" r="1.1" fill="#fff" opacity=".85"/>
   <ellipse cx="77" cy="60" rx="6" ry="6.9" fill="#2a1218"/><circle cx="75.3" cy="57.4" r="2.4" fill="#fff"/><circle cx="79" cy="62.7" r="1.1" fill="#fff" opacity=".85"/>
@@ -39,15 +37,15 @@
   <!-- muzzle -->
   <ellipse cx="60" cy="75" rx="17" ry="10" fill="#ffadb8"/>
   <ellipse cx="54" cy="74" rx="2.3" ry="3.1" fill="#c94f66"/><ellipse cx="66" cy="74" rx="2.3" ry="3.1" fill="#c94f66"/>
-  <!-- paint palette held in front -->
-  <g transform="rotate(-6 60 96)">
+  <!-- paint palette held up at his side in the left hoof -->
+  <g transform="translate(23 84) rotate(-30) scale(.8) translate(-61 -97)">
     <path d="M34 92 Q36 82 56 82 Q86 82 88 96 Q90 110 72 112 Q64 112 62 106 Q60 100 52 104 Q38 110 34 102 Z" fill="#f7c873" stroke="#d99a3c" stroke-width="1.6"/>
     <ellipse cx="45" cy="96" rx="3.6" ry="3" fill="#d99a3c"/>
     <circle cx="56" cy="89" r="4.2" fill="#ff4f74"/><circle cx="67" cy="88" r="4.2" fill="#2f9cff"/>
     <circle cx="77" cy="93" r="4.2" fill="#ffb800"/><circle cx="76" cy="104" r="4.2" fill="#2fc874"/>
   </g>
-  <!-- hooves holding it -->
-  <ellipse cx="29" cy="95" rx="7.5" ry="9.5" transform="rotate(-24 29 95)" fill="#fff4ea" stroke="#d9b39b" stroke-width="2"/>
+  <!-- the hoof holding it from below -->
+  <ellipse cx="28" cy="95" rx="7.5" ry="9" transform="rotate(-20 28 95)" fill="#fff4ea" stroke="#d9b39b" stroke-width="2"/>
   <!-- brush held up in the right hoof, bristles out past the body -->
   <g transform="translate(92 94) rotate(32)">
     <rect x="-3" y="-40" width="6" height="34" rx="3" fill="#b06a35"/>

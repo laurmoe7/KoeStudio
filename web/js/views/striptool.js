@@ -63,7 +63,7 @@ export const stripMethods = {
     // float: on top of the canvas inside .ed-viewport (which then keeps its size)
     const center = this.root.querySelector('.ed-center');
     const [parent, before] = s.side === 'float' ? [this.viewport, null]
-      : s.side === 'bottom' ? [center, this.root.querySelector('.ed-timeline')]
+      : s.side === 'bottom' ? [center, null]
       : [this.root.querySelector('.ed-body'), s.side === 'left' ? center : center.nextSibling];
     if (strip.nextSibling !== before || strip.parentNode !== parent) parent.insertBefore(strip, before);
     if (s.side === 'float') this.placeStrip();
