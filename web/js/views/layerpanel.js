@@ -33,6 +33,20 @@ export function shrinkInto(ctx, src, x, y, w, h) {
   ctx.drawImage(cur, 0, 0, cw, ch, x, y, w, h);
 }
 
+/**
+ * Gives a thumbnail canvas of css W x H px as many pixels as the screen shows there (sharp at 125 % or 150 %) and
+ * returns its context, cleared, in those device pixels.
+ */
+export function thumbContext(canvas, W, H) {
+  const dpr = window.devicePixelRatio || 1, cw = Math.round(W * dpr), ch = Math.round(H * dpr);
+  if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.clearRect(0, 0, cw, ch);
+  return ctx;
+}
+
 export class LayerPanel {
   constructor(root, editor) {
     this.root = root;
@@ -160,26 +174,24 @@ export class LayerPanel {
 
   /** Redraws the small previews (after painting). */
   thumbs() {
-    const doc = this.ed.doc;
-    const s = Math.min(TW / doc.width, TH / doc.height);
-    const w = doc.width * s, h = doc.height * s, x = (TW - w) / 2, y = (TH - h) / 2;
+    const doc = this.ed.doc, dpr = window.devicePixelRatio || 1, PW = Math.round(TW * dpr), PH = Math.round(TH * dpr);
+    const s = Math.min(PW / doc.width, PH / doc.height);  // in device pixels
+    const w = doc.width * s, h = doc.height * s, x = (PW - w) / 2, y = (PH - h) / 2;
     for (const row of this.list.children) {
       const n = row._node;
       const thumb = row.querySelector('.lp-thumb');
       // only rows whose pixels changed since their thumbnail was drawn (a stroke changes one layer)
-      const key = `${n.version}/${n.mask?.version}/${doc.width}x${doc.height}`;
+      const key = `${n.version}/${n.mask?.version}/${doc.width}x${doc.height}/${dpr}`;
       if (row._thumbKey === key) continue;
       row._thumbKey = key;
-      if (thumb && n.adjust) drawAdjustThumb(thumb.getContext('2d'));
-      else if (thumb) {
-        const ctx = thumb.getContext('2d');
-        ctx.clearRect(0, 0, TW, TH);
-        shrinkInto(ctx, n.canvas, x, y, w, h);
-      }
+      if (thumb && n.adjust) {
+        const ctx = thumbContext(thumb, TW, TH);
+        ctx.scale(dpr, dpr);
+        drawAdjustThumb(ctx);
+      } else if (thumb) shrinkInto(thumbContext(thumb, TW, TH), n.canvas, x, y, w, h);
       const mask = row.querySelector('.lp-mask');
       if (mask) {  // white = shown, black = hidden
-        const ctx = mask.getContext('2d');
-        ctx.clearRect(0, 0, TW, TH);
+        const ctx = thumbContext(mask, TW, TH);
         ctx.fillStyle = '#fff';
         ctx.fillRect(x, y, w, h);
         shrinkInto(ctx, n.mask.canvas, x, y, w, h);

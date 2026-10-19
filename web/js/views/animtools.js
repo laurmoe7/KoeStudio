@@ -5,7 +5,7 @@
 // that long, and the timeline draws the held time as a striped strip after its thumbnail.
 // Editor methods (mixed into Editor.prototype in editor.js).
 
-import { shrinkInto } from './layerpanel.js';
+import { shrinkInto, thumbContext } from './layerpanel.js';
 import { Layer, cloneNode, nodeRasters, renderFolder } from '../doc.js';
 import { animFrames, frameOf, nextFrame, sanitizeAnim, sanitizeHold, holdOf, totalTicks, FPS_MIN, FPS_MAX, ONION_MAX, HOLD_MAX } from '../anim.js';
 import { isFolder, insertNode, removeNode } from '../tree.js';
@@ -122,26 +122,23 @@ export const animMethods = {
   timelineThumbs(all = false) {
     const el = this.root.querySelector('.ed-timeline');
     if (!el || el.hidden) return;
-    const d = this.doc, s = Math.min(TW / d.width, TH / d.height), r = { x: 0, y: 0, w: d.width, h: d.height };
+    const d = this.doc, r = { x: 0, y: 0, w: d.width, h: d.height }, dpr = window.devicePixelRatio || 1;
+    const PW = Math.round(TW * dpr), PH = Math.round(TH * dpr), s = Math.min(PW / d.width, PH / d.height);  // device pixels
+    const w = d.width * s, h = d.height * s, x = (PW - w) / 2, y = (PH - h) / 2;
     for (const b of el.querySelectorAll('.tl-cell')) {
       const n = b._node, c = b.querySelector('canvas');
-      const key = nodeRasters(n).map(x => x.version).join(',') + `/${d.width}x${d.height}`;
+      const key = nodeRasters(n).map(x => x.version).join(',') + `/${d.width}x${d.height}/${dpr}`;
       if (!all && b._key === key) continue;
       b._key = key;
-      const ctx = c.getContext('2d');
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalAlpha = 1;  // a layer's opacity from the last time this cell was drawn
-      ctx.clearRect(0, 0, TW, TH);
+      const ctx = thumbContext(c, TW, TH);
       ctx.fillStyle = d.paper || '#e4e4ea';
-      const w = d.width * s, h = d.height * s;
-      ctx.translate((TW - w) / 2, (TH - h) / 2);
-      ctx.fillRect(0, 0, w, h);
-      ctx.scale(s, s);
-      if (isFolder(n) || n.mask || n.effects || n.tone || n.adjust) renderFolder(ctx, { children: [n] }, r);
-      else {  // halving step by step, so thin lines still show (layerpanel.js)
-        ctx.setTransform(1, 0, 0, 1, (TW - w) / 2, (TH - h) / 2);
+      ctx.fillRect(x, y, w, h);
+      if (isFolder(n) || n.mask || n.effects || n.tone || n.adjust) {
+        ctx.setTransform(s, 0, 0, s, x, y);
+        renderFolder(ctx, { children: [n] }, r);
+      } else {  // halving step by step, so thin lines still show (layerpanel.js)
         ctx.globalAlpha = n.opacity;
-        shrinkInto(ctx, n.canvas, 0, 0, w, h);
+        shrinkInto(ctx, n.canvas, x, y, w, h);
       }
     }
   },
