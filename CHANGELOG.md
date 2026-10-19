@@ -64,6 +64,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- Task Manager now lists KoeStudio under its own name and cow icon, instead of under "Python launcher (windowed)".
 - Painting on a layer whose opacity is 0% no longer seems to do nothing: KoeStudio says so and offers to set it back to 100%.
 - Changing a layer's opacity always shows up in the history, even when a pen drag on the slider ends oddly.
 - On short windows the tool bar shows in two columns instead of hiding the last tools.
