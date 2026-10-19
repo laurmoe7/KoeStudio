@@ -599,8 +599,15 @@ export const layerMethods = {
       this.applyTransform();
       const cur = h.done[h.done.length - 1];
       if (cur === prev) return;
-      if (prev && prev === this.selNudge) {  // the press before was a nudge too: one step for both
-        h.done.splice(-2, 2, this.selNudge = { label: 'Move', get bytes() { return prev.bytes + cur.bytes; },
+      const a = prev?.ends, b = cur.ends;
+      if (prev && prev === this.selNudge && a && b && a.layer === b.layer && a.mask === b.mask) {
+        // the press before was a nudge of the same pixels: one step from how they were before the first press to
+        // now; the copies in between are let go (a held arrow key would keep two whole-layer copies per press)
+        for (const s of [a.to.img, a.to.mimg, b.from.img, b.from.mimg]) if (s && !s.data) s.canvas = null;  // readSnapshots skips them
+        h.done.splice(-2, 2, this.selNudge = this.transformStep('Move', { layer: b.layer, mask: b.mask }, a.from, b.to));
+        h.onChange?.();
+      } else if (prev && prev === this.selNudge && !a && !b && prev.label === cur.label) {  // lines or text: both steps in turn
+        h.done.splice(-2, 2, this.selNudge = { label: cur.label, get bytes() { return prev.bytes + cur.bytes; },
           undo: () => { cur.undo(); prev.undo(); }, redo: () => { prev.redo(); cur.redo(); } });
         h.onChange?.();
       } else this.selNudge = cur;

@@ -437,18 +437,29 @@ export const selectionMethods = {
     const linkedAfter = linked ? this.snapshot(linked.raster, whole) : null;
     this.transformSelection(x);
     const selAfter = this.sel.snapshot();
-    const put = (img, sel, mimg) => {
-      this.putSnapshot(layer, whole, img);
-      if (linked) this.putSnapshot(linked.raster, whole, mimg);
-      this.sel.restore(sel);
-      this.changed(null);
-    };
-    this.history.push({ label: x.moveOnly ? 'Move' : 'Transform', get bytes() { return [x.before, after, linked?.before, linkedAfter].reduce((n, s) => n + snapBytes(s), 0); },
-      undo: () => put(x.before, x.selBefore, linked?.before), redo: () => put(after, selAfter, linkedAfter) });
+    this.history.push(this.transformStep(x.moveOnly ? 'Move' : 'Transform', { layer, mask: linked?.raster },
+      { img: x.before, sel: x.selBefore, mimg: linked?.before }, { img: after, sel: selAfter, mimg: linkedAfter }));
     layer.touch();
     linked?.raster.touch();
     this.changed(null);
     this.drawOverlay();
+  },
+
+  /**
+   * The undo step of a raster transform: the layer (and its mask) and the selection as they were (`from`, each
+   * {img, sel, mimg}) and became (`to`). `ends` lets arrow-key nudges in a row become one step that keeps only the
+   * first `from` and the last `to` (nudgeLayer).
+   */
+  transformStep(label, ends, from, to) {
+    const d = this.doc, whole = { x: 0, y: 0, w: d.width, h: d.height };
+    const put = s => {
+      this.putSnapshot(ends.layer, whole, s.img);
+      if (ends.mask) this.putSnapshot(ends.mask, whole, s.mimg);
+      this.sel.restore(s.sel);
+      this.changed(null);
+    };
+    return { label, ends: { ...ends, from, to }, get bytes() { return [from.img, to.img, from.mimg, to.mimg].reduce((n, s) => n + snapBytes(s), 0); },
+      undo: () => put(from), redo: () => put(to) };
   },
 
   /** After a transform: the selection follows what was lifted (when there was one). */
