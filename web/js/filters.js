@@ -615,18 +615,26 @@ export function median(data, w, h, r) {
   const out = planes.map(() => new Uint8Array(n)), hist = new Int32Array(256);
   for (let c = 0; c < 4; c++) {
     const src = planes[c], dst = out[c];
+    let flat = true;  // a channel of one value throughout (alpha of an opaque layer) stays as it is
+    for (let i = 1; i < n && flat; i++) flat = src[i] === src[0];
+    if (flat) { dst.set(src); continue; }
     for (let y = 0; y < h; y++) {
-      const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
+      const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r), rows = y1 - y0 + 1;
       hist.fill(0);
       let count = 0;
-      const column = (x, k) => { for (let yy = y0; yy <= y1; yy++) hist[src[yy * w + x]] += k; count += k * (y1 - y0 + 1); };
-      for (let x = 0; x <= Math.min(w - 1, r); x++) column(x, 1);
+      for (let x = 0; x <= Math.min(w - 1, r); x++) { for (let yy = y0; yy <= y1; yy++) hist[src[yy * w + x]]++; count += rows; }
       let med = 0, lt = 0;  // lt = how many values are below med
       for (let x = 0; x < w; x++) {
         if (x > 0) {
           const xo = x - r - 1, xi = x + r;
-          if (xo >= 0) { for (let yy = y0; yy <= y1; yy++) if (src[yy * w + xo] < med) lt--; column(xo, -1); }
-          if (xi < w) { for (let yy = y0; yy <= y1; yy++) if (src[yy * w + xi] < med) lt++; column(xi, 1); }
+          if (xo >= 0) {
+            for (let k = y0 * w + xo, end = y1 * w + xo; k <= end; k += w) { const v = src[k]; hist[v]--; if (v < med) lt--; }
+            count -= rows;
+          }
+          if (xi < w) {
+            for (let k = y0 * w + xi, end = y1 * w + xi; k <= end; k += w) { const v = src[k]; hist[v]++; if (v < med) lt++; }
+            count += rows;
+          }
         }
         const half = count >> 1;  // the median is the smallest m with more than half the values at most m
         while (lt > half) { med--; lt -= hist[med]; }
