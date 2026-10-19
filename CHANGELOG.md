@@ -5,7 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
-- The app icon's cow has small, rounded pink horns instead of tall golden ones.
+- The app icon's cow has small, rounded pale pink horns instead of tall golden ones, softer spots and outlined ears that stand out.
 - Oil paint is redone: a flat brush tip lays solid paint with fine bristle streaks and square ends, the new Impasto setting makes the ridges and edges catch the light like thick paint, and it picks up the colours it crosses without turning see-through. The old canvas pattern that looked like a net is gone.
 - Brush settings → Paint has two new settings: Impasto (thick paint that catches the light) and Paint load (how much paint of its own a mixing brush carries).
 - A new Flat brush tip (Brush settings → Tip): a solid row of hairs that leaves fine streaks.
