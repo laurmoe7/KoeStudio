@@ -583,8 +583,6 @@ export const GUIDE = [
       any folder.</li>
       <li><kbd>Ctrl+Shift+S</kbd> saves a PNG straight away, in the same folder as last time.</li>
       <li><b>File → Save project file (.koe)…</b> keeps all the layers, to move to another computer or keep as a backup.</li>
-      <li><b>Webtoon pages:</b> in Export…, tick <b>Cut into pages</b> and give a page height (for example 1280). A tall
-      strip is saved as name-01, name-02, … from the top.</li>
     </ul>
     <p>File → <b>Export layers</b> saves every layer (or every top-level layer and folder) as its own transparent PNG,
     each the size of the canvas, for other programs and game engines.</p>

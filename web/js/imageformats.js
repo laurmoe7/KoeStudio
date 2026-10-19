@@ -24,19 +24,7 @@ export function sanitizeExportOptions(o = {}) {
     quality: Math.round(num(o?.quality, 1, 100, 92)),          // percent, JPEG and WebP
     paper: o?.paper !== false,                                 // false: leave the paper out (transparent background)
     area: o?.area === 'selection' ? 'selection' : 'canvas',
-    // page height in exported px: a tall picture (a webtoon strip) is cut into pages this tall, top to bottom; 0 = one file
-    split: +o?.split > 0 ? Math.round(num(o.split, SPLIT_MIN, EXPORT_MAX_SIDE, 1280)) : 0,
   };
-}
-
-export const SPLIT_MIN = 50;
-
-/** The pages a picture h px tall is cut into, pageH px each (the last one what is left); one page when pageH is 0. */
-export function splitPages(h, pageH) {
-  if (!(pageH > 0) || pageH >= h) return [{ y: 0, h }];
-  const out = [];
-  for (let y = 0; y < h; y += pageH) out.push({ y, h: Math.min(pageH, h - y) });
-  return out;
 }
 
 /** Output size in pixels for an area of w × h at scale percent; tooBig when a side would pass EXPORT_MAX_SIDE. */
