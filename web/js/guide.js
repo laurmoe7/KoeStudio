@@ -196,9 +196,10 @@ export const GUIDE = [
     <ul>
       <li><b>Stay inside lines</b> (Brush settings… → Paint, for any brush or eraser): the stroke paints only inside the
       shape it starts in, so colour never goes over the lines.</li>
-      <li><b>Edit → Colorize from hints…</b> fills all the shapes at once: scribble a little of each colour on a layer,
-      keep that layer selected and run it. Closed shapes you left out take the colour round them; the background stays
-      clear. The colours come on a new layer.</li>
+      <li><b>Edit → Colorize…</b> fills all the shapes at once, on a new layer, and shows it before you press
+      Colorize. <b>Pick colours for me</b> chooses colours from a scheme (or your palette) so touching shapes differ;
+      <b>Shuffle</b> tries others. Or scribble a little of each colour on a layer, keep it selected and choose
+      <b>Use the hint colours</b>: closed shapes you left out take the colour round them. The background stays clear.</li>
     </ul>
     <figure data-pic="colorize"></figure>
     <h4>Lasso fill</h4>

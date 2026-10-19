@@ -6,7 +6,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 
 ### New
 - Auto actions (View → Auto actions): record menu commands, their dialog values and Layers panel changes once, then play them again with one click. A Basic set of ready-made actions is included.
-- Colorize from hints (Edit menu): scribble a little colour in each shape of your line art and every shape is filled with it, on a new layer.
+- Colorize (Edit menu) fills every closed shape of your line art with flat colour on a new layer: from a little colour you scribble in each shape, or picked for you from a colour scheme (Harmony, Complementary, Three hues, Pastel or your palette), with Shuffle for other colours.
 - Brushes can stay inside lines: with Stay inside lines ticked (Brush settings → Paint), a stroke paints only inside the shape of the reference line art it starts in.
 - Layer color (Layer menu) shows everything on a layer in one colour without changing the paint, to try out colours quickly.
 - Layer → Find layer on canvas: click something you drew and its layer is selected.

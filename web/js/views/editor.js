@@ -362,7 +362,7 @@ export class Editor {
         { label: 'Copy', key: 'Ctrl+C', run: () => this.copySelection() },
         { label: 'Paste', key: 'Ctrl+V', run: () => this.pasteInternal(), disabled: !this.clipboard },
         { label: 'Stroke selection…', run: () => this.strokeSelectionDialog(), disabled: !this.sel.active },
-        { label: 'Colorize from hints…', run: () => this.colorizeDialog() },
+        { label: 'Colorize…', run: () => this.colorizeDialog() },
         '-',
         { label: 'Transform…', key: 'Ctrl+T', run: () => this.beginTransform() },
         { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', rec: 'clear', key: 'Del', run: () => this.clearLayer() },

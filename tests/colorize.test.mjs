@@ -1,7 +1,7 @@
 // Colorize from hints: flat colours from scribbles inside line art.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { colorize, labelShapes } from '../web/js/colorize.js';
+import { colorize, labelShapes, autoColorize, schemeColors, shapeNeighbours, seeded } from '../web/js/colorize.js';
 
 // Pictures from rows of characters. Line art: '#' black line. Hints: 'r' red, 'b' blue, '.' nothing.
 const RGB = { r: [255, 0, 0], b: [0, 0, 255], '#': [0, 0, 0] };
@@ -106,4 +106,51 @@ test('stray hint pixels are outvoted, and two real hints share a shape by distan
 
 test('no hints on open pixels gives null', () => {
   assert.equal(colorize(rgba(LINES), rgba(['.........', '.#.......', '.........', '.........', '.........', '.........']), 9, 6), null);
+});
+
+/** Colour at (x, y) of an RGBA result as 0xrrggbb, or -1 when clear. */
+const at = (out, w, x, y) => { const i = (y * w + x) * 4; return out[i + 3] ? (out[i] << 16) | (out[i + 1] << 8) | out[i + 2] : -1; };
+
+// three closed boxes in a row, the middle one touching both others; plus a 1-pixel speck inside the right box
+const ROW = [
+  '.............',
+  '.###########.',
+  '.#...#...#..#',
+  '.#...#...#.##',
+  '.#...#...#..#',
+  '.###########.',
+  '.............',
+];
+
+test('neighbours are shapes that meet across a line', () => {
+  const line = Uint8Array.from(ROW.join('').split('').map(c => (c === '#' ? 1 : 0)));
+  const { label, count } = labelShapes(line, 13, 7);
+  const near = shapeNeighbours(line, label, count, 13, 7, 2);
+  const L = label[3 * 13 + 2], M = label[3 * 13 + 6];
+  assert.ok(near[L].has(M) && near[M].has(L));
+});
+
+test('every closed shape gets a scheme colour, touching shapes differ, the outside stays clear', () => {
+  const ref = rgba(ROW), w = 13, h = 7;
+  const colors = schemeColors('harmony', 7);
+  const out = autoColorize(ref, w, h, { scheme: 'harmony', seed: 7, under: 0 });
+  const left = at(out, w, 3, 3), mid = at(out, w, 7, 3), right = at(out, w, 11, 2);
+  for (const c of [left, mid, right]) assert.ok(colors.includes(c), 'a colour of the scheme');
+  assert.notEqual(left, mid);
+  assert.notEqual(mid, right);
+  assert.equal(at(out, w, 0, 0), -1, 'background');
+  assert.deepEqual(autoColorize(ref, w, h, { seed: 7, under: 0 }), out, 'the same seed gives the same colours');
+});
+
+test('My palette needs two colours; a picture without closed shapes gives null', () => {
+  assert.equal(schemeColors('palette', 1, ['#ff0000']), null);
+  assert.deepEqual(schemeColors('palette', 1, ['#ff0000', '#00ff00', 'nonsense']), [0xff0000, 0x00ff00]);
+  const out = autoColorize(rgba(ROW), 13, 7, { scheme: 'palette', own: ['#ff0000', '#00ff00'], under: 0 });
+  assert.notEqual(at(out, 13, 3, 3), at(out, 13, 7, 3));
+  assert.equal(autoColorize(rgba(['.....', '..#..', '.....']), 5, 3), null);
+});
+
+test('the seeded generator repeats and stays between 0 and 1', () => {
+  const a = seeded(42), b = seeded(42);
+  for (let i = 0; i < 20; i++) { const v = a(); assert.equal(v, b()); assert.ok(v >= 0 && v < 1); }
 });
