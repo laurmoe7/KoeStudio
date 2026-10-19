@@ -12,15 +12,15 @@ import { esc, toast, modal, store, confirmBox } from '../ui.js';
 import { versionsDialog, newCanvasDialog, importImage } from './gallery.js';
 import { browseFile } from './filebrowser.js';
 
-const showFolder = folder => ({ label: 'Show folder', run: () => api.openFolder('', folder).catch(e => toast(e.message, { error: true })) });
-const dirLabel = dir => dir || 'Exports folder (Pictures\\KoeStudio\\Exports)';
+export const showFolder = folder => ({ label: 'Show folder', run: () => api.openFolder('', folder).catch(e => toast(e.message, { error: true })) });
+export const dirLabel = dir => dir || 'Exports folder (Pictures\\KoeStudio\\Exports)';
 
 /**
  * Writes an exported file into dir. ask: a file of that name is replaced only after asking (otherwise the new one
  * is numbered). A remembered folder that has gone away falls back to the Exports folder. Resolves to the server's
  * {path, folder}, or null when the user chose not to replace.
  */
-async function writeExport(name, ext, blob, dir, ask) {
+export async function writeExport(name, ext, blob, dir, ask) {
   try {
     return await api.exportImage(name, ext, blob, { dir, mode: ask ? 'ask' : 'number' });
   } catch (e) {
@@ -37,18 +37,18 @@ async function writeExport(name, ext, blob, dir, ask) {
 }
 
 /** The WebM type this browser can record (VP9, else VP8), or null when it cannot record video. */
-function webmType() {
+export function webmType() {
   if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) return null;
   return ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t)) || null;
 }
 
 /**
- * Records the frames as a WebM video: each frame (frame(i) gives its canvas) is drawn into a captured canvas and
+ * Records the frames as a WebM video: each frame (frame(i) gives its canvas, or a promise of it) is drawn into a captured canvas and
  * held for its hold at fps. Video records in real time, so the next frame is rendered while the current one shows,
  * and frames are timed from the start (a slow render shortens the next wait instead of adding up).
  */
-async function recordWebm(frame, holds, fps) {
-  const first = frame(0), c = document.createElement('canvas');
+export async function recordWebm(frame, holds, fps, retry = true) {
+  const first = await frame(0), c = document.createElement('canvas');
   c.width = first.width; c.height = first.height;
   const ctx = c.getContext('2d'), stream = c.captureStream(0), track = stream.getVideoTracks()[0];
   const type = webmType(), chunks = [];
@@ -63,8 +63,9 @@ async function recordWebm(frame, holds, fps) {
     ctx.drawImage(next, 0, 0);
     track.requestFrame();
     t += holds[i] * 1000 / fps;
-    if (i + 1 < holds.length) next = frame(i + 1);
+    const coming = i + 1 < holds.length ? frame(i + 1) : null;  // made (or loaded) while this one shows
     await wait(t0 + t - performance.now());
+    if (coming) next = await coming;
   }
   // the last frame again, so players keep it up for its whole hold; the browser drops a frame that has not changed,
   // so one corner pixel changes by a level or two
@@ -76,7 +77,9 @@ async function recordWebm(frame, holds, fps) {
   track.stop();
   await Promise.race([stopped, wait(5000)]);
   const video = new Blob(chunks, { type: 'video/webm' });
-  // a window that cannot encode video (hidden, or headless) gives only the file header
+  // a window that cannot encode video (hidden, or headless) gives only the file header; the first recording in a
+  // fresh window sometimes does too, while the encoder starts, so that one is tried once more
+  if (video.size < 300 && retry) return recordWebm(frame, holds, fps, false);
   if (video.size < 300) throw new Error('this window could not record video. Try GIF or PNG frames.');
   return video;
 }

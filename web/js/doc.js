@@ -84,6 +84,7 @@ export function sanitizeDoc(raw) {
     paper: d.paper === null ? null : (/^#[0-9a-f]{6}$/i.test(d.paper) ? d.paper : '#ffffff'),
     dpi: sanitizeDpi(d.dpi),  // resolution for printing (resolution.js); older files: 72
     anim: sanitizeAnim(d.anim),  // frame-by-frame animation settings (anim.js); off for older files
+    timelapse: d.timelapse === true,  // record a timelapse frame after each autosave (editor.js); off for older files
     activePath,
     rulers: sanitizeRulers(d.rulers),
     layers,
@@ -287,6 +288,7 @@ export class Doc {
     this.height = height;
     this.paper = paper;
     this.dpi = sanitizeDpi(dpi);
+    this.timelapse = false;  // record a timelapse (timelapsetools.js)
     this.root = new Folder({ name: 'root' });
     this.active = null;  // the selected layer or folder
     this.rulers = defaultRulers();
@@ -307,6 +309,7 @@ export class Doc {
     const d = new Doc({ ...s, id });
     d.rulers = s.rulers;
     d.anim = s.anim;
+    d.timelapse = s.timelapse;
     // the tree is built first and every picture decoded at once (the browser decodes them in parallel, off the page)
     const loads = [];
     const build = (src, parent) => {
@@ -363,7 +366,7 @@ export class Doc {
     const layers = [];
     for (const n of this.root.children) layers.push(await node(n));
     return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper, dpi: this.dpi,
-      activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, anim: this.anim, layers };
+      activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, anim: this.anim, ...(this.timelapse ? { timelapse: true } : {}), layers };
   }
 
   /** All raster layers (not folders), bottom first. */

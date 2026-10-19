@@ -510,7 +510,16 @@ export const GUIDE = [
       <li><b>File → Save project file (.koe)…</b> keeps all the layers, to move to another computer or keep as a backup.</li>
     </ul>
     <p>File → <b>Export layers</b> saves every layer (or every top-level layer and folder) as its own transparent PNG,
-    each the size of the canvas, for other programs and game engines.</p>`],
+    each the size of the canvas, for other programs and game engines.</p>
+    <h4>Timelapse</h4>
+    <ol>
+      <li>Turn on File → <b>Record timelapse</b>. Each time the artwork saves, a small picture of it is kept.</li>
+      <li>Draw as usual. Recording stays on for this artwork until you turn it off.</li>
+      <li>File → <b>Export timelapse…</b> makes a WebM video of it. Choose how fast it plays and how long it may be:
+      a long recording skips pictures evenly to fit.</li>
+    </ol>
+    <p class="tip">The video ends by showing the finished picture for two seconds. File → Discard timelapse… throws a
+    recording away to start again.</p>`],
 ];
 
 /** Shortcuts other than the tool keys (those come from TOOLS): [group, [[keys, what], ...]]. */

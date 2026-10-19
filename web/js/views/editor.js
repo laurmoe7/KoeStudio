@@ -24,6 +24,7 @@ import { ColorPanel } from './colorpanel.js';
 import { LayerPanel, shrinkInto } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
 import { selectionBarMethods } from './selectionbar.js';
+import { timelapseMethods } from './timelapsetools.js';
 import { canvasMethods } from './canvasops.js';
 import { layerMethods } from './layerops.js';
 import { rulerMethods } from './rulertools.js';
@@ -161,6 +162,7 @@ export class Editor {
     this.refObs?.disconnect();
     clearTimeout(this.saveTimer);
     clearTimeout(this.thumbTimer);
+    clearTimeout(this.lapseTimer);
     cancelIdleCallback(this.sampleIdle);
     clearInterval(this.antsTimer);
     this.root.innerHTML = '';
@@ -307,6 +309,10 @@ export class Editor {
         { label: 'Export layers (one PNG each)…', run: () => this.exportLayers() },
         { label: 'Export animation (GIF, frames)…', run: () => this.exportAnimation(), disabled: !d.anim.on },
         { label: 'Save project file (.koe)…', run: () => this.saveProjectFile() },
+        '-',
+        { label: 'Record timelapse', checked: !!d.timelapse, run: () => this.toggleTimelapse() },
+        { label: 'Export timelapse…', run: () => this.exportTimelapse() },
+        { label: 'Discard timelapse…', run: () => this.discardTimelapse() },
         '-',
         { label: 'Import image as layer…', run: () => this.pickImage() },
         { label: 'Earlier versions…', run: () => this.openEarlierVersion(), disabled: !d.id },
@@ -1828,6 +1834,7 @@ export class Editor {
       this.saving = null;
     }
     if (this.saveFailed) { this.saveFailed = false; toast('Saved again.'); }
+    this.captureTimelapse();
     if (d.version !== this.savedVersion && this.saveAgain) { this.saveAgain = false; return this.save(); }
     if (d.version === this.savedVersion) this.setStatus('Saved', 'Saved at ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     else this.setStatus('Unsaved changes');
@@ -1988,7 +1995,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

@@ -47,5 +47,10 @@ export const api = {
   refImageUrl: id => `/api/refs/image?id=${q(id)}`,
   addRef: (name, blob) => call('POST', `refs/add?name=${q(name)}`, blob, 'application/octet-stream'),
   deleteRef: id => call('POST', `refs/delete?id=${q(id)}`, {}),
+  /** Timelapse frames of an artwork (JPEGs kept by the server): {frames}. */
+  timelapse: id => call('GET', `timelapse?id=${q(id)}`),
+  timelapseFrameUrl: (id, n) => `/api/timelapse/frame?id=${q(id)}&n=${n}`,
+  addTimelapseFrame: (id, blob) => call('POST', `timelapse/add?id=${q(id)}`, blob, 'application/octet-stream'),
+  clearTimelapse: id => call('POST', `timelapse/clear?id=${q(id)}`, {}),
   openFolder: (sub = '', path = '') => call('POST', `open-folder?sub=${q(sub)}&path=${q(path)}`, {}),
 };

@@ -368,15 +368,72 @@ def delete_art(art_id):
         os.replace(path, os.path.join(trash, f'{art_id}-{stamp}.koe'))
     if os.path.exists(thumb):
         os.replace(thumb, os.path.join(trash, f'{art_id}-{stamp}.png'))
-    try:  # the gallery details go along, so the Deleted list can show them without reading the artwork
-        os.replace(_meta_path(art_id), os.path.join(trash, f'{art_id}-{stamp}.json'))
-    except OSError:
-        pass
+    for src, ext in ((_meta_path(art_id), '.json'), (_timelapse_dir(art_id), '.timelapse')):
+        try:  # the gallery details go along (the Deleted list shows them without reading the artwork), and the timelapse
+            os.replace(src, os.path.join(trash, f'{art_id}-{stamp}{ext}'))
+        except OSError:
+            pass
     return {'ok': True}
 
 
 def _trash():
     return os.path.join(art_dir(), '.deleted')
+
+
+# ---------- timelapse ----------
+# With recording on, the editor sends a small JPEG of the picture after each autosave; they are kept as
+# .timelapse/<id>/<n>.jpg (n from 000000) and played back by File → Export timelapse. They go along when the
+# artwork is deleted (.deleted/<id>-<time>.timelapse) and come back with it.
+
+TIMELAPSE_MAX = 30000  # frames per artwork (about 17 minutes at 30 a second)
+TIMELAPSE_LOCK = threading.Lock()
+FRAME_RE = re.compile(r'^(\d{6})\.jpg$')
+
+
+def _timelapse_dir(art_id):
+    return os.path.join(art_dir(), '.timelapse', _check_id(art_id))
+
+
+def timelapse_count(art_id):
+    d = _timelapse_dir(art_id)
+    if not os.path.isdir(d):
+        return 0
+    numbers = [int(m.group(1)) for m in map(FRAME_RE.match, os.listdir(d)) if m]
+    return max(numbers) + 1 if numbers else 0
+
+
+def add_timelapse_frame(art_id, data):
+    if not data or not data.startswith(b'\xff\xd8\xff'):
+        raise ValueError('A timelapse frame must be a JPEG picture')
+    with TIMELAPSE_LOCK:
+        n = timelapse_count(art_id)
+        if n >= TIMELAPSE_MAX:
+            return {'frames': n, 'full': True}
+        _write_atomic(os.path.join(_timelapse_dir(art_id), f'{n:06d}.jpg'), data)
+    return {'frames': n + 1}
+
+
+def timelapse_frame(art_id, n):
+    n = int(n)
+    if not 0 <= n < TIMELAPSE_MAX:
+        raise ValueError('Bad frame number')
+    with open(os.path.join(_timelapse_dir(art_id), f'{n:06d}.jpg'), 'rb') as f:
+        return f.read()
+
+
+def clear_timelapse(art_id):
+    """Throws a recording away (the editor asks first): its frames are removed."""
+    d = _timelapse_dir(art_id)
+    with TIMELAPSE_LOCK:
+        if os.path.isdir(d):
+            for name in os.listdir(d):
+                if FRAME_RE.match(name):
+                    os.remove(os.path.join(d, name))
+            try:
+                os.rmdir(d)
+            except OSError:
+                pass
+    return {'frames': 0}
 
 
 def list_deleted():
@@ -430,6 +487,12 @@ def restore_deleted(name):
         try:
             os.replace(src[:-4] + ext, dest)
             os.utime(dest)
+        except OSError:
+            pass
+    if os.path.isdir(src[:-4] + '.timelapse'):
+        os.makedirs(os.path.dirname(_timelapse_dir(art_id)), exist_ok=True)
+        try:
+            os.replace(src[:-4] + '.timelapse', _timelapse_dir(art_id))
         except OSError:
             pass
     return {'id': art_id}
@@ -703,6 +766,14 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(list_backups(p.get('id', '')))
             elif route == ('GET', 'art/backup'):
                 self._json(load_backup(p.get('id', ''), p.get('name', '')))
+            elif route == ('GET', 'timelapse'):
+                self._json({'frames': timelapse_count(p.get('id', ''))})
+            elif route == ('GET', 'timelapse/frame'):
+                self._send(timelapse_frame(p.get('id', ''), p.get('n', '-1')), 'image/jpeg')
+            elif route == ('POST', 'timelapse/add'):
+                self._json(add_timelapse_frame(p.get('id', ''), self._raw()))
+            elif route == ('POST', 'timelapse/clear'):
+                self._json(clear_timelapse(p.get('id', '')))
             elif route == ('GET', 'deleted'):
                 self._json(list_deleted())
             elif route == ('GET', 'deleted/thumb'):

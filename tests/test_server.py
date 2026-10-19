@@ -44,6 +44,29 @@ class Storage(unittest.TestCase):
         self.assertEqual(len(os.listdir(os.path.join(self.tmp.name, '.deleted'))), 3, 'file, thumbnail and details kept in .deleted')
         self.assertFalse(os.path.exists(os.path.join(self.tmp.name, '.thumbs', aid + '.json')), 'details moved along')
 
+    def test_timelapse_frames_follow_the_artwork(self):
+        aid = app.save_art('', doc('Timelapse'))['id']
+        jpeg = b'\xff\xd8\xff\xe0' + b'x' * 20
+        self.assertEqual(app.timelapse_count(aid), 0)
+        self.assertEqual(app.add_timelapse_frame(aid, jpeg), {'frames': 1})
+        self.assertEqual(app.add_timelapse_frame(aid, jpeg + b'2'), {'frames': 2})
+        self.assertEqual(app.timelapse_frame(aid, 1), jpeg + b'2')
+        with self.assertRaises(ValueError):
+            app.add_timelapse_frame(aid, PNG)  # only JPEG
+        with self.assertRaises(ValueError):
+            app.timelapse_frame(aid, -1)
+        with self.assertRaises(ValueError):
+            app.timelapse_count('../x')
+        # deleted with the artwork, back when it is restored
+        app.delete_art(aid)
+        self.assertEqual(app.timelapse_count(aid), 0)
+        name = app.list_deleted()[0]['name']
+        self.assertEqual(app.restore_deleted(name)['id'], aid)
+        self.assertEqual(app.timelapse_count(aid), 2)
+        self.assertEqual(app.clear_timelapse(aid), {'frames': 0})
+        self.assertEqual(app.timelapse_count(aid), 0)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, '.timelapse', aid)))
+
     def test_saves_may_send_only_changed_layers(self):
         app.SAVE_CACHE.clear()
         a, b = PNG_URL, 'data:image/png;base64,' + 'B' * 8
