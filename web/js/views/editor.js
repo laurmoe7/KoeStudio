@@ -11,6 +11,7 @@ import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping, springBack } from '../keys.js';
 import { Painter, textureFor, grainFor, wetFor, hasTipImage, tipOutline } from '../painter.js';
+import { WetPaint, averageUnder, rgbHex } from '../wetmix.js';
 import { union, clip } from '../rect.js';
 import { trimmedSnapshot, drawSnapshot, snapBytes } from '../snapshot.js';
 import { gradientChoices } from '../gradient.js';
@@ -1377,6 +1378,8 @@ export class Editor {
       raw: s.quickShape && !line ? [] : null,  // QuickShape: the pen's own path, to recognise a line or a loop
       dual: this.dualBrush(s, layer, sizeAt),  // the dual brush's own dabs, which the stroke shows through (or null)
       vec: layer.vector ? [] : null,  // on a vector layer: the smoothed path, kept as a line at pen-up (vectortools.js)
+      // Color mixing: each dab picks up the layer's colours as they were at pen-down (read tile by tile, wetmix.js)
+      wet: s.mix > 0 && !tool.erase && layer.kind !== 'mask' && !layer.vector ? { cache: this.pixelCache(layer.canvas), copies: [] } : null,
     };
     // vector lines are kept whole, so the selection does not cut them
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), wet: wetFor(s), sel: this.sel.active && !layer.vector ? this.sel : null,
@@ -1438,6 +1441,7 @@ export class Editor {
     }
     g.smoother = new Smoother(0);
     g.prevStamp = null; g.dist = 0; g.held = []; g.bounds = null;
+    if (g.wet) g.wet.copies = [];
     g.painter.last = [];
     if (g.vec) g.vec = [];
     for (const pt of shapePoints(q.shape, q.p, 1)) this.addStampPoint(pt);
@@ -1554,12 +1558,19 @@ export class Editor {
     const per = all.length / stamps.length;  // copies of each stamp, in order
     all.forEach((st, i) => {
       const { size, flow } = stampAt(g.s, st.p);
-      g.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per, st.c, st.a ?? null);
+      g.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per, g.wet ? this.wetColor(g, st, size * st.k, i % per) : st.c, st.a ?? null);
     });
     const r = stampBounds(all, g.reachAt);
     g.bounds = union(g.bounds, r);
     this.strokeVersion = (this.strokeVersion || 0) + 1;
     this.updateComp(r);
+  }
+
+  /** Color mixing: the colour of a dab of diameter size, its brush colour mixed with what it passes over (per symmetric copy k). */
+  wetColor(g, st, size, k) {
+    const [r, gr, b] = hexToRgb(st.c || g.color), cache = g.wet.cache;
+    const paint = g.wet.copies[k] ||= new WetPaint(g.s.mix, g.s.mixStretch);
+    return rgbHex(paint.next(st.x, st.y, size, averageUnder((x, y) => cache.pixel(x, y), st.x, st.y, size), { r, g: gr, b }));
   }
 
   endPaint() {
@@ -2103,7 +2114,7 @@ function fmt(key, v) {
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges'].includes(key)) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'mix', 'mixStretch'].includes(key)) return Math.round(v * 100) + '%';
   if (key === 'tipAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);

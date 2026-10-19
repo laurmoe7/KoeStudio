@@ -5,6 +5,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Wet colour mixing (Brush settings → Paint → Color mixing and Color stretch): the brush picks up the colours already on the layer, blends them into its own and drags them along the stroke. New Oil paint and Wet blender brushes use it.
+- Imported brushes keep their wet mixing and wet edges: Procreate wet mix, Photoshop wet edges and Krita colour smudge brushes now carry them over instead of leaving them out.
 - Draft layers (the Draft switch in the Layers panel): for sketches you see while drawing but never want in the result. Exports leave them out, and Fill and the Magic wand looking at all layers ignore them.
 - The animation timeline, onion skins and animation export are taken out for now, so the app stays focused on drawing. Older artworks made with frames open with every frame as an ordinary layer.
 - A Settings menu holds the theme, pen pressure, the shortcut strip and keyboard shortcuts; on the start screen the Theme button became a Settings button.

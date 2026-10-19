@@ -447,7 +447,9 @@ def _abr_settings(b):
             s['dualTip'] = 'round'
     elif b.get('useDualBrush'):
         notes.append('Dual brush')
-    for key, label in (('useColorDynamics', 'Color dynamics'), ('Wtdg', 'Wet edges'), ('Nose', 'Noise')):
+    if b.get('Wtdg'):  # Wet edges is a tick in Photoshop
+        s['wetEdges'] = 0.5
+    for key, label in (('useColorDynamics', 'Color dynamics'), ('Nose', 'Noise')):
         if b.get(key):
             notes.append(label)
     opts = b.get('toolOptions') if isinstance(b.get('toolOptions'), dict) else {}
@@ -600,8 +602,12 @@ def _procreate_settings(b):
         v = _pnum(b, key, -1, 1)
         if v:  # faster = thinner / lighter, as Procreate does it
             s[setting] = round(v, 2)
-    if b.get('dynamicsWetEdges') or b.get('dynamicsMix'):
-        notes.append('Wet mixing')
+    mix = _pnum(b, 'dynamicsMix')
+    if mix:  # wet mix: the paint picks up the colours on the canvas
+        s['mix'] = round(mix, 2)
+    wet = _pnum(b, 'dynamicsWetEdges')
+    if wet:
+        s['wetEdges'] = round(wet, 2)
     return s, notes
 
 
@@ -690,7 +696,7 @@ def read_vbr(data, filename):
 # ---------- Krita ----------
 
 # Krita's brush engines (paintop ids) other than the ordinary pixel brush, by what Krita calls them
-KRITA_ENGINES = {'colorsmudge': 'colour smudge', 'hairybrush': 'bristle', 'sketchbrush': 'sketch', 'deformbrush': 'deform',
+KRITA_ENGINES = {'hairybrush': 'bristle', 'sketchbrush': 'sketch', 'deformbrush': 'deform',
                  'particlebrush': 'particle', 'spraybrush': 'spray', 'experimentbrush': 'shape', 'hatchingbrush': 'hatching',
                  'duplicate': 'clone', 'curvebrush': 'curve', 'filter': 'filter', 'roundmarker': 'quick',
                  'tangentnormal': 'tangent normal', 'gridbrush': 'grid', 'chalkbrush': 'chalk', 'dynabrush': 'dyna'}
@@ -769,6 +775,8 @@ def _krita_settings(params, engine):
     s, notes, tip_file, scale = {'gamma': 1}, [], None, 1
     if engine in KRITA_ENGINES:
         notes.append(f"Krita's {KRITA_ENGINES[engine]} brush engine works differently: it imports as an ordinary brush")
+    if engine == 'colorsmudge':  # its paint mixes with the canvas: Color mixing, as much as it smudges
+        s['mix'] = round(_clamp(_kfloat(params.get('SmudgeRateValue'), 0.5), 0.05, 1), 2)
     for key, setting in (('OpacityValue', 'opacity'), ('FlowValue', 'flow')):
         v = _kfloat(params.get(key))
         if v is not None:

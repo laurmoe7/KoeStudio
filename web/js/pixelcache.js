@@ -5,6 +5,7 @@
 // It also keeps each tile as it was when first read, so the undo step needs no readback at pen-up.
 
 export const TILE = 256;
+const CLEAR = new Uint8ClampedArray(4);
 
 export class PixelCache {
   /**
@@ -48,6 +49,13 @@ export class PixelCache {
 
   /** The w x h pixels at (x, y) as they are now; outside the image they are clear (as getImageData gives them). */
   get(x, y, w, h) { const p = new Uint8ClampedArray(w * h * 4); this.each(x, y, w, h, p, 'data'); return p; }
+
+  /** One pixel [r, g, b, a] as it is now (clear outside the image); a view into the cache, not a copy. */
+  pixel(x, y) {
+    if (x < 0 || y < 0 || x >= this.W || y >= this.H) return CLEAR;
+    const t = this.at(Math.floor(x / this.tile), Math.floor(y / this.tile)), i = ((y - t.y) * t.w + x - t.x) * 4;
+    return t.data.subarray(i, i + 4);
+  }
 
   /** The same pixels as they were before the tool changed them. */
   getBefore(x, y, w, h) { const p = new Uint8ClampedArray(w * h * 4); this.each(x, y, w, h, p, 'before'); return p; }

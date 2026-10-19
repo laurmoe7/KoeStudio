@@ -280,8 +280,13 @@ class KritaReader(unittest.TestCase):
         self.assertEqual(b['settings'], {'gamma': 1, 'opacity': 0.75, 'flow': 1, 'pressureSize': True, 'pressureOpacity': False,
                                          'spacing': 0.08, 'tipAngle': 270, 'tip': 'round', 'size': 40.0, 'thickness': 0.5, 'hardness': 0.3})
         self.assertEqual(b['notes'], [])
-        other = bi.import_brushes('s.kpp', kpp('Smear', {'brush_definition': self.AUTO}, engine='colorsmudge'))
-        self.assertIn('colour smudge', other['brushes'][0]['notes'][0])
+        smear = bi.import_brushes('s.kpp', kpp('Smear', {'brush_definition': self.AUTO, 'SmudgeRateValue': '0.8'}, engine='colorsmudge'))
+        self.assertEqual(smear['brushes'][0]['settings']['mix'], 0.8, 'colour smudge mixes as much as it smudges')
+        self.assertEqual(smear['brushes'][0]['notes'], [])
+        plain = bi.import_brushes('p.kpp', kpp('Smear', {'brush_definition': self.AUTO}, engine='colorsmudge'))
+        self.assertEqual(plain['brushes'][0]['settings']['mix'], 0.5, "Krita's default smudge rate")
+        other = bi.import_brushes('h.kpp', kpp('Hair', {'brush_definition': self.AUTO}, engine='hairybrush'))
+        self.assertIn('bristle', other['brushes'][0]['notes'][0])
 
     def test_bundle_with_tip_files(self):
         tip = '<Brush type="gbr_brush" filename="chalk.gbr" spacing="0.2" scale="0.5"/>'
@@ -322,6 +327,12 @@ class ProcreateReader(unittest.TestCase):
         self.assertEqual((tip['kind'], tip['white'], tip['invert']), ('tip', True, True))
         self.assertEqual((grain['kind'], grain['name']), ('texture', 'Charcoal grain'))
         self.assertEqual(from_url(tip['png']), PNG, 'Procreate pictures are passed on as they are')
+
+    def test_wet_mix(self):
+        data = make_zip({'Brush.archive': keyed_archive({'name': 'Oil', 'dynamicsMix': 0.35, 'dynamicsWetEdges': 0.4})})
+        b = bi.import_brushes('Oil.brush', data)['brushes'][0]
+        self.assertEqual((b['settings']['mix'], b['settings']['wetEdges']), (0.35, 0.4))
+        self.assertNotIn('Wet mixing', b['notes'])
 
     def test_brushset_order_and_plain_archive(self):
         data = make_zip({

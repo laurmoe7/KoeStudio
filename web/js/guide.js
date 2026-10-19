@@ -83,7 +83,10 @@ export const GUIDE = [
     open; drag it by its title bar.</p>
     <ul>
       <li><b>Paint</b>: size, opacity, density, hardness. <b>Wet edges</b> lets the paint gather at the edge of the
-      stroke and leaves the middle lighter, as watercolour does when it dries (on for Watercolour and Marker).</li>
+      stroke and leaves the middle lighter, as watercolour does when it dries (on for Watercolour and Marker).
+      <b>Color mixing</b> makes the paint wet: the brush picks up the colours already on the layer and blends them
+      into its own, and <b>Color stretch</b> sets how far it drags them along. Try the Oil paint and Wet blender
+      brushes. It mixes with the layer you paint on, so paint on the same layer as the colours to blend.</li>
       <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke. The
       outline under the pointer takes the tip's shape, so you see what a dab will look like.
       <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).</li>
