@@ -58,6 +58,7 @@ import { adjustMethods } from './adjusttools.js';
 import { printLabel } from '../resolution.js';
 import { detectShape, shapePoints, adjustShape } from '../quickshape.js';
 import { brushMethods, curveSvg } from './brushtools.js';
+import { brushManagerMethods } from './brushmanager.js';
 import { symmetryStamps } from '../symmetry.js';
 import { linePoints } from '../figure.js';
 
@@ -2107,7 +2108,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, stripMethods);
+Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, stripMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

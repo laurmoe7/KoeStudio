@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Manage brushes (Brush ⋯ menu, or Manage… in the Brushes window): see all your brushes by group with their strokes, pick many at once to delete or move to another group, drag them into order, rename groups and brushes, and hide groups you don't use, built-in ones too.
 - Importing a big brush pack is easier: every brush shows its real stroke in a grid, a search box finds brushes by name, Shift+click picks a range, and All and None work on the brushes you searched for. Big packs start with nothing picked.
 - Imported brushes get a group of their own per pack in the Brushes window and the Brush row, instead of all going under Your brushes.
 - Wet colour mixing (Brush settings → Paint → Color mixing and Color stretch): the brush picks up the colours already on the layer, blends them into its own and drags them along the stroke. New Oil paint and Wet blender brushes use it.

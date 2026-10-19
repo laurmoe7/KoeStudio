@@ -4,6 +4,7 @@
 // deleted (Save as new brush… keeps a changed copy).
 
 import { TOOL_BY_ID, BRUSH_KEYS, applySettings } from './tools.js';
+import { presetGroups, groupLabel, hideKey } from './brushorg.js';
 
 /** Every paint setting a brush keeps, at the Brush tool's defaults without its taper; a built-in brush changes some. */
 const BASE = { ...Object.fromEntries(BRUSH_KEYS.map(k => [k, TOOL_BY_ID.brush.defaults[k]])), taperIn: 0, taperOut: 0 };
@@ -49,13 +50,13 @@ export function builtinBrushesFor(toolId) {
  * under 'Your brushes', each group only with the brushes whose name (or group name) holds `query` (any case).
  * [{name, brushes}], empty groups left out.
  */
-export function brushListGroups(toolId, presets = [], query = '') {
-  const q = String(query).trim().toLowerCase();
+export function brushListGroups(toolId, presets = [], query = '', hidden = []) {
+  const q = String(query).trim().toLowerCase(), hide = new Set(hidden);
   const builtin = builtinBrushesFor(toolId);
-  const groups = [...new Set(builtin.map(b => b.group))].map(name => ({ name, brushes: builtin.filter(b => b.group === name) }));
-  // your own brushes, then each imported pack as a group of its own (in the order they were added)
-  groups.push({ name: 'Your brushes', brushes: presets.filter(p => !p.source) });
-  for (const src of new Set(presets.map(p => p.source).filter(Boolean))) groups.push({ name: src, brushes: presets.filter(p => p.source === src) });
+  const groups = [...new Set(builtin.map(b => b.group))].filter(name => !hide.has(hideKey(name, true)))
+    .map(name => ({ name, brushes: builtin.filter(b => b.group === name) }));
+  // the saved brushes' groups (your own, and each imported pack), in the order set in Manage brushes
+  for (const g of presetGroups(presets)) if (!hide.has(hideKey(g.name))) groups.push({ name: groupLabel(g.name), brushes: g.presets });
   return groups.map(g => ({ name: g.name, brushes: q && !g.name.toLowerCase().includes(q) ? g.brushes.filter(b => b.name.toLowerCase().includes(q)) : g.brushes }))
     .filter(g => g.brushes.length);
 }

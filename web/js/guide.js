@@ -147,7 +147,17 @@ export const GUIDE = [
       <li>Click <b>Import</b>.</li>
     </ol>
     <p class="tip">A brush marked <b>!</b> has a setting KoeStudio does not have: point at the ! to see which. Each pack gets
-    its own group in the Brushes window and the Brush row.</p>`],
+    its own group in the Brushes window and the Brush row.</p>
+    <h4>Tidying up your brushes</h4>
+    <ol>
+      <li>Click <b>⋯</b> next to the Brush row and choose <b>Manage brushes</b> (or <b>Manage…</b> in the Brushes window).</li>
+      <li>Click the brushes you want to change. Shift+click picks a range; <b>All</b> in a group's heading picks the whole group.</li>
+      <li><b>Delete</b> removes them, <b>Move to group</b> puts them in another group or a new one.</li>
+      <li>Drag brushes to put them in order, or onto another group. Double-click a brush to rename it.</li>
+    </ol>
+    <p>Each group's heading has buttons to hide it from the Brushes window and the Brush row, move it up or down, rename it or
+    delete it with all its brushes. Under <b>Built-in brushes</b>, untick the groups you never use to hide them.</p>
+    <p class="tip">Deleting cannot be undone, but brushes you only hide stay ready to show again.</p>`],
 
   ['retouch', 'Smudge, blur and retouching', `
     <p class="lead">These tools change paint that is already on the layer, instead of adding new paint.</p>

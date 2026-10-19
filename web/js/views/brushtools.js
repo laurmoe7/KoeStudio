@@ -15,7 +15,7 @@ import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, gr
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
-import { BUILTIN_BY_ID, builtinBrushesFor, brushListGroups, brushChanged } from '../builtinbrushes.js';
+import { BUILTIN_BY_ID, brushListGroups, brushChanged } from '../builtinbrushes.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 import { icon } from '../icons.js';
 import { PICK_ALL_UP_TO, pickMatches, rangePick, noteSummary } from '../brushpick.js';
@@ -67,13 +67,6 @@ function registerImage(id, kind, img) {
   } else registerTexture(id, textureGray(data.data), w, h);
 }
 
-/** The saved brushes' <optgroup>s for the Brush choice: your own, then one per imported pack. */
-function mineGroups(presets, opt) {
-  const group = (label, list) => list.length ? `<optgroup label="${esc(label)}">${list.map(opt).join('')}</optgroup>` : '';
-  return group('Your brushes', presets.filter(p => !p.source))
-    + [...new Set(presets.map(p => p.source).filter(Boolean))].map(src => group(src, presets.filter(p => p.source === src))).join('');
-}
-
 /** A small picture of a pressure curve (x: pressure, y: result). */
 export function curveSvg(pts) {
   const line = Array.from({ length: 25 }, (_, i) => `${(i / 24 * 40).toFixed(1)},${(16 - curveAt(pts, i / 24) * 16).toFixed(1)}`).join(' ');
@@ -113,13 +106,14 @@ export const brushMethods = {
    * window.
    */
   presetRowHtml(s) {
-    const presets = this.brushLib?.presets || [], builtin = builtinBrushesFor(this.tool);
     const cur = this.presetById(s.preset) ? s.preset : '', star = brushChanged(s, this.presetById(cur)) ? ' *' : '';
     const opt = p => `<option value="${esc(p.id)}" ${p.id === cur ? `selected data-name="${esc(p.name)}">${esc(p.name + star)}` : `>${esc(p.name)}`}</option>`;
-    const groups = [...new Set(builtin.map(b => b.group))].map(g =>
-      `<optgroup label="${esc(g)}">${builtin.filter(b => b.group === g).map(opt).join('')}</optgroup>`).join('');
+    // the same groups as the Brushes window (hidden ones left out, but the brush in use is always there)
+    const list = brushListGroups(this.tool, this.brushLib?.presets || [], '', this.hiddenBrushGroups());
+    if (cur && !list.some(g => g.brushes.some(b => b.id === cur))) list.push({ name: 'Hidden group', brushes: [this.presetById(cur)] });
+    const groups = list.map(g => `<optgroup label="${esc(g.name)}">${g.brushes.map(opt).join('')}</optgroup>`).join('');
     return `<div class="preset-row"><label class="slider" title="Ready-made and saved brushes: pick one to load its settings"><span>Brush</span>
-      <select data-preset><option value="">Custom</option>${groups}${mineGroups(presets, opt)}</select></label>
+      <select data-preset><option value="">Custom</option>${groups}</select></label>
       <button class="icon-btn" data-brush-menu title="Save, import and manage brushes">⋯</button></div>
       <button class="brush-strip${this.brushListWin ? ' on' : ''}" data-brush-list title="The current brush. Click to choose from every brush, each with a sample stroke">
         <canvas></canvas><span class="bs-more">${icon('brush', 14)}</span></button>`;
@@ -304,7 +298,7 @@ export const brushMethods = {
     w.dataset.size = st.size;
     w.querySelectorAll('[data-bl-size]').forEach(b => b.classList.toggle('on', b.dataset.blSize === st.size));
     const s = this.settings[t.id], list = w.querySelector('.bl-list'), top = list.scrollTop;
-    const groups = brushListGroups(t.id, this.brushLib?.presets || [], this.brushListQuery);
+    const groups = brushListGroups(t.id, this.brushLib?.presets || [], this.brushListQuery, this.hiddenBrushGroups());
     list.innerHTML = groups.map(g => `<div class="bl-group">${esc(g.name)}</div>${g.brushes.map(b =>
       `<button class="bl-row${b.id === s.preset ? ' on' : ''}" data-id="${esc(b.id)}" title="${esc(b.name)}${b.builtin ? '' : ' (your brush)'}. Right-click for more">
         <span class="bl-name">${esc(b.name)}<i class="bl-star" title="Changed since it was loaded: click to load it again">*</i></span><canvas class="bl-thumb"></canvas></button>`).join('')}`).join('')
@@ -325,7 +319,8 @@ export const brushMethods = {
         <span class="bl-sizes">${Object.entries(BRUSH_LIST_SIZES).map(([k, [label]]) => `<button data-bl-size="${k}" title="${label} strokes"><i class="bl-size-${k}"></i></button>`).join('')}</span></div>
       <div class="bl-list"></div>
       <div class="bl-foot"><button data-bl-act="save" title="Keep the current settings as a brush of your own">${icon('plus', 14)} Save as new…</button>
-        <button data-bl-act="import" title="Procreate, Photoshop, GIMP and Krita brushes">Import…</button></div>`;
+        <button data-bl-act="import" title="Procreate, Photoshop, GIMP and Krita brushes">Import…</button>
+        <button data-bl-act="manage" title="Put your brushes in groups and in order, hide groups, delete brushes">Manage…</button></div>`;
     if (st.w) w.style.width = st.w + 'px';
     if (st.h) w.style.height = st.h + 'px';
     this.root.append(w);
@@ -334,6 +329,7 @@ export const brushMethods = {
     w.querySelector('[data-bl-close]').onclick = () => this.toggleBrushList(false);
     w.querySelector('[data-bl-act="save"]').onclick = () => this.saveBrushAs();
     w.querySelector('[data-bl-act="import"]').onclick = () => this.importBrushFile();
+    w.querySelector('[data-bl-act="manage"]').onclick = () => this.manageBrushes();
     w.querySelectorAll('[data-bl-size]').forEach(b => {
       b.onclick = () => { store('brushList', { ...this.brushListState(), size: b.dataset.blSize }); this.renderBrushList(); };
     });
@@ -457,6 +453,7 @@ export const brushMethods = {
       { label: 'Rename brush…', disabled: !p, run: () => this.renamePreset(p) },
       { label: 'Delete brush…', disabled: !p, run: () => this.deletePreset(p) },
       '-',
+      { label: 'Manage brushes (groups, order, delete)…', run: () => this.manageBrushes() },
       { label: 'Import brushes (Procreate, Photoshop, GIMP, Krita)…', run: () => this.importBrushFile() },
       '-',
       { label: 'Add tip image…', run: () => this.addBrushImageFile('tip') },

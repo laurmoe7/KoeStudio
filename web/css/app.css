@@ -596,6 +596,25 @@ svg.curve polyline { fill: none; stroke: var(--accent); stroke-width: 1.2; vecto
 .imp-card.on .imp-tick { display: grid; }
 .imp-note { position: absolute; bottom: 4px; right: 5px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; font: 700 10px/1 sans-serif; font-style: normal; background: color-mix(in srgb, #e0a030, var(--panel) 30%); color: #000; cursor: help; }
 .imp-card:has(.imp-note) .imp-name { padding-right: 18px; }
+/* Manage brushes: the same cards, in a section per group */
+.modal.wide:has(.bm) { width: min(960px, 95vw); }
+body:has(.modal-back) > .menu { z-index: 110; }  /* a menu opened from a dialog shows over it */
+.bm-acts { display: flex; gap: 6px; }
+.bm-acts button:disabled { opacity: .45; }
+.bm-del:not(:disabled):hover { border-color: var(--danger); color: var(--danger); }
+.bm-list { max-height: 58vh; overflow: auto; padding: 2px; display: flex; flex-direction: column; gap: 10px; }
+.bm-group { border-radius: 8px; padding: 2px; }
+.bm-group.off .bm-grid { opacity: .5; }
+.bm-group.drop-into { background: var(--row-active); outline: 1px dashed var(--accent); }
+.bm-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 6px; position: sticky; top: -2px; z-index: 1; background: var(--panel); }
+.bm-tools { margin-left: auto; display: flex; gap: 2px; }
+.bm-tools .icon-btn { min-width: 26px; height: 26px; padding: 0 5px; font-size: 13px; }
+.bm-grid { max-height: none; overflow: visible; padding: 0; }
+.bm-card.drop-before { box-shadow: -3px 0 0 var(--accent); }
+.bm-card[draggable] { cursor: grab; }
+.bm-builtin { margin-top: 8px; }
+.bm-builtin summary { cursor: pointer; font-size: 13px; }
+.bm-chips { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 6px 2px 0; }
 
 /* Curves */
 .curves { display: flex; flex-direction: column; gap: 8px; }
