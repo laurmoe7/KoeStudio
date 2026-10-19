@@ -12,7 +12,7 @@ import { renderVector } from '../vectorlayer.js';
 import { trimmedSnapshot, snapBytes } from '../snapshot.js';
 import { icon } from '../icons.js';
 import { maskBounds, modeFor, rectBetween, SELECT_MODES } from '../selection.js';
-import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds, homography, project } from '../transform.js';
+import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, typedTransform, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds, homography, project } from '../transform.js';
 import { clip, union } from '../rect.js';
 import { esc, modal, store, toast } from '../ui.js';
 import { matrix, toDoc, toScreen } from '../view.js';
@@ -739,6 +739,11 @@ export const selectionMethods = {
     bar.className = 'xf-bar';
     bar.innerHTML = `
       <span class="xf-readout muted small"></span>
+      <span class="xf-nums small" title="Type a size or angle and press Enter">
+        <label>W <input type="number" data-num="w" step="1" min="1" max="10000">%</label>
+        <label>H <input type="number" data-num="h" step="1" min="1" max="10000">%</label>
+        <label><input type="number" data-num="deg" step="1" min="-360" max="360">°</label>
+      </span>
       <button class="icon-btn" data-xf="flipH" title="Flip horizontally">${icon('flip', 16)}</button>
       <button class="icon-btn" data-xf="flipV" title="Flip vertically"><span style="transform:rotate(90deg);display:block">${icon('flip', 16)}</span></button>
       <button class="icon-btn" data-xf="rotL" title="Rotate 90° left">${icon('rotL', 16)}</button>
@@ -772,18 +777,35 @@ export const selectionMethods = {
     };
     bar.querySelectorAll('button[data-xf]').forEach(b => { b.onclick = () => acts[b.dataset.xf](); });
     bar.querySelector('[data-xf="aspect"]').onchange = e => { this.xf.keepAspect = e.target.checked; };
+    for (const input of bar.querySelectorAll('[data-num]')) {
+      input.addEventListener('keydown', e => {
+        e.stopPropagation();  // Enter and Esc here are for the number, not for applying the transform
+        if (e.key === 'Enter' || e.key === 'Escape') input.blur();
+      });
+      input.addEventListener('change', () => {
+        if (this.xf && !this.xf.quad && !this.xf.mesh) this.xfSet(t => typedTransform(t, input.dataset.num, input.value, this.xf.keepAspect));
+        this.updateTransformBar(true);
+      });
+    }
     bar.querySelector('[data-xf="smooth"]').onchange = e => { this.xf.smooth = e.target.checked; this.renderTransform(); };
     this.viewport.append(bar);
   },
 
-  updateTransformBar() {
-    const el = this.viewport.querySelector('.xf-readout');
+  /** The size and angle boxes follow the transform (a box being typed in is left alone unless `all`). */
+  updateTransformBar(all = false) {
+    const el = this.viewport.querySelector('.xf-readout'), nums = this.viewport.querySelector('.xf-nums');
     if (!el || !this.xf) return;
-    if (this.xf.mesh) { el.textContent = 'Mesh: drag the points'; return; }
-    if (this.xf.quad) { el.textContent = 'Distort: drag the corners'; return; }
+    const warp = this.xf.mesh ? 'Mesh: drag the points' : this.xf.quad ? 'Distort: drag the corners' : '';
+    el.textContent = warp;
+    el.hidden = !warp;
+    nums.hidden = !!warp;
+    if (warp) return;
     const t = this.xf.t;
-    const deg = Math.round(((t.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
-    el.textContent = `W ${Math.round(Math.abs(t.sx) * 100)}%  H ${Math.round(Math.abs(t.sy) * 100)}%  ${deg}°`;
+    const values = { w: Math.round(Math.abs(t.sx) * 1000) / 10, h: Math.round(Math.abs(t.sy) * 1000) / 10,
+      deg: Math.round((((t.rot * 180 / Math.PI) % 360 + 540) % 360 - 180) * 10) / 10 };
+    for (const input of nums.querySelectorAll('[data-num]')) {
+      if (all || document.activeElement !== input) input.value = values[input.dataset.num];
+    }
   },
 
   hideTransformBar() {

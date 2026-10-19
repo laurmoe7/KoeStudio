@@ -10,6 +10,22 @@ export function newTransform(r) {
   return { w: r.w, h: r.h, cx: r.x + r.w / 2, cy: r.y + r.h / 2, sx: 1, sy: 1, rot: 0 };
 }
 
+/**
+ * A number typed into the transform bar: 'w' / 'h' in % of the original size (1-10000, flips kept; with
+ * keepAspect the other side scales by the same factor) or 'deg' as the turn. Returns the change to t ({} when
+ * the value is not a number).
+ */
+export function typedTransform(t, field, value, keepAspect = false) {
+  const v = Number(value);
+  if (value === '' || !Number.isFinite(v)) return {};
+  if (field === 'deg') return { rot: v * Math.PI / 180 };
+  const k = Math.max(0.01, Math.min(100, v / 100)), sign = x => (x < 0 ? -1 : 1);
+  const [own, other] = field === 'w' ? ['sx', 'sy'] : ['sy', 'sx'];
+  const out = { [own]: sign(t[own]) * k };
+  if (keepAspect) out[other] = t[other] * k / Math.abs(t[own]);
+  return out;
+}
+
 /** Matrix [a, b, c, d, e, f] taking source pixels to doc pixels (for ctx.setTransform). */
 export function xfMatrix(t) {
   const cos = Math.cos(t.rot), sin = Math.sin(t.rot);

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { maskBounds, outlineSegments, maskOutline, modeFor, compositeFor, rectBetween, selectionBarSpot } from '../web/js/selection.js';
-import { newTransform, xfMatrix, boxPoint, toBox, hitTest, dragHandle, dragRotate, dragMove, xfBounds, isIdentity } from '../web/js/transform.js';
+import { newTransform, xfMatrix, boxPoint, toBox, hitTest, dragHandle, dragRotate, dragMove, xfBounds, isIdentity, typedTransform } from '../web/js/transform.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, msg || `${a} ≈ ${b}`);
 
@@ -154,4 +154,14 @@ test('selection bar sits under the selection, above it when there is no room, el
   assert.deepEqual(selectionBarSpot(box(-50, -50, 1050, 850), 200, 30, 1000, 800), { x: 400, y: 762 });
   // near the left edge: kept 8 px inside
   assert.deepEqual(selectionBarSpot(box(0, 0, 40, 40), 200, 30, 1000, 800), { x: 8, y: 50 });
+});
+
+test('numbers typed into the transform bar', () => {
+  const t = { ...newTransform({ x: 0, y: 0, w: 100, h: 50 }), sx: -2, sy: 0.5 };
+  assert.deepEqual(typedTransform(t, 'w', '150'), { sx: -1.5 }, 'flip kept');
+  assert.deepEqual(typedTransform(t, 'h', 200, true), { sy: 2, sx: -8 }, 'keep aspect: width x4 too');
+  near(typedTransform(t, 'deg', '90').rot, Math.PI / 2);
+  assert.deepEqual(typedTransform(t, 'w', 'abc'), {});
+  assert.deepEqual(typedTransform(t, 'w', ''), {});
+  assert.deepEqual(typedTransform(t, 'w', '0'), { sx: -0.01 }, 'at least 1%');
 });

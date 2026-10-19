@@ -240,7 +240,8 @@ export const GUIDE = [
       <kbd>Ctrl</kbd>+drag first picks the top layer with paint under the pointer, so you can grab a thing without
       looking for its layer. Right-click lists every layer with paint there. The arrow keys move it a pixel at a
       time (ten with <kbd>Shift</kbd>); presses in a row undo as one step.</li>
-      <li><b>Transform</b> <kbd>Ctrl+T</kbd>: resize, turn or flip the layer or the selection.</li>
+      <li><b>Transform</b> <kbd>Ctrl+T</kbd>: resize, turn or flip the layer or the selection. Type an exact width,
+      height (in %) or angle in the bar at the top and press <kbd>Enter</kbd>.</li>
     </ul>
     <figure data-pic="transform"></figure>
     <ul>

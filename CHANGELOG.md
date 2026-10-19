@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Transform: type an exact width, height or angle.
 - A bar under the selection with deselect, invert, transform, fill, delete, copy to new layer and crop.
 - Filter → Dust cleaner removes small specks, such as dust on a scan.
 - Filter → Median reduces grain and noise while keeping edges sharp.

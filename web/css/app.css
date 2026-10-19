@@ -528,3 +528,8 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 .lp-find input { width: 100%; box-sizing: border-box; }
 .lp-row.around { opacity: 0.55; }
 .lp-none { padding: 8px; margin: 0; }
+
+/* typed size and angle in the transform bar */
+.xf-nums { display: flex; gap: 6px; align-items: center; font-variant-numeric: tabular-nums; }
+.xf-nums label { display: flex; align-items: center; gap: 3px; }
+.xf-nums input { width: 58px; padding: 2px 4px; }
