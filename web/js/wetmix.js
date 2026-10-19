@@ -1,7 +1,8 @@
 // Wet mixing (pure, tested): a brush whose paint mixes with the colour already on the layer, as wet paint does
 // (Clip Studio Paint's colour mixing, Procreate's wet mix, Photoshop's mixer brush, Krita's colour smudge). Each dab
-// samples the layer under it (as it was at pen-down). The colour picked up is dragged along the stroke:
-//   picked = lerp(colour under the dab, picked at the last dab, keep)
+// samples the layer under it (as it was at pen-down). The colour under the dab goes on the brush at once, and the
+// colour picked up before is dragged along the stroke where there is less under it:
+//   picked = colour under the dab over (picked at the last dab, faded by keep)
 //   paint  = lerp(brush colour, picked, mix * how much of it there is)
 // mix (Color mixing, 0-1) is the share of the canvas colour in the paint, and stretch (Color stretch, 0-1) how much
 // of the picked-up colour is still on the brush one brush width further on, so it smears along the stroke. keep is
@@ -49,13 +50,16 @@ export class WetPaint {
   next(x, y, size, under, brush) {
     const d = this.at ? Math.hypot(x - this.at.x, y - this.at.y) : 0;
     this.at = { x, y };
-    const keep = this.picked ? perDistance(this.stretch, d, size) : 0, p = this.picked;
-    const cover = p ? p.cover * keep + under.cover * (1 - keep) : under.cover;
-    if (cover <= 0) this.picked = { r: 0, g: 0, b: 0, cover: 0 };
+    const p = this.picked, wp = p ? p.cover * perDistance(this.stretch, d, size) : 0, wu = under.cover;
+    // what is under the dab is picked up at once (wet paint sticks to the brush where it touches); the trail of what
+    // was picked up before only shows through where there is less under it. The trail's strength sets the cover,
+    // or what is under, whichever is more, so passing over the same colour again and again never builds up.
+    const cover = Math.max(wu, wp), w = wu + wp * (1 - wu);
+    if (w <= 0) this.picked = { r: 0, g: 0, b: 0, cover: 0 };
     else {  // weighted by how much colour each holds, so clear pixels do not pull towards black
-      const wp = p ? p.cover * keep : 0, wu = under.cover * (1 - (p ? keep : 0)), w = wp + wu;
-      this.picked = { r: ((p ? p.r : 0) * wp + under.r * wu) / w, g: ((p ? p.g : 0) * wp + under.g * wu) / w,
-        b: ((p ? p.b : 0) * wp + under.b * wu) / w, cover };
+      const tp = wp * (1 - wu);
+      this.picked = { r: ((p ? p.r : 0) * tp + under.r * wu) / w, g: ((p ? p.g : 0) * tp + under.g * wu) / w,
+        b: ((p ? p.b : 0) * tp + under.b * wu) / w, cover };
     }
     return mixRgb(brush, this.picked, this.mix * this.picked.cover);
   }

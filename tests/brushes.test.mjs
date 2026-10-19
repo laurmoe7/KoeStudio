@@ -297,10 +297,10 @@ test('impasto', async () => {
   const { sanitizeBrush } = await import('../web/js/vector.js');
   const { BUILTIN_BY_ID } = await import('../web/js/builtinbrushes.js');
   assert.equal(impastoFor({ impasto: 0, size: 50 }), null, 'off by default');
-  // the light looks a thirtieth of the size across: 60 px -> 2 px, never under 1 px or over 4
-  assert.deepEqual(impastoFor({ impasto: 0.5, size: 60 }), { amount: 0.5, depth: 2, canvas: null });
+  // the light looks a twentieth of the size across: 60 px -> 3 px, never under 1 px or over 5
+  assert.deepEqual(impastoFor({ impasto: 0.5, size: 60 }), { amount: 0.5, depth: 3, canvas: null });
   assert.equal(impastoFor({ impasto: 1, size: 10 }).depth, 1);
-  assert.equal(impastoFor({ impasto: 1, size: 600 }).depth, 4);
+  assert.equal(impastoFor({ impasto: 1, size: 600 }).depth, 5);
   assert.equal(impastoFor({ impasto: 3, size: 30 }).amount, 1);
   assert.equal(impastoFor({ impasto: 0.5, size: 20, pixel: true }), null, 'hard pixels stay flat');
   const c = {};
@@ -339,9 +339,12 @@ test('runs dry', async () => {
   const { sanitizeBrush } = await import('../web/js/vector.js');
   const { BUILTIN_BY_ID } = await import('../web/js/builtinbrushes.js');
   assert.equal(dryness(500, 40, 0), 0, 'off: never dries');
-  // dryOut 1: dry after 3 brush widths (120 px at size 40); half way it is 0.5^1.5 dry
+  // dryOut 1: dry after 3 brush widths (120 px at size 40); solid for the first 45% (54 px), then (u^1.5 over the
+  // remaining 66 px): at 87 px u = 33 / 66 = 0.5
   assert.equal(dryness(120, 40, 1), 1);
-  near(dryness(60, 40, 1), Math.SQRT1_2 / 2, 'half way: 0.5^1.5');
+  assert.equal(dryness(54, 40, 1), 0, 'still solid at 45%');
+  assert.equal(dryness(20, 40, 1), 0);
+  near(dryness(87, 40, 1), Math.SQRT1_2 / 2, 'half way through the drying part: 0.5^1.5');
   // dryOut 0.5: 3 + 37 * 0.25 = 12.25 widths = 490 px at size 40
   near(dryness(490, 40, 0.5), 1, 'dry at 12.25 widths');
   assert.equal(dryness(5000, 40, 0.5), 1, 'stays dry');

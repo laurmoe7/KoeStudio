@@ -265,6 +265,7 @@ export const brushMethods = {
       const { size, flow } = stampAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f * painter.dry(st.d), 0, st.c, st.a ?? null);
     }
+    painter.finish();
     const cs = comboSettings(previewSettings(s, h * maxSize));
     let combo = null;
     if (cs) {  // a combined brush: the second brush along the same line, blended over the first by liveSource
@@ -280,6 +281,7 @@ export const brushMethods = {
         const { size, flow } = stampAt(c, st.p);
         cp.dab(st.x, st.y, size * st.k, flow * st.f, 0);
       }
+      cp.finish();
     }
     let dual = null;
     if (b.dualTip !== 'none') {  // the dual brush along the same path, as vector lines draw it

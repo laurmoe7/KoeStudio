@@ -764,19 +764,35 @@ function wetEdges(ctx, live, r) {
  * Impasto (live.impasto = {amount k, depth d, canvas}): the paint's height (the canvas the dabs were stamped into
  * faintly, so the hairs' streaks stay; else the stroke's own density) is lit from the top left. Where
  * it is higher than d px towards the light (the top-left rim of the stroke, the near side of each bristle ridge) it
- * takes white, where it is higher than d px away from the light, black, both laid source-atop over the paint (r of
+ * takes white, where it is higher than d px away from the light, black (only steps over IMPASTO_STEP, made 8
+ * times stronger, so the ridges light up and flat paint keeps its colour), both laid source-atop over the paint (r of
  * the stroke already in ctx), so thick paint shows its edges and streaks. Heights are read with a margin round r, so
  * a part redrawn on its own matches the whole; the grain and the selection cut it afterwards, like the paint.
  */
+const IMPASTO_STEP = 0.03;  // the height step (alpha) below which paint stays unlit
+
 function impasto(ctx, live, r) {
   const { amount: k, depth: d } = live.impasto, m = Math.ceil(d);
   const R = { x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m };
   const [src, sx, sy] = live.impasto.canvas ? [live.impasto.canvas, R.x, R.y] : strokeOf(live, R);
   for (const [key, dir, color, a] of [['impLight', 1, '#ffffff', 0.55 * k], ['impShade', -1, '#000000', 0.4 * k]]) {
+    // how much higher it is than d px towards (or away from) the light, less IMPASTO_STEP, made 8 times stronger:
+    // h - h' - step, done on the GPU as for the grain (xor with an opaque fill turns alpha x into 1 - x, 'lighter'
+    // adds, a second xor turns it back). Only the clear steps catch the light, so flat paint keeps its colour.
     const [c, cx] = scratchCanvas(key, r);
     cx.drawImage(src, sx + m, sy + m, r.w, r.h, 0, 0, r.w, r.h);
-    cx.globalCompositeOperation = 'destination-out';  // what is left: how much higher than d px towards (or away from) the light
+    cx.globalCompositeOperation = 'xor';
+    cx.fillStyle = '#000';
+    cx.fillRect(0, 0, r.w, r.h);
+    cx.globalCompositeOperation = 'lighter';
     cx.drawImage(src, sx + m - dir * d, sy + m - dir * d, r.w, r.h, 0, 0, r.w, r.h);
+    cx.globalAlpha = IMPASTO_STEP;
+    cx.fillRect(0, 0, r.w, r.h);
+    cx.globalAlpha = 1;
+    cx.globalCompositeOperation = 'xor';
+    cx.fillRect(0, 0, r.w, r.h);
+    cx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 3; i++) cx.drawImage(c, 0, 0, r.w, r.h, 0, 0, r.w, r.h);
     cx.globalCompositeOperation = 'source-in';
     cx.fillStyle = color;
     cx.fillRect(0, 0, r.w, r.h);

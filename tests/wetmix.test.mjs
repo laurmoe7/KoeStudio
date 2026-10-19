@@ -35,9 +35,27 @@ test('stretch drags the picked-up colour along', () => {
   assert.deepEqual(w.next(0, 0, 10, BLACK, WHITE), { r: 127.5, g: 127.5, b: 127.5 });
   // one brush width over clear canvas: half the black is still on the brush, so a quarter of it goes into the paint
   assert.deepEqual(w.next(10, 0, 10, CLEAR, WHITE), { r: 191.25, g: 191.25, b: 191.25 });
-  // then over red: cover .25 + .5 = .75, red 255 x .5 / .75 = 170; mixed in at .5 x .75 = .375
-  const c = w.next(20, 0, 10, RED, WHITE);
-  close(c.r, 223.125, 'r'); close(c.g, 159.375, 'g'); close(c.b, 159.375, 'b');
+  // then over opaque red: the red is picked up at once and covers the trail, mixed in at .5
+  assert.deepEqual(w.next(20, 0, 10, RED, WHITE), { r: 255, g: 127.5, b: 127.5 });
+});
+
+test('a brush coming from bare paper picks up the colour it meets straight away', () => {
+  const w = new WetPaint(0.4, 0.8), BLUE = { r: 0, g: 0, b: 200 };
+  assert.deepEqual(w.next(0, 0, 10, CLEAR, BLUE), BLUE);
+  // one dab onto opaque red: 40% red in the paint, not a slow build-up over brush widths
+  assert.deepEqual(w.next(1, 0, 10, RED, BLUE), { r: 102, g: 0, b: 120 });
+});
+
+test('the trail shows through where there is less colour under the dab', () => {
+  const w = new WetPaint(0.5, 0.5);
+  w.next(0, 0, 10, BLACK, WHITE);
+  // one width on, half the black is left (.5) over red at half cover: cover max(.5, .5) = .5; red weighs .5 and the
+  // trail .5 x (1 - .5) = .25, so the picked colour is r 255 x .5 / .75 = 170, g = b = 0, mixed in at .5 x .5 = .25
+  const c = w.next(10, 0, 10, { ...RED, cover: 0.5 }, WHITE);
+  close(c.r, 233.75, 'r'); close(c.g, 191.25, 'g'); close(c.b, 191.25, 'b');
+  // the same half-covered red again and again: the cover stays .5 and does not build up
+  for (let i = 1; i <= 20; i++) w.next(10 + i, 0, 10, { ...RED, cover: 0.5 }, WHITE);
+  close(w.picked.cover, 0.5, 'cover');
 });
 
 test('the spacing does not change the look', () => {

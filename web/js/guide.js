@@ -194,7 +194,8 @@ export const GUIDE = [
     <ul>
       <li>Best with the <b>Flat brush</b> or <b>Bristles</b> tip and <b>Turn with the stroke</b> on: the hairs make
       the ridges. On a round tip only the outer edge is lit.</li>
-      <li>Good values: 0.3-0.6. Higher values grey dark colours.</li>
+      <li>Good values: 0.3-0.6. Flat paint keeps its colour; only the ridges and edges are lit, so higher values make
+      the ridges stand out more.</li>
       <li>The light becomes part of the paint. A mixing brush that passes over it later picks it up, like any colour.</li>
       <li>Not on the Eraser, masks or Hard pixels.</li>
     </ul>
@@ -204,7 +205,8 @@ export const GUIDE = [
     breaks into dry, scratchy streaks. Every new stroke starts loaded again.</p>
     <ul>
       <li>Higher runs dry sooner: 1 is dry after about 3 brush widths, 0.3 after about 20 (Oil paint uses 0.3).
-      Short strokes stay solid, so make long strokes for dry tails.</li>
+      The brush stays fully loaded for almost half of that, so short strokes stay solid. Make long strokes for dry
+      tails.</li>
       <li>It needs a tip with parts to drop: <b>Flat brush</b>, <b>Bristles</b> or a tip picture. On the Round tip it
       does nothing.</li>
       <li>With Runs dry on, the <b>Texture</b> shows only where the paint runs dry, so the loaded part stays solid.
@@ -220,8 +222,9 @@ export const GUIDE = [
     <ul>
       <li>It mixes only with the layer you paint on, as it was when the pen went down. Paint on the same layer as the
       colours you want to blend. It doesn't mix with its own stroke, and does nothing on vector layers.</li>
-      <li>For paint that covers but smears a little, use mixing 0.3-0.5 (Oil paint: 0.35). Higher values make a dark
-      stroke look see-through over light colours.</li>
+      <li>The brush picks up a colour as soon as it touches it, and <b>Color stretch</b> decides how long it keeps
+      it. For paint that covers but smears a little, use mixing 0.3-0.5 with stretch about 0.5 (Oil paint: 0.35 and
+      0.5). Higher mixing makes a dark stroke look see-through over light colours.</li>
       <li>For a blender, use mixing 0.9 or more and <b>Paint load</b> 0.1-0.2: it moves the colours already there and
       leaves little on bare paper (the Wet blender).</li>
     </ul>

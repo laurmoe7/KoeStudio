@@ -179,10 +179,41 @@ export class Painter {
    * stroke (the pen's lean). */
   dab(x, y, size, alpha, k = 0, color = null, dir = null) {
     if (color) this.setColor(color);
-    const rot = this.pixel ? 0 : this.rotation(x, y, k, dir);  // once, so the height canvas gets the same turn
+    // a tip that turns with the stroke waits for the stroke's direction: drawn straight away, the first dab lies
+    // along the stroke and a flat tip leaves a spike at its start
+    if (this.follow && dir === null && !this.pixel && !this.last[k]?.known) {
+      const l = this.last[k] ||= { pending: [] }, p0 = l.pending[0];
+      if (!p0 || (x - p0.x) ** 2 + (y - p0.y) ** 2 <= 0.25) { l.pending.push({ x, y, size, alpha, color: this.color, dryT: this.dryT }); return; }
+      this.last[k] = { x, y, dir: Math.atan2(y - p0.y, x - p0.x), known: true };
+      this.drawPending(l.pending, k);
+    }
+    this.put(x, y, size, alpha, this.pixel ? 0 : this.rotation(x, y, k, dir));
+  }
+
+  /** Draws the dabs held back until the stroke's direction was known (copy k's direction, or 0 for a tap). */
+  drawPending(pending, k) {
+    const color = this.color, dryT = this.dryT;
+    for (const p of pending) {
+      this.setColor(p.color);
+      this.dryT = p.dryT;
+      this.put(p.x, p.y, p.size, p.alpha, this.rotation(p.x, p.y, k, this.last[k]?.known ? null : 0));
+    }
+    this.setColor(color);
+    this.dryT = dryT;
+  }
+
+  /** At pen-up: draws dabs still waiting for a direction (a tap, or a stroke that never moved half a pixel). */
+  finish() {
+    this.last.forEach((l, k) => { if (l?.pending?.length) { this.drawPending(l.pending, k); l.pending = []; } });
+  }
+
+  /** One dab at turn rot (radians), with the paper grain and the impasto height when they are on. */
+  put(x, y, size, alpha, rot) {
     if (this.grain) this.grainDab(x, y, size, alpha, rot, this.grain);
-    // running dry on a texture: a loaded brush covers it, a drying one reaches less deep and the grooves show more
-    else if (this.dryGrain && this.dryT > 0.02) this.grainDab(x, y, size, alpha, rot, this.dryGrain, 1 - 0.3 * this.dryT, Math.min(1, 1.2 * this.dryT));
+    // running dry on a texture: a loaded brush covers it, a drying one reaches less deep and the grooves show more.
+    // The grain comes in only once the hairs have started to drop out, and never fully, so the dry end is streaks
+    // broken by the grain rather than an even speckle
+    else if (this.dryGrain && this.dryT > DRY_GRAIN_FROM) this.grainDab(x, y, size, alpha, rot, this.dryGrain, 1 - 0.3 * this.dryT, 0.75 * (this.dryT - DRY_GRAIN_FROM) / (1 - DRY_GRAIN_FROM));
     else this.draw(this.ctx, x, y, size, alpha, rot);
     if (this.height) this.draw(this.height.ctx, x, y, size, alpha * this.height.k, rot);
   }
@@ -268,10 +299,12 @@ export class Painter {
     let a = this.angle;
     if (dir !== null) a += dir;
     else if (this.follow) {
-      const l = this.last[k] ||= { x, y, dir: 0 };
-      const dx = x - l.x, dy = y - l.y;
-      if (dx * dx + dy * dy > 0.25) { l.dir = Math.atan2(dy, dx); l.x = x; l.y = y; }
-      a += l.dir;
+      const l = this.last[k];
+      if (l?.known) {
+        const dx = x - l.x, dy = y - l.y;
+        if (dx * dx + dy * dy > 0.25) { l.dir = Math.atan2(dy, dx); l.x = x; l.y = y; }
+        a += l.dir;
+      }
     }
     if (this.random) a += (this.rnd() * 2 - 1) * Math.PI * this.random;
     return a;
@@ -279,6 +312,7 @@ export class Painter {
 }
 
 const dryMasks = new WeakMap();  // tip mask -> its dry levels (dryMask)
+const DRY_GRAIN_FROM = 0.2;  // how dry a brush is before the texture shows (Painter.put)
 
 /**
  * A tip mask at dry level `level` (0 = as it is): alpha a becomes (a - t) / (1 - t), t up to 65% at the driest, so
@@ -384,7 +418,7 @@ export const HEIGHT_SHARE = 0.25;
  * Painter stamps (null: the stroke's own density is the height).
  */
 export function impastoFor(s, canvas = null) {
-  return s.impasto > 0 && !s.pixel ? { amount: Math.min(1, s.impasto), depth: Math.max(1, Math.min(4, (s.size || 1) / 30)), canvas } : null;
+  return s.impasto > 0 && !s.pixel ? { amount: Math.min(1, s.impasto), depth: Math.max(1, Math.min(5, (s.size || 1) / 20)), canvas } : null;
 }
 
 /** Impasto's height canvas c at w x h, cleared in r (all of it when r is left out), as a Painter `height`. */

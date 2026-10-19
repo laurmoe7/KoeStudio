@@ -89,6 +89,10 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- Color mixing picks up a colour as soon as the brush touches it, so a stroke crossing another now really mixes with it; Oil paint drags it along less far.
+- Impasto no longer greys the whole stroke: flat paint keeps its colour and only the ridges and edges catch the light, now more strongly.
+- Runs dry keeps the stroke solid for almost half the way before it breaks up, and the dry end is streaky instead of an even speckle.
+- Brushes whose tip turns with the stroke (Oil paint, Dry brush) no longer leave a small spike at the start of each stroke.
 - The Canvas brush texture looks like fine primed linen instead of a regular grid or net, so strokes show the tooth of the canvas rather than a pattern.
 - Small strokes with a hairy tip (Dry brush, Bristles, or an imported tip) no longer break up into a chain pattern.
 - Watercolour strokes no longer show a pattern of beads along their length.

@@ -1669,6 +1669,9 @@ export class Editor {
     for (const st of g.held) st.k *= taperOut(g.dist - st.d, g.s.taperOut);
     this.drawStamps(g.held);
     g.held = [];
+    // a tap with a tip that turns with the stroke: its dab waited for a direction that never came
+    g.painter.finish(); g.combo?.painter.finish();
+    if (g.bounds) this.updateComp(g.bounds);
     this.lastStroke = { layer: g.layer, pt: g.last };
     if (g.vec) this.commitVectorStroke(g.layer, g.vec, g.s, g.s.opacity, 'Draw line', g.color);
     else this.commitStroke(g.layer, g.bounds, g.erase ? 'Erase' : 'Paint');

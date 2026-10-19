@@ -39,6 +39,7 @@ export function renderVector(layer, rect = null) {
       const { size, flow } = stampAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f * painter.dry(st.d), 0, st.c, st.a ?? null);
     }
+    painter.finish();
     let dual = null;
     if (b.dualTip !== 'none') {  // the dual brush: the line shows only where its second tip lands
       dual = dualScratch ||= document.createElement('canvas');

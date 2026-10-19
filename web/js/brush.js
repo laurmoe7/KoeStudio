@@ -107,14 +107,18 @@ export const DRY_LEVELS = 16;
 /**
  * Runs dry (dryOut 0-1, 0 = off), as a loaded brush gives out its paint: how dry it is after d px of a stroke of
  * brush size `size`, from 0 (full) to 1. It gets there after 3 + 37 * (1 - dryOut)^2 brush widths (3 at 1, about
- * 12 at 0.5, 33 at 0.1), slowly at first and then faster ((d / len)^1.5), as the paint holds out and then gives.
- * Each stroke starts loaded again.
+ * 12 at 0.5, 33 at 0.1). The paint holds out for the first DRY_SOLID of that (the stroke stays solid), then gives,
+ * slowly at first and then faster (u^1.5 over the rest). Each stroke starts loaded again.
  */
 export function dryness(d, size, dryOut) {
   if (!(dryOut > 0)) return 0;
   const k = 1 - Math.min(1, dryOut), len = Math.max(1, size) * (3 + 37 * k * k);
-  return Math.min(1, Math.max(0, d) / len) ** 1.5;
+  const u = (Math.min(1, Math.max(0, d) / len) - DRY_SOLID) / (1 - DRY_SOLID);
+  return u > 0 ? u ** 1.5 : 0;
 }
+
+/** The share of the way to dry that the brush stays fully loaded. */
+export const DRY_SOLID = 0.45;
 
 /** A dab at dryness t: the tip's dry level (its weakest parts left out) and the share of its density it keeps. */
 export function dryDab(t) {
