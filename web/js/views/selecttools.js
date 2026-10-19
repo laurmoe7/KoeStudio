@@ -5,6 +5,7 @@ import { floodMask } from '../fill.js';
 import { hexToRgb, rgbToHex } from '../color.js';
 import { colorRangeMask, strokeBand } from '../maskops.js';
 import { Layer } from '../doc.js';
+import { isFolder } from '../tree.js';
 import { textBounds, drawText, textTransformStart, textMatrixAfter, renderTextLayer } from '../textlayer.js';
 import { strokesInside, removeStrokes, mapStrokes, strokeBounds, brushOf } from '../vector.js';
 import { renderVector } from '../vectorlayer.js';
@@ -40,11 +41,17 @@ export const selectionMethods = {
   selectAll() { this.changeSelection('Select all', () => this.sel.all()); },
   deselect() { if (this.sel.active) this.changeSelection('Deselect', () => this.sel.clear()); },
   invertSelection() { this.changeSelection('Invert selection', () => this.sel.invert()); },
-  selectLayerPixels() {
-    const l = this.target('select from', { read: true });
+  /**
+   * Select → Select layer pixels (the current layer), or Ctrl+click a layer's thumbnail (that layer; with Shift
+   * added to the selection, with Alt taken away from it).
+   */
+  selectLayerPixels(node = null, mode = 'replace') {
+    const l = node || this.target('select from', { read: true });
     if (!l) return;
-    this.changeSelection('Select layer pixels', () => this.sel.combine('replace', ctx => ctx.drawImage(l.canvas, 0, 0)));
-    if (!this.sel.active) toast('This layer is empty, so nothing was selected.');
+    if (node && (isFolder(node) || node.adjust)) return toast('Only a layer with pixels can make a selection.');
+    const label = { replace: 'Select layer pixels', add: 'Add layer pixels to selection', subtract: 'Take layer pixels from selection' }[mode];
+    this.changeSelection(label, () => this.sel.combine(mode, ctx => ctx.drawImage(l.canvas, 0, 0)));
+    if (mode === 'replace' && !this.sel.active) toast('This layer is empty, so nothing was selected.');
   },
 
   /** Select → Expand / Shrink / Feather: asks for a number of pixels, then changes the selection. */

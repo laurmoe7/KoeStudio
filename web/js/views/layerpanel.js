@@ -159,7 +159,7 @@ export class LayerPanel {
         <button class="icon-btn lp-eye" title="${node.visible ? 'Hide' : 'Show'} (Alt+click: show only this, again: show the others again)">${icon(node.visible ? 'eye' : 'eyeOff', 16)}</button>
         ${isFolder(node)
           ? `<button class="icon-btn lp-twisty" title="${node.open ? 'Close' : 'Open'} folder">${node.open ? '▾' : '▸'}</button><span class="lp-foldericon">${icon('folder', 22)}</span>`
-          : `<canvas class="lp-thumb${active && !ed.maskEdit ? ' target' : ''}" width="${TW}" height="${TH}" title="Layer pixels"></canvas>`}
+          : `<canvas class="lp-thumb${active && !ed.maskEdit ? ' target' : ''}" width="${TW}" height="${TH}" title="Layer pixels (Ctrl+click: select them)"></canvas>`}
         ${node.mask ? `<canvas class="lp-mask${active && ed.maskEdit ? ' target' : ''}${node.mask.enabled ? '' : ' off'}" width="${TW}" height="${TH}" title="Mask: click to paint on it (painting hides, erasing shows)"></canvas>` : ''}
         <div class="lp-name"><span>${node.label ? `<i class="lp-dot" style="background:${labelColor(node.label)}"></i>` : ''}${esc(node.name)}</span><small>${esc(sub.join(' · '))}</small></div>`;
       row.querySelector('.lp-eye').onclick = e => ed.toggleVisible(node, e.altKey);
@@ -212,7 +212,7 @@ export class LayerPanel {
     list.addEventListener('pointerdown', e => {
       const row = e.target.closest('.lp-row');
       if (!row || e.button !== 0 || e.target.closest('button')) return;
-      drag = { node: row._node, mask: !!e.target.closest('.lp-mask'), thumb: !!e.target.closest('.lp-thumb'), add: e.ctrlKey || e.metaKey, range: e.shiftKey, y: e.clientY, id: e.pointerId, moving: false, drop: null };
+      drag = { node: row._node, mask: !!e.target.closest('.lp-mask'), thumb: !!e.target.closest('.lp-thumb'), add: e.ctrlKey || e.metaKey, range: e.shiftKey, alt: e.altKey, y: e.clientY, id: e.pointerId, moving: false, drop: null };
       try { list.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
     });
     list.addEventListener('pointermove', e => {
@@ -239,6 +239,8 @@ export class LayerPanel {
       clearMarks();
       if (!d.moving) {
         // a second tap on the same row renames it (a dblclick event never arrives: selecting rebuilds the rows)
+        // Ctrl+click a thumbnail: a selection from that layer's pixels (Shift adds to it, Alt takes away)
+        if (d.add && d.thumb) { this.lastTap = null; return this.ed.selectLayerPixels(d.node, d.range ? 'add' : d.alt ? 'subtract' : 'replace'); }
         if (d.add || d.range) { this.lastTap = null; return this.ed.selectNode(d.node, { add: d.add, range: d.range }); }
         const rename = !d.mask && isDoubleTap(this.lastTap, d.node, performance.now());
         this.lastTap = rename ? null : { key: d.node, time: performance.now() };

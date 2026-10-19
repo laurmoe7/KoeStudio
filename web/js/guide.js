@@ -221,6 +221,8 @@ export const GUIDE = [
     <h4>Select menu</h4>
     <ul>
       <li><b>Color range…</b> selects every pixel close to a colour. Click the canvas to choose it.</li>
+      <li><b>Select layer pixels</b> selects what is painted on the current layer. Or <kbd>Ctrl</kbd>+click any
+      layer's thumbnail in the Layers panel; add <kbd>Shift</kbd> to add it to the selection, <kbd>Alt</kbd> to take it away.</li>
       <li><b>Expand</b> and <b>Shrink</b> grow or shrink it; <b>Feather</b> gives it a soft edge; <b>Border</b>
       selects a band along its edge.</li>
       <li>Edit → <b>Stroke selection…</b> draws a line along the edge of the selection.</li>
@@ -512,7 +514,7 @@ export const SHORTCUTS = [
   ['Edit', [['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy / cut / paste'], ['Ctrl+T', 'Transform'],
     ['Del', 'Clear the selection or layer'], ['Alt+Del', 'Fill the selection or layer'], ['Ctrl+F', 'Repeat the last filter']]],
   ['Selection', [['Ctrl+A / Ctrl+D', 'Select all / deselect'], ['Ctrl+Shift+I', 'Invert the selection'], ['Q', 'Quick mask'],
-    ['Shift / Alt (while dragging)', 'Add to / subtract from the selection']]],
+    ['Shift / Alt (while dragging)', 'Add to / subtract from the selection'], ['Ctrl+click a layer thumbnail', 'Select its pixels (+Shift add, +Alt subtract)']]],
   ['Layers', [['Ctrl+click (Move tool)', 'Pick the layer under the pointer'], ['Arrows / Shift+arrows (Move tool)', 'Move the layer or selection 1 / 10 px'], ['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],
     ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['Ctrl+J / Ctrl+Shift+J', 'Copy / cut to a new layer'], ['F2', 'Rename the layer'],
     ['Ctrl+click / Shift+click', 'Pick several layers'], ['Alt+click an eye', 'Show only that layer (again: the others come back)']]],
