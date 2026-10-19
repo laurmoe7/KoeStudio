@@ -1,0 +1,53 @@
+# Changelog
+
+What changed in KoeStudio, newest first. Older changes are in the git history.
+
+## 2026-10-19
+
+### New
+- Tab hides the tool bar and panels; Tab again brings them back.
+- Ctrl+click a layer thumbnail to select its pixels (Shift adds, Alt takes away).
+- Hold a tool's key to use that tool for a moment; let go to go back.
+- Ctrl+Alt+drag on the canvas sets the brush size.
+- Shift+Space+drag turns the view, Ctrl+Space+drag zooms it.
+- Alt+click a layer's eye to see only that layer; again to see the others.
+- The brush cursor takes the brush tip's shape.
+- Transform: Alt+drag a handle to scale from the middle.
+- Arrow keys nudge the layer or selection with the Move tool.
+- Gallery: search by title, sort by last change, name or size.
+
+### Faster
+- Painting next to screentone or effect layers.
+- Opening artwork with many layers.
+- Fill and the magic wand, including Close gaps.
+- Autosave no longer freezes the pen on big layers.
+- Undo history takes much less memory.
+- Filter previews, Smudge, Liquify, Blur, Dodge/Burn and Clone stamp.
+- Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
+
+### Fixed
+- Layer and timeline thumbnails are sharp on scaled screens and no longer skip thin lines.
+- Timeline thumbnails no longer draw their paper too faint.
+
+## 2026-10-18
+
+### New
+- Vector selections: delete, move, transform and distort lines as lines.
+- Text: different font, size, bold, italic and colour per letter.
+- Transform text without turning it into pixels.
+- Export animations as WebM video.
+- Animation: hold a frame for several frame times (on twos).
+- Screentone: set it in lines per inch, shift the dots, and fade between two densities.
+- Move tool: Ctrl+click picks the layer under the pointer, right-click lists them.
+- Dual brush, also imported from Photoshop brushes.
+- Hard-pixel brushes for pixel art, and File → Export layers.
+- Import and export palette files (.gpl, .aco, .ase, .hex).
+- Transform a layer together with its mask.
+- Vector lines keep pen tilt, speed and the dual brush.
+
+### Faster
+- Saving sends only the layers that changed.
+
+### Fixed
+- Curve rulers no longer jump to another part of the curve.
+- Long menus scroll on short windows.
