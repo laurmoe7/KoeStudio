@@ -508,7 +508,9 @@ def _zip(data, what='brush file'):
 def read_procreate(data, filename):
     z = _zip(data, 'Procreate brush file')
     names = {i.filename for i in z.infolist()}
-    archives = sorted(n for n in names if posixpath.basename(n) == 'Brush.archive')
+    # a brush's folder also holds a Reset/ copy (Procreate's original, for Reset brush) and, for a combined brush, its
+    # second brush in Sub01/: neither is a brush of its own
+    archives = sorted(n for n in names if posixpath.basename(n) == 'Brush.archive' and not _procreate_extra(n))
     if not archives:
         raise ValueError('There are no Procreate brushes in that file.')
     set_name = _stem(filename)
@@ -527,8 +529,16 @@ def read_procreate(data, filename):
             b = _unarchive(plistlib.loads(z.read(n)))
         except Exception:
             continue
-        name = b.get('name') if isinstance(b.get('name'), str) and b.get('name').strip() else (folder or set_name)
+        # a brush without a name (or one of spaces) is called after the set, numbered
+        name = b.get('name').strip() if isinstance(b.get('name'), str) and b.get('name').strip() else f'{set_name} {len(out) + 1}'
         settings, notes = _procreate_settings(b)
+        sub = posixpath.join(folder, 'Sub01', 'Brush.archive')
+        if sub in names:
+            try:
+                sub_name = str(_unarchive(plistlib.loads(z.read(sub))).get('name') or '').strip()
+            except Exception:
+                sub_name = ''
+            notes.append(f'The second brush it is combined with ({sub_name})' if sub_name else 'The second brush it is combined with')
         tip = texture = None
         shape, grain = posixpath.join(folder, 'Shape.png'), posixpath.join(folder, 'Grain.png')
         if shape in names:
@@ -549,6 +559,11 @@ def read_procreate(data, filename):
     if not out:
         raise ValueError('The brushes in that file could not be read.')
     return {'name': set_name, 'brushes': out, 'images': images}
+
+
+def _procreate_extra(path):
+    """Whether a Brush.archive is a brush's Reset copy or the second half of a combined brush (Sub01, Sub02, ...)."""
+    return any(part == 'Reset' or re.fullmatch(r'Sub\d+', part) for part in path.split('/')[:-1])
 
 
 def _procreate_settings(b):

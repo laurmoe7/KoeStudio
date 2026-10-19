@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Brush import: choose which group the brushes go into (the pack's name, or a group you already have), and Import stays greyed out until you pick a brush.
 - Manage brushes (Brush ⋯ menu, or Manage… in the Brushes window): see all your brushes by group with their strokes, pick many at once to delete or move to another group, drag them into order, rename groups and brushes, and hide groups you don't use, built-in ones too.
 - Importing a big brush pack is easier: every brush shows its real stroke in a grid, a search box finds brushes by name, Shift+click picks a range, and All and None work on the brushes you searched for. Big packs start with nothing picked.
 - Imported brushes get a group of their own per pack in the Brushes window and the Brush row, instead of all going under Your brushes.
@@ -78,6 +79,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- Procreate brush sets no longer show every brush two or three times (Procreate's reset copies and the halves of combined brushes were read as brushes), and brushes without a name get the set's name and a number instead of a long code. Long brush names no longer spill out of their card.
 - An artwork with one damaged layer picture now opens instead of failing: that layer shows empty with a warning, and its saved picture is kept as it was unless you paint on it.
 - Resizing the window, hiding the panels (Tab) or the shortcut strip appearing no longer pushes the picture off to one side: a canvas fitted to the window stays fitted, and a zoomed-in view keeps the same spot in the middle.
 - An artwork that fails to open no longer leaves errors behind on the start screen.

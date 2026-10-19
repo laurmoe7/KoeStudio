@@ -19,6 +19,7 @@ import { BUILTIN_BY_ID, brushListGroups, brushChanged } from '../builtinbrushes.
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 import { icon } from '../icons.js';
 import { PICK_ALL_UP_TO, pickMatches, rangePick, noteSummary } from '../brushpick.js';
+import { presetGroups, groupLabel } from '../brushorg.js';
 
 const newId = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
 const IMG_RE = /^image\//;
@@ -627,7 +628,7 @@ export const brushMethods = {
       tip: ref(b.tip) || 'round', texture: ref(b.texture) || 'none', ...(ref(b.dual) ? { dualTip: ref(b.dual) } : {}) }));
     const n = res.brushes.length, picked = new Set(n <= PICK_ALL_UP_TO ? res.brushes.keys() : []);
     const lost = noteSummary(res.brushes);
-    let observer = null, raf = 0;
+    let observer = null, raf = 0, group = res.name;
     const chosen = await modal({
       title: `Import brushes from ${file.name}`,
       wide: true,
@@ -638,6 +639,9 @@ export const brushMethods = {
         <div class="imp-grid">${res.brushes.map((b, i) => `<button type="button" class="imp-card" data-i="${i}" title="${esc(b.name)}">
           <canvas></canvas><span class="imp-name">${esc(b.name)}</span>${b.notes.length ? `<i class="imp-note" title="${esc('Not carried over: ' + b.notes.join(', '))}">!</i>` : ''}<i class="imp-tick">${icon('check', 12)}</i></button>`).join('')}</div>
         <p class="imp-empty muted small" hidden>No brush has that name.</p>
+        <div class="imp-foot"><label class="imp-group" title="The group the brushes go into in the Brushes window and the Brush row: the pack's own name, or one you already have">Add to group
+          <input type="text" class="imp-group-name" list="imp-groups" value="${esc(res.name)}" spellcheck="false" data-own-enter></label>
+          <datalist id="imp-groups">${presetGroups(this.brushLib.presets).map(g => `<option value="${esc(groupLabel(g.name))}">`).join('')}</datalist></div>
         <p class="muted small">Click the brushes to keep (Shift+click picks a range). Size, opacity, spacing, tip, pen pressure, texture and wet mixing come with them; Procreate settings are approximate, so check the size after importing.${lost.length ? ` <span title="${esc(lost.map(([t, c]) => `${t}: ${c}`).join(', '))}">Some brushes lose a setting KoeStudio does not have (marked !).</span>` : ''}</p>
       </div>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'Import', primary: true }],
@@ -649,6 +653,7 @@ export const brushMethods = {
           cards.forEach((c, i) => c.classList.toggle('on', picked.has(i)));
           count.textContent = `${picked.size} of ${n} picked`;
           ok.textContent = picked.size ? `Import ${picked.size}` : 'Import';
+          ok.disabled = !picked.size;
         };
         // strokes are drawn for cards in view, a few per frame
         const todo = new Set();
@@ -687,8 +692,10 @@ export const brushMethods = {
         root.querySelector('[data-imp="none"]').onclick = () => { shown.forEach(i => picked.delete(i)); update(); };
         update();
       },
-      collect: () => {
-        if (!picked.size) { toast('Click the brushes you want to import first.'); return undefined; }
+      collect: back => {
+        if (!picked.size) return undefined;
+        const g = back.querySelector('.imp-group-name').value.trim();
+        group = g === groupLabel('') ? '' : g || res.name;
         return [...picked].sort((a, b) => a - b).map(i => res.brushes[i]);
       },
     });
@@ -715,7 +722,7 @@ export const brushMethods = {
       return;
     }
     const presets = chosen.map(b => ({
-      id: newId(), name: b.name, source: res.name,
+      id: newId(), name: b.name, ...(group ? { source: group } : {}),
       settings: applySettings({ ...base }, { ...b.settings,
         tip: b.tip != null ? `img:${saved.get(b.tip)}` : 'round', texture: b.texture != null ? `img:${saved.get(b.texture)}` : 'none',
         ...(b.dual != null ? { dualTip: `img:${saved.get(b.dual)}` } : {}) }),

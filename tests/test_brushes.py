@@ -350,6 +350,22 @@ class ProcreateReader(unittest.TestCase):
         self.assertEqual(first['settings']['tip'], 'round')
         self.assertEqual(first['notes'], ["Its tip is one of Procreate's own and is not in the file"])
 
+    def test_reset_copies_combined_brushes_and_blank_names(self):
+        # as Procreate lays out a set: each brush with a Reset/ copy, a combined brush's second brush in Sub01/
+        data = make_zip({
+            'brushset.plist': plistlib.dumps({'name': 'Mini Watercolor', 'brushes': ['U1', 'U2']}, fmt=plistlib.FMT_BINARY),
+            'U1/Brush.archive': keyed_archive({'name': 'Grainy Pencil'}),
+            'U1/Reset/Brush.archive': keyed_archive({'name': 'Grainy Pencil'}),
+            'U1/Sub01/Brush.archive': keyed_archive({'name': 'Jolly 2'}),
+            'U1/Sub01/Reset/Brush.archive': keyed_archive({'name': 'Dry & Bold 1'}),
+            'U2/Brush.archive': keyed_archive({'name': '   '}),
+            'U2/Reset/Brush.archive': keyed_archive({'name': '      '}),
+        })
+        res = bi.import_brushes('Mini Watercolor.brushset', data)
+        self.assertEqual([b['name'] for b in res['brushes']], ['Grainy Pencil', 'Mini Watercolor 2'], 'a blank name is numbered after the set')
+        self.assertEqual(res['brushes'][0]['notes'], ['The second brush it is combined with (Jolly 2)'])
+        self.assertEqual(res['brushes'][1]['notes'], [])
+
     def test_not_brushes(self):
         with self.assertRaisesRegex(ValueError, 'no Procreate brushes'):
             bi.import_brushes('x.brush', make_zip({'readme.txt': b'hi'}))
