@@ -86,6 +86,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- The Canvas brush texture looks like fine primed linen instead of a regular grid or net, so strokes show the tooth of the canvas rather than a pattern.
 - Small strokes with a hairy tip (Dry brush, Bristles, or an imported tip) no longer break up into a chain pattern.
 - Watercolour strokes no longer show a pattern of beads along their length.
 - Closing an artwork gives back its memory straight away instead of holding a few hundred MB for a while.

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeTone, defaultTone, toneDensity, densityGray, applyTone, TONE_SHAPES, toneLpi, cellForLpi, toneFadeLine } from '../web/js/tone.js';
-import { textureTile, valueNoise, hash01, grooveAlpha, TEXTURES, TILE } from '../web/js/textures.js';
+import { textureTile, valueNoise, hash01, grooveAlpha, canvasWeave, TEXTURES, TILE, WARP, WEFT } from '../web/js/textures.js';
 import { sanitizeSettings } from '../web/js/tools.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
@@ -108,7 +108,7 @@ test('noise tiles join up seamlessly', () => {
   // on lattice points the stretched noise is the hash of that point: (8, 3) with 4 x 1 cells is lattice (2, 3)
   near(valueNoise(8, 3, 4, 64, 5, 1), hash01(2, 3, 5), 1e-12);
   // across the tile's wrap-around edge the values change no more than between neighbours inside it
-  for (const id of ['paper', 'coldpress', 'rough']) {
+  for (const id of ['paper', 'coldpress', 'rough', 'canvas']) {
     const t = textureTile(id);
     let wrap = 0, inside = 0;
     for (let y = 0; y < TILE; y++) {
@@ -118,6 +118,41 @@ test('noise tiles join up seamlessly', () => {
     assert.ok(wrap < inside * 2, `${id}: wrap ${wrap} vs inside ${inside}`);
   }
   for (let i = 0; i < 50; i++) { const h = hash01(i, -i, 3); assert.ok(h >= 0 && h < 1); }
+});
+
+test('canvas texture: a fine weave, not a grid', () => {
+  // the weave height repeats every tile both ways (thread counts are whole and even, the wobble is tile noise)
+  for (const [x, y] of [[0, 0], [3.3, 7.9], [250.5, 13], [100, 255.5]]) {
+    near(canvasWeave(x + TILE, y), canvasWeave(x, y), 1e-9, 'across');
+    near(canvasWeave(x, y + TILE), canvasWeave(x, y), 1e-9, 'down');
+    near(canvasWeave(x - TILE, y - 2 * TILE), canvasWeave(x, y), 1e-9, 'any whole tile');
+  }
+  assert.ok(WARP % 2 === 0 && WEFT % 2 === 0 && WARP !== WEFT, 'even counts (over-under joins up), not square');
+  const t = textureTile('canvas');
+  let mean = 0;
+  for (const v of t) mean += v / t.length;
+  // primed: more tooth tops than grooves, so a light stroke keeps most of its paint
+  assert.ok(mean > 128 && mean < 190, `mean ${mean}`);
+  // correlation of the tile with itself shifted by (dx, dy)
+  const corr = (dx, dy) => {
+    let s = 0, v = 0;
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const a = t[y * TILE + x] - mean;
+        s += a * (t[((y + dy) % TILE) * TILE + (x + dx) % TILE] - mean); v += a * a;
+      }
+    }
+    return s / v;
+  };
+  // threads every 256 / 52 = 4.9 px across and 256 / 46 = 5.6 px down: one thread over, the bumps line up again
+  // (lag 5 and 6), half a thread over they do not (lag 3)
+  assert.ok(corr(5, 0) > 0.3 && corr(5, 0) > corr(3, 0) + 0.15, `across ${corr(5, 0)} vs ${corr(3, 0)}`);
+  assert.ok(corr(0, 6) > 0.3 && corr(0, 6) > corr(0, 3) + 0.15, `down ${corr(0, 6)} vs ${corr(0, 3)}`);
+  // ten threads on (49 px across, 56 px down) the threads have wandered and thickened differently, so the weave no
+  // longer lines up: a regular grid (the old 8 px blocks) correlated 0.95 with itself 16 or 48 px on
+  assert.ok(Math.abs(corr(49, 0)) < 0.25, `10 threads across ${corr(49, 0)}`);
+  assert.ok(Math.abs(corr(0, 56)) < 0.25, `10 threads down ${corr(0, 56)}`);
+  assert.ok(Math.abs(corr(48, 0)) < 0.25 && Math.abs(corr(0, 48)) < 0.25, 'no 48 px repeat');
 });
 
 test('groove alpha', () => {

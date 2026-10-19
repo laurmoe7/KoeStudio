@@ -51,6 +51,50 @@ function normalize(vals, curve) {
   return out;
 }
 
+// Primed canvas: thread counts per tile (even, so the over-under parity joins up at the tile edge). Warp and weft
+// differ a little, as on real linen, so the bumps never line up into a square grid.
+export const WARP = 52, WEFT = 46;
+
+/** Smooth 1D value noise along a thread: t in cells, repeating every `period` cells; `row` picks the thread. */
+function threadNoise(t, period, row, seed) {
+  const k = Math.floor(t), f = smooth(t - k);
+  const a = hash01(mod(k, period), row, seed), b = hash01(mod(k + 1, period), row, seed);
+  return a + (b - a) * f;
+}
+
+/**
+ * Height of primed plain-weave canvas at (x, y), about 0.5-2.4 (stretched to 0-255 by textureTile). Warp threads run
+ * down, weft threads across, and at each crossing one is on top (the warp where i + j is even). The threads wander
+ * a few px (seamless domain warp), each has its own thickness with slubs along it, and the gesso adds a fine tooth
+ * of its own, so a stroke shows tooth rather than a grid; the tile repeats every `size` px both ways.
+ */
+export function canvasWeave(x, y, size = TILE) {
+  const wx = x + 6 * (valueNoise(x, y, 64, size / 64, 81) - 0.5) + 3 * (valueNoise(x, y, 16, size / 16, 82) - 0.5);
+  const wy = y + 6 * (valueNoise(x, y, 64, size / 64, 83) - 0.5) + 3 * (valueNoise(x, y, 16, size / 16, 84) - 0.5);
+  const u = wx * WARP / size, v = wy * WEFT / size;   // in threads
+  const i = Math.floor(u), j = Math.floor(v);
+  // each crossing shows the thread on top as a soft oval bump, longer along that thread; the bumps of neighbouring
+  // crossings (turned the other way) overlap into the gaps beside it, so the deep pits are only where four
+  // crossings meet and no groove runs on as a line
+  let h = 0;
+  for (let cj = j - 1; cj <= j + 1; cj++) {
+    for (let ci = i - 1; ci <= i + 1; ci++) {
+      const iw = mod(ci, WARP), jw = mod(cj, WEFT), warpOnTop = !((ci + cj) & 1);
+      // thickness: per thread, slubs along it (16 per tile), and a little per crossing
+      const t = (warpOnTop
+        ? 0.85 + 0.15 * hash01(iw, 1, 85) + 0.3 * (threadNoise(wy * 16 / size, 16, iw, 86) - 0.5)
+        : 0.85 + 0.15 * hash01(1, jw, 87) + 0.3 * (threadNoise(wx * 16 / size, 16, jw, 88) - 0.5))
+        * (0.92 + 0.16 * hash01(iw, jw, 90));
+      const du = u - ci - 0.4 - 0.2 * hash01(iw, jw, 91), dv = v - cj - 0.4 - 0.2 * hash01(iw, jw, 92);
+      const [along, across] = warpOnTop ? [dv, du] : [du, dv];
+      h += t * Math.exp(-along * along / 0.7 - across * across / 0.16);
+    }
+  }
+  // the gesso's own fine tooth on top
+  return h + 0.45 * valueNoise(x, y, 2, size / 2, 89) + 0.35 * valueNoise(x, y, 4, size / 4, 93)
+    + 0.2 * valueNoise(x, y, 8, size / 8, 94);
+}
+
 /** The gray values (size * size, row by row) of a texture, or null for 'none'. Always the same for an id. */
 export function textureTile(id, size = TILE) {
   if (!TEXTURE_IDS.has(id) || id === 'none') return null;
@@ -66,10 +110,7 @@ export function textureTile(id, size = TILE) {
         // rounded bumps of a few pixels, grooves between them
         v = fbm(x, y, size, [[8, 0.6], [4, 0.25], [32, 0.15]], 23);
       } else if (id === 'canvas') {
-        // a plain weave: blocks of 8 px alternate between horizontal and vertical threads
-        const across = ((x >> 3) + (y >> 3)) & 1;
-        const t = ((across ? y : x) % 8 + 0.5) / 8;
-        v = 0.75 * Math.sin(Math.PI * t) + 0.25 * valueNoise(x, y, 2, size / 2, 37);
+        v = canvasWeave(x, y, size);
       } else if (id === 'rough') {
         v = fbm(x, y, size, [[16, 0.45], [8, 0.3], [2, 0.25]], 41);
       } else {
@@ -81,7 +122,7 @@ export function textureTile(id, size = TILE) {
   const curve = {
     paper: t => smooth(Math.max(0, Math.min(1, (t - 0.25) * 1.9))),  // mostly tops, sharp-edged pits
     coldpress: t => smooth(Math.min(1, t * 1.15)),
-    canvas: t => t,
+    canvas: t => smooth(Math.min(1, t * 1.15)),  // primed: the tops are flat, the pits narrow
     rough: t => smooth(Math.max(0, Math.min(1, (t - 0.3) * 2.5))),  // hard-edged chalky patches
     noise: t => t,
   }[id];
