@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Spacing can go as low as 0.5%, for brushes whose dabs must sit very close together.
 - Squash jitter and Random flip (Brush settings → Tip): each dab is squashed or mirrored at random, so tip pictures such as fur or leaves don't repeat the same way.
 - Imported Photoshop brushes bring their Color Dynamics (hue, saturation and brightness jitter), roundness jitter and flip jitter; imported Procreate brushes bring their flip and roundness jitter.
 - Taper size and Taper opacity (Brush settings → Stroke): choose how thin the tapered ends of a stroke get and how much they fade.
@@ -12,6 +13,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Imported Photoshop brushes with long, thin tips (rakes) paint solid lines instead of rows of dots: their spacing is now measured as Photoshop does, from the tip's short side.
 - Imported Procreate brushes get the size they have in Procreate, using the brush's own minimum and maximum size; most used to come in a few pixels wide.
 - A Procreate pack's title cards (a logo or a "free sample" banner shown as a brush) are no longer imported as brushes.
 - Combined brushes whose second brush is bigger now fit inside their preview stroke.

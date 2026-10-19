@@ -198,6 +198,7 @@ def _num(v, default=None):
 
 # ---------- Photoshop ABR ----------
 
+MIN_SPACING = 0.005  # KoeStudio's smallest Spacing (a share of the brush size)
 DIRECTION, INITIAL_DIRECTION, PEN_PRESSURE = 6, 5, 2  # 'bVTy' controls: off, fade, pressure, tilt, wheel, ...
 
 
@@ -309,7 +310,7 @@ def _abr_old(r, version, filename):
             name = name or f'Brush {i + 1}'
             images.append({'kind': 'tip', 'name': name, 'png': data_url(png_bytes(w, h, bytes(w * h), alpha)), 'white': False})
             out.append({'name': name, 'tip': len(images) - 1, 'texture': None, 'notes': [], 'settings': {
-                'size': _clamp(max(w, h), 1, 1000), 'spacing': _clamp((spacing or 25) / 100, 0.02, 1), 'hardness': 1}})
+                'size': _clamp(max(w, h), 1, 1000), 'spacing': round(_clamp((spacing or 25) / 100 * min(w, h) / max(w, h, 1), MIN_SPACING, 1), 4), 'hardness': 1}})
         r.p = after
     return {'name': _stem(filename), 'brushes': out, 'images': images}
 
@@ -339,6 +340,10 @@ def _abr_brushes(samples, patterns, desc, filename):
             name = b.get('Nm  ') if isinstance(b.get('Nm  '), str) else f'Brush {i + 1}'
             settings, notes, sid, tex, dual_sid = _abr_settings(b)
             tip = tip_image(sid, name) if sid in samples else None
+            if 'spacing' in settings:  # KoeStudio's spacing is a share of the long side: a rake's dabs must sit as close
+                w, h = samples[sid][:2] if tip is not None else (1, 1)
+                short = min(w, h) / max(w, h, 1) * settings.get('thickness', 1)
+                settings['spacing'] = round(_clamp(settings['spacing'] * short, MIN_SPACING, 1), 4)
             dual = tip_image(dual_sid, f'{name} (dual)') if dual_sid in samples else None
             if dual_sid and dual is None:
                 settings['dualTip'] = 'round'
@@ -382,7 +387,8 @@ def _abr_settings(b):
         s['size'] = round(_clamp(dm, 1, 1000), 1)
     sp = _num(shape.get('Spcn'))
     if sp is not None:
-        s['spacing'] = round(_clamp(sp / 100 if shape.get('Intr', True) else 0.1, 0.02, 1), 3)
+        # a share of the tip's short side, as Photoshop measures it (made a share of the long side in _abr_brushes)
+        s['spacing'] = sp / 100 if shape.get('Intr', True) else 0.1
     ang = _num(shape.get('Angl'))
     if ang is not None:
         s['tipAngle'] = round(-ang) % 360  # Photoshop turns counter-clockwise

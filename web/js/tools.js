@@ -99,7 +99,7 @@ export const SETTING_FIELDS = [
   ['reach', 'Pull range', 'range', 2, 400, 1],
   ['strength', 'Strength', 'range', 0.01, 1, 0.01],
   ['hardness', 'Hardness', 'range', 0, 1, 0.01],
-  ['spacing', 'Spacing', 'range', 0.02, 1, 0.01],
+  ['spacing', 'Spacing', 'range', 0.005, 1, 0.005],
   ['minSize', 'Min. size', 'range', 0, 1, 0.01],
   ['smoothing', 'Stabilization', 'range', 0, 20, 1],
   ['gamma', 'Pressure', 'range', 0.3, 3, 0.05],

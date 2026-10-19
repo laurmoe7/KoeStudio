@@ -176,7 +176,8 @@ class AbrReader(unittest.TestCase):
         self.assertNotIn('Dual brush', chalk['notes'])
         pencil = res['brushes'][0]
         self.assertEqual(pencil['settings'], {
-            'size': 30, 'spacing': 0.15, 'tipAngle': 330, 'thickness': 0.5, 'hardness': 1,  # 30° counter-clockwise
+            # 30° counter-clockwise; spacing 15% of the short side: the 3 x 2 tip at 50% roundness is 1/3 as high as wide
+            'size': 30, 'spacing': 0.05, 'tipAngle': 330, 'thickness': 0.5, 'hardness': 1,
             'pressureSize': True, 'minSize': 0.25, 'sizeJitter': 0.1, 'tipRandom': 0.4, 'tipFollow': True,
             'pressureOpacity': True, 'minFlow': 0.2, 'flowJitter': 0, 'scatter': 1.5,  # scatter 150% of the diameter
             'textureAmount': 0.6, 'textureScale': 2, 'textureInvert': True, 'opacity': 0.8, 'flow': 0.5, 'gamma': 1})
@@ -191,6 +192,15 @@ class AbrReader(unittest.TestCase):
         self.assertEqual(px[0::2], bytes(6), 'black')
         self.assertEqual(png_pixels(from_url(res['images'][2]['png']))[3][1::2], b'\xab\x12', '16-bit: high bytes')
         self.assertEqual(png_pixels(from_url(res['images'][1]['png'])), (2, 2, 0, bytes([10, 20, 30, 40])))
+
+    def test_spacing_is_a_share_of_the_short_side(self):
+        # a rake: a 1008 x 23 tip with 6% spacing has its dabs 6% of 23 px apart, which is 0.137% of its length; the
+        # smallest KoeStudio spacing is 0.5%
+        samples = {'r': (1008, 23, bytes(1008 * 23)), 'b': (200, 100, bytes(200 * 100))}
+        brush = lambda sid, sp: {'Nm  ': sid, 'Brsh': {'_class': 'sampledBrush', 'sampledData': sid, 'Dmtr': {'unit': '#Pxl', 'value': 700},
+                                                      'Spcn': {'unit': '#Prc', 'value': sp}}}
+        res = bi._abr_brushes(samples, {}, {'Brsh': [brush('r', 6), brush('b', 50)]}, 'Rakes.abr')
+        self.assertEqual([b['settings']['spacing'] for b in res['brushes']], [0.005, 0.25], '200 x 100 at 50%: a quarter of the long side')
 
     def test_colour_dynamics_flip_and_roundness(self):
         prc = lambda v: {'unit': '#Prc', 'value': v}
@@ -218,7 +228,7 @@ class AbrReader(unittest.TestCase):
         res = bi.import_brushes('old.abr', data)
         self.assertEqual(res['brushes'][0]['settings'], {'size': 12, 'spacing': 0.25, 'hardness': 0.5, 'thickness': 0.8, 'tipAngle': 315, 'tip': 'round'})
         self.assertEqual(res['brushes'][1]['name'], 'Old')
-        self.assertEqual(res['brushes'][1]['settings'], {'size': 2, 'spacing': 0.3, 'hardness': 1})
+        self.assertEqual(res['brushes'][1]['settings'], {'size': 2, 'spacing': 0.15, 'hardness': 1})
         self.assertEqual(png_pixels(from_url(res['images'][0]['png']))[3][1::2], b'\x10\x20')
 
     def test_damaged(self):

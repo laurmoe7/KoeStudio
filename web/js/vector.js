@@ -26,7 +26,7 @@ export const MIN_WIDTH = 0.1, MAX_WIDTH = 5;
 
 /** Brush settings a vector line keeps, with [default, min, max] for numbers, or a default for the rest. */
 const NUM = {
-  size: [6, 0.5, 1000], flow: [1, 0.01, 1], hardness: [1, 0, 1], spacing: [0.08, 0.02, 1], minSize: [0.15, 0, 1],
+  size: [6, 0.5, 1000], flow: [1, 0.01, 1], hardness: [1, 0, 1], spacing: [0.08, 0.005, 1], minSize: [0.15, 0, 1],
   minFlow: [0, 0, 1], gamma: [1, 0.3, 3], thickness: [1, 0.05, 1], tipAngle: [0, 0, 360], tipRandom: [0, 0, 1], roundJitter: [0, 0, 1],
   scatter: [0, 0, 2], count: [1, 1, 16], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500], taperSize: [1, 0, 1], taperOpacity: [0, 0, 1],
   textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4], wetEdges: [0, 0, 1], impasto: [0, 0, 1], dryOut: [0, 0, 1],
