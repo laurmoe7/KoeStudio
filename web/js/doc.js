@@ -123,13 +123,23 @@ class Raster {
     }
     return this.png;
   }
+  /**
+   * Draws a saved picture into the raster; false when it cannot be read. A damaged picture leaves the raster empty
+   * but is kept as it was, so saving writes it back unchanged until the raster is painted on.
+   */
   async loadPng(png) {
-    if (!png) return;
-    const img = await loadImage(png);
-    await img.decode().catch(() => {});  // decoded off the page, so drawing it does not stall
-    this.ctx.drawImage(img, 0, 0);
+    if (!png) return true;
+    let ok = true;
+    try {
+      const img = await loadImage(png);
+      await img.decode().catch(() => {});  // decoded off the page, so drawing it does not stall
+      this.ctx.drawImage(img, 0, 0);
+    } catch {
+      ok = false;
+    }
     this.png = png;
     this.pngVersion = this.version;
+    return ok;
   }
   copyFrom(other) {
     this.ctx.drawImage(other.canvas, 0, 0);
@@ -310,13 +320,15 @@ export class Doc {
     d.timelapse = s.timelapse;
     // the tree is built first and every picture decoded at once (the browser decodes them in parallel, off the page)
     const loads = [];
+    d.unreadable = [];  // names of layers (or masks) whose picture could not be read: they open empty
+    const load = (r, png, name) => loads.push(r.loadPng(png).then(ok => { if (!ok) d.unreadable.push(name); }));
     const build = (src, parent) => {
       const n = src.type === 'folder' ? new Folder(src) : new Layer(d.width, d.height, src);
       if (src.type === 'folder') for (const c of src.children) build(c, n);
-      else loads.push(n.loadPng(src.png));
+      else load(n, src.png, src.name);
       if (src.mask) {
         n.mask = new Mask(d.width, d.height, src.mask.enabled);
-        loads.push(n.mask.loadPng(src.mask.png));
+        load(n.mask, src.mask.png, `${src.name} (mask)`);
       }
       insertNode(parent, parent.children.length, n);
     };

@@ -163,6 +163,10 @@ export class Editor {
     window.addEventListener('koe-theme', this.onTheme);
     if (isNew) this.save();
     else this.setStatus('Saved');
+    if (doc.unreadable?.length) {
+      const names = doc.unreadable.slice(0, 3).map(n => `"${n}"`).join(', ') + (doc.unreadable.length > 3 ? ` and ${doc.unreadable.length - 3} more` : '');
+      toast(`The picture of ${names} could not be read, so it shows empty. It is kept as it was unless you paint on it; File → Earlier versions… may have a good copy.`, { error: true, ms: 12000 });
+    }
   }
 
   destroy() {
