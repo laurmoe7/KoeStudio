@@ -16,7 +16,7 @@ import { trimmedSnapshot, drawSnapshot, snapBytes } from '../snapshot.js';
 import { gradientChoices } from '../gradient.js';
 import { mipLevel, mipSize, mipRect } from '../mips.js';
 import { Selection } from '../selection.js';
-import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
+import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize } from '../tools.js';
 import { esc, toast, menu, openMenuOwner, modal, promptBox, fileToDataUrl, store } from '../ui.js';
 import { exportMethods } from './exporttools.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, fitRectView, actualSize, pinchView } from '../view.js';
@@ -36,6 +36,8 @@ import { figureMethods } from './figuretool.js';
 import { quickMaskMethods } from './quickmask.js';
 import { navMethods } from './navpanels.js';
 import { helpMenuItems } from './help.js';
+import { keyBindings, toolKeyLabel } from './shortcutsdialog.js';
+import { toolForCombo, menuKeyLabel } from '../shortcuts.js';
 import { vectorMethods } from './vectortools.js';
 import { refMethods } from './reftools.js';
 import { smudgeMethods } from './smudgetool.js';
@@ -107,6 +109,12 @@ export class Editor {
     this.quickMask = null;  // the Mask tools paint on while Quick mask is on (quickmask.js)
     this.onKey = this.onKey.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
+    this.onShortcuts = () => {  // Help → Change shortcuts…: the tool bar's tooltips show the new keys
+      this.root.querySelectorAll('.tool-btn[data-tool]').forEach(b => {
+        const t = TOOL_BY_ID[b.dataset.tool], k = toolKeyLabel(t.id);
+        b.title = t.label + (k ? ` (${k})` : '');
+      });
+    };
     this.onPaste = this.onPaste.bind(this);
   }
 
@@ -146,6 +154,7 @@ export class Editor {
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('paste', this.onPaste);
     window.addEventListener('blur', this.onKeyUp);
+    window.addEventListener('koe-shortcuts', this.onShortcuts);
     if (isNew) this.save();
     else this.setStatus('Saved');
   }
@@ -158,6 +167,7 @@ export class Editor {
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('paste', this.onPaste);
     window.removeEventListener('blur', this.onKeyUp);
+    window.removeEventListener('koe-shortcuts', this.onShortcuts);
     this.resizeObs?.disconnect();
     this.refObs?.disconnect();
     clearTimeout(this.saveTimer);
@@ -197,7 +207,7 @@ export class Editor {
         <div class="ed-body">
           <nav class="ed-tools" aria-label="Tools">
             ${TOOLS.map((t, i) => (i && TOOLS[i - 1].group !== t.group ? '<span class="tool-sep"></span>' : '') +
-              `<button class="tool-btn" data-tool="${t.id}" title="${esc(t.label)} (${t.key.toUpperCase()})" aria-label="${esc(t.label)}">${icon(t.icon, 22)}</button>`).join('')}
+              `<button class="tool-btn" data-tool="${t.id}" title="${esc(t.label)}${toolKeyLabel(t.id) ? ` (${esc(toolKeyLabel(t.id))})` : ''}" aria-label="${esc(t.label)}">${icon(t.icon, 22)}</button>`).join('')}
           </nav>
           <aside class="ed-left">
             <section class="panel grow" data-panel="tool"><h3><button class="panel-head" title="Tool property: the settings of the current tool">${icon('chevron', 12)}<span class="tool-title">Tool</span></button></h3><div class="tool-props"></div></section>
@@ -262,7 +272,7 @@ export class Editor {
     const bar = [...this.root.querySelectorAll('[data-menu]')];
     const openBar = (b, byKey = false) => {
       this.finishTransform();
-      menu(b, this.menuItems(b.dataset.menu), { onSide: dir => openBar(bar[(bar.indexOf(b) + dir + bar.length) % bar.length], true) });
+      menu(b, withKeyLabels(this.menuItems(b.dataset.menu)), { onSide: dir => openBar(bar[(bar.indexOf(b) + dir + bar.length) % bar.length], true) });
       if (byKey) document.querySelector('.menu button:not(:disabled)')?.focus();
     };
     for (const b of bar) {
@@ -1929,7 +1939,8 @@ export class Editor {
       if (!this.gesture) c === 'enter' ? this.applyCrop() : this.selectTool('pen');
       return;
     }
-    const t = toolForKey(c, this.tool);
+    const { table } = keyBindings();  // the keys in use (Help → Change shortcuts…)
+    const t = toolForCombo(table, c, this.tool);
     if (t) {
       if (e.repeat) return;  // a held key: not one tool after the other (G is Fill, Gradient and Lasso fill)
       const from = this.tool;
@@ -1938,41 +1949,38 @@ export class Editor {
       return;
     }
     const s = this.settings[this.tool];
-    const map = {
-      '[': () => s.size && this.setSize(nextSize(s.size, -1)),
-      ']': () => s.size && this.setSize(nextSize(s.size, 1)),
-      'x': () => this.colors.swap(),
-      'q': () => this.toggleQuickMask(),
-      'shift+m': () => this.flipView(),
-      'ctrl+a': () => this.selectAll(), 'ctrl+d': () => this.deselect(), 'ctrl+shift+i': () => this.invertSelection(),
-      'ctrl+t': () => this.beginTransform(),
-      'ctrl+alt+0': () => this.zoomToSelection(), 'ctrl+alt+c': () => this.canvasSizeDialog(), 'ctrl+alt+i': () => this.imageSizeDialog(),
-      'ctrl+2': () => this.toggleSnap(), 'ctrl+;': () => this.toggleRulerVisibility(), "ctrl+'": () => this.toggleGrid(),
-      'ctrl+c': () => this.copySelection(), 'ctrl+x': () => this.copySelection(true),
-      'ctrl+j': () => this.layerViaCopy(), 'ctrl+shift+j': () => this.layerViaCopy(true),
-      '4': () => this.rotate(-15), '6': () => this.rotate(15), '5': () => this.rotate(null),
-      'delete': () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
-      'backspace': () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
-      'alt+delete': () => this.fillLayer(), 'alt+backspace': () => this.fillLayer(),
-      'alt+shift+delete': () => this.fillLayer(true), 'alt+shift+backspace': () => this.fillLayer(true),
-      'ctrl+z': () => this.undo(), 'ctrl+y': () => this.redo(), 'ctrl+shift+z': () => this.redo(),
-      'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'), 'ctrl+alt+shift+s': () => this.exportAs(),
-      'ctrl+e': () => this.mergeDown(), 'ctrl+alt+shift+e': () => this.mergeVisible(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
-      'ctrl+f': () => this.repeatFilter(),
-      'f2': () => this.renameLayer(), 'tab': () => this.togglePanels(),
-      'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
-      'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
-      ',': () => this.stepFrame(-1), '.': () => this.stepFrame(1),
-      'alt+,': () => this.setFrameHold(null, -1), 'alt+.': () => this.setFrameHold(null, 1),
+    const acts = {
+      sizeDown: () => s.size && this.setSize(nextSize(s.size, -1)),
+      sizeUp: () => s.size && this.setSize(nextSize(s.size, 1)),
+      swapColors: () => this.colors.swap(),
+      quickMask: () => this.toggleQuickMask(),
+      mirrorView: () => this.flipView(),
+      selectAll: () => this.selectAll(), deselect: () => this.deselect(), invertSelection: () => this.invertSelection(),
+      transform: () => this.beginTransform(),
+      zoomSelection: () => this.zoomToSelection(), canvasSize: () => this.canvasSizeDialog(), imageSize: () => this.imageSizeDialog(),
+      snap: () => this.toggleSnap(), guides: () => this.toggleRulerVisibility(), grid: () => this.toggleGrid(),
+      copy: () => this.copySelection(), cut: () => this.copySelection(true),
+      layerCopy: () => this.layerViaCopy(), layerCut: () => this.layerViaCopy(true),
+      rotateLeft: () => this.rotate(-15), rotateRight: () => this.rotate(15), rotateReset: () => this.rotate(null),
+      clear: () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
+      fillMain: () => this.fillLayer(), fillSub: () => this.fillLayer(true),
+      undo: () => this.undo(), redo: () => this.redo(),
+      save: () => this.save(), exportPng: () => this.exportAs('png'), export: () => this.exportAs(),
+      mergeDown: () => this.mergeDown(), mergeVisible: () => this.mergeVisible(), newLayer: () => this.layerAdd(), groupFolder: () => this.groupIntoFolder(),
+      repeatFilter: () => this.repeatFilter(),
+      renameLayer: () => this.renameLayer(), panels: () => this.togglePanels(),
+      fit: () => this.fit(), actual: () => this.actual(), zoomIn: () => this.zoomStep(1), zoomOut: () => this.zoomStep(-1),
+      prevFrame: () => this.stepFrame(-1), nextFrame: () => this.stepFrame(1),
+      holdLess: () => this.setFrameHold(null, -1), holdMore: () => this.setFrameHold(null, 1),
     };
     // Ctrl+V pastes what was copied in KoeStudio (in place), unless the user has been in another program since;
     // then the browser's paste event brings in the image from the system clipboard instead (onPaste)
     if (c === 'ctrl+v' && this.clipboard?.fresh) { e.preventDefault(); if (!this.gesture) this.pasteInternal(); return; }
+    let fn = acts[(table.get(c) || []).find(id => acts[id])];
     if (this.tool === 'move') {  // arrows nudge the layer or the selected pixels (Shift: 10 px)
       const step = e.shiftKey ? 10 : 1, a = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] }[c.replace('shift+', '')];
-      if (a) map[c] = () => this.nudgeLayer(...a);
+      if (a) fn = () => this.nudgeLayer(...a);
     }
-    const fn = map[c];
     if (fn) { e.preventDefault(); if (!this.gesture) fn(); }
   }
 
@@ -1994,7 +2002,7 @@ export class Editor {
 
   onKeyUp(e) {
     const sp = this.spring;
-    if (sp && (e?.type === 'blur' || e?.key?.toLowerCase() === sp.key)) {
+    if (sp && (e?.type === 'blur' || e?.key?.toLowerCase() === sp.key.split('+').pop())) {
       // spring-loaded tools: hold E to erase a moment, let go and the pen is back (a quick tap just switches)
       this.spring = null;
       if (e.type === 'keyup' && springBack(e.timeStamp - sp.at, sp.used) && this.tool !== sp.from) {
@@ -2012,6 +2020,12 @@ export class Editor {
     else return;
     this.drawOverlay();
   }
+}
+
+/** Menu items with their key labels following the user's shortcuts (Help → Change shortcuts…). */
+function withKeyLabels(items) {
+  const { binds } = keyBindings();
+  return items.map(it => (it && typeof it === 'object' ? { ...it, ...(it.key ? { key: menuKeyLabel(it.key, binds) } : {}), ...(it.sub ? { sub: withKeyLabels(it.sub) } : {}) } : it));
 }
 
 // The size slider is logarithmic, so small sizes get most of its length.

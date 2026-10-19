@@ -512,6 +512,14 @@ export const GUIDE = [
       <li><b>Hide panels</b> <kbd>Tab</kbd>: the tool bar and side panels go away so the canvas fills the window.
       Shortcuts still work. Press <kbd>Tab</kbd> again to bring them back.</li>
     </ul>
+    <h4>Your own shortcuts</h4>
+    <ol>
+      <li>Help → <b>Change shortcuts…</b></li>
+      <li>Click <b>Change</b> next to a tool or command (type in the box at the top to find it).</li>
+      <li>Press the key or combination you want, then <b>Save</b>.</li>
+    </ol>
+    <p class="tip">A key you take from another command is removed there, and the menus show your keys. Tools may
+    share a key: pressing it again switches between them, as <kbd>G</kbd> does for Fill and Gradient.</p>
     <h4>Undo</h4>
     <p><kbd>Ctrl+Z</kbd> undoes, <kbd>Ctrl+Y</kbd> redoes. The <b>History</b> panel lists every step: click one to
     jump back to it, or click a grayed-out step to redo up to it.</p>`],

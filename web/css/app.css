@@ -545,3 +545,16 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 .xf-nums label { display: flex; align-items: center; gap: 3px; }
 .xf-nums input { width: 58px; padding: 2px 4px; }
 .lapse-chip { background: #5a2a32; border-color: #b0505f; }
+
+/* Help → Change shortcuts… */
+.modal.wide:has(.sc-list) { width: min(760px, 94vw); }
+.sc-search { width: 100%; margin: 4px 0 8px; }
+.sc-list { max-height: 60vh; overflow-y: auto; padding-right: 4px; }
+.sc-group h4 { margin: 10px 0 4px; font-size: 13px; color: var(--accent); }
+.sc-row { display: grid; grid-template-columns: 1fr 180px auto; align-items: center; gap: 8px; padding: 3px 4px; border-radius: 4px; font-size: 13px; }
+.sc-row:hover { background: var(--panel-2); }
+.sc-row.rec { outline: 1px solid var(--accent); }
+.sc-keys kbd.key { display: inline-block; font: 12px "Segoe UI", sans-serif; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; line-height: 18px; margin-right: 3px; }
+.sc-btns { display: flex; gap: 4px; }
+.sc-btns button { font-size: 12px; padding: 2px 8px; }

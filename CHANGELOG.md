@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Change any keyboard shortcut: Help → Change shortcuts… gives a tool or command the key you press, and the menus show your keys.
 - New filters: Vignette, Emboss, Oil paint, Wave, Find edges, Grayscale and Auto contrast.
 - Filter → Render → Clouds fills with soft clouds from the main to the sub colour.
 - Filter → Color → Reduce to palette colors turns a picture into your palette's colours, with optional dithering, for pixel art.

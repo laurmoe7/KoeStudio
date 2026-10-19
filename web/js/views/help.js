@@ -6,12 +6,15 @@ import { GUIDE, SHORTCUTS, toolShortcuts, searchGuide } from '../guide.js';
 import { PICS } from '../guidepics.js';
 import { TOOLS } from '../tools.js';
 import { esc, modal, store, toast } from '../ui.js';
+import { keyBindings, shortcutEditor } from './shortcutsdialog.js';
+import { COMMANDS, comboLabel } from '../shortcuts.js';
 
 /** The Help menu (editor). */
 export function helpMenuItems() {
   return [
     { label: 'Guide', key: 'F1', run: () => guideDialog() },
     { label: 'Keyboard shortcuts', run: () => shortcutsDialog() },
+    { label: 'Change shortcuts…', run: () => shortcutEditor() },
     '-',
     { label: 'About KoeStudio', run: () => aboutDialog() },
   ];
@@ -81,12 +84,16 @@ export async function guideDialog(topic = null) {
 export function shortcutsDialog() {
   const table = (title, rows) => `<section class="keys-group"><h4>${esc(title)}</h4><table>${rows.map(([k, w]) =>
     `<tr><td>${k.split(' / ').map(x => `<kbd class="key">${esc(x)}</kbd>`).join(' / ')}</td><td>${esc(w)}</td></tr>`).join('')}</table></section>`;
+  const { custom, binds } = keyBindings();
+  // the tool keys as they are now; commands the user gave other keys are listed apart
+  const tools = TOOLS.map(t => ({ ...t, key: (binds.get('tool:' + t.id) || [])[0] || '' })).filter(t => t.key);
+  const mine = COMMANDS.filter(([id]) => id in custom).map(([id, , label]) => [binds.get(id).map(comboLabel).join(' / ') || 'none', label]);
   return modal({
     title: 'Keyboard shortcuts',
-    body: `<div class="keys">${table('Tools', toolShortcuts(TOOLS))}${SHORTCUTS.map(([g, rows]) => table(g, rows)).join('')}</div>`,
-    buttons: [{ label: 'Close', value: null, primary: true }],
+    body: `<div class="keys">${mine.length ? table('Your own keys', mine) : ''}${table('Tools', toolShortcuts(tools).map(([k, w]) => [comboLabel(k.toLowerCase()), w]))}${SHORTCUTS.map(([g, rows]) => table(g, rows)).join('')}</div>`,
+    buttons: [{ label: 'Change shortcuts…', value: 'change' }, { label: 'Close', value: null, primary: true }],
     wide: true,
-  });
+  }).then(v => { if (v === 'change') shortcutEditor(); });
 }
 
 /** Which version this is and where things are kept. */
