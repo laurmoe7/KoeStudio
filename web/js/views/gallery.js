@@ -9,16 +9,40 @@ import { guideDialog } from './help.js';
 import { esc, toast, modal, confirmBox, promptBox, fileToDataUrl, menu, store } from '../ui.js';
 import { galleryOrder, GALLERY_SORTS } from '../galleryorder.js';
 
-/** [label, width, height, dpi] */
+/** [label, width, height, dpi, group]: shown in the New canvas dialog under their group, in this order. */
 export const PRESETS = [
-  ['Full HD (1920 × 1080)', 1920, 1080, 72],
-  ['Square (2048 × 2048)', 2048, 2048, 72],
-  ['Illustration (3000 × 4000)', 3000, 4000, 350],
-  ['A4 at 300 dpi (2480 × 3508)', 2480, 3508, 300],
-  ['B5 manga page at 600 dpi (4299 × 6071)', 4299, 6071, 600],
-  ['Twitter / X post (1600 × 900)', 1600, 900, 72],
-  ['Icon (512 × 512)', 512, 512, 72],
+  ['Full HD (1920 × 1080)', 1920, 1080, 72, 'Screen'],
+  ['QHD (2560 × 1440)', 2560, 1440, 72, 'Screen'],
+  ['4K UHD (3840 × 2160)', 3840, 2160, 72, 'Screen'],
+  ['Phone wallpaper (1440 × 3200)', 1440, 3200, 72, 'Screen'],
+  ['Square (2048 × 2048)', 2048, 2048, 72, 'Screen'],
+  ['Large square (4096 × 4096)', 4096, 4096, 72, 'Screen'],
+  ['Icon (512 × 512)', 512, 512, 72, 'Screen'],
+  ['Illustration (3000 × 4000)', 3000, 4000, 350, 'Illustration'],
+  ['Large illustration (4500 × 6000)', 4500, 6000, 350, 'Illustration'],
+  ['Landscape illustration (4000 × 3000)', 4000, 3000, 350, 'Illustration'],
+  ['Character sheet (6000 × 3375)', 6000, 3375, 350, 'Illustration'],
+  ['A5 at 300 dpi (1748 × 2480)', 1748, 2480, 300, 'Print'],
+  ['A4 at 300 dpi (2480 × 3508)', 2480, 3508, 300, 'Print'],
+  ['A3 at 300 dpi (3508 × 4961)', 3508, 4961, 300, 'Print'],
+  ['US Letter at 300 dpi (2550 × 3300)', 2550, 3300, 300, 'Print'],
+  ['Postcard 10 × 15 cm at 300 dpi (1181 × 1772)', 1181, 1772, 300, 'Print'],
+  ['B5 manga page at 600 dpi (4299 × 6071)', 4299, 6071, 600, 'Print'],
+  ['Twitter / X post (1600 × 900)', 1600, 900, 72, 'Social media'],
+  ['Twitter / X header (1500 × 500)', 1500, 500, 72, 'Social media'],
+  ['Instagram square (1080 × 1080)', 1080, 1080, 72, 'Social media'],
+  ['Instagram portrait (1080 × 1350)', 1080, 1350, 72, 'Social media'],
+  ['Story / Reel (1080 × 1920)', 1080, 1920, 72, 'Social media'],
+  ['YouTube thumbnail (1280 × 720)', 1280, 720, 72, 'Social media'],
+  ['Profile picture (1000 × 1000)', 1000, 1000, 72, 'Social media'],
+  ['Emote / sticker (1024 × 1024)', 1024, 1024, 72, 'Social media'],
 ];
+
+/** The preset <option>s, in an <optgroup> per group. */
+function presetOptions() {
+  const groups = [...new Set(PRESETS.map(p => p[4]))];
+  return groups.map(g => `<optgroup label="${esc(g)}">${PRESETS.map((p, i) => p[4] === g ? `<option value="${i}">${esc(p[0])}</option>` : '').join('')}</optgroup>`).join('');
+}
 
 export async function showGallery(root, { onOpen }) {
   root.innerHTML = `
@@ -226,7 +250,7 @@ export function newCanvasDialog() {
     title: 'New canvas',
     body: `
       <label class="field"><span>Title</span><input type="text" name="title" value="Untitled" maxlength="120"></label>
-      <label class="field"><span>Preset</span><select name="preset">${PRESETS.map((p, i) => `<option value="${i}">${esc(p[0])}</option>`).join('')}<option value="custom">Custom</option></select></label>
+      <label class="field"><span>Preset</span><select name="preset">${presetOptions()}<option value="custom">Custom</option></select></label>
       <div class="field-row">
         <label class="field"><span>Width (px)</span><input type="number" name="w" min="1" max="${MAX_SIDE}" value="${PRESETS[0][1]}"></label>
         <label class="field"><span>Height (px)</span><input type="number" name="h" min="1" max="${MAX_SIDE}" value="${PRESETS[0][2]}"></label>

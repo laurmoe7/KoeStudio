@@ -9,7 +9,7 @@ export const GUIDE = [
   ['start', 'Getting started', `
     <p class="lead">KoeStudio opens on the <b>gallery</b>: all your artwork, newest first.</p>
     <ul>
-      <li><b>New canvas</b> starts a picture. Pick a size (Full HD, A4, square…) or type your own.</li>
+      <li><b>New canvas</b> starts a picture. Pick a size from the list (screen, illustration, print and social media sizes) or type your own.</li>
       <li><b>Open image or project…</b> turns a picture file into a new artwork, or opens a <code>.koe</code> file.</li>
       <li>Click a card to keep working on it. Its <b>⋯</b> menu renames, copies or deletes it.</li>
       <li>With more than one artwork, the <b>Search</b> box at the top finds them by title, and the list next to it
