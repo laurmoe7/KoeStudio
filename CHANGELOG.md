@@ -8,6 +8,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes get the size they have in Procreate, using the brush's own minimum and maximum size; most used to come in a few pixels wide.
 - A Procreate pack's title cards (a logo or a "free sample" banner shown as a brush) are no longer imported as brushes.
 - Combined brushes whose second brush is bigger now fit inside their preview stroke.
+- Imported Procreate brushes keep their Flow (Rendering), so brushes set below 100% no longer paint too dense.
 
 ## 2026-10-19
 

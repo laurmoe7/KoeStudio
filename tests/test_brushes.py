@@ -384,6 +384,10 @@ class ProcreateReader(unittest.TestCase):
         self.assertEqual(size(paintSize=0.0, maxSize=16.0, minSize=0.0), 1, 'never under 1 px')
         self.assertEqual(size(paintSize=1.0, maxSize=16.0), 1000, 'nor over 1000')
 
+    def test_rendering_flow_becomes_density(self):
+        self.assertEqual(bi._procreate_settings({'dynamicsGlazedFlow': 0.5})[0]['flow'], 0.5)
+        self.assertNotIn('flow', bi._procreate_settings({'dynamicsGlazedFlow': 1.0})[0], 'full flow: the default density')
+
     def test_title_cards_are_left_out(self):
         big, small = bi.png_bytes(1024, 8, bytes(1024 * 8)), bi.png_bytes(64, 64, bytes(64 * 64))
         data = make_zip({

@@ -630,6 +630,9 @@ def _procreate_settings(b):
     op = _pnum(b, 'paintOpacity')
     if op:
         s['opacity'] = round(_clamp(op, 0.01, 1), 2)
+    flow = _pnum(b, 'dynamicsGlazedFlow')
+    if flow is not None and flow < 1:  # Rendering → Flow: how much paint each stamp lays down, as Density does
+        s['flow'] = round(_clamp(flow, 0.01, 1), 2)
     sp = _pnum(b, 'plotSpacing')
     if sp is not None:
         s['spacing'] = round(_clamp(sp, 0.02, 1), 3)
