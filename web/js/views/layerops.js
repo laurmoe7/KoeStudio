@@ -101,7 +101,25 @@ export const layerMethods = {
       const { frames, bg, fg } = animFrames(d.root.children, d.anim);
       tops = new Set([frames[this.drawnFrame()], bg, fg].filter(Boolean));
     }
-    const px = r => r.ctx.getImageData(x, y, 1, 1).data;
+    // every pixel needed is copied side by side into one small canvas and read at once: reading the layers
+    // themselves would stall once per layer and make the browser move each one off the GPU
+    const shown = shownLayersTopFirst(d.root, tops), at = new Map();
+    const want = n => {
+      for (let m = n; m && m !== d.root; m = m.parent) if (m.mask?.enabled && !at.has(m.mask)) at.set(m.mask, at.size);
+      if (!isFolder(n) && !at.has(n)) at.set(n, at.size);
+    };
+    for (const l of shown) {
+      want(l);
+      const base = l.clip && clipBase(l);
+      if (base) want(base);
+    }
+    if (!at.size) return [];
+    const c = document.createElement('canvas');
+    c.width = at.size; c.height = 1;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    for (const [r, i] of at) ctx.drawImage(r.canvas, x, y, 1, 1, i, 0, 1, 1);
+    const all = ctx.getImageData(0, 0, at.size, 1).data;
+    const px = r => all.subarray(at.get(r) * 4, at.get(r) * 4 + 4);
     const hidden = n => {
       for (let m = n; m && m !== d.root; m = m.parent) if (m.mask?.enabled && px(m.mask)[3] > 200) return true;
       return false;
@@ -110,7 +128,7 @@ export const layerMethods = {
       const [r, g, b, a] = px(l);
       return l.tone ? toneDensity(r, g, b, a) > 0.02 : a > 12;
     };
-    return shownLayersTopFirst(d.root, tops).filter(l => {
+    return shown.filter(l => {
       if (l.opacity <= 0.02 || !paint(l) || hidden(l)) return false;
       const base = clipBase(l);
       return !l.clip || (base && !isFolder(base) && base.visible && paint(base) && !hidden(base));
