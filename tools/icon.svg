@@ -1,15 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -2 120 124">
   <!-- KoeStudio app icon: a chubby cow ("koe") holding a paint palette, in the style of the BiggTaal and
        Varken Sketchpad pigs (soft flat shapes, no tile). Strong colours rather than an outline make it stand out on
-       light backgrounds: grey spots, small pale pink horns, outlined ears (one grey), a warm shaded edge on the body and a shadow under the feet.
+       light backgrounds: grey spots, small pale pink horns, outlined ears (one grey), dark hooves, a warm shaded edge on the body and a shadow under the feet.
        The palette is held up at the side, clear of the feet. tools/make_icon.mjs renders it. -->
   <defs>
     <clipPath id="body"><ellipse cx="60" cy="70" rx="52" ry="40"/></clipPath>
   </defs>
   <!-- shadow on the ground -->
   <ellipse cx="60" cy="113" rx="42" ry="5" fill="#3a1a22" opacity=".2"/>
-  <!-- feet -->
-  <ellipse cx="42" cy="106" rx="11" ry="6.4" fill="#5d4037"/><ellipse cx="78" cy="106" rx="11" ry="6.4" fill="#5d4037"/>
+  <!-- feet: dark hooves with a cleft and a shine -->
+  <g stroke-linecap="round">
+    <ellipse cx="41" cy="106" rx="12.5" ry="7.2" fill="#5d4037" stroke="#3e2723" stroke-width="2"/>
+    <ellipse cx="79" cy="106" rx="12.5" ry="7.2" fill="#5d4037" stroke="#3e2723" stroke-width="2"/>
+    <path d="M41 108 V113 M79 108 V113" stroke="#3e2723" stroke-width="2"/>
+  </g>
   <!-- horns: small rounded pink nubs leaning outwards, a deeper pink band at the base and a soft shine -->
   <path d="M37.5 37 C33 31 33 24 37.5 21.5 C42 19.5 46.5 23 48 28.5 L50 34 Z" fill="#ffd3df" stroke="#f0a3b9" stroke-width="1.6" stroke-linejoin="round"/>
   <path d="M82.5 37 C87 31 87 24 82.5 21.5 C78 19.5 73.5 23 72 28.5 L70 34 Z" fill="#ffd3df" stroke="#f0a3b9" stroke-width="1.6" stroke-linejoin="round"/>
@@ -56,12 +60,26 @@
     <circle cx="6" cy="12" r="4.4" fill="#a66bff"/>
   </g>
   <!-- the hoof holding it from below -->
-  <ellipse cx="28" cy="95" rx="7.5" ry="9" transform="rotate(-20 28 95)" fill="#fff4ea" stroke="#d9b39b" stroke-width="2"/>
+  <g transform="rotate(-20 28 96)" stroke-linecap="round">
+    <clipPath id="hoofL"><rect x="18" y="97" width="20" height="14"/></clipPath>
+    <ellipse cx="28" cy="96" rx="8.5" ry="10" fill="#fff4ea" stroke="#d9b39b" stroke-width="2"/>
+    <g clip-path="url(#hoofL)">
+      <ellipse cx="28" cy="96" rx="8.5" ry="10" fill="#6d4c41" stroke="#3e2723" stroke-width="2"/>
+      <path d="M19.5 97 H36.5 M28 97 V105.5" stroke="#3e2723" stroke-width="1.8"/>
+    </g>
+  </g>
   <!-- brush held up in the right hoof, bristles out past the body -->
   <g transform="translate(92 94) rotate(32)">
     <rect x="-3" y="-40" width="6" height="34" rx="3" fill="#b06a35"/>
     <rect x="-3.6" y="-46" width="7.2" height="7" rx="1.5" fill="#b9c0cf"/>
     <path d="M-3.6 -46 q-1 -8 3.6 -14 q4.6 6 3.6 14 z" fill="#ff3f6c"/>
   </g>
-  <ellipse cx="91" cy="95" rx="7.5" ry="9.5" transform="rotate(24 91 95)" fill="#fff4ea" stroke="#d9b39b" stroke-width="2"/>
+  <g transform="rotate(24 91 96)" stroke-linecap="round">
+    <clipPath id="hoofR"><rect x="81" y="97" width="20" height="14"/></clipPath>
+    <ellipse cx="91" cy="96" rx="8.5" ry="10.5" fill="#fff4ea" stroke="#d9b39b" stroke-width="2"/>
+    <g clip-path="url(#hoofR)">
+      <ellipse cx="91" cy="96" rx="8.5" ry="10.5" fill="#6d4c41" stroke="#3e2723" stroke-width="2"/>
+      <path d="M82.5 97 H99.5 M91 97 V106.0" stroke="#3e2723" stroke-width="1.8"/>
+    </g>
+  </g>
 </svg>
