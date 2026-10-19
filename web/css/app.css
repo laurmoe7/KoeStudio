@@ -103,6 +103,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ed-title { background: transparent; border-color: transparent; font-weight: 600; margin-left: 10px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .save-state { min-width: 110px; text-align: right; padding-right: 6px; }
 .ed-body { flex: 1; display: flex; min-height: 0; }
+.ed-body.panels-hidden > .ed-tools, .ed-body.panels-hidden > .ed-left, .ed-body.panels-hidden > .ed-side { display: none; }
 .ed-tools { scrollbar-width: none; width: 48px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; overflow-y: auto; }
 .tool-sep { width: 26px; height: 1px; background: var(--line); margin: 5px 0; flex: none; }
 .tool-btn { width: 38px; height: 38px; padding: 0; justify-content: center; background: transparent; border-color: transparent; }

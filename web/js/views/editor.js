@@ -181,6 +181,7 @@ export class Editor {
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
           <button class="mask-chip" hidden title="Tools paint on the layer mask: painting hides, erasing shows. Click to paint on the layer again.">${icon('mask', 14)} Painting on mask</button>
           <button class="mask-chip tile-chip" hidden title="The canvas is shown repeated round itself, to check a pattern joins up. Click to turn it off.">Tile preview</button>
+          <button class="mask-chip panels-chip" hidden title="The tool bar and panels are hidden to give the canvas the room. Click or press Tab to show them again.">Panels hidden</button>
           <button class="mask-chip gray-chip" hidden title="The canvas is shown in grays to check light and dark (your colours are unchanged). Click to show colours again.">Grayscale view</button>
           <button class="mask-chip qmask-chip" hidden title="Tools paint the selection: painting selects, erasing deselects. Click (or press Q) to turn it into the selection.">${icon('mask', 14)} Quick mask</button>
           <div class="grow"></div>
@@ -278,6 +279,7 @@ export class Editor {
     $('.mask-chip:not(.qmask-chip)').onclick = () => this.editMask(false);
     $('.qmask-chip').onclick = () => this.toggleQuickMask();
     $('.gray-chip').onclick = () => this.toggleGrayView();
+    $('.panels-chip').onclick = () => this.togglePanels();
     $('.tile-chip').onclick = () => this.toggleTileView();
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.viewport);
@@ -398,6 +400,7 @@ export class Editor {
         { label: 'Zoom out', key: 'Ctrl+-', run: () => this.zoomStep(-1) },
         { label: 'Actual size (100%)', key: 'Ctrl+1', run: () => this.actual() },
         { label: 'Fit to window', key: 'Ctrl+0', run: () => this.fit() },
+        { label: 'Hide panels', key: 'Tab', checked: !!this.panelsHidden, run: () => this.togglePanels() },
         '-',
         { label: 'Rotate left', key: '4', run: () => this.rotate(-15) },
         { label: 'Rotate right', key: '6', run: () => this.rotate(15) },
@@ -704,6 +707,14 @@ export class Editor {
     this.grayView = !this.grayView;
     this.root.querySelector('.gray-chip').hidden = !this.grayView;
     this.render();
+  }
+
+  /** View → Hide panels (Tab): the tool bar and side panels make way for the canvas; floating windows stay. */
+  togglePanels() {
+    this.panelsHidden = !this.panelsHidden;
+    this.root.querySelector('.ed-body').classList.toggle('panels-hidden', this.panelsHidden);
+    this.root.querySelector('.panels-chip').hidden = !this.panelsHidden;
+    if (!this.panelsHidden) { this.navStale = true; this.scheduleNav(); }  // the Navigator was not drawn while hidden
   }
 
   toggleMaskOverlay() {
@@ -1908,7 +1919,7 @@ export class Editor {
       'ctrl+s': () => this.save(), 'ctrl+shift+s': () => this.exportAs('png'), 'ctrl+alt+shift+s': () => this.exportAs(),
       'ctrl+e': () => this.mergeDown(), 'ctrl+alt+shift+e': () => this.mergeVisible(), 'ctrl+shift+n': () => this.layerAdd(), 'ctrl+g': () => this.groupIntoFolder(),
       'ctrl+f': () => this.repeatFilter(),
-      'f2': () => this.renameLayer(),
+      'f2': () => this.renameLayer(), 'tab': () => this.togglePanels(),
       'ctrl+0': () => this.fit(), 'ctrl+1': () => this.actual(),
       'ctrl+=': () => this.zoomStep(1), 'ctrl+-': () => this.zoomStep(-1),
       ',': () => this.stepFrame(-1), '.': () => this.stepFrame(1),
