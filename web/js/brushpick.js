@@ -12,6 +12,11 @@ export function pickMatches(names, query) {
   return out;
 }
 
+/** The brushes the import window shows: those whose name matches the query and, with completeOnly, that lose nothing. */
+export function shownBrushes(brushes, query, completeOnly = false) {
+  return pickMatches(brushes.map(b => b.name), query).filter(i => !completeOnly || !brushes[i].notes?.length);
+}
+
 /**
  * Shift+click: the indices from the last clicked brush `from` to `to`, both included, in the order they are shown
  * (`shown`, a list of indices). Just [to] when `from` is not shown (or none was clicked yet).

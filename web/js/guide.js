@@ -146,7 +146,8 @@ export const GUIDE = [
       pick the brushes the search shows.</li>
       <li>Click <b>Import</b>.</li>
     </ol>
-    <p class="tip">A brush marked <b>!</b> has a setting KoeStudio does not have: point at the ! to see which. Each pack gets
+    <p class="tip">A brush marked <b>!</b> has a setting KoeStudio does not have: point at the ! to see which. Tick <b>Only
+    complete brushes</b> to leave those out (it stays ticked for the next pack). Each pack gets
     its own group in the Brushes window and the Brush row.</p>
     <h4>Tidying up your brushes</h4>
     <ol>

@@ -18,7 +18,7 @@ import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../
 import { BUILTIN_BY_ID, brushListGroups, brushChanged } from '../builtinbrushes.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 import { icon } from '../icons.js';
-import { PICK_ALL_UP_TO, pickMatches, rangePick, noteSummary } from '../brushpick.js';
+import { PICK_ALL_UP_TO, rangePick, noteSummary, shownBrushes } from '../brushpick.js';
 import { presetGroups, groupLabel } from '../brushorg.js';
 
 const newId = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -626,8 +626,9 @@ export const brushMethods = {
     const base = this.brushSettingsOf(TOOL_BY_ID.brush.defaults), ref = k => (temp.has(k) ? `img:${temp.get(k)}` : null);
     const looks = res.brushes.map(b => applySettings({ ...base }, { ...b.settings,
       tip: ref(b.tip) || 'round', texture: ref(b.texture) || 'none', ...(ref(b.dual) ? { dualTip: ref(b.dual) } : {}) }));
-    const n = res.brushes.length, picked = new Set(n <= PICK_ALL_UP_TO ? res.brushes.keys() : []);
-    const lost = noteSummary(res.brushes);
+    const lost = noteSummary(res.brushes), flawed = res.brushes.filter(b => b.notes.length).length;
+    let complete = !!store('importComplete') && flawed > 0;  // Only complete brushes: hide those marked !
+    const n = res.brushes.length, picked = new Set(n <= PICK_ALL_UP_TO ? shownBrushes(res.brushes, '', complete) : []);
     let observer = null, raf = 0, group = res.name;
     const chosen = await modal({
       title: `Import brushes from ${file.name}`,
@@ -635,6 +636,7 @@ export const brushMethods = {
       body: `<div class="imp">
         <div class="imp-bar"><input type="search" class="imp-search" placeholder="Search ${n} brush${n === 1 ? '' : 'es'}" aria-label="Search the brushes" spellcheck="false" data-own-enter>
           <button type="button" data-imp="all" title="Pick every brush shown">All</button><button type="button" data-imp="none" title="Pick none of the brushes shown">None</button>
+          ${flawed ? `<label class="check imp-complete" title="Hide the ${flawed} brush${flawed === 1 ? '' : 'es'} marked !, which lose a setting KoeStudio does not have (it is remembered for next time)"><input type="checkbox" data-complete${complete ? ' checked' : ''}> Only complete brushes</label>` : ''}
           <span class="imp-count muted small"></span></div>
         <div class="imp-grid">${res.brushes.map((b, i) => `<button type="button" class="imp-card" data-i="${i}" title="${esc(b.name)}">
           <canvas></canvas><span class="imp-name">${esc(b.name)}</span>${b.notes.length ? `<i class="imp-note" title="${esc('Not carried over: ' + b.notes.join(', '))}">!</i>` : ''}<i class="imp-tick">${icon('check', 12)}</i></button>`).join('')}</div>
@@ -681,16 +683,22 @@ export const brushMethods = {
           last = i;
           update();
         };
-        search.oninput = () => {
-          shown = pickMatches(res.brushes.map(b => b.name), search.value);
+        const filter = () => {
+          shown = shownBrushes(res.brushes, search.value, complete);
           const vis = new Set(shown);
           cards.forEach((c, i) => { c.hidden = !vis.has(i); });
+          if (complete) for (const i of [...picked]) if (res.brushes[i].notes.length) picked.delete(i);  // hidden brushes are not imported
           root.querySelector('.imp-empty').hidden = shown.length > 0;
-          root.querySelector('[data-imp="all"]').textContent = search.value.trim() ? `All ${shown.length}` : 'All';
+          root.querySelector('.imp-empty').textContent = search.value.trim() ? 'No brush has that name.' : 'Every brush in this file loses a setting.';
+          root.querySelector('[data-imp="all"]').textContent = search.value.trim() || complete ? `All ${shown.length}` : 'All';
+          update();
         };
+        search.oninput = filter;
+        const box = root.querySelector('[data-complete]');
+        if (box) box.onchange = () => { complete = box.checked; store('importComplete', complete); filter(); };
         root.querySelector('[data-imp="all"]').onclick = () => { shown.forEach(i => picked.add(i)); update(); };
         root.querySelector('[data-imp="none"]').onclick = () => { shown.forEach(i => picked.delete(i)); update(); };
-        update();
+        filter();
       },
       collect: back => {
         if (!picked.size) return undefined;

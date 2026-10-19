@@ -1,7 +1,7 @@
 // Picking brushes from an imported pack.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pickMatches, rangePick, noteSummary } from '../web/js/brushpick.js';
+import { pickMatches, rangePick, noteSummary, shownBrushes } from '../web/js/brushpick.js';
 
 test('search finds names with every word, in any case and order', () => {
   const names = ['Soft Pastel', 'Hard pastel', 'Ink pen', 'Pastel ink blend'];
@@ -9,6 +9,13 @@ test('search finds names with every word, in any case and order', () => {
   assert.deepEqual(pickMatches(names, 'INK pastel'), [3]);
   assert.deepEqual(pickMatches(names, '  '), [0, 1, 2, 3], 'an empty search shows everything');
   assert.deepEqual(pickMatches(names, 'chalk'), []);
+});
+
+test('only complete brushes: those that lose no setting', () => {
+  const brushes = [{ name: 'Wash', notes: [] }, { name: 'Wash grain', notes: ['Its grain'] }, { name: 'Ink' }, { name: 'Ink combo', notes: ['Combined'] }];
+  assert.deepEqual(shownBrushes(brushes, ''), [0, 1, 2, 3]);
+  assert.deepEqual(shownBrushes(brushes, '', true), [0, 2]);
+  assert.deepEqual(shownBrushes(brushes, 'ink', true), [2], 'with the search too');
 });
 
 test('Shift+click picks the brushes shown between the two clicks', () => {

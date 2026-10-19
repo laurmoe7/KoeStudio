@@ -586,6 +586,7 @@ svg.curve polyline { fill: none; stroke: var(--accent); stroke-width: 1.2; vecto
 .imp-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .imp-search { flex: 1; min-width: 0; max-width: 320px; }
 .imp-count { margin-left: auto; white-space: nowrap; }
+.imp-complete { white-space: nowrap; font-size: 13px; margin-left: 6px; }
 .imp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 56vh; overflow: auto; padding: 2px; align-content: start; }
 .imp-card { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 4px; text-align: left; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); }
 .imp-card:hover { border-color: var(--muted); }
