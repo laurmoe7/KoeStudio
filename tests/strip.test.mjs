@@ -7,6 +7,7 @@ import { icon } from '../web/js/icons.js';
 test('strip settings', () => {
   assert.deepEqual(sanitizeStrip(undefined), { on: null, side: 'right', collapsed: false }, 'nothing stored: not chosen, on the right');
   assert.deepEqual(sanitizeStrip({ on: false, side: 'left', collapsed: true }), { on: false, side: 'left', collapsed: true });
+  assert.equal(sanitizeStrip({ side: 'bottom' }).side, 'bottom', 'under the canvas');
   assert.deepEqual(sanitizeStrip({ on: 'yes', side: 'top', collapsed: 1 }), { on: null, side: 'right', collapsed: false }, 'odd values fall back');
   assert.deepEqual(sanitizeStrip('junk'), { on: null, side: 'right', collapsed: false });
 });

@@ -1,5 +1,5 @@
 // The shortcut strip (View → Shortcut strip): a column of big buttons beside the canvas for drawing on a pen tablet
-// without a keyboard (undo, redo, brush size, swap colours, hold to pick a colour, hold to move the view, fit).
+// without a keyboard, on the left, right or bottom of the canvas (undo, redo, brush size, swap colours, hold to pick a colour, hold to move the view, fit).
 // The buttons call the editor's own methods; the hold buttons set `this.held` like holding Alt / Space. A finger on
 // the strip never reaches the canvas's pointer handlers, so it cannot drop or end the pen's stroke there.
 // Settings in `koe.strip` (sanitizeStrip); `koe.penSeen` is set by the first pen or finger on the canvas.
@@ -30,6 +30,7 @@ export const stripMethods = {
       '-',
       { label: 'On the left', checked: s.side === 'left', run: () => this.setStripState({ side: 'left', on: true }) },
       { label: 'On the right', checked: s.side === 'right', run: () => this.setStripState({ side: 'right', on: true }) },
+      { label: 'At the bottom', checked: s.side === 'bottom', run: () => this.setStripState({ side: 'bottom', on: true }) },
       { label: 'Folded up', checked: s.collapsed, run: () => this.setStripState({ collapsed: !s.collapsed, on: true }) },
     ];
   },
@@ -47,12 +48,16 @@ export const stripMethods = {
     strip.hidden = false;
     strip.classList.toggle('collapsed', s.collapsed);
     strip.classList.toggle('left', s.side === 'left');
+    strip.classList.toggle('bottom', s.side === 'bottom');
+    strip.setAttribute('aria-orientation', s.side === 'bottom' ? 'horizontal' : 'vertical');
     const fold = strip.querySelector('.strip-fold');
     fold.title = s.collapsed ? 'Unfold the shortcut strip' : 'Fold the shortcut strip away';
     fold.setAttribute('aria-expanded', String(!s.collapsed));
-    const body = this.root.querySelector('.ed-body'), center = this.root.querySelector('.ed-center');
-    const before = s.side === 'left' ? center : center.nextSibling;
-    if (strip.nextSibling !== before || strip.parentNode !== body) body.insertBefore(strip, before);
+    // left / right: a column in .ed-body beside .ed-center; bottom: a row in .ed-center under the canvas
+    const center = this.root.querySelector('.ed-center');
+    const [parent, before] = s.side === 'bottom' ? [center, this.root.querySelector('.ed-timeline')]
+      : [this.root.querySelector('.ed-body'), s.side === 'left' ? center : center.nextSibling];
+    if (strip.nextSibling !== before || strip.parentNode !== parent) parent.insertBefore(strip, before);
     if (s.collapsed) this.releaseStripHolds();
   },
 

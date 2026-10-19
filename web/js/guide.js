@@ -509,7 +509,7 @@ export const GUIDE = [
       <li>The <b>shortcut strip</b> next to the canvas is for a pen tablet without a keyboard: undo, redo, smaller and
       bigger brush, swap colours and fit to window. Keep a finger on the eyedropper button to pick colours with the pen,
       or on the hand to move the view with it, just like holding <kbd>Alt</kbd> or <kbd>Space</kbd>. It shows once you
-      have used a pen or touch screen; View → <b>Shortcut strip</b> hides it, puts it on the other side or folds it up
+      have used a pen or touch screen; View → <b>Shortcut strip</b> hides it, puts it on the left, right or bottom, or folds it up
       (also the little arrow at its top).</li>
       <li><b>Tile preview</b> (View menu) repeats the picture all round itself on screen, to check that a pattern joins up
       without seams (Filter → Effects → Offset moves the seams into the middle to paint over them).</li>

@@ -125,6 +125,13 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ed-strip.collapsed .strip-fold { width: 24px; height: 56px; }
 .ed-strip.collapsed .strip-fold .icon { transform: rotate(90deg); }
 .ed-strip.collapsed.left .strip-fold .icon { transform: rotate(-90deg); }
+.ed-strip.bottom { width: auto; height: 60px; flex-direction: row; justify-content: center; padding: 0 8px; border-left: 0; border-right: 0; border-top: 1px solid var(--line); overflow: auto hidden; }
+.ed-strip.bottom .strip-sep { width: 1px; height: 32px; margin: 0 4px; }
+.ed-strip.bottom .strip-fold { width: 22px; height: 48px; }
+.ed-strip.bottom .strip-fold .icon { transform: none; }
+.ed-strip.bottom.collapsed { height: 26px; }
+.ed-strip.bottom.collapsed .strip-fold { width: 56px; height: 24px; }
+.ed-strip.bottom.collapsed .strip-fold .icon { transform: rotate(180deg); }
 .ed-viewport { --canvas-bg: #34353c; flex: 1; position: relative; overflow: hidden; background: var(--canvas-bg); touch-action: none; }
 .ed-viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* the canvas with the animation timeline under it */

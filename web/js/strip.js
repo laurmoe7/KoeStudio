@@ -23,13 +23,13 @@ export const REPEAT_DELAY = 450, REPEAT_EVERY = 110;  // ms before a held repeat
 
 /**
  * The stored strip settings (`koe.strip`): `on` is true / false once chosen in the View menu, null until then
- * (then it shows once a pen or finger has been used); `side` 'left' or 'right' of the canvas; `collapsed`.
+ * (then it shows once a pen or finger has been used); `side` 'left', 'right' or 'bottom' of the canvas; `collapsed`.
  */
 export function sanitizeStrip(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
   return {
     on: typeof r.on === 'boolean' ? r.on : null,
-    side: r.side === 'left' ? 'left' : 'right',
+    side: r.side === 'left' || r.side === 'bottom' ? r.side : 'right',
     collapsed: r.collapsed === true,
   };
 }
