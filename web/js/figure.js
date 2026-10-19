@@ -3,7 +3,7 @@
 // Polyline, polygon and the curves are clicked point by point instead of dragged (POLY_SHAPES); a curve passes
 // smoothly through its points (splinePoints).
 
-export const FIGURE_SHAPES = [['line', 'Straight line'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['regpoly', 'Regular polygon'], ['star', 'Star'],
+export const FIGURE_SHAPES = [['line', 'Straight line'], ['arrow', 'Arrow'], ['arrow2', 'Double arrow'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['regpoly', 'Regular polygon'], ['star', 'Star'],
   ['polyline', 'Polyline'], ['polygon', 'Polygon'],
   ['curve', 'Curve'], ['closedcurve', 'Closed curve']];
 
@@ -46,7 +46,7 @@ function catmullRom(p0, p1, p2, p3, u) {
 /** The second corner of the shape after Shift: the drag snapped to 45° (line) or to a square (rect, ellipse). */
 export function constrain(shape, a, b) {
   const dx = b.x - a.x, dy = b.y - a.y;
-  if (shape === 'line') {
+  if (shape === 'line' || shape === 'arrow' || shape === 'arrow2') {
     const len = Math.hypot(dx, dy), ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
     return { x: a.x + Math.cos(ang) * len, y: a.y + Math.sin(ang) * len };
   }
@@ -63,6 +63,7 @@ export function constrain(shape, a, b) {
  */
 export function figurePoints(shape, a, b, spacing = 1, corner = 0, sides = 5, depth = 0.5) {
   if (shape === 'line') return { points: [{ ...a }, { ...b }], closed: false };
+  if (shape === 'arrow' || shape === 'arrow2') return arrowPoints(a, b, shape === 'arrow2');
   const x0 = Math.min(a.x, b.x), y0 = Math.min(a.y, b.y), x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
   if (shape === 'regpoly' || shape === 'star') {
     const n = Math.max(3, Math.round(sides)), k = shape === 'star' ? 2 * n : n;
@@ -94,6 +95,21 @@ export function figurePoints(shape, a, b, spacing = 1, corner = 0, sides = 5, de
   const points = [];
   for (let i = 0; i < n; i++) { const t = (i / n) * Math.PI * 2; points.push({ x: cx + Math.cos(t) * rx, y: cy + Math.sin(t) * ry }); }
   return { points, closed: true };
+}
+
+/**
+ * An arrow from a to b as one open polyline: the shaft, then the head's two barbs at b (30° either side, a fifth of
+ * the length but at least 12 px, never more than 45% of it), drawn out and back along each barb. Double: a head at a too.
+ */
+export function arrowPoints(a, b, double = false) {
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (len < 1e-6) return { points: [{ ...a }, { ...b }], closed: false };
+  const head = Math.min(len * 0.45, Math.max(12, len * 0.2)), ang = Math.atan2(b.y - a.y, b.x - a.x), spread = Math.PI / 6;
+  const barbs = (p, dir) => [-1, 1].map(s => ({ x: p.x - Math.cos(dir + s * spread) * head, y: p.y - Math.sin(dir + s * spread) * head }));
+  const [l, r] = barbs(b, ang), points = [];
+  if (double) { const [la, ra] = barbs(a, ang + Math.PI); points.push(la, { ...a }, ra); }
+  points.push({ ...a }, { ...b }, l, { ...b }, r);
+  return { points, closed: false };
 }
 
 /** Where the figure lands (its box grown by half the brush size and a margin), for recompositing and undo. */

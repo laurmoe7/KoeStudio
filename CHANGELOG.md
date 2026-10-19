@@ -5,6 +5,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- The Figure tool draws arrows and double arrows.
+- Lasso fill can erase: tick Erase and draw round what should go.
 - A mixing strip in the Color panel shows nine shades between the main and sub colour to pick from.
 - Change any keyboard shortcut: Help → Change shortcuts… gives a tool or command the key you press, and the menus show your keys.
 - New filters: Vignette, Emboss, Oil paint, Wave, Find edges, Grayscale and Auto contrast.

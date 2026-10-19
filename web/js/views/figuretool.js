@@ -39,13 +39,13 @@ export const figureMethods = {
   figureDraw() {
     const g = this.gesture, s = g.s, ctx = this.strokeCtx;
     const b = g.shift ? constrain(s.figure, g.start, g.cur) : g.cur;
-    const r = figureBounds(g.start, b, s.size);
+    const { points, closed } = figurePoints(s.figure, g.start, b, s.size * SPACING, s.corner, s.sides, s.depth);
+    const r = union(figureBounds(g.start, b, s.size), pointsBounds(points, s.size));  // an arrow's head reaches past the box
     const area = union(g.bounds, r);
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(area.x, area.y, area.w, area.h);
-    const { points, closed } = figurePoints(s.figure, g.start, b, s.size * SPACING, s.corner, s.sides, s.depth);
     g.points = points;
     g.closed = closed;
     this.stampOutline(g.painter, s, g.layer, points, closed);

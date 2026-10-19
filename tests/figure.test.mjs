@@ -15,7 +15,7 @@ test('Shift constrains a line to 45° steps and a box to a square', () => {
 });
 
 test('figure outlines', () => {
-  assert.equal(FIGURE_SHAPES.length, 9);
+  assert.equal(FIGURE_SHAPES.length, 11);
   assert.deepEqual(figurePoints('line', { x: 1, y: 2 }, { x: 3, y: 4 }), { points: [{ x: 1, y: 2 }, { x: 3, y: 4 }], closed: false });
   assert.deepEqual(figurePoints('rect', { x: 5, y: 5 }, { x: 1, y: 2 }), { points: [{ x: 1, y: 2 }, { x: 5, y: 2 }, { x: 5, y: 5 }, { x: 1, y: 5 }], closed: true }, 'normalised corners');
   const e = figurePoints('ellipse', { x: 0, y: 0 }, { x: 20, y: 20 }, 1);
@@ -69,4 +69,18 @@ test('curves through clicked points', async () => {
   assert.deepEqual(splinePoints([{ x: 1, y: 2 }, { x: 3, y: 4 }], false), [{ x: 1, y: 2 }, { x: 3, y: 4 }], 'two points: a straight line');
   assert.equal(POLY_SHAPES.closedcurve, true);
   assert.ok(SMOOTH_SHAPES.has('curve') && !SMOOTH_SHAPES.has('polygon'));
+});
+
+test('arrows: the shaft, then the barbs drawn out and back', async () => {
+  const { arrowPoints, figurePoints, constrain } = await import('../web/js/figure.js');
+  const r1 = v => Math.round(v * 100) / 100;
+  const pts = arrowPoints({ x: 0, y: 0 }, { x: 100, y: 0 }).points.map(p => [r1(p.x), r1(p.y)]);
+  // head 20 px (a fifth of 100), 30° each side: 20 cos 30° = 17.32, 20 sin 30° = 10
+  assert.deepEqual(pts, [[0, 0], [100, 0], [82.68, 10], [100, 0], [82.68, -10]]);
+  const two = figurePoints('arrow2', { x: 0, y: 0 }, { x: 100, y: 0 }).points.map(p => [r1(p.x), r1(p.y)]);
+  assert.deepEqual(two.slice(0, 3), [[17.32, -10], [0, 0], [17.32, 10]], 'a head at the start too');
+  // 20 px long: the head is 45% of it, 9 px, so the barb ends 9 cos 30° = 7.79 px back from the tip
+  assert.equal(r1(arrowPoints({ x: 0, y: 0 }, { x: 20, y: 0 }).points[2].x), 12.21, 'short: the head is 45% of it');
+  const c = constrain('arrow', { x: 0, y: 0 }, { x: 10, y: 1 });
+  assert.equal(r1(c.y), 0, 'Shift snaps arrows like lines');
 });

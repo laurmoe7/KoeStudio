@@ -57,7 +57,8 @@ export const smudgeMethods = {
     if (!layer) return;
     this.resetStroke();
     this.gesture = { type: 'lassofill', tool: 'lassofill', id, layer, points: [pt], bounds: null };
-    this.live = { layer, canvas: this.stroke, alpha: this.settings.lassofill.opacity, mode: this.strokeMode(layer, false) };
+    const s = this.settings.lassofill;
+    this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, s.lassoErase) };
   },
 
   lassoFillDrag(pt) {
@@ -95,7 +96,8 @@ export const smudgeMethods = {
     const g = this.gesture;
     if (g.points.length < 3) { this.live = null; this.resetStroke(); this.updateComp(g.bounds); this.requestRender(); return; }
     this.lassoFillDraw();
-    this.commitStroke(g.layer, g.bounds, 'Lasso fill');
-    if (g.layer.kind !== 'mask') this.colors.used();
+    const erase = this.settings.lassofill.lassoErase;
+    this.commitStroke(g.layer, g.bounds, erase ? 'Lasso erase' : 'Lasso fill');
+    if (g.layer.kind !== 'mask' && !erase) this.colors.used();
   },
 };

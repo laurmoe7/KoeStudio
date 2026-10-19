@@ -192,12 +192,13 @@ export const GUIDE = [
       opacity. Saved gradients appear in the Colors list, and Gradient map uses them too.</li>
     </ul>
     <h4>Lasso fill</h4>
-    <p>Draw round an area and it fills with the main colour, like colouring in with a marker.</p>
+    <p>Draw round an area and it fills with the main colour, like colouring in with a marker. Tick <b>Erase</b> to
+    clear the area you draw round instead.</p>
     <p class="tip">With a selection, every fill stays inside it. Colouring under line art is shown step by step in <button type="button" class="guide-link" data-goto="first">Your first picture</button>.</p>`],
 
   ['shapes', 'Shapes and text', `
     <h4>Figure <kbd>U</kbd></h4>
-    <p>Drag to draw a <b>line</b>, <b>rectangle</b>, <b>ellipse</b>, <b>regular polygon</b> or <b>star</b>. Hold Shift
+    <p>Drag to draw a <b>line</b>, an <b>arrow</b> (or a double arrow, with a head at both ends), <b>rectangle</b>, <b>ellipse</b>, <b>regular polygon</b> or <b>star</b>. Hold Shift
     for a straight line, a square, a circle or an even shape. Tick <b>Fill the shape</b> for a solid shape;
     <b>Rounding</b> rounds a rectangle's corners, <b>Corners</b> sets how many sides or points, and <b>Star depth</b>
     how deep a star's points are cut.</p>
