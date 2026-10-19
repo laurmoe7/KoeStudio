@@ -14,7 +14,6 @@ export function helpMenuItems() {
   return [
     { label: 'Guide', key: 'F1', run: () => guideDialog() },
     { label: 'Keyboard shortcuts', run: () => shortcutsDialog() },
-    { label: 'Change shortcuts…', run: () => shortcutEditor() },
     '-',
     { label: 'About KoeStudio', run: () => aboutDialog() },
   ];

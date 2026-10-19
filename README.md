@@ -21,10 +21,11 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 
 ## Features
 
+- **Settings menu:** the app's colour theme, pen pressure, the shortcut strip and keyboard shortcuts (theme and shortcuts also from the Settings button on the start screen).
 - **Help menu:** **Guide** (F1, also a button in the gallery) explains every part of KoeStudio on short pages, with a search box; **Keyboard shortcuts** lists every key; **About KoeStudio** shows the version and where your artwork and settings are kept.
 - **Gallery** of your artwork with thumbnails, a search by title and sorting by last change, name or size; new canvas presets (Full HD, A4 and B5 at print resolution, square, icon) or any size up to 10,000 px, with a resolution (dpi) that shows the print size; open any image as a new artwork.
 - **Tools:** Pen, Pencil, Brush, Airbrush, Eraser, Smudge, Liquify, Blur, Dodge, Burn, Clone stamp, Fill, Gradient, Lasso fill, Figure, Text, Rectangle and Ellipse selection, Lasso, Polygon, Magic wand, Crop, Eyedropper, Move, Ruler, Hand. The **Tool property** panel next to the tool bar shows the current tool's settings; click its heading to fold it away. For the pen tools it keeps the basics (size, opacity, density, hardness, stabilization) and **Brush settings…** opens a floating window with every setting on pages (Paint, Tip, Pen pressure, Stroke, Variation, Texture), as Clip Studio Paint's Sub Tool Detail. You can paint with it open; drag it by its title bar. A preview stroke at its top shows every change at once. It remembers whether it was open, where, and the page.
-  - Pen pressure for size and density, with a pressure curve and a minimum size and density. **File → Pen pressure settings…** sets one pressure curve for every tool (Soft, Normal, Firm, your own, or fitted to a few test strokes on its pad).
+  - Pen pressure for size and density, with a pressure curve and a minimum size and density. **Settings → Pen pressure…** sets one pressure curve for every tool (Soft, Normal, Firm, your own, or fitted to a few test strokes on its pad).
   - Stabilization (smooths shaky lines), hardness, density, spacing. Each tool remembers its own settings.
   - **Brush textures:** paper, watercolor paper, canvas, chalk and noise grain, or your own texture image, with strength, size and invert. The grain is fixed to the canvas, so overlapping strokes share it like real paper. The Pencil has a paper grain by default.
   - **Hard pixels** (Brush settings → Tip): every dab is whole pixels with no soft edge, for pixel art; 1 px draws single pixels, 3 px a plus, bigger sizes pixel circles. Combine with the pixel grid (View) and hard-pixel Image size.
@@ -76,7 +77,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
 
 ## Shortcuts
 
-Every key below can be changed in **Help → Change shortcuts…** (click Change, press the new key); the menus show your keys.
+Every key below can be changed in **Settings → Keyboard shortcuts…** (click Change, press the new key); the menus show your keys.
 
 Hold a tool's key instead of tapping it to use that tool only until you let go (hold E, erase, release: back to the pen).
 

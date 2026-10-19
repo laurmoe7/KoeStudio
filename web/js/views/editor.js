@@ -36,7 +36,7 @@ import { figureMethods } from './figuretool.js';
 import { quickMaskMethods } from './quickmask.js';
 import { navMethods } from './navpanels.js';
 import { helpMenuItems } from './help.js';
-import { keyBindings, toolKeyLabel } from './shortcutsdialog.js';
+import { keyBindings, toolKeyLabel, shortcutEditor } from './shortcutsdialog.js';
 import { toolForCombo, menuKeyLabel } from '../shortcuts.js';
 import { vectorMethods } from './vectortools.js';
 import { refMethods } from './reftools.js';
@@ -91,7 +91,7 @@ export class Editor {
     this.onOpen = onOpen;  // opens another artwork in place of this one ({id} or {newDoc})
     this.settings = sanitizeSettings(store('tools'));
     this.initActions();  // Auto actions (actiontools.js): recording wraps some methods
-    this.loadPressureCurve();  // File → Pen pressure settings (pressuretool.js)
+    this.loadPressureCurve();  // Settings → Pen pressure (pressuretool.js)
     this.tool = TOOL_BY_ID[store('tool')] ? store('tool') : 'pen';
     this.history = new History();
     this.history.onChange = () => { this.updateUndoButtons(); this.scheduleHistory(); if (this.tool === 'lineedit') this.renderToolProps(); };
@@ -114,14 +114,14 @@ export class Editor {
     this.quickMask = null;  // the Mask tools paint on while Quick mask is on (quickmask.js)
     this.onKey = this.onKey.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
-    this.onShortcuts = () => {  // Help → Change shortcuts…: the tool bar's tooltips show the new keys
+    this.onShortcuts = () => {  // Settings → Keyboard shortcuts…: the tool bar's tooltips show the new keys
       this.root.querySelectorAll('.tool-btn[data-tool]').forEach(b => {
         const t = TOOL_BY_ID[b.dataset.tool], k = toolKeyLabel(t.id);
         b.title = t.label + (k ? ` (${k})` : '');
       });
       this.stripTitles();
     };
-    this.onTheme = () => this.resize();  // View → Theme: the area around the paper and the edge rulers take the new colours
+    this.onTheme = () => this.resize();  // Settings → Theme: the area around the paper and the edge rulers take the new colours
     this.onPaste = this.onPaste.bind(this);
   }
 
@@ -201,6 +201,7 @@ export class Editor {
           <button class="menu-btn" data-menu="layer">Layer</button>
           <button class="menu-btn" data-menu="filter">Filter</button>
           <button class="menu-btn" data-menu="view">View</button>
+          <button class="menu-btn" data-menu="settings">Settings</button>
           <button class="menu-btn" data-menu="help">Help</button>
           <button class="ed-title" title="Rename the artwork">${esc(doc.title)}</button>
           <button class="mask-chip" hidden title="Tools paint on the layer mask: painting hides, erasing shows. Click to paint on the layer again.">${icon('mask', 14)} Painting on mask</button>
@@ -353,7 +354,6 @@ export class Editor {
           { label: 'Discard timelapse…', run: () => this.discardTimelapse() },
         ] },
         { label: 'Open artwork folder', run: () => api.openFolder() },
-        { label: 'Pen pressure settings…', run: () => this.pressureDialog() },
         '-',
         { label: 'Back to gallery', run: () => this.goHome() },
       ],
@@ -402,6 +402,12 @@ export class Editor {
       ],
       filter: this.filterMenuItems(),
       help: helpMenuItems(),
+      settings: [
+        { label: 'Theme', sub: themeMenu() },
+        { label: 'Pen pressure…', run: () => this.pressureDialog() },
+        { label: 'Shortcut strip (pen tablets)', sub: this.stripMenu() },
+        { label: 'Keyboard shortcuts…', run: () => shortcutEditor() },
+      ],
       layer: [
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
         { label: 'New', sub: [
@@ -460,8 +466,6 @@ export class Editor {
           { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         ] },
         { label: 'Hide panels', key: 'Tab', checked: !!this.panelsHidden, run: () => this.togglePanels() },
-        { label: 'Theme', sub: themeMenu() },
-        { label: 'Shortcut strip (pen tablets)', sub: this.stripMenu() },
         '-',
         { label: 'Grid', key: "Ctrl+'", checked: d.rulers.grid.show, run: () => this.toggleGrid() },
         { label: 'Grid settings…', run: () => this.gridDialog() },
@@ -2001,7 +2005,7 @@ export class Editor {
       return;
     }
     if (this.findPick && c === 'escape') { e.preventDefault(); this.stopFindLayer(); return; }
-    const { table } = keyBindings();  // the keys in use (Help → Change shortcuts…)
+    const { table } = keyBindings();  // the keys in use (Settings → Keyboard shortcuts…)
     const t = toolForCombo(table, c, this.tool);
     if (t) {
       if (e.repeat) return;  // a held key: not one tool after the other (G is Fill, Gradient and Lasso fill)
@@ -2091,7 +2095,7 @@ export class Editor {
   }
 }
 
-/** Menu items with their key labels following the user's shortcuts (Help → Change shortcuts…). */
+/** Menu items with their key labels following the user's shortcuts (Settings → Keyboard shortcuts…). */
 function withKeyLabels(items) {
   const { binds } = keyBindings();
   return items.map(it => (it && typeof it === 'object' ? { ...it, ...(it.key ? { key: menuKeyLabel(it.key, binds) } : {}), ...(it.sub ? { sub: withKeyLabels(it.sub) } : {}) } : it));

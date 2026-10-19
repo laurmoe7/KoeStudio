@@ -1,4 +1,4 @@
-// File → Pen pressure settings…: one pressure curve for every tool (brush.js adjustPressure), kept per machine in
+// Settings → Pen pressure…: one pressure curve for every tool (brush.js adjustPressure), kept per machine in
 // koe.pressureCurve. The dialog has the curve (drag points; click to add one, right-click to remove it), ready-made
 // curves, and a pad to try it on: strokes there show the adjusted pressure as their width, and "Fit to my strokes"
 // makes a curve from how hard you pressed on the pad. Editor methods (mixed into Editor.prototype in editor.js).

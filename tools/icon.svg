@@ -1,9 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -2 120 124">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -9 137 137">
   <!-- KoeStudio app icon: a chubby cow ("koe") holding a paint palette, in the style of the BiggTaal and
-       Varken Sketchpad pigs (soft flat shapes, no tile). tools/make_icon.mjs renders it. -->
+       Varken Sketchpad pigs (soft flat shapes, no tile), with a dark outline all round so it stands out on light
+       backgrounds too. tools/make_icon.mjs renders it. -->
   <defs>
     <clipPath id="body"><ellipse cx="60" cy="70" rx="52" ry="40"/></clipPath>
+    <!-- the outline: the shape's alpha blurred and cut off low, so it grows by ~4 units with round corners -->
+    <filter id="outline" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.4"/>
+      <feComponentTransfer result="grown"><feFuncA type="linear" slope="30" intercept="-1.2"/></feComponentTransfer>
+      <feFlood flood-color="#4a302b"/>
+      <feComposite in2="grown" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
+  <g filter="url(#outline)">
   <!-- feet -->
   <ellipse cx="42" cy="106" rx="11" ry="6.4" fill="#8d6e63"/><ellipse cx="78" cy="106" rx="11" ry="6.4" fill="#8d6e63"/>
   <!-- horns -->
@@ -45,4 +55,5 @@
     <path d="M-3.6 -46 q-1 -8 3.6 -14 q4.6 6 3.6 14 z" fill="#ff6f8a"/>
   </g>
   <ellipse cx="91" cy="95" rx="7.5" ry="9.5" transform="rotate(24 91 95)" fill="#fff1e8" stroke="#ecd6c8" stroke-width="2"/>
+</g>
 </svg>

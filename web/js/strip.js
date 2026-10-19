@@ -1,4 +1,4 @@
-// The shortcut strip (View → Shortcut strip): big buttons beside the canvas for drawing on a pen tablet without a
+// The shortcut strip (Settings → Shortcut strip): big buttons beside the canvas for drawing on a pen tablet without a
 // keyboard. The editor side is views/striptool.js; this is the part without the DOM.
 
 /**

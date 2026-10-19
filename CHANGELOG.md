@@ -5,6 +5,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- A Settings menu holds the theme, pen pressure, the shortcut strip and keyboard shortcuts; on the start screen the Theme button became a Settings button.
+- The app icon has a dark outline, so the cow no longer fades into light backgrounds.
 - Wet edges (Brush settings → Paint): paint gathers at the edge of the stroke and the middle stays lighter, as watercolour does when it dries.
 - Watercolour now gives see-through washes with darker edges and a mottled grain, and strokes laid over each other get deeper. The Marker's ink gathers slightly at its edges.
 - Gouache covers flat and opaque, and runs dry into the paper grain at a light touch instead of looking sandy all over. The Dry brush leaves bristle streaks instead of scattered dots.

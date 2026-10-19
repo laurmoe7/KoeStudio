@@ -263,7 +263,7 @@ export function stampBounds(stamps, sizeAt) {
 }
 
 // ---------- pen pressure adjustment ----------
-// One curve for the whole program (File → Pen pressure settings…, kept in koe.pressureCurve) that every pen
+// One curve for the whole program (Settings → Pen pressure…, kept in koe.pressureCurve) that every pen
 // pressure passes through before any tool sees it, so a heavy or light hand can be matched once.
 
 /** Ready-made pressure curves: light pressure counts more (soft), as it comes (normal), or you press harder (firm). */

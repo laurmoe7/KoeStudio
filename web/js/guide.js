@@ -72,7 +72,7 @@ export const GUIDE = [
     </ul>
     <figure data-pic="stabilize"></figure>
     <h4>Pen pressure</h4>
-    <p>Lines too thin unless you press hard, or too thick at a light touch? File → <b>Pen pressure settings…</b> sets
+    <p>Lines too thin unless you press hard, or too thick at a light touch? Settings → <b>Pen pressure…</b> sets
     one curve for every tool. Pick Soft, Normal or Firm, drag the curve, or draw a few strokes on the test pad the way
     you usually draw and press <b>Fit to my strokes</b>.</p>
     <p class="tip">Each tool remembers its own settings, so the pen and the eraser each keep their own size.</p>`],
@@ -542,7 +542,7 @@ export const GUIDE = [
       <li>The <b>shortcut strip</b> next to the canvas is for a pen tablet without a keyboard: undo, redo, smaller and
       bigger brush, swap colours and fit to window. Keep a finger on the eyedropper button to pick colours with the pen,
       or on the hand to move the view with it, just like holding <kbd>Alt</kbd> or <kbd>Space</kbd>. It shows once you
-      have used a pen or touch screen; View → <b>Shortcut strip</b> hides it, puts it on the left, right or bottom, or folds it up. Choose <b>Floating</b> to drag it by its dotted grip to
+      have used a pen or touch screen; Settings → <b>Shortcut strip</b> hides it, puts it on the left, right or bottom, or folds it up. Choose <b>Floating</b> to drag it by its dotted grip to
       anywhere over the canvas; it stays where you put it
       (also the little arrow at its top).</li>
       <li><b>Tile preview</b> (View menu) repeats the picture all round itself on screen, to check that a pattern joins up
@@ -553,12 +553,12 @@ export const GUIDE = [
       <li>The <b>Navigator</b> shows the whole picture: click or drag in it to jump there.</li>
       <li><b>Hide panels</b> <kbd>Tab</kbd>: the tool bar and side panels go away so the canvas fills the window.
       Shortcuts still work. Press <kbd>Tab</kbd> again to bring them back.</li>
-      <li><b>Theme</b> (View menu, or the Theme button on the start screen) changes the colours of the app itself:
+      <li><b>Theme</b> (Settings menu, also on the start screen) changes the colours of the app itself:
       Midnight, Dusty rose, Lavender dusk, Moss, Deep sea, Cocoa or Ink black. Your artwork does not change.</li>
     </ul>
     <h4>Your own shortcuts</h4>
     <ol>
-      <li>Help → <b>Change shortcuts…</b></li>
+      <li>Settings → <b>Keyboard shortcuts…</b> (also on the start screen)</li>
       <li>Click <b>Change</b> next to a tool or command (type in the box at the top to find it).</li>
       <li>Press the key or combination you want, then <b>Save</b>.</li>
     </ol>

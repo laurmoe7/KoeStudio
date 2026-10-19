@@ -1,4 +1,4 @@
-// The shortcut strip (View → Shortcut strip): a column of big buttons beside the canvas for drawing on a pen tablet
+// The shortcut strip (Settings → Shortcut strip): a column of big buttons beside the canvas for drawing on a pen tablet
 // without a keyboard, on the left, right or bottom of the canvas or floating over it (undo, redo, brush size, swap colours, hold to pick a colour, hold to move the view, fit).
 // The buttons call the editor's own methods; the hold buttons set `this.held` like holding Alt / Space. A finger on
 // the strip never reaches the canvas's pointer handlers, so it cannot drop or end the pen's stroke there.
@@ -22,7 +22,7 @@ export const stripMethods = {
     this.applyStrip();
   },
 
-  /** View → Shortcut strip items. */
+  /** Settings → Shortcut strip items. */
   stripMenu() {
     const s = this.stripState(), shown = stripShown(s, store('penSeen'));
     return [
@@ -113,7 +113,7 @@ export const stripMethods = {
     if (this.stripState().on === null) window.addEventListener('pointerup', () => { if (!this.destroyed) this.applyStrip(); }, { once: true });
   },
 
-  /** The tooltips, with the user's own keys (Help → Change shortcuts…). */
+  /** The tooltips, with the user's own keys (Settings → Keyboard shortcuts…). */
   stripTitles() {
     if (!this.strip) return;
     const { binds } = keyBindings();

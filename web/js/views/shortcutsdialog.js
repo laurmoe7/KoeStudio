@@ -1,4 +1,4 @@
-// Help → Change shortcuts…: gives any command or tool the key you press. The keys in use come from keyBindings()
+// Settings → Keyboard shortcuts…: gives any command or tool the key you press. The keys in use come from keyBindings()
 // (worked out once from koe.shortcuts and kept until they change; the editor's onKey looks combos up in its table).
 
 import { COMMANDS, bindings, comboTable, sanitizeShortcuts, assignKey, comboLabel, bindable } from '../shortcuts.js';

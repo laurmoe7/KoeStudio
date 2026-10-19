@@ -6,6 +6,7 @@ import { Doc, MAX_SIDE, loadImage } from '../doc.js';
 import { DPI_MIN, DPI_MAX, sanitizeDpi, printLabel } from '../resolution.js';
 import { icon } from '../icons.js';
 import { guideDialog } from './help.js';
+import { shortcutEditor } from './shortcutsdialog.js';
 import { esc, toast, modal, confirmBox, promptBox, fileToDataUrl, menu, store, themeMenu } from '../ui.js';
 import { galleryOrder, GALLERY_SORTS } from '../galleryorder.js';
 
@@ -57,7 +58,7 @@ export async function showGallery(root, { onOpen }) {
         <button data-act="import">${icon('open', 16)} Open image or project…</button>
         <button data-act="deleted" title="Put back artwork you deleted">${icon('trash', 16)} Deleted</button>
         <button data-act="folder" title="Open the folder where artwork is saved">${icon('folder', 16)} Artwork folder</button>
-        <button data-act="theme" title="Colours of the app">${icon('theme', 16)} Theme</button>
+        <button data-act="settings" title="Theme and keyboard shortcuts">${icon('gear', 16)} Settings</button>
         <button data-act="guide" title="How KoeStudio works (F1)">${icon('help', 16)} Guide</button>
       </header>
       <div class="gal-grid" aria-live="polite"><p class="muted">Loading…</p></div>
@@ -69,7 +70,10 @@ export async function showGallery(root, { onOpen }) {
   root.querySelector('[data-act="import"]').onclick = () => importImage(onOpen);
   root.querySelector('[data-act="folder"]').onclick = () => api.openFolder();
   root.querySelector('[data-act="guide"]').onclick = () => guideDialog();
-  root.querySelector('[data-act="theme"]').onclick = e => menu(e.currentTarget, themeMenu());
+  root.querySelector('[data-act="settings"]').onclick = e => menu(e.currentTarget, [
+    { label: 'Theme', sub: themeMenu() },
+    { label: 'Keyboard shortcuts…', run: () => shortcutEditor() },
+  ]);
   root.querySelector('[data-act="deleted"]').onclick = async () => { if (await deletedDialog()) fillGrid(root, onOpen); };
   const search = root.querySelector('.gal-search'), sort = root.querySelector('.gal-sort');
   search.oninput = () => showCards(root, onOpen);
