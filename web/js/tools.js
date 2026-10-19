@@ -8,6 +8,7 @@ import { FIGURE_SHAPES } from './figure.js';
 import { LIQUIFY_MODES } from './liquify.js';
 import { sanitizeCurve } from './brush.js';
 import { imageRef } from './brushtip.js';
+import { COMBO_DEFAULTS, COMBO_MODES } from './combo.js';
 
 /** Where Fill and the Magic wand find their area. */
 export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['reference', 'Reference layers']];
@@ -20,13 +21,16 @@ function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0,
     tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false, refStop: false,
-    dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, mix: 0, mixStretch: 0.5, preset: '' };
+    dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, mix: 0, mixStretch: 0.5,
+    ...COMBO_DEFAULTS, preset: '' };
 }
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
 export const TIPS = [['round', 'Round'], ['bristle', 'Bristles']];
 /** The dual brush's tip: off, or a tip shape as for the main tip. Bristles: painter.js builtinTip, brushtip.js bristleDots. */
 export const DUAL_TIPS = [['none', 'Off'], ...TIPS];
+/** The combined brush's tip: off, or a tip shape as for the main tip. */
+export const COMBO_TIPS = [['none', 'Off'], ...TIPS];
 /** How the Eraser works on vector layers (vector.js eraseVector). */
 export const VECTOR_ERASE = [['area', 'Touched area'], ['intersection', 'Up to intersection'], ['line', 'Whole line']];
 
@@ -109,6 +113,22 @@ export const SETTING_FIELDS = [
   ['dualSize', 'Dual size', 'range', 0.05, 3, 0.01],
   ['dualSpacing', 'Dual spacing', 'range', 0.02, 2, 0.01],
   ['dualScatter', 'Dual scatter', 'range', 0, 3, 0.01],
+  ['comboTip', 'Second brush', 'choice', COMBO_TIPS],
+  ['comboMode', 'Combine', 'choice', COMBO_MODES],
+  ['comboSize', 'Size', 'range', 0.05, 3, 0.01],
+  ['comboFlow', 'Density', 'range', 0.01, 1, 0.01],
+  ['comboHardness', 'Hardness', 'range', 0, 1, 0.01],
+  ['comboSpacing', 'Spacing', 'range', 0.02, 1, 0.01],
+  ['comboThickness', 'Squash', 'range', 0.05, 1, 0.01],
+  ['comboAngle', 'Angle', 'range', 0, 360, 1],
+  ['comboRandom', 'Random turn', 'range', 0, 1, 0.01],
+  ['comboFollow', 'Turn with the stroke', 'check'],
+  ['comboScatter', 'Scatter', 'range', 0, 2, 0.01],
+  ['comboSizeJitter', 'Size jitter', 'range', 0, 1, 0.01],
+  ['comboPressureSize', 'Pressure → size', 'check'],
+  ['comboMinSize', 'Min. size', 'range', 0, 1, 0.01],
+  ['comboPressureFlow', 'Pressure → density', 'check'],
+  ['comboMinFlow', 'Min. density', 'range', 0, 1, 0.01],
   ['minFlow', 'Min. density', 'range', 0, 1, 0.01],
   ['scatter', 'Scatter', 'range', 0, 2, 0.01],
   ['count', 'Count', 'range', 1, 16, 1],
@@ -174,6 +194,8 @@ export const SETTING_GROUPS = [
   ['Variation', ['scatter', 'count', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert', 'grainPressure']],
   ['Dual brush', ['dualTip', 'dualSize', 'dualSpacing', 'dualScatter']],
+  ['Combined', ['comboTip', 'comboMode', 'comboSize', 'comboFlow', 'comboHardness', 'comboSpacing', 'comboThickness', 'comboAngle', 'comboRandom', 'comboFollow',
+    'comboScatter', 'comboSizeJitter', 'comboPressureSize', 'comboMinSize', 'comboPressureFlow', 'comboMinFlow']],
 ];
 
 /** Tooltips for the tool settings whose short label needs explaining. */
@@ -223,6 +245,12 @@ export const SETTING_HINTS = {
   tipAngle: 'Turns the tip (most useful with a squashed or image tip)',
   tipRandom: 'Turns each dab by a random amount, up to this share of a half turn either way',
   tipFollow: 'Turns the tip with the direction the stroke is going',
+  comboTip: 'A second brush painting along the same stroke, as in Procreate combined brushes: pick its tip to turn it on (Off: just one brush). Copy a brush… takes a whole brush',
+  comboMode: 'How the paint of the second brush goes over the first within the stroke: Normal on top, Multiply and Darken only darken, Screen and Lighten only lighten, Overlay deepens contrast',
+  comboSize: 'Size of the second brush, as a share of the brush size (so both grow and shrink together)',
+  comboFlow: 'How much paint each dab of the second brush lays down',
+  comboSpacing: 'Distance between the dabs of the second brush, as a share of its size',
+  comboScatter: 'Moves each dab of the second brush off the stroke by up to this many times its size',
   dualTip: 'A second tip stamped along the stroke: paint shows only where it lands, so the stroke breaks up like chalk, dry bristles or foliage',
   dualSize: 'Size of the dual tip, as a share of the brush size',
   dualSpacing: 'Distance between the dual tip\'s dabs, as a share of its size',
@@ -275,7 +303,7 @@ export function applySettings(s, from) {
     if (!(key in s) || !(key in from)) continue;
     const v = from[key];
     if (type === 'check') s[key] = !!v;
-    else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture' || key === 'dualTip') && imageRef(v)) || (key === 'colors' && isUserGradient(v))) s[key] = v; }
+    else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture' || key === 'dualTip' || key === 'comboTip') && imageRef(v)) || (key === 'colors' && isUserGradient(v))) s[key] = v; }
     else if (type === 'curve') s[key] = sanitizeCurve(v);
     else if (type === 'id') s[key] = typeof v === 'string' && /^(?:[0-9a-f]{0,32}|b-[a-z0-9-]{1,30})$/.test(v) ? v : '';  // saved, or built-in (builtinbrushes.js)
     else if (Number.isFinite(+v) && v !== null && v !== '') s[key] = Math.max(min, Math.min(max, +v));

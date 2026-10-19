@@ -690,3 +690,4 @@ body:has(.modal-back) > .menu { z-index: 110; }  /* a menu opened from a dialog 
 .cp-mix { display: flex; gap: 2px; margin-top: 6px; }
 .cp-mix button { flex: 1; height: 14px; padding: 0; border-radius: 2px; border: 1px solid #111; min-width: 0; }
 .cp-mix button.on { outline: 2px solid var(--accent); outline-offset: 0; }
+.bw-combo { display: flex; gap: 6px; padding: 8px 2px 2px; }

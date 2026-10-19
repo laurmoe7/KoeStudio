@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Combined brushes (Brush settings → Combined): a second brush paints along the same stroke, with its own tip, size, spacing and scatter, and a Combine mode (Multiply, Darken, Screen and more). Copy a brush… makes any brush the second one, and Procreate combined brushes now import with both halves.
 - Brush import: Only complete brushes hides and skips the brushes marked !, which lose a setting KoeStudio does not have. It stays on for the next import.
 - Brush import: choose which group the brushes go into (the pack's name, or a group you already have), and Import stays greyed out until you pick a brush.
 - Manage brushes (Brush ⋯ menu, or Manage… in the Brushes window): see all your brushes by group with their strokes, pick many at once to delete or move to another group, drag them into order, rename groups and brushes, and hide groups you don't use, built-in ones too.

@@ -532,13 +532,11 @@ def read_procreate(data, filename):
         # a brush without a name (or one of spaces) is called after the set, numbered
         name = b.get('name').strip() if isinstance(b.get('name'), str) and b.get('name').strip() else f'{set_name} {len(out) + 1}'
         settings, notes = _procreate_settings(b)
-        sub = posixpath.join(folder, 'Sub01', 'Brush.archive')
-        if sub in names:
-            try:
-                sub_name = str(_unarchive(plistlib.loads(z.read(sub))).get('name') or '').strip()
-            except Exception:
-                sub_name = ''
-            notes.append(f'The second brush it is combined with ({sub_name})' if sub_name else 'The second brush it is combined with')
+        combo = _procreate_combo(z, names, folder, b, images)
+        if combo is False:
+            notes.append('The second brush it is combined with')
+        elif combo and combo['tip'] is None and combo.pop('bundled', False):
+            notes.append("The tip of its second brush is one of Procreate's own and is not in the file")
         tip = texture = None
         shape, grain = posixpath.join(folder, 'Shape.png'), posixpath.join(folder, 'Grain.png')
         if shape in names:
@@ -555,10 +553,40 @@ def read_procreate(data, filename):
             settings.setdefault('textureAmount', 1)
         elif b.get('bundledGrainPath'):
             notes.append("Its grain is one of Procreate's own and is not in the file")
-        out.append({'name': name.strip()[:120], 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes})
+        entry = {'name': name.strip()[:120], 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes}
+        if combo:
+            combo.pop('bundled', None)
+            entry['combo'] = combo
+        out.append(entry)
     if not out:
         raise ValueError('The brushes in that file could not be read.')
     return {'name': set_name, 'brushes': out, 'images': images}
+
+
+# Procreate blend modes (as numbered in its files) -> the combine modes KoeStudio has; others paint as Normal
+PROCREATE_COMBINE = {1: 'multiply', 8: 'multiply', 10: 'multiply', 19: 'darken', 2: 'screen', 3: 'screen', 9: 'screen',
+                     4: 'lighten', 11: 'overlay', 12: 'overlay', 17: 'overlay'}
+
+
+def _procreate_combo(z, names, folder, b, images):
+    """A combined brush's second brush (Sub01/): {name, settings, tip (image index or None), mode}; None when the brush
+    is not combined, False when its second brush cannot be read."""
+    sub = posixpath.join(folder, 'Sub01', 'Brush.archive')
+    if sub not in names:
+        return None
+    try:
+        sb = _unarchive(plistlib.loads(z.read(sub)))
+    except Exception:
+        return False
+    settings, _ = _procreate_settings(sb)
+    sub_name = sb.get('name').strip() if isinstance(sb.get('name'), str) and sb.get('name').strip() else 'second brush'
+    shape, tip = posixpath.join(folder, 'Sub01', 'Shape.png'), None
+    if shape in names:
+        images.append({'kind': 'tip', 'name': sub_name, 'png': data_url(z.read(shape)), 'white': True, 'invert': bool(sb.get('shapeInverted'))})
+        tip = len(images) - 1
+    mode = b.get('dualBlendMode')
+    return {'name': sub_name, 'settings': settings, 'tip': tip, 'bundled': tip is None and bool(sb.get('bundledShapePath')),
+            'mode': PROCREATE_COMBINE.get(mode, 'normal') if isinstance(mode, int) and not isinstance(mode, bool) else 'normal'}
 
 
 def _procreate_extra(path):
@@ -620,7 +648,8 @@ def _procreate_settings(b):
     mix = _pnum(b, 'dynamicsMix')
     if mix:  # wet mix: the paint picks up the colours on the canvas
         s['mix'] = round(mix, 2)
-    wet = _pnum(b, 'dynamicsWetEdges')
+    # Procreate's Wet edges slider at full is a soft rim; KoeStudio's at full drains the whole middle, so it is halved
+    wet = _pnum(b, 'dynamicsWetEdges') or (_pnum(b, 'wetEdgesAmount') or 0) * 0.5
     if wet:
         s['wetEdges'] = round(wet, 2)
     return s, notes

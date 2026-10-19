@@ -12,6 +12,7 @@ import { icon } from '../icons.js';
 import { comboOf, isTyping, springBack } from '../keys.js';
 import { Painter, textureFor, grainFor, wetFor, hasTipImage, tipOutline } from '../painter.js';
 import { WetPaint, averageUnder, rgbHex } from '../wetmix.js';
+import { comboSettings, comboOp } from '../combo.js';
 import { union, clip } from '../rect.js';
 import { trimmedSnapshot, drawSnapshot, snapBytes } from '../snapshot.js';
 import { gradientChoices } from '../gradient.js';
@@ -1018,13 +1019,14 @@ export class Editor {
     const shapeOnly = { corner: ['rect'], sides: ['regpoly', 'star'], depth: ['star'] };
     return SETTING_FIELDS.filter(f => f[0] in s && f[2] !== 'id' && !(f[2] === 'curve' && !s[f[0]])
       && !(shapeOnly[f[0]] && 'figure' in s && !shapeOnly[f[0]].includes(s.figure))
-      && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureInvert'].includes(f[0])));
+      && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureInvert'].includes(f[0]))
+      && !(s.comboTip === 'none' && f[0].startsWith('combo') && f[0] !== 'comboTip'));  // the second brush's settings once it is on
   }
 
   /** Rows for some settings: sliders and choices first, the check boxes together under them. */
   settingsHtml(fs, s) {
     const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
-    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'dualTip' ? [['none', 'Off'], ...this.tipChoices()] : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : list;
+    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'dualTip' || key === 'comboTip' ? [['none', 'Off'], ...this.tipChoices()] : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : list;
     const row = ([key, label, type, min, max, step]) => type === 'curve'
       ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="Remove the curve (use the Pressure setting instead)">✕</button></div>`
       : type === 'choice'
@@ -1047,7 +1049,7 @@ export class Editor {
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged(k);
         if (k === 'sample' && (t.id === 'fill' || t.id === 'wand')) this.prepareSample(t.id);  // the other pixels, ready too
-        if (k === 'texture' || k === 'figure') this.renderToolProps();  // which settings show depends on these
+        if (k === 'texture' || k === 'figure' || k === 'comboTip') this.renderToolProps();  // which settings show depends on these
         else this.showSetting(k, inp);
         this.drawBrushPreview();
         this.drawGradientStrip();
@@ -1378,6 +1380,7 @@ export class Editor {
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
       raw: s.quickShape && !line ? [] : null,  // QuickShape: the pen's own path, to recognise a line or a loop
       dual: this.dualBrush(s, layer, sizeAt),  // the dual brush's own dabs, which the stroke shows through (or null)
+      combo: layer.vector ? null : this.comboBrush(s, color),  // the second brush of a combined brush (or null)
       vec: layer.vector ? [] : null,  // on a vector layer: the smoothed path, kept as a line at pen-up (vectortools.js)
       // Color mixing: each dab picks up the layer's colours as they were at pen-down (read tile by tile, wetmix.js)
       wet: s.mix > 0 && !tool.erase && layer.kind !== 'mask' && !layer.vector ? { cache: this.pixelCache(layer.canvas), copies: [] } : null,
@@ -1443,6 +1446,7 @@ export class Editor {
     g.smoother = new Smoother(0);
     g.prevStamp = null; g.dist = 0; g.held = []; g.bounds = null;
     if (g.wet) g.wet.copies = [];
+    if (g.combo) { g.combo.path = new StampPath(g.combo.sizeAt, g.combo.s.spacing); g.combo.painter.last = []; }
     g.painter.last = [];
     if (g.vec) g.vec = [];
     for (const pt of shapePoints(q.shape, q.p, 1)) this.addStampPoint(pt);
@@ -1457,7 +1461,7 @@ export class Editor {
     if (g.vec) g.vec.push(g.dyn ? [sp.x, sp.y, sp.p, Math.round((sp.t || 0) * 1000) / 1000, Math.round((sp.v || 0) * 1000) / 1000, sp.az ?? null] : [sp.x, sp.y, sp.p]);
     if (g.dual) this.addDualStamps(sp);
     const steps = g.path.add(sp);
-    if (!steps.length) return;
+    if (!steps.length) { if (g.combo) this.addComboStamps(sp); return; }
     const count = Math.max(1, Math.round(g.s.count || 1));
     const stamps = count === 1 ? steps : steps.flatMap(st => Array.from({ length: count }, () => ({ ...st })));
     stamps.forEach((st, n) => {  // distance along the stroke (for the taper) and random variation; symmetric copies share it
@@ -1483,6 +1487,44 @@ export class Editor {
       g.held = r.held;
       this.drawStamps(r.ready);
     } else this.drawStamps(stamps);
+    if (g.combo) this.addComboStamps(sp);  // after the first brush's dabs, so its combine mode goes over them
+  }
+
+  /**
+   * The second brush of a combined brush (Brush settings → Combined, combo.js): its own path, spacing, jitter and tip
+   * along the same smoothed points, dabbed into the stroke canvas in the stroke's colour with the comboMode operation.
+   */
+  comboBrush(s, color) {
+    const c = comboSettings(s);
+    if (!c) return null;
+    const sizeAt = p => stampAt(c, p).size;
+    return {
+      s: c, sizeAt, op: comboOp(s.comboMode), path: new StampPath(sizeAt, c.spacing),
+      painter: new Painter(this.strokeCtx, { color, hardness: c.hardness, tip: c.tip, thickness: c.thickness, angle: c.tipAngle,
+        random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel }),
+      reachAt: p => sizeAt(p) * tipReach(hasTipImage(c.tip)) * 2 * (1 + c.scatter),
+    };
+  }
+
+  addComboStamps(sp) {
+    const g = this.gesture, c = g.combo, stamps = c.path.add(sp);
+    if (!stamps.length) return;
+    for (const st of stamps) {
+      const j = dabJitter(c.s, c.sizeAt(st.p));
+      st.x += j.dx; st.y += j.dy; st.k = j.sizeK; st.f = j.flowK;
+    }
+    const all = symmetryStamps(this.doc.rulers.symmetry, stamps, this.doc.width, this.doc.height);
+    const per = all.length / stamps.length, ctx = this.strokeCtx;
+    ctx.globalCompositeOperation = c.op;
+    all.forEach((st, i) => {
+      const { size, flow } = stampAt(c.s, st.p);
+      c.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per);
+    });
+    ctx.globalCompositeOperation = 'source-over';
+    const r = stampBounds(all, c.reachAt);
+    g.bounds = union(g.bounds, r);
+    this.strokeVersion = (this.strokeVersion || 0) + 1;
+    this.updateComp(r);
   }
 
   /**
@@ -2115,8 +2157,8 @@ function fmt(key, v) {
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'mix', 'mixStretch'].includes(key)) return Math.round(v * 100) + '%';
-  if (key === 'tipAngle') return Math.round(v) + '°';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'mix', 'mixStretch'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
+  if (key === 'tipAngle' || key === 'comboAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);

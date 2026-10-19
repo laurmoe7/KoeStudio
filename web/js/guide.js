@@ -105,6 +105,10 @@ export const GUIDE = [
       90° each hair leaves its own streak, as a dry brush does.</li>
       <li><b>Dual brush</b>: a second tip stamped along the stroke (its own size, spacing and scatter); the paint shows
       only where it lands, for chalk, dry bristles or leaves.</li>
+      <li><b>Combined</b>: a second brush that paints along the same stroke, as Procreate's combined brushes do. Pick
+      its tip (or click <b>Copy a brush…</b> to use any brush you have), then its size, density and spacing.
+      <b>Combine</b> sets how its paint goes over the first: Multiply and Darken only darken, Screen and Lighten only
+      lighten. Imported Procreate combined brushes come in set up this way.</li>
     </ul>
     <figure data-pic="taper"><figcaption>Start and End taper make a stroke begin and end thin, even with a mouse.
     The thin end appears when you lift the pen.</figcaption></figure>

@@ -18,6 +18,7 @@ import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../
 import { BUILTIN_BY_ID, brushListGroups, brushChanged } from '../builtinbrushes.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 import { icon } from '../icons.js';
+import { comboSettings, comboOp, comboFrom } from '../combo.js';
 import { PICK_ALL_UP_TO, rangePick, noteSummary, shownBrushes } from '../brushpick.js';
 import { presetGroups, groupLabel } from '../brushorg.js';
 
@@ -50,6 +51,13 @@ function pickFile(accept) {
     inp.onchange = () => resolve(inp.files[0] || null);
     inp.click();
   });
+}
+
+/** The combo… settings for an imported combined brush b whose second brush has the tip `tip` ({} when not combined). */
+function combined(b, tip) {
+  if (!b.combo) return {};
+  const main = b.settings.size ?? TOOL_BY_ID.brush.defaults.size;
+  return { ...comboFrom({ ...b.combo.settings, size: b.combo.settings.size ?? main, tip }, main), comboMode: b.combo.mode || 'normal' };
 }
 
 /** Makes a decoded tip or texture image available to brushes as 'img:<id>' (tips: the shape as alpha). */
@@ -194,8 +202,12 @@ export const brushMethods = {
       b.onclick = () => { store('brushWin', { ...this.brushWinState(), page: b.dataset.page }); this.renderBrushWindow(); };
     });
     const body = w.querySelector('.bw-body');
-    body.innerHTML = this.settingsHtml(page[1], s);
+    body.innerHTML = this.settingsHtml(page[1], s)
+      + (page[0] === 'Combined' ? `<div class="bw-combo"><button type="button" data-combo-copy title="Make another brush the second brush: its tip, size, spacing and pressure">Copy a brush…</button>
+        ${s.comboTip !== 'none' ? '<button type="button" data-combo-off title="Paint with one brush again">Turn off</button>' : ''}</div>` : '');
     this.bindSettings(body);
+    body.querySelector('[data-combo-copy]')?.addEventListener('click', e => this.comboCopyMenu(e.currentTarget));
+    body.querySelector('[data-combo-off]')?.addEventListener('click', () => { s.comboTip = 'none'; this.comboChanged(); });
     this.drawBrushPreview();
   },
 
@@ -250,6 +262,17 @@ export const brushMethods = {
     for (const st of strokeStamps(line, b)) {
       const { size, flow } = stampAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
+    }
+    const cs = comboSettings(previewSettings(s, h * maxSize));
+    if (cs) {  // a combined brush: the second brush along the same line, over the first
+      const c = sanitizeBrush(cs), cp = new Painter(sctx, { color: line.color, hardness: c.hardness, tip: c.tip, thickness: c.thickness,
+        angle: c.tipAngle, random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel, rnd: seeded(PREVIEW_SEED + 11) });
+      sctx.globalCompositeOperation = comboOp(s.comboMode);
+      for (const st of strokeStamps({ ...line, seed: PREVIEW_SEED + 3 }, c)) {
+        const { size, flow } = stampAt(c, st.p);
+        cp.dab(st.x, st.y, size * st.k, flow * st.f, 0);
+      }
+      sctx.globalCompositeOperation = 'source-over';
     }
     let dual = null;
     if (b.dualTip !== 'none') {  // the dual brush along the same path, as vector lines draw it
@@ -437,6 +460,23 @@ export const brushMethods = {
     if (missing.length) this.brushListRaf = requestAnimationFrame(step);
   },
 
+  /** Combined → Copy a brush…: a menu of every brush (built-in and saved, by group); the picked one becomes the second brush. */
+  comboCopyMenu(button) {
+    const s = this.settings[this.tool];
+    const groups = brushListGroups(this.tool, this.brushLib?.presets || [], '', []);
+    menu(button, groups.map(g => ({ label: g.name, sub: g.brushes.map(b => ({ label: b.name, run: () => {
+      Object.assign(s, comboFrom(applySettings({ ...s }, b.settings), s.size));
+      if (s.comboMode === undefined) s.comboMode = 'normal';
+      this.comboChanged();
+      toast(`“${b.name}” paints along as the second brush`);
+    } })) })));
+  },
+
+  comboChanged() {
+    store('tools', this.settings);
+    this.renderToolProps();
+  },
+
   /** Moves the window to x, y (screen px), kept on screen with its title bar reachable. */
   placeBrushWindow(x, y) {
     const w = this.brushWin;
@@ -572,6 +612,7 @@ export const brushMethods = {
               if (imageRef(s.tip) === id) s.tip = 'round';
               if (imageRef(s.texture) === id) s.texture = 'none';
               if (imageRef(s.dualTip) === id) s.dualTip = 'none';
+              if (imageRef(s.comboTip) === id) s.comboTip = 'none';
             }
             store('tools', this.settings);
             root.querySelector('.pick-list').innerHTML = rows();
@@ -625,7 +666,8 @@ export const brushMethods = {
     }));
     const base = this.brushSettingsOf(TOOL_BY_ID.brush.defaults), ref = k => (temp.has(k) ? `img:${temp.get(k)}` : null);
     const looks = res.brushes.map(b => applySettings({ ...base }, { ...b.settings,
-      tip: ref(b.tip) || 'round', texture: ref(b.texture) || 'none', ...(ref(b.dual) ? { dualTip: ref(b.dual) } : {}) }));
+      tip: ref(b.tip) || 'round', texture: ref(b.texture) || 'none', ...(ref(b.dual) ? { dualTip: ref(b.dual) } : {}),
+      ...combined(b, ref(b.combo?.tip) || 'round') }));
     const lost = noteSummary(res.brushes), flawed = res.brushes.filter(b => b.notes.length).length;
     let complete = !!store('importComplete') && flawed > 0;  // Only complete brushes: hide those marked !
     const n = res.brushes.length, picked = new Set(n <= PICK_ALL_UP_TO ? shownBrushes(res.brushes, '', complete) : []);
@@ -716,7 +758,7 @@ export const brushMethods = {
     const saved = new Map();
     try {
       for (const b of chosen) {
-        for (const k of [b.tip, b.texture, b.dual]) {
+        for (const k of [b.tip, b.texture, b.dual, b.combo?.tip]) {
           if (k == null || saved.has(k)) continue;
           const im = res.images[k];
           const entry = await api.addBrushImage(im.kind, im.name, await this.importedImagePng(im));
@@ -733,7 +775,8 @@ export const brushMethods = {
       id: newId(), name: b.name, ...(group ? { source: group } : {}),
       settings: applySettings({ ...base }, { ...b.settings,
         tip: b.tip != null ? `img:${saved.get(b.tip)}` : 'round', texture: b.texture != null ? `img:${saved.get(b.texture)}` : 'none',
-        ...(b.dual != null ? { dualTip: `img:${saved.get(b.dual)}` } : {}) }),
+        ...(b.dual != null ? { dualTip: `img:${saved.get(b.dual)}` } : {}),
+        ...combined(b, b.combo?.tip != null ? `img:${saved.get(b.combo.tip)}` : 'round') }),
     }));
     this.brushLib.presets.push(...presets);
     if (!(await this.savePresetList())) return;
