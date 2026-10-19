@@ -6,6 +6,7 @@ import { Layer, tonedCanvas } from '../doc.js';
 import { TONE_SHAPES, TONE_CELL, TONE_FADES, LPI_PRESETS, toneFadeLine, defaultTone, sanitizeTone, applyTone, densityGray, toneLpi, cellForLpi } from '../tone.js';
 import { isFolder } from '../tree.js';
 import { esc, modal, store, toast } from '../ui.js';
+import { snapBytes } from '../snapshot.js';
 
 const PREVIEW_W = 360, PREVIEW_H = 56;
 
@@ -52,14 +53,14 @@ export const toneMethods = {
   rasterizeTone(n) {
     if (!n.tone) return;
     const d = this.doc, W = d.width, H = d.height, tone = n.tone;
-    const before = n.ctx.getImageData(0, 0, W, H);
-    const after = tonedCanvas(n).getContext('2d').getImageData(0, 0, W, H);
-    const put = img => { n.ctx.putImageData(img, 0, 0); n.touch(); };
+    // GPU copies for undo (trimmed when idle), not readbacks of the whole layer
+    const full = { x: 0, y: 0, w: W, h: H }, before = this.snapshot(n, full), after = this.snapshot({ canvas: tonedCanvas(n) }, full);
+    const put = img => { this.putSnapshot(n, full, img); n.touch(); };
     const tx = this.textsIn([n]);
     this.structural('Rasterize screentone',
       () => { put(after); n.tone = null; tx.drop(); },
       () => { put(before); n.tone = tone; tx.restore(); },
-      W * H * 8);
+      () => snapBytes(before) + snapBytes(after));
   },
 };
 

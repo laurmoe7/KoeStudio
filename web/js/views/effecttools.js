@@ -6,6 +6,7 @@ import { effectsCanvas } from '../doc.js';
 import { sanitizeEffects, BORDER_SIZE, SHADOW_OFFSET, SHADOW_BLUR } from '../effects.js';
 import { isFolder } from '../tree.js';
 import { modal, toast } from '../ui.js';
+import { snapBytes } from '../snapshot.js';
 
 export const effectMethods = {
   async layerEffectsDialog() {
@@ -47,14 +48,14 @@ export const effectMethods = {
   rasterizeEffects(n) {
     if (!n?.effects) return;
     const d = this.doc, W = d.width, H = d.height, fx = n.effects;
-    const before = n.ctx.getImageData(0, 0, W, H);
-    const after = effectsCanvas(n).getContext('2d').getImageData(0, 0, W, H);
-    const put = img => { n.ctx.putImageData(img, 0, 0); n.touch(); };
+    // GPU copies for undo (trimmed when idle), not readbacks of the whole layer
+    const full = { x: 0, y: 0, w: W, h: H }, before = this.snapshot(n, full), after = this.snapshot({ canvas: effectsCanvas(n) }, full);
+    const put = img => { this.putSnapshot(n, full, img); n.touch(); };
     const tx = this.textsIn([n]);  // a text or vector layer becomes ordinary pixels
     this.structural('Rasterize layer effects',
       () => { put(after); n.effects = null; tx.drop(); },
       () => { put(before); n.effects = fx; tx.restore(); },
-      W * H * 8);
+      () => snapBytes(before) + snapBytes(after));
   },
 };
 
