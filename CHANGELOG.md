@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- The animation timeline, onion skins and animation export are taken out for now, so the app stays focused on drawing. Older artworks made with frames open with every frame as an ordinary layer.
 - A Settings menu holds the theme, pen pressure, the shortcut strip and keyboard shortcuts; on the start screen the Theme button became a Settings button.
 - The app icon has bolder colours (golden horns, a shaded edge and a shadow underneath), so the cow no longer fades into light backgrounds, and he now holds his palette up at his side.
 - Wet edges (Brush settings → Paint): paint gathers at the edge of the stroke and the middle stays lighter, as watercolour does when it dries.
@@ -71,6 +72,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- An artwork that fails to open no longer leaves errors behind on the start screen.
 - Task Manager now lists KoeStudio under its own name and cow icon, instead of under "Python launcher (windowed)".
 - The KoeStudio window always belongs to KoeStudio.exe, so programs that recognise apps by their file name no longer mistake other Python programs for KoeStudio.
 - Painting on a layer whose opacity is 0% no longer seems to do nothing: KoeStudio says so and offers to set it back to 100%.

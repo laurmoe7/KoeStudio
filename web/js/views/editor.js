@@ -153,7 +153,6 @@ export class Editor {
     this.resize();
     this.layerPanel.render();
     this.showDocSize();
-    this.renderTimeline();
     this.selectTool(this.tool);
     this.loadBrushLibrary();
     window.addEventListener('keydown', this.onKey);
@@ -2105,13 +2104,18 @@ function fmt(key, v) {
 
 export async function openEditor(root, { id, newDoc, onHome, onOpen }) {
   const ed = new Editor(root, { onHome, onOpen });
-  if (newDoc) {
-    await ed.open(newDoc, { isNew: true });
-  } else {
-    const raw = await api.load(id, true);  // the server keeps its pictures, so saves send only what changes
-    const doc = await Doc.fromJSON(raw, id);
-    await ed.open(doc);
-    ed.serverHas = { id, keys: Promise.all(doc.rasters().map(r => r.pngHash())).then(k => new Set(k), () => null) };
+  try {
+    if (newDoc) {
+      await ed.open(newDoc, { isNew: true });
+    } else {
+      const raw = await api.load(id, true);  // the server keeps its pictures, so saves send only what changes
+      const doc = await Doc.fromJSON(raw, id);
+      await ed.open(doc);
+      ed.serverHas = { id, keys: Promise.all(doc.rasters().map(r => r.pngHash())).then(k => new Set(k), () => null) };
+    }
+  } catch (e) {
+    ed.destroy();  // a half-opened editor would keep its key handlers and resize observer on the gallery
+    throw e;
   }
   return ed;
 }
