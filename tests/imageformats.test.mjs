@@ -1,7 +1,7 @@
 // Export encoders. Expected bytes are worked out by hand from the TGA, BMP and GIF89a specs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeTga, encodeBmp, encodeGif, lzwEncode, quantize, EXPORT_FORMATS, sanitizeExportOptions, exportSize } from '../web/js/imageformats.js';
+import { encodeTga, encodeBmp, encodeGif, lzwEncode, quantize, EXPORT_FORMATS, sanitizeExportOptions, exportSize, splitPages } from '../web/js/imageformats.js';
 
 // 2x1 image: opaque red, then half-transparent blue
 const px = Uint8Array.from([255, 0, 0, 255, 0, 0, 255, 100]);
@@ -111,13 +111,24 @@ test('export format list', () => {
 });
 
 test('export options are filled in and kept in range', () => {
-  assert.deepEqual(sanitizeExportOptions(null), { format: 'png', scale: 100, quality: 92, paper: true, area: 'canvas' });
+  assert.deepEqual(sanitizeExportOptions(null), { format: 'png', scale: 100, quality: 92, paper: true, area: 'canvas', split: 0 });
   assert.deepEqual(sanitizeExportOptions({ format: 'exe', scale: 5000, quality: 0, paper: false, area: 'selection' }),
-    { format: 'png', scale: 800, quality: 1, paper: false, area: 'selection' });
+    { format: 'png', scale: 800, quality: 1, paper: false, area: 'selection', split: 0 });
+  assert.equal(sanitizeExportOptions({ split: 1280 }).split, 1280);
+  assert.equal(sanitizeExportOptions({ split: 10 }).split, 50, 'pages are at least 50 px');
+  assert.equal(sanitizeExportOptions({ split: -5 }).split, 0);
+  assert.equal(sanitizeExportOptions({ split: 'x' }).split, 0);
   assert.equal(sanitizeExportOptions({ scale: '33.33' }).scale, 33.3);
   assert.equal(sanitizeExportOptions({ scale: '' }).scale, 100, 'an empty field keeps the default');
   assert.equal(sanitizeExportOptions({ format: 'jpg' }).format, 'jpg');
   assert.ok(EXPORT_FORMATS.find(f => f.id === 'jpg').quality && !EXPORT_FORMATS.find(f => f.id === 'png').quality);
+});
+
+test('a tall picture is cut into pages from the top, the last one shorter', () => {
+  assert.deepEqual(splitPages(3000, 1280), [{ y: 0, h: 1280 }, { y: 1280, h: 1280 }, { y: 2560, h: 440 }]);
+  assert.deepEqual(splitPages(2560, 1280), [{ y: 0, h: 1280 }, { y: 1280, h: 1280 }]);
+  assert.deepEqual(splitPages(1000, 1280), [{ y: 0, h: 1000 }]);
+  assert.deepEqual(splitPages(1000, 0), [{ y: 0, h: 1000 }]);
 });
 
 test('export size rounds, never reaches zero and flags huge results', () => {

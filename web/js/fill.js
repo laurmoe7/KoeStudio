@@ -140,3 +140,55 @@ function gapFillIn(data, w, h, sx, sy, tolerance, gap) {
   }
   return { mask, bounds: { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } };
 }
+
+/** Whether pixel i (RGBA index / 4) of reference pixels is line art: mostly opaque and not near white. */
+export function isLinePixel(data, i) {
+  const j = i * 4;
+  return data[j + 3] >= 128 && data[j] * 0.299 + data[j + 1] * 0.587 + data[j + 2] * 0.114 < 200;
+}
+
+/**
+ * Where a brush that does not cross reference lines may paint (Clip Studio Paint's anti-overflow): the open area
+ * (no line pixels, see isLinePixel) connected to (x, y), grown `grow` px into the lines round it so the paint tucks
+ * under their soft edges without reaching past a thin line. A start on a line uses the nearest open pixel within
+ * `reach` px. Returns {mask (Uint8Array, 1 = may paint), bounds} or null when there is no open pixel that close.
+ */
+export function insideLines(data, w, h, x, y, reach = 0, grow = 2) {
+  x = Math.floor(x); y = Math.floor(y);
+  if (x < 0 || y < 0 || x >= w || y >= h) return null;
+  const line = new Uint8Array(w * h);
+  for (let i = 0; i < line.length; i++) line[i] = isLinePixel(data, i) ? 1 : 0;
+  if (line[y * w + x]) {  // on a line: the closest open pixel round it
+    let best = null, bd = Infinity;
+    const r = Math.ceil(reach);
+    for (let py = Math.max(0, y - r); py <= Math.min(h - 1, y + r); py++) {
+      for (let px = Math.max(0, x - r); px <= Math.min(w - 1, x + r); px++) {
+        const dd = (px - x) ** 2 + (py - y) ** 2;
+        if (!line[py * w + px] && dd < bd && dd <= reach * reach) { bd = dd; best = [px, py]; }
+      }
+    }
+    if (!best) return null;
+    [x, y] = best;
+  }
+  const open = new Uint8ClampedArray(w * h * 4);  // floodMask wants RGBA: open pixels clear, lines opaque
+  for (let i = 0; i < line.length; i++) open[i * 4 + 3] = line[i] ? 255 : 0;
+  const res = floodMask(open, w, h, x, y, 0);
+  const mask = res.mask;
+  let { x: x0, y: y0 } = res.bounds, x1 = x0 + res.bounds.w - 1, y1 = y0 + res.bounds.h - 1;
+  for (let k = 0; k < grow; k++) {  // only into line pixels, so a thin line is covered but not crossed
+    const add = [];
+    for (let py = Math.max(0, y0 - 1); py <= Math.min(h - 1, y1 + 1); py++) {
+      for (let px = Math.max(0, x0 - 1); px <= Math.min(w - 1, x1 + 1); px++) {
+        const i = py * w + px;
+        if (mask[i] || !line[i]) continue;
+        if ((px > 0 && mask[i - 1]) || (px < w - 1 && mask[i + 1]) || (py > 0 && mask[i - w]) || (py < h - 1 && mask[i + w])) add.push(i);
+      }
+    }
+    for (const i of add) {
+      mask[i] = 1;
+      const px = i % w, py = (i - px) / w;
+      if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py;
+    }
+  }
+  return { mask, bounds: { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 } };
+}

@@ -2,7 +2,7 @@
 // the canvas showing the result while the dialog is open; OK makes it one undo step. Layer → Rasterize layer
 // effects turns them into ordinary pixels. Editor methods (mixed into Editor.prototype in editor.js).
 
-import { effectsCanvas } from '../doc.js';
+import { effectsCanvas, tonedCanvas } from '../doc.js';
 import { sanitizeEffects, BORDER_SIZE, SHADOW_OFFSET, SHADOW_BLUR } from '../effects.js';
 import { isFolder } from '../tree.js';
 import { modal, toast } from '../ui.js';
@@ -42,6 +42,57 @@ export const effectMethods = {
     n.effects = old;
     if (!res) { this.updateComp(null); this.requestRender(); return; }
     this.setLayerProp(n, 'effects', res.fx, res.fx ? 'Layer effects' : 'Layer effects off');
+  },
+
+  /**
+   * Layer → Layer color…: shows everything on the layer in one colour (Clip Studio Paint's Layer color), without
+   * changing its pixels, so a shirt or hair colour can be tried out and changed back. The canvas follows the picker.
+   */
+  async layerColorDialog() {
+    const n = this.doc.active;
+    if (isFolder(n) || n.adjust) return toast('Layer color works on layers with pixels. Select one.');
+    this.finishTransform();
+    this.finishText();
+    const old = n.layerColor;
+    const show = c => { n.layerColor = c; this.updateComp(null); this.requestRender(); };
+    const res = await modal({
+      title: `Layer color: ${n.name}`,
+      live: true,
+      body: `
+        <label class="check"><input type="checkbox" name="on" ${old ? 'checked' : ''}> Show this layer in one colour</label>
+        <label class="field"><span>Color</span><input type="color" name="color" value="${old || this.colors.main}"></label>
+        <div class="btn-row"><button type="button" data-main>Use main colour</button></div>
+        <p class="muted small">The pixels stay as they are: untick to get the old colours back. Layer → Rasterize → Layer color makes it for good.</p>`,
+      buttons: [{ label: 'Cancel', value: null }, { label: 'OK', primary: true }],
+      onOpen: root => {
+        const on = root.querySelector('[name="on"]'), color = root.querySelector('[name="color"]');
+        const update = () => show(on.checked ? color.value.toLowerCase() : null);
+        on.addEventListener('change', update);
+        color.addEventListener('input', () => { on.checked = true; update(); });
+        root.querySelector('[data-main]').addEventListener('click', () => { color.value = this.colors.main; on.checked = true; update(); });
+        if (!old) { on.checked = true; update(); }
+      },
+      collect: root => ({ color: root.querySelector('[name="on"]').checked ? root.querySelector('[name="color"]').value.toLowerCase() : null }),
+    });
+    n.layerColor = old;
+    if (!res) { this.updateComp(null); this.requestRender(); return; }
+    this.setLayerProp(n, 'layerColor', res.color, res.color ? 'Layer color' : 'Layer color off');
+  },
+
+  /** Paints the layer's pixels in its layer colour and turns the setting off. */
+  rasterizeLayerColor(n) {
+    if (!n?.layerColor) return;
+    const d = this.doc, W = d.width, H = d.height, color = n.layerColor, tone = n.tone;
+    // tonedCanvas draws the layer colour over the pixels as they are (a tone layer keeps its grays: the dots stay live)
+    n.tone = null;
+    const full = { x: 0, y: 0, w: W, h: H }, before = this.snapshot(n, full), after = this.snapshot({ canvas: tonedCanvas(n) }, full);
+    n.tone = tone;
+    const put = img => { this.putSnapshot(n, full, img); n.touch(); };
+    const tx = this.textsIn([n]);
+    this.structural('Rasterize layer color',
+      () => { put(after); n.layerColor = null; tx.drop(); },
+      () => { put(before); n.layerColor = color; tx.restore(); },
+      () => snapBytes(before) + snapBytes(after));
   },
 
   /** Draws the layer's effects into its pixels and turns them off. */

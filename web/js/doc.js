@@ -69,6 +69,7 @@ export function sanitizeDoc(raw) {
       else if (l?.vector) out.vector = sanitizeVector(l.vector);  // a vector layer (vector.js); png holds its last rendering
       out.tone = adjust ? null : sanitizeTone(l?.tone);
       out.effects = adjust ? null : sanitizeEffects(l?.effects);  // border and drop shadow (effects.js); null when none
+      out.layerColor = !adjust && /^#[0-9a-f]{6}$/i.test(l?.layerColor) ? l.layerColor.toLowerCase() : null;  // all paint shown in this colour
     }
     return out;
   };
@@ -170,6 +171,7 @@ export class Layer extends Raster {
     this.vector = props.vector || null;  // set on vector layers: the lines (vector.js); never changed in place
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
     this.effects = props.effects || null;  // border and drop shadow, drawn under the pixels (effects.js)
+    this.layerColor = props.layerColor || null;  // '#rrggbb': all paint shown in this colour (Layer → Layer color)
     this.adjust = props.adjust || null;  // set on correction layers: the colour change applied to what is below (adjust.js)
   }
 }
@@ -202,7 +204,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null, effects: n.effects, adjust: n.adjust });
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null, effects: n.effects, layerColor: n.layerColor, adjust: n.adjust });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -358,6 +360,7 @@ export class Doc {
         if (n.vector) out.vector = n.vector;
         if (n.tone) out.tone = n.tone;
         if (n.effects) out.effects = n.effects;
+        if (n.layerColor) out.layerColor = n.layerColor;
         if (n.adjust) out.adjust = n.adjust;
       }
       if (n.mask) { out.mask = { enabled: n.mask.enabled }; await pic(n.mask, out.mask); }
@@ -544,7 +547,7 @@ function drawNode(ctx, node, r, live, alpha, blend, depth) {
     drawChildren(cctx, node.children, r, live, depth + 1);
     if (maskOn(node)) applyMask(cctx, node, r, live, depth);
     src = c; sx = 0; sy = 0;
-  } else if ((live && live.layer === node) || maskOn(node) || node.tone) {
+  } else if ((live && live.layer === node) || maskOn(node) || node.tone || node.layerColor) {
     [src] = layerImage(node, r, live, depth, node.tone ? `tone${depth}` : `node${depth}`);
     sx = 0; sy = 0;
   }
@@ -604,8 +607,8 @@ function keptLook(node, r, depth) {
   const m = maskOn(node) ? node.mask : null;
   let k = looks.get(node);
   if (!k || k.canvas !== node.canvas || k.version !== node.version || k.tone !== node.tone || k.effects !== node.effects
-    || k.mask !== (m && m.canvas) || k.maskVersion !== (m ? m.version : -1)) {
-    k = { canvas: node.canvas, version: node.version, tone: node.tone, effects: node.effects,
+    || k.layerColor !== node.layerColor || k.mask !== (m && m.canvas) || k.maskVersion !== (m ? m.version : -1)) {
+    k = { canvas: node.canvas, version: node.version, tone: node.tone, effects: node.effects, layerColor: node.layerColor,
       mask: m && m.canvas, maskVersion: m ? m.version : -1, tiles: new Map() };
     looks.set(node, k);
   }
@@ -653,6 +656,7 @@ function layerImage(node, r, live, depth, key) {
     cctx.globalCompositeOperation = 'source-over';
   }
   if (node.tone) toneRegion(cctx, node.tone, r);
+  if (node.layerColor) colorPaint(cctx, node.layerColor, r.w, r.h);
   if (maskOn(node)) applyMask(cctx, node, r, live, depth);
   return [c, cctx];
 }
@@ -720,6 +724,17 @@ function toneRegion(cctx, tone, r) {
   cctx.restore();
 }
 
+/** Turns everything painted in ctx's (0, 0, w, h) into one colour, keeping how see-through it is (Layer color). */
+export function colorPaint(ctx, color, w, h) {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
 /** A layer's pixels as screentone dots (for merging and rasterizing), as a new canvas. */
 export function tonedCanvas(layer) {
   const c = document.createElement('canvas');
@@ -727,6 +742,7 @@ export function tonedCanvas(layer) {
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(layer.canvas, 0, 0);
   if (layer.tone) toneRegion(ctx, layer.tone, { x: 0, y: 0, w: c.width, h: c.height });
+  if (layer.layerColor) colorPaint(ctx, layer.layerColor, c.width, c.height);
   return c;
 }
 
@@ -736,10 +752,10 @@ export function tonedCanvas(layer) {
  * canvas and the grain cut out of it there; the texture is anchored to the doc, so it never shifts between updates.
  * A stroke inside a selection (live.sel) is cut down to it the same way, once per read: clipping the stroke canvas
  * itself after every dab would apply a feathered selection's partial alpha again and again. live.dual (a canvas of
- * the dual brush's dabs) cuts it down the same way.
+ * the dual brush's dabs) and live.inside (where a brush that stays inside reference lines may paint) cut it down the same way.
  */
 export function liveSource(live, r) {
-  if (!live.texture && !live.sel && !live.dual) return [live.canvas, r.x, r.y];
+  if (!live.texture && !live.sel && !live.dual && !live.inside) return [live.canvas, r.x, r.y];
   const [c, ctx] = scratchCanvas('live', r);
   ctx.drawImage(live.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   if (live.texture) {
@@ -757,6 +773,10 @@ export function liveSource(live, r) {
   if (live.dual) {  // the dual brush: the stroke shows only where its second tip landed
     ctx.globalCompositeOperation = 'destination-in';
     ctx.drawImage(live.dual, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  }
+  if (live.inside) {  // a brush that stays inside the reference layers' lines (editor.js insideLinesClip)
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(live.inside, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   }
   ctx.globalCompositeOperation = 'source-over';
   return [c, 0, 0];

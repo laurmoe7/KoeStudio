@@ -149,6 +149,26 @@ export const layerMethods = {
     return true;
   },
 
+  /**
+   * Layer → Find layer on canvas (Clip Studio Paint's Search layer): the next click on the canvas selects the top
+   * layer with paint there, whichever tool is chosen. Running it again, or Esc, stops waiting.
+   */
+  findLayerMode() {
+    if (this.canvasPick && this.canvasPick === this.findPick) return this.stopFindLayer();
+    if (this.canvasPick) return;  // a dialog is waiting for a canvas click already
+    this.findPick = dp => { this.stopFindLayer(); this.pickLayerAt(dp); };
+    this.canvasPick = this.findPick;
+    this.findToast = toast('Click what you want to find on the canvas: its layer gets selected. Esc stops.', { ms: 8000 });
+    this.drawOverlay();
+  },
+
+  stopFindLayer() {
+    if (this.canvasPick === this.findPick) this.canvasPick = null;
+    this.findPick = null;
+    this.findToast?.remove();
+    this.drawOverlay();
+  },
+
   /** Right-click with the Move tool: a menu of every layer with paint under the point, to pick one. */
   layerMenuAt(p, clientX, clientY) {
     const layers = this.layersAt(p);
@@ -356,7 +376,7 @@ export const layerMethods = {
       c.filter = adjustFilter(n.adjust);
       c.drawImage(lower.canvas, 0, 0);
       c.filter = 'none';
-    } else c.drawImage(n.tone ? tonedCanvas(n) : n.canvas, 0, 0);  // a tone layer merges as the dots it shows
+    } else c.drawImage(n.tone || n.layerColor ? tonedCanvas(n) : n.canvas, 0, 0);  // as it shows: tone dots, layer colour
     if (n.mask?.enabled) { c.globalCompositeOperation = 'destination-out'; c.drawImage(n.mask.canvas, 0, 0); }
     if (n.effects) {  // its border and shadow become pixels too
       const fx = effectsCanvas(n, src);
@@ -684,7 +704,11 @@ export const layerMethods = {
   fillLayer(sub = false) {
     const d = this.doc, t = this.target('fill');
     if (!t) return;
-    const ink = sub && t.kind !== 'mask' ? this.colors.sub : this.inkFor(t);
+    let ink = sub && t.kind !== 'mask' ? this.colors.sub : this.inkFor(t);
+    if (t.kind !== 'mask') {  // an auto action fills with the colour it was recorded with
+      if (this.playStepNow?.color) ink = this.playStepNow.color;
+      if (this.recStep) this.recStep.color = ink;
+    }
     if (this.sel.active) {
       const b = this.sel.bounds;
       this.resetStroke();

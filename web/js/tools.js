@@ -19,7 +19,7 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0,
-    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false,
+    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false, refStop: false,
     dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, preset: '' };
 }
 
@@ -121,6 +121,7 @@ export const SETTING_FIELDS = [
   ['taperIn', 'Start taper', 'range', 0, 500, 1],
   ['taperOut', 'End taper', 'range', 0, 500, 1],
   ['quickShape', 'Hold to straighten', 'check'],
+  ['refStop', 'Stay inside lines', 'check'],
   ['tiltSize', 'Tilt → size', 'range', 0, 1, 0.01],
   ['tiltFlow', 'Tilt → lighter', 'range', 0, 1, 0.01],
   ['tiltAngle', 'Turn with pen tilt', 'check'],
@@ -162,7 +163,7 @@ export const BASIC_PAINT = ['vectorErase', 'size', 'opacity', 'flow', 'hardness'
 
 /** The pages of the Brush settings window, and which settings each holds (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
-  ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness']],
+  ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness', 'refStop']],
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow', 'pixel']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'quickShape']],
@@ -236,6 +237,7 @@ export const SETTING_HINTS = {
   colorJitterStroke: 'Picks one varied colour for the whole stroke instead of a new one for every dab',
   taperIn: 'Starts each stroke thin and grows to full size over this many pixels (0 = off)',
   taperOut: 'Ends each stroke thin over this many pixels (0 = off). The last stretch appears when you lift the pen',
+  refStop: 'Paint only inside the shape you start in: the lines of the layers ticked Reference in the Layers panel (your line art) stop the brush, so colour never goes over them (anti-overflow)',
   quickShape: 'Keep the pen still for a moment at the end of a stroke: a line becomes straight, a loop a clean ellipse. Move the pen before lifting it to stretch the shape (QuickShape)',
   tiltSize: 'Makes the brush bigger the more you tilt the pen, up to three times its size when the pen lies flat (pens that report tilt)',
   tiltFlow: 'Makes the paint lighter the more you tilt the pen, as when shading with the side of a pencil',

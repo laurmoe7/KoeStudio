@@ -191,6 +191,16 @@ export const GUIDE = [
       them, and give each one a colour (or "main colour" / "sub colour", so it follows the colour squares) and an
       opacity. Saved gradients appear in the Colors list, and Gradient map uses them too.</li>
     </ul>
+    <h4>Colouring inside line art</h4>
+    <p>Tick <b>Reference</b> on your line art layer first. Then:</p>
+    <ul>
+      <li><b>Stay inside lines</b> (Brush settings… → Paint, for any brush or eraser): the stroke paints only inside the
+      shape it starts in, so colour never goes over the lines.</li>
+      <li><b>Edit → Colorize from hints…</b> fills all the shapes at once: scribble a little of each colour on a layer,
+      keep that layer selected and run it. Closed shapes you left out take the colour round them; the background stays
+      clear. The colours come on a new layer.</li>
+    </ul>
+    <figure data-pic="colorize"></figure>
     <h4>Lasso fill</h4>
     <p>Draw round an area and it fills with the main colour, like colouring in with a marker. Tick <b>Erase</b> to
     clear the area you draw round instead.</p>
@@ -295,6 +305,8 @@ export const GUIDE = [
       <li><b>Lock</b> protects the layer from any change. <b>Reference</b> marks line art for Fill and the wand.</li>
       <li>The coloured dots are labels, to help you find layers. The <b>magnifier</b> under the list finds layers by
       name (inside closed folders too); <kbd>Enter</kbd> selects the first one, <kbd>Esc</kbd> shows all again.</li>
+      <li>Which layer is that stray dot on? Layer → <b>Find layer on canvas</b>, then click the dot: its layer gets
+      selected. (With the Move tool, <kbd>Ctrl</kbd>+click does the same.)</li>
     </ul>
     <h4>More</h4>
     <ul>
@@ -320,7 +332,11 @@ export const GUIDE = [
     <p>The effects follow along while you keep drawing on the layer. The Layers panel shows "border" or "shadow" under
     the layer's name.</p>
     <p class="tip">Great for stickers, lettering and logos. Layer → Rasterize → <b>Layer effects</b> turns them into
-    ordinary paint (merging the layer down does too).</p>`],
+    ordinary paint (merging the layer down does too).</p>
+    <h4>Layer color</h4>
+    <p>Layer → <b>Layer color…</b> shows everything on a layer in one colour, to try a new hair or shirt colour in a
+    second. The paint itself stays as it was: untick it to get the old colours back, or Layer → Rasterize →
+    <b>Layer color</b> to keep the new one.</p>`],
 
   ['adjust', 'Correction layers', `
     <p class="lead">Change the colours of everything below, and keep changing your mind: a correction layer never
@@ -533,6 +549,26 @@ export const GUIDE = [
     <p><kbd>Ctrl+Z</kbd> undoes, <kbd>Ctrl+Y</kbd> redoes. The <b>History</b> panel lists every step: click one to
     jump back to it, or click a grayed-out step to redo up to it.</p>`],
 
+  ['actions', 'Auto actions', `
+    <p class="lead">Do the same few steps often? Record them once and play them with one click.</p>
+    <ol>
+      <li>Open View → <b>Auto actions</b>.</li>
+      <li>Press <b>New</b>, give the action a name, and recording starts.</li>
+      <li>Do the steps: menu items (with the values you type in their dialogs), shortcut commands, and the Layers
+      panel (new layer, blending, opacity, clip, labels, Layer color).</li>
+      <li>Press <b>Stop</b>.</li>
+      <li>Press <b>▶</b> next to the action, or double-click its name, to do it all again.</li>
+    </ol>
+    <ul>
+      <li><b>▸</b> shows the steps. <b>✕</b> removes one; tick <b>dialog</b> on a step to see its dialog on playback and
+      change the values.</li>
+      <li><b>Record</b> adds more steps to the selected action. <b>⋯</b> renames, copies, moves or deletes it.</li>
+      <li>Actions come in sets (the list at the top). The <b>Basic</b> set has ready-made ones, such as a clipped
+      Multiply shading layer.</li>
+    </ul>
+    <p class="tip">Painting is not recorded, only commands and settings. If a step cannot run (say there is no layer
+    below to merge into), playing stops there and tells you which step.</p>`],
+
   ['files', 'Saving, versions and exporting', `
     <ul>
       <li>Artwork saves by itself in <b>Pictures\\KoeStudio</b>.</li>
@@ -547,6 +583,8 @@ export const GUIDE = [
       any folder.</li>
       <li><kbd>Ctrl+Shift+S</kbd> saves a PNG straight away, in the same folder as last time.</li>
       <li><b>File → Save project file (.koe)…</b> keeps all the layers, to move to another computer or keep as a backup.</li>
+      <li><b>Webtoon pages:</b> in Export…, tick <b>Cut into pages</b> and give a page height (for example 1280). A tall
+      strip is saved as name-01, name-02, … from the top.</li>
     </ul>
     <p>File → <b>Export layers</b> saves every layer (or every top-level layer and folder) as its own transparent PNG,
     each the size of the canvas, for other programs and game engines.</p>

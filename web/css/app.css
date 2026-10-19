@@ -252,6 +252,28 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ref-body { position: relative; flex: 1; min-height: 0; background: #17181c; border-radius: 0 0 8px 8px; overflow: hidden; }
 .ref-canvas { display: block; cursor: crosshair; touch-action: none; }
 .ref-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 16px; margin: 0; }
+.act-win { width: 300px; max-height: min(520px, calc(100vh - 80px)); }
+.act-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e5484d; margin-right: 4px; vertical-align: 0; }
+.act-bar { display: flex; gap: 4px; padding: 6px 8px 4px; }
+.act-bar select { flex: 1; min-width: 0; }
+.act-list { flex: 1; min-height: 60px; overflow: auto; padding: 2px 4px; }
+.act-row { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; cursor: default; }
+.act-row:hover { background: var(--panel-2); }
+.act-row.on { background: var(--accent-2); color: #fff; }
+.act-row.rec { box-shadow: inset 3px 0 0 #e5484d; }
+.act-row .muted { color: inherit; opacity: .7; }
+.act-fold { padding: 0 4px; background: transparent; border-color: transparent; font-size: 11px; color: inherit; }
+.act-name { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; }
+.act-row .icon-btn { padding: 1px 6px; color: inherit; }
+.act-steps { margin: 0 0 4px 26px; padding: 0 0 0 14px; font-size: 11.5px; }
+.act-steps li { padding: 1px 0; }
+.act-steps li > span { margin-right: 4px; }
+.act-steps .icon-btn { padding: 0 4px; font-size: 10px; vertical-align: 1px; }
+.act-show { font-size: 10.5px; opacity: .8; white-space: nowrap; }
+.act-show input { vertical-align: -2px; margin: 0 2px 0 0; }
+.act-empty { padding: 8px; margin: 0; }
+.act-foot { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--line); }
+.act-foot button.on { background: #e5484d; border-color: #e5484d; color: #fff; }
 .bw-body { flex: 1; min-width: 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; overflow: auto; }
 
 /* colour panel */

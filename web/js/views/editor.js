@@ -6,7 +6,7 @@ import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor, averageColor } from '../color.js';
 import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach } from '../doc.js';
 import { isFolder } from '../tree.js';
-import { floodMask, growMask, closeGapFill } from '../fill.js';
+import { floodMask, growMask, closeGapFill, insideLines } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping, springBack } from '../keys.js';
@@ -46,6 +46,9 @@ import { retouchMethods } from './retouchtool.js';
 import { stripMethods } from './striptool.js';
 import { directPaintMethods } from './directpaint.js';
 import { effectMethods } from './effecttools.js';
+import { colorizeMethods } from './colorizetool.js';
+import { actionMethods } from './actiontools.js';
+import { RECORD_CMDS } from '../autoactions.js';
 import { gradientEditMethods } from './gradienteditor.js';
 import { pressureMethods } from './pressuretool.js';
 import { lineEditMethods } from './lineedittool.js';
@@ -87,6 +90,7 @@ export class Editor {
     this.onHome = onHome;
     this.onOpen = onOpen;  // opens another artwork in place of this one ({id} or {newDoc})
     this.settings = sanitizeSettings(store('tools'));
+    this.initActions();  // Auto actions (actiontools.js): recording wraps some methods
     this.loadPressureCurve();  // File → Pen pressure settings (pressuretool.js)
     this.tool = TOOL_BY_ID[store('tool')] ? store('tool') : 'pen';
     this.history = new History();
@@ -275,7 +279,7 @@ export class Editor {
     const bar = [...this.root.querySelectorAll('[data-menu]')];
     const openBar = (b, byKey = false) => {
       this.finishTransform();
-      menu(b, withKeyLabels(this.menuItems(b.dataset.menu)), { onSide: dir => openBar(bar[(bar.indexOf(b) + dir + bar.length) % bar.length], true) });
+      menu(b, this.recordable(b.dataset.menu, withKeyLabels(this.menuItems(b.dataset.menu))), { onSide: dir => openBar(bar[(bar.indexOf(b) + dir + bar.length) % bar.length], true) });
       if (byKey) document.querySelector('.menu button:not(:disabled)')?.focus();
     };
     for (const b of bar) {
@@ -318,6 +322,7 @@ export class Editor {
     this.bindNavigator();
     this.renderHistory();
     this.renderRefWindow();
+    this.renderActionWindow();
     this.updateUndoButtons();
     this.updateSnapButton();
     this.root.querySelector('[data-act="rulers"]').classList.toggle('on', this.showRulers);
@@ -357,11 +362,12 @@ export class Editor {
         { label: 'Copy', key: 'Ctrl+C', run: () => this.copySelection() },
         { label: 'Paste', key: 'Ctrl+V', run: () => this.pasteInternal(), disabled: !this.clipboard },
         { label: 'Stroke selection…', run: () => this.strokeSelectionDialog(), disabled: !this.sel.active },
+        { label: 'Colorize from hints…', run: () => this.colorizeDialog() },
         '-',
         { label: 'Transform…', key: 'Ctrl+T', run: () => this.beginTransform() },
-        { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', key: 'Del', run: () => this.clearLayer() },
-        { label: this.sel.active ? 'Fill selection with main color' : 'Fill layer with main color', key: 'Alt+Del', run: () => this.fillLayer() },
-        { label: this.sel.active ? 'Fill selection with sub color' : 'Fill layer with sub color', key: 'Shift+Alt+Del', run: () => this.fillLayer(true) },
+        { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', rec: 'clear', key: 'Del', run: () => this.clearLayer() },
+        { label: this.sel.active ? 'Fill selection with main color' : 'Fill layer with main color', rec: 'fill-main', key: 'Alt+Del', run: () => this.fillLayer() },
+        { label: this.sel.active ? 'Fill selection with sub color' : 'Fill layer with sub color', rec: 'fill-sub', key: 'Shift+Alt+Del', run: () => this.fillLayer(true) },
       ],
       image: [
         { label: 'Canvas size…', key: 'Ctrl+Alt+C', run: () => this.canvasSizeDialog() },
@@ -398,20 +404,21 @@ export class Editor {
         { label: 'New', sub: [
           { label: 'Vector layer', run: () => this.newVectorLayer() },
           { label: 'Folder', run: () => this.folderAdd() },
-          { label: this.sel.active ? 'Correction layer (in selection)…' : 'Correction layer…', run: () => this.newAdjustLayer() },
-          { label: this.sel.active ? 'Screentone (in selection)…' : 'Screentone…', run: () => this.newToneLayer() },
+          { label: this.sel.active ? 'Correction layer (in selection)…' : 'Correction layer…', rec: 'correction', run: () => this.newAdjustLayer() },
+          { label: this.sel.active ? 'Screentone (in selection)…' : 'Screentone…', rec: 'screentone', run: () => this.newToneLayer() },
         ] },
-        { label: multi ? 'Duplicate selected layers' : 'Duplicate layer', run: () => this.layerDuplicate() },
+        { label: multi ? 'Duplicate selected layers' : 'Duplicate layer', rec: 'duplicate', run: () => this.layerDuplicate() },
         { label: 'Copy to new layer', key: 'Ctrl+J', run: () => this.layerViaCopy() },
         { label: 'Cut to new layer', key: 'Ctrl+Shift+J', run: () => this.layerViaCopy(true) },
         { label: 'Rename…', key: 'F2', run: () => this.renameLayer() },
-        { label: multi ? 'Delete selected layers' : 'Delete layer', run: () => this.layerDelete() },
+        { label: 'Find layer on canvas', checked: !!this.findPick, run: () => this.findLayerMode() },
+        { label: multi ? 'Delete selected layers' : 'Delete layer', rec: 'delete', run: () => this.layerDelete() },
         '-',
         { label: 'Put in new folder', key: 'Ctrl+G', run: () => this.groupIntoFolder() },
-        multi ? { label: 'Merge selected layers', key: 'Ctrl+E', run: () => this.mergeDown() }
+        multi ? { label: 'Merge selected layers', rec: 'merge', key: 'Ctrl+E', run: () => this.mergeDown() }
         : isFolder(d.active)
-          ? { label: 'Merge folder', key: 'Ctrl+E', run: () => this.mergeFolder(d.active) }
-          : { label: 'Merge with layer below', key: 'Ctrl+E', run: () => this.mergeDown() },
+          ? { label: 'Merge folder', rec: 'merge', key: 'Ctrl+E', run: () => this.mergeFolder(d.active) }
+          : { label: 'Merge with layer below', rec: 'merge', key: 'Ctrl+E', run: () => this.mergeDown() },
         { label: 'Merge visible to new layer', key: 'Ctrl+Shift+Alt+E', run: () => this.mergeVisible() },
         { label: 'Flatten image', run: () => this.flattenImage() },
         '-',
@@ -423,10 +430,12 @@ export class Editor {
           { label: 'Delete mask', run: () => this.deleteMask(), disabled: !d.active.mask },
         ] },
         { label: 'Layer effects (border, shadow)…', run: () => this.layerEffectsDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
+        { label: 'Layer color…', checked: !!d.active.layerColor, run: () => this.layerColorDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
         { label: 'Screentone settings…', run: () => this.toneDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
         { label: 'Correction layer settings…', run: () => this.adjustSettings(), disabled: !d.active.adjust },
         { label: 'Rasterize', sub: [
           { label: 'Layer effects', run: () => this.rasterizeEffects(d.active), disabled: !d.active.effects },
+          { label: 'Layer color', run: () => this.rasterizeLayerColor(d.active), disabled: !d.active.layerColor },
           { label: 'Screentone', run: () => this.rasterizeTone(d.active), disabled: !d.active.tone },
           { label: 'Text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
           { label: 'Vector layer', run: () => this.rasterizeVector(d.active), disabled: !d.active.vector },
@@ -473,6 +482,7 @@ export class Editor {
         { label: 'Animation timeline', checked: d.anim.on, run: () => this.toggleAnimation() },
         { label: 'Animation settings…', run: () => this.animSettingsDialog(), disabled: !d.anim.on },
         { label: 'Reference window', checked: this.refState().open, run: () => this.toggleRefWindow() },
+        { label: 'Auto actions', checked: this.actState().open, run: () => this.toggleActionWindow() },
         '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
       ],
@@ -822,6 +832,7 @@ export class Editor {
       if (this.gesture?.type !== 'xf') set(this.pointer ? this.xfCursor(toDoc(this.view, this.pointer.x, this.pointer.y)) : 'default');
       return null;
     }
+    if (this.findPick) { set('crosshair'); return null; }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
     set({ paint: 'none', smudge: 'none', liquify: 'none', retouch: 'none', lineedit: 'crosshair', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
@@ -925,7 +936,10 @@ export class Editor {
     this.cancelPolygon();
     this.cancelFigurePoly();
     this.tool = id;
-    if (id !== 'fill' && id !== 'wand') this.compRead = this.refRead = null;  // their kept copies of the pixels (sampleData)
+    if (id !== 'fill' && id !== 'wand') {  // their kept copies of the pixels (sampleData); brushes that stay inside lines use refRead
+      this.compRead = null;
+      if (!this.settings[id]?.refStop) this.refRead = this.insideClip = null;
+    }
     else this.prepareSample(id);
     if (id === 'crop' && !this.crop) this.startCrop();
     store('tool', id);
@@ -1355,7 +1369,8 @@ export class Editor {
     };
     // vector lines are kept whole, so the selection does not cut them
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture: textureFor(s), sel: this.sel.active && !layer.vector ? this.sel : null,
-      dual: this.gesture.dual ? this.dualCanvas : null };
+      dual: this.gesture.dual ? this.dualCanvas : null,
+      inside: s.refStop && !layer.vector ? this.insideLinesClip(line || pt, s.size / 2) : null };  // stay inside reference lines
     if (line) {
       this.addStampPoint({ ...line, p: pt.p });
       for (const q of linePoints({ ...line, p: pt.p }, pt, 3)) this.addStampPoint(q);
@@ -1459,6 +1474,35 @@ export class Editor {
    * this.dualCanvas, at its own size, spacing and scatter; liveSource keeps the stroke only where those dabs are.
    * null when it is off. Vector lines keep the dual tip in their brush and redraw it from their seed (vector.js dualStamps).
    */
+  /**
+   * Where a stroke with Stay inside lines may paint: the shape of the reference layers' line art it starts in
+   * (insideLines in fill.js), as a canvas liveSource cuts the stroke to; null (paint anywhere) without reference
+   * layers or with only lines round the start. A stroke starting in the same shape again reuses it.
+   */
+  insideLinesClip(pt, reach) {
+    if (!referenceLayers(this.doc.root).length) {
+      if (!this.refStopNoted) toast('Stay inside lines needs line art to stop at: tick Reference on your line art layer in the Layers panel.', { ms: 6000 });
+      this.refStopNoted = true;
+      return null;
+    }
+    const d = this.doc, W = d.width, H = d.height, data = this.referencePixels();
+    if (!data) return null;
+    const k = this.insideClip, x = Math.floor(pt.x), y = Math.floor(pt.y);
+    if (k && k.data === data && x >= 0 && y >= 0 && x < W && y < H && k.mask[y * W + x]) return k.canvas;
+    const res = insideLines(data, W, H, pt.x, pt.y, Math.max(2, reach));
+    if (!res) return null;
+    const { mask, bounds: b } = res, img = new ImageData(b.w, b.h);
+    for (let yy = 0; yy < b.h; yy++) {
+      const row = (b.y + yy) * W + b.x;
+      for (let xx = 0; xx < b.w; xx++) if (mask[row + xx]) img.data[(yy * b.w + xx) * 4 + 3] = 255;
+    }
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    c.getContext('2d').putImageData(img, b.x, b.y);
+    this.insideClip = { data, mask, canvas: c };
+    return c;
+  }
+
   dualBrush(s, layer, sizeAt) {
     if (!s.dualTip || s.dualTip === 'none') return null;
     const d = this.doc, c = this.dualCanvas ||= document.createElement('canvas');
@@ -1681,6 +1725,8 @@ export class Editor {
       else if (s !== 'layer') this.compPixels();
     }, { timeout: 2000 });
   }
+
+  hasReferenceLayers() { return referenceLayers(this.doc.root).length > 0; }
 
   /** sampleData's 'reference' pixels, kept while the reference layers are unchanged (filling another layer). */
   referencePixels() {
@@ -1946,6 +1992,7 @@ export class Editor {
       if (!this.gesture) c === 'enter' ? this.applyCrop() : this.selectTool('pen');
       return;
     }
+    if (this.findPick && c === 'escape') { e.preventDefault(); this.stopFindLayer(); return; }
     const { table } = keyBindings();  // the keys in use (Help → Change shortcuts…)
     const t = toolForCombo(table, c, this.tool);
     if (t) {
@@ -1955,8 +2002,25 @@ export class Editor {
       this.spring = { key: c, from, at: e.timeStamp, used: false };  // onKeyUp may go back to `from`
       return;
     }
+    // Ctrl+V pastes what was copied in KoeStudio (in place), unless the user has been in another program since;
+    // then the browser's paste event brings in the image from the system clipboard instead (onPaste)
+    if (c === 'ctrl+v' && this.clipboard?.fresh) { e.preventDefault(); if (!this.gesture) this.pasteInternal(); return; }
+    const acts = this.commandActs(), id = (table.get(c) || []).find(x => acts[x]);
+    let fn = acts[id];
+    if (fn && RECORD_CMDS.has(id)) { const run = fn; fn = () => this.recordStep({ kind: 'cmd', id }, run); }  // Auto actions
+    if (this.tool === 'move') {  // arrows nudge the layer or the selected pixels (Shift: 10 px)
+      const step = e.shiftKey ? 10 : 1, a = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] }[c.replace('shift+', '')];
+      if (a) fn = () => this.nudgeLayer(...a);
+    }
+    if (fn) { e.preventDefault(); if (!this.gesture) fn(); }
+  }
+
+  renameLayer() { return this.layerPanel.rename(this.doc.active); }
+
+  /** What each keyboard command (COMMANDS in shortcuts.js) does; Auto actions play recorded commands through it too. */
+  commandActs() {
     const s = this.settings[this.tool];
-    const acts = {
+    return {
       sizeDown: () => s.size && this.setSize(nextSize(s.size, -1)),
       sizeUp: () => s.size && this.setSize(nextSize(s.size, 1)),
       swapColors: () => this.colors.swap(),
@@ -1975,23 +2039,12 @@ export class Editor {
       save: () => this.save(), exportPng: () => this.exportAs('png'), export: () => this.exportAs(),
       mergeDown: () => this.mergeDown(), mergeVisible: () => this.mergeVisible(), newLayer: () => this.layerAdd(), groupFolder: () => this.groupIntoFolder(),
       repeatFilter: () => this.repeatFilter(),
-      renameLayer: () => this.renameLayer(), panels: () => this.togglePanels(),
+      renameLayer: () => this.renameLayer(), findLayer: () => this.findLayerMode(), panels: () => this.togglePanels(),
       fit: () => this.fit(), actual: () => this.actual(), zoomIn: () => this.zoomStep(1), zoomOut: () => this.zoomStep(-1),
       prevFrame: () => this.stepFrame(-1), nextFrame: () => this.stepFrame(1),
       holdLess: () => this.setFrameHold(null, -1), holdMore: () => this.setFrameHold(null, 1),
     };
-    // Ctrl+V pastes what was copied in KoeStudio (in place), unless the user has been in another program since;
-    // then the browser's paste event brings in the image from the system clipboard instead (onPaste)
-    if (c === 'ctrl+v' && this.clipboard?.fresh) { e.preventDefault(); if (!this.gesture) this.pasteInternal(); return; }
-    let fn = acts[(table.get(c) || []).find(id => acts[id])];
-    if (this.tool === 'move') {  // arrows nudge the layer or the selected pixels (Shift: 10 px)
-      const step = e.shiftKey ? 10 : 1, a = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] }[c.replace('shift+', '')];
-      if (a) fn = () => this.nudgeLayer(...a);
-    }
-    if (fn) { e.preventDefault(); if (!this.gesture) fn(); }
   }
-
-  renameLayer() { this.layerPanel.rename(this.doc.active); }
 
   /** While transforming, only Enter, Esc, the arrows, undo and view keys work. */
   onTransformKey(e, c) {
@@ -2041,7 +2094,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods, stripMethods);
+Object.assign(Editor.prototype, brushMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, animMethods, stripMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

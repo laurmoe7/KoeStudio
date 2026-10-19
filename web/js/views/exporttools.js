@@ -5,7 +5,7 @@
 import { api } from '../api.js';
 import { composite, renderFolder } from '../doc.js';
 import { allLayers } from '../tree.js';
-import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, encodeGifAnimation, exportSize, sanitizeExportOptions } from '../imageformats.js';
+import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, encodeGifAnimation, exportSize, sanitizeExportOptions, splitPages } from '../imageformats.js';
 import { animFrames, frameDelays, holdOf, totalTicks } from '../anim.js';
 import { pngWithDpi, jpegWithDpi } from '../resolution.js';
 import { esc, toast, modal, store, confirmBox } from '../ui.js';
@@ -103,23 +103,38 @@ export const exportMethods = {
     }
     const fmt = EXPORT_BY_ID[o.format];
     try {
-      const canvas = this.exportCanvas(o, fmt);
-      let blob;
-      if (['gif', 'tga', 'bmp'].includes(fmt.id)) {
-        const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-        blob = new Blob([encodePixels(fmt.id, data, canvas.width, canvas.height, this.doc.dpi)]);
-      } else {
-        blob = await new Promise(r => canvas.toBlob(r, fmt.mime, fmt.quality ? o.quality / 100 : undefined));
-        if (!blob || blob.type !== fmt.mime) throw new Error(`This window cannot make ${fmt.label} files`);
-        // the artwork's resolution goes into the file, so it prints at the same size elsewhere
-        if (fmt.id === 'png') blob = new Blob([pngWithDpi(new Uint8Array(await blob.arrayBuffer()), this.doc.dpi)], { type: fmt.mime });
-        if (fmt.id === 'jpg') blob = new Blob([jpegWithDpi(new Uint8Array(await blob.arrayBuffer()), this.doc.dpi)], { type: fmt.mime });
+      const canvas = this.exportCanvas(o, fmt), pages = splitPages(canvas.height, o.split);
+      if (pages.length > 1) {  // a tall strip (webtoon) cut into pages: name-01, name-02, ... from the top
+        let res;
+        for (let i = 0; i < pages.length; i++) {
+          const pg = pages[i], c = document.createElement('canvas');
+          c.width = canvas.width; c.height = pg.h;
+          c.getContext('2d', { willReadFrequently: true }).drawImage(canvas, 0, pg.y, canvas.width, pg.h, 0, 0, canvas.width, pg.h);
+          res = await writeExport(`${name}-${String(i + 1).padStart(2, '0')}`, fmt.ext, await this.encodeExport(c, fmt, o), dir, !format);
+          if (!res) return;
+        }
+        toast(`Exported ${pages.length} pages of ${canvas.width} × ${o.split} ${fmt.label} to ${res.folder}`, { action: showFolder(res.folder), ms: 6000 });
+        return;
       }
-      const res = await writeExport(name, fmt.ext, blob, dir, !format);
+      const res = await writeExport(name, fmt.ext, await this.encodeExport(canvas, fmt, o), dir, !format);
       if (res) toast(`Exported ${canvas.width} × ${canvas.height} ${fmt.label} to ${res.path}`, { action: showFolder(res.folder), ms: 6000 });
     } catch (e) {
       toast('Export failed: ' + e.message, { error: true });
     }
+  },
+
+  /** A finished export canvas as a file of the format (the artwork's dpi written in where the format has room). */
+  async encodeExport(canvas, fmt, o) {
+    if (['gif', 'tga', 'bmp'].includes(fmt.id)) {
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      return new Blob([encodePixels(fmt.id, data, canvas.width, canvas.height, this.doc.dpi)]);
+    }
+    let blob = await new Promise(r => canvas.toBlob(r, fmt.mime, fmt.quality ? o.quality / 100 : undefined));
+    if (!blob || blob.type !== fmt.mime) throw new Error(`This window cannot make ${fmt.label} files`);
+    // the artwork's resolution goes into the file, so it prints at the same size elsewhere
+    if (fmt.id === 'png') blob = new Blob([pngWithDpi(new Uint8Array(await blob.arrayBuffer()), this.doc.dpi)], { type: fmt.mime });
+    if (fmt.id === 'jpg') blob = new Blob([jpegWithDpi(new Uint8Array(await blob.arrayBuffer()), this.doc.dpi)], { type: fmt.mime });
+    return blob;
   },
 
   /** The picture to export: the area (canvas or selection bounds), with or without the paper, scaled once at the end. */
@@ -171,6 +186,7 @@ export const exportMethods = {
         // a canvas without paper keeps the remembered choice for the next one that has paper
         paper: d.paper ? f('paper').checked : o.paper,
         area: f('area').checked ? 'selection' : 'canvas',
+        split: f('split').checked ? f('splith').value : 0,
       });
     };
     return modal({
@@ -186,6 +202,10 @@ export const exportMethods = {
         <label class="slider" data-quality><span>Quality</span><input type="range" name="quality" min="1" max="100" value="${o.quality}"><output></output></label>
         <label class="check"><input type="checkbox" name="paper"${o.paper && d.paper ? ' checked' : ''}${d.paper ? '' : ' disabled'}> Include the paper colour${d.paper ? '' : ' (this canvas has none)'}</label>
         <label class="check"><input type="checkbox" name="area"${o.area === 'selection' && hasSel ? ' checked' : ''}${hasSel ? '' : ' disabled'}> Only the selected area${hasSel ? '' : ' (nothing is selected)'}</label>
+        <div class="field-row">
+          <label class="check"><input type="checkbox" name="split"${o.split ? ' checked' : ''}> Cut into pages (webtoon)</label>
+          <label class="field"><span>Page height (px)</span><input type="number" name="splith" min="50" max="${EXPORT_MAX_SIDE}" value="${o.split || 1280}"></label>
+        </div>
         <p class="small" data-size></p>
         <label class="field"><span>Save in</span>
           <div class="fb-dest"><span class="fb-path" data-dest></span><button type="button" data-browse>Browse…</button></div></label>`,
@@ -198,7 +218,9 @@ export const exportMethods = {
           root.querySelector('[data-quality] output').textContent = p.quality + '%';
           const clear = !p.paper || !d.paper;
           const el = root.querySelector('[data-size]');
-          el.textContent = `Result: ${size.w} × ${size.h} px` +
+          const pages = splitPages(size.h, p.split).length;
+          root.querySelector('[name="splith"]').disabled = !p.split;
+          el.textContent = `Result: ${size.w} × ${size.h} px` + (pages > 1 ? `, as ${pages} pages ${p.split} px tall (the last one ${size.h - (pages - 1) * p.split} px)` : '') +
             (size.tooBig ? ` — too big, at most ${EXPORT_MAX_SIDE} px a side` : clear ? (fmt.flatten ? ', on white' : ', transparent background') : '');
           el.classList.toggle('error', size.tooBig);
         };

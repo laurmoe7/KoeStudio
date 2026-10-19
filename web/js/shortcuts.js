@@ -29,6 +29,7 @@ export const COMMANDS = [
   ['layerCopy', 'Layers', 'Copy to a new layer', ['ctrl+j']],
   ['layerCut', 'Layers', 'Cut to a new layer', ['ctrl+shift+j']],
   ['renameLayer', 'Layers', 'Rename the layer', ['f2']],
+  ['findLayer', 'Layers', 'Find a layer by clicking what is drawn on it', []],
   ['prevFrame', 'Animation', 'Previous frame', [',']],
   ['nextFrame', 'Animation', 'Next frame', ['.']],
   ['holdLess', 'Animation', 'Hold the frame shorter', ['alt+,']],

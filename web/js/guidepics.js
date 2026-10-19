@@ -114,6 +114,17 @@ export const PICS = {
     ${t(113, 142, 'Close gaps 0: the fill leaks out')}${t(347, 142, 'Close gaps on: it stays inside')}
   `, 'A circle with a small gap: without Close gaps the fill runs out, with it the fill stays inside'),
 
+  colorize: svg(460, 140, `
+    ${paper(4, 4, 196, 112)}${paper(260, 4, 196, 112)}
+    <circle cx="324" cy="60" r="34" fill="#f2c9a0"/><rect x="368" y="28" width="66" height="64" rx="8" fill="#3e8fe0"/>
+    <path d="M58,58 q6,-8 12,0 q6,8 12,0" fill="none" stroke="#f2c9a0" stroke-width="6" stroke-linecap="round"/>
+    <path d="M128,56 l20,6" fill="none" stroke="#3e8fe0" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="68" cy="60" r="34" class="ink"/><rect x="112" y="28" width="66" height="64" rx="8" class="ink"/>
+    <circle cx="324" cy="60" r="34" class="ink"/><rect x="368" y="28" width="66" height="64" rx="8" class="ink"/>
+    ${arrow(210, 60, 250, 60)}
+    ${t(102, 134, 'A few scribbles under the lines')}${t(358, 134, 'Colorize fills each shape')}
+  `, 'Two shapes of line art with a scribble of colour in each, and the same shapes filled with those colours'),
+
   gradient: svg(460, 110, `
     <defs><linearGradient id="gp-grad"><stop offset="0" stop-color="#3e8fe0"/><stop offset="1" stop-color="#ffffff"/></linearGradient>
     <linearGradient id="gp-grad-r" spreadMethod="reflect" x2="0.25"><stop offset="0" stop-color="#e5484d"/><stop offset="1" stop-color="#e6c84a"/></linearGradient></defs>

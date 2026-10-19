@@ -18,6 +18,7 @@ export function toast(text, { error = false, action = null, ms = 3500 } = {}) {
   box.append(t);
   setTimeout(() => t.classList.add('out'), ms);
   setTimeout(() => t.remove(), ms + 400);
+  return t;
 }
 
 /**
@@ -27,6 +28,13 @@ export function toast(text, { error = false, action = null, ms = 3500 } = {}) {
  * live: the dialog previews its effect on the canvas, so it sits at the bottom and does not dim the screen.
  * passClicks (with live): clicks outside the dialog reach the page (to pick a colour on the canvas) instead of cancelling.
  */
+/**
+ * Auto actions (actiontools.js) watch and fill in dialogs: onClose(back, ok) is told how each dialog closed (ok: by
+ * its primary button), while it is still in the page; fill(back) may fill one in as it opens, and returns true to
+ * press its primary button after that.
+ */
+export const modalHooks = { onClose: null, fill: null };
+
 export function modal({ title, body, buttons = [{ label: 'OK', value: true, primary: true }], onOpen, collect, wide = false, live = false, passClicks = false }) {
   return new Promise(resolve => {
     const back = document.createElement('div');
@@ -34,12 +42,16 @@ export function modal({ title, body, buttons = [{ label: 'OK', value: true, prim
     back.innerHTML = `<div class="modal${wide ? ' wide' : ''}" role="dialog" aria-label="${esc(title)}">
       <h2>${esc(title)}</h2><div class="modal-body">${body}</div>
       <div class="modal-buttons">${buttons.map((b, i) => `<button data-i="${i}" class="${b.primary ? 'primary' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
-    const done = v => { back.remove(); document.removeEventListener('keydown', key, true); resolve(v); };
+    const done = (v, ok = false) => {
+      if (!back.isConnected) return;
+      modalHooks.onClose?.(back, ok);
+      back.remove(); document.removeEventListener('keydown', key, true); resolve(v);
+    };
     const finish = b => {
       if (b.primary && collect) {
         const v = collect(back);
-        if (v !== undefined) done(v);
-      } else done(b.value);
+        if (v !== undefined) done(v, true);
+      } else done(b.value, !!b.primary);
     };
     const key = e => {
       if ([...document.querySelectorAll('.modal-back')].at(-1) !== back) return;  // a dialog opened on top of this one has the keys
@@ -56,6 +68,10 @@ export function modal({ title, body, buttons = [{ label: 'OK', value: true, prim
     document.body.append(back);
     onOpen?.(back, done);
     (back.querySelector('input, select') || back.querySelector('button.primary'))?.focus();
+    if (modalHooks.fill?.(back)) {  // an auto action filled it in: OK once the previews have run
+      const b = buttons.find(x => x.primary);
+      if (b) requestAnimationFrame(() => requestAnimationFrame(() => { if (back.isConnected) finish(b); }));
+    }
   });
 }
 

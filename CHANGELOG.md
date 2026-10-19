@@ -5,6 +5,12 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Auto actions (View → Auto actions): record menu commands, their dialog values and Layers panel changes once, then play them again with one click. A Basic set of ready-made actions is included.
+- Colorize from hints (Edit menu): scribble a little colour in each shape of your line art and every shape is filled with it, on a new layer.
+- Brushes can stay inside lines: with Stay inside lines ticked (Brush settings → Paint), a stroke paints only inside the shape of the reference line art it starts in.
+- Layer color (Layer menu) shows everything on a layer in one colour without changing the paint, to try out colours quickly.
+- Layer → Find layer on canvas: click something you drew and its layer is selected.
+- Export can cut a tall picture into pages of a set height (webtoon), saved as numbered files.
 - The shortcut strip can float over the canvas: drag it by its grip to anywhere you like, upright or lying flat, and it stays there (View → Shortcut strip → Floating).
 - The shortcut strip can also sit under the canvas (View → Shortcut strip → At the bottom).
 - A shortcut strip beside the canvas for drawing on a pen tablet without a keyboard: big buttons for undo, redo, brush size, swapping colours, fitting the view, and hold-down buttons to pick a colour or move the view while the pen draws. It turns on by itself once you use a pen or touch screen; View → Shortcut strip turns it off, moves it to the other side or folds it up.
