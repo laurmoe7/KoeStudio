@@ -1,6 +1,6 @@
-// Timelapse: with File → Record timelapse on (doc.timelapse, saved with the artwork), every successful autosave
+// Timelapse: with File → Timelapse → Record timelapse on (doc.timelapse, saved with the artwork), every successful autosave
 // that changed something sends a small JPEG of the picture to the server (app.py keeps .timelapse/<id>/<n>.jpg).
-// File → Export timelapse plays them back into a WebM video (recordWebm); the plan comes from timelapse.js.
+// File → Timelapse → Export timelapse plays them back into a WebM video (recordWebm); the plan comes from timelapse.js.
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
 import { api } from '../api.js';
@@ -14,14 +14,14 @@ const FRAME_MAX = 1280;  // px a side of a recorded frame
 const FRAME_GAP = 1500;  // ms: at most one frame this often, however quickly autosaves follow each other
 
 export const timelapseMethods = {
-  /** File → Record timelapse. */
+  /** File → Timelapse → Record timelapse. */
   toggleTimelapse() {
     const d = this.doc;
     d.timelapse = !d.timelapse;
     d.version++;  // saved with the artwork
     this.scheduleSave();
     this.root.querySelector('.lapse-chip').hidden = !d.timelapse;
-    toast(d.timelapse ? 'Recording a timelapse: a frame is kept each time the artwork saves. File → Export timelapse makes the video.'
+    toast(d.timelapse ? 'Recording a timelapse: a frame is kept each time the artwork saves. File → Timelapse → Export timelapse makes the video.'
       : 'Timelapse recording paused. The frames so far are kept.', { ms: 5000 });
   },
 
@@ -56,13 +56,13 @@ export const timelapseMethods = {
     }
   },
 
-  /** File → Export timelapse…: the recorded frames as a WebM video. */
+  /** File → Timelapse → Export timelapse…: the recorded frames as a WebM video. */
   async exportTimelapse() {
     const d = this.doc;
     await this.flush();
     const count = d.id ? (await api.timelapse(d.id).catch(() => ({ frames: 0 }))).frames : 0;
     if (!count) return toast(d.timelapse ? 'No timelapse frames yet: keep drawing, a frame is kept each time the artwork saves.'
-      : 'No timelapse recorded. Turn on File → Record timelapse first.', { ms: 5000 });
+      : 'No timelapse recorded. Turn on File → Timelapse → Record timelapse first.', { ms: 5000 });
     if (!webmType()) return toast('This window cannot record video.', { error: true });
     const saved = store('lapseExport') || {};
     let dir = store('exportDir') ?? '';
@@ -133,7 +133,7 @@ export const timelapseMethods = {
     }
   },
 
-  /** File → Discard timelapse…: removes the recorded frames (after asking). */
+  /** File → Timelapse → Discard timelapse…: removes the recorded frames (after asking). */
   async discardTimelapse() {
     const d = this.doc, count = d.id ? (await api.timelapse(d.id).catch(() => ({ frames: 0 }))).frames : 0;
     if (!count) return toast('There is no timelapse to discard.');

@@ -11,7 +11,7 @@ import { snapBytes } from '../snapshot.js';
 const PREVIEW_W = 360, PREVIEW_H = 56;
 
 export const toneMethods = {
-  /** Layer → New screentone: a tone layer filled (inside the selection, if any) with the chosen density. */
+  /** Layer → New → Screentone: a tone layer filled (inside the selection, if any) with the chosen density. */
   async newToneLayer() {
     this.finishTransform();
     this.finishText();

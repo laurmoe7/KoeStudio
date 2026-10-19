@@ -1,7 +1,7 @@
 // Image filters and mask morphology. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FILTERS, FILTER_BY_ID, defaultParams, sanitizeParams, boxesForGauss, boxLine, blurPlane, gaussianBlur, sharpen, mosaic,
+import { FILTERS, FILTER_MENU, FILTER_BY_ID, defaultParams, sanitizeParams, boxesForGauss, boxLine, blurPlane, gaussianBlur, sharpen, mosaic,
   brightnessContrastLut, levelsLut, posterizeLut, threshold, invert, rgbToHsl, hslToRgb, hueSaturation, mixByMask,
   motionBlur, addNoise, noiseAt, balanceLut, colorBalance, zoomBlur, spinBlur } from '../web/js/filters.js';
 import { chamferDistance, expandMask, shrinkMask, featherMask } from '../web/js/maskops.js';
@@ -24,6 +24,9 @@ test('filter table', () => {
     for (const x of f.fields) assert.ok(x.value >= x.min && x.value <= x.max, `${id}.${x.key} default in range`);
     assert.equal(typeof f.margin(defaultParams(f)), 'number');
   }
+  const inMenu = FILTER_MENU.flatMap(([, list]) => list);
+  assert.deepEqual([...inMenu].sort(), [...ids].sort(), 'the Filter menu has every filter once');
+  assert.equal(new Set(inMenu).size, inMenu.length);
   assert.deepEqual(defaultParams(FILTER_BY_ID.brightness), { brightness: 0, contrast: 0 });
   assert.deepEqual(sanitizeParams(FILTER_BY_ID.blur, { radius: 500 }), { radius: 100 }, 'clamped');
   assert.deepEqual(sanitizeParams(FILTER_BY_ID.blur, { radius: 'x' }), { radius: 5 }, 'default');

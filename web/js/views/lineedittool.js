@@ -15,7 +15,7 @@ export const lineEditMethods = {
   /** The vector layer the tool works on, or null after saying why not. */
   lineEditLayer() {
     const layer = this.target('edit lines on', { vector: true });
-    if (layer && !layer.vector) { toast('Line edit changes lines on a vector layer (Layer → New vector layer). Select one first.'); return null; }
+    if (layer && !layer.vector) { toast('Line edit changes lines on a vector layer (Layer → New → Vector layer). Select one first.'); return null; }
     return layer;
   },
 

@@ -1,5 +1,5 @@
 // Image filters (pure, tested). They work on RGBA bytes as in ImageData.data and change them in place.
-// FILTERS lists them for the Filter menu: each has the sliders of its dialog, how far it reaches outside the
+// FILTERS lists them (FILTER_MENU groups them for the Filter menu): each has the sliders of its dialog, how far it reaches outside the
 // area being filtered (margin, so a blur at a selection's edge sees what is around it), and apply(data, w, h,
 // params, x0, y0, W, H), x0/y0 being where the data sits in the document (for filters with a grid) and W x H the
 // document size (for filters with a centre).
@@ -61,6 +61,15 @@ export const FILTERS = [
   { id: 'gradmap', label: 'Gradient map…', fields: [f('mix', 'Strength', 0, 100, 1, 100, '%')], gradient: true,
     note: 'Dark parts take the first colour of the Gradient tool’s Colors choice, light parts the last.',
     margin: () => 0, apply: (d, w, h, p) => gradientMap(d, p.stops || [[0, [0, 0, 0, 255]], [1, [255, 255, 255, 255]]], p.mix / 100) },
+];
+
+/** The Filter menu: a submenu per group, [name, filter ids]. Every filter is in exactly one group. */
+export const FILTER_MENU = [
+  ['Blur', ['blur', 'motion', 'zoom', 'spin']],
+  ['Sharpen and noise', ['sharpen', 'median', 'noise']],
+  ['Color', ['balance', 'brightness', 'hsl', 'curves', 'levels', 'posterize', 'threshold', 'invert', 'recolor', 'gradmap']],
+  ['Effects', ['glow', 'chroma', 'mosaic', 'offset']],
+  ['Line art', ['lines', 'dust', 'whitealpha']],
 ];
 
 export const FILTER_BY_ID = Object.fromEntries(FILTERS.filter(x => x !== '-').map(x => [x.id, x]));

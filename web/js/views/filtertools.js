@@ -2,7 +2,7 @@
 // dialog whose sliders change the layer live; OK records one undo step, Cancel puts the pixels back.
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
-import { FILTERS, FILTER_BY_ID, CURVE_CHANNELS, defaultParams, sanitizeParams, mixByMask, parseStopColor } from '../filters.js';
+import { FILTER_MENU, FILTER_BY_ID, CURVE_CHANNELS, defaultParams, sanitizeParams, mixByMask, parseStopColor } from '../filters.js';
 import { gradientStops } from '../gradient.js';
 import { hexToRgb } from '../color.js';
 import { curveAt } from '../brush.js';
@@ -17,7 +17,7 @@ export const filterMethods = {
     return [
       { label: last ? `Repeat ${last.label.replace(/…$/, '')}` : 'Repeat last filter', key: 'Ctrl+F', disabled: !last, run: () => this.repeatFilter() },
       '-',
-      ...FILTERS.map(f => (f === '-' ? '-' : { label: f.label, run: () => this.runFilter(f.id) })),
+      ...FILTER_MENU.map(([label, ids]) => ({ label, sub: ids.map(id => ({ label: FILTER_BY_ID[id].label, run: () => this.runFilter(id) })) })),
     ];
   },
 

@@ -1,4 +1,4 @@
-// Correction layers (adjust.js): Layer → New correction layer… picks a correction (Levels, Curves, Hue/Saturation…)
+// Correction layers (adjust.js): Layer → New → Correction layer… picks a correction (Levels, Curves, Hue/Saturation…)
 // and shows its sliders while the canvas follows them; the new layer changes everything below it without touching
 // any pixels. Its settings change again through Layer → Correction layer settings… or a double-click on its
 // thumbnail; a mask limits where it applies (with a selection, the new layer's mask hides everything outside it).
@@ -13,7 +13,7 @@ import { esc, modal, toast } from '../ui.js';
 import { filterDialog, curvesDialog, histogram } from './filtertools.js';
 
 export const adjustMethods = {
-  /** Layer → New correction layer…: pick one, set it with the canvas showing it, and add it above the current layer. */
+  /** Layer → New → Correction layer…: pick one, set it with the canvas showing it, and add it above the current layer. */
   async newAdjustLayer() {
     this.finishTransform();
     this.finishText();
@@ -47,7 +47,7 @@ export const adjustMethods = {
 
   /** Layer → Correction layer settings… (or a double-click on its thumbnail). */
   async adjustSettings(node = this.doc.active) {
-    if (!node?.adjust) return toast('Select a correction layer first (Layer → New correction layer… makes one).');
+    if (!node?.adjust) return toast('Select a correction layer first (Layer → New → Correction layer… makes one).');
     this.finishTransform();
     this.finishText();
     const adjust = await this.adjustDialog(node, node.adjust);

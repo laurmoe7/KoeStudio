@@ -21,6 +21,8 @@ export const GUIDE = [
     <ul>
       <li>Click a tool, or press its key. Hover over any button to see what it does and its key.</li>
       <li>Click a panel's heading to fold it away.</li>
+      <li>Menu items with <b>›</b> open a smaller menu to the side. With a menu open, point at another menu name to
+      switch to it, or use the arrow keys.</li>
       <li>The arrow at the top left takes you back to the gallery.</li>
     </ul>
     <p class="tip">Your work <b>saves by itself</b> a moment after every change; there is no Save button to forget.
@@ -206,7 +208,7 @@ export const GUIDE = [
     <p>Edit → <b>Transform</b> (<kbd>Ctrl</kbd>+<kbd>T</kbd>) turns, sizes and mirrors a text layer and it stays text:
     you can still click it to change the words, and it stays sharp at any size. Flipping, turning or resizing the
     canvas keeps text editable too. Only Distort and Mesh need it rasterized.</p>
-    <p class="tip">Text stays editable on its own layer. To paint on it, use Layer → Rasterize text first.</p>`],
+    <p class="tip">Text stays editable on its own layer. To paint on it, use Layer → Rasterize → Text first.</p>`],
 
   ['selection', 'Selections', `
     <p class="lead">A selection fences off part of the picture. Painting, fills, filters and <kbd>Del</kbd> then only
@@ -303,7 +305,7 @@ export const GUIDE = [
     </ol>
     <p>The effects follow along while you keep drawing on the layer. The Layers panel shows "border" or "shadow" under
     the layer's name.</p>
-    <p class="tip">Great for stickers, lettering and logos. Layer → <b>Rasterize layer effects</b> turns them into
+    <p class="tip">Great for stickers, lettering and logos. Layer → Rasterize → <b>Layer effects</b> turns them into
     ordinary paint (merging the layer down does too).</p>`],
 
   ['adjust', 'Correction layers', `
@@ -312,7 +314,7 @@ export const GUIDE = [
     <figure data-pic="adjust"></figure>
     <ol>
       <li>Select the top layer of what you want to change (or make a selection first to change only that part).</li>
-      <li>Open Layer → <b>New correction layer…</b> and pick one: Brightness/Contrast, Levels, Curves,
+      <li>Open Layer → New → <b>Correction layer…</b> and pick one: Brightness/Contrast, Levels, Curves,
       Hue/Saturation/Lightness, Color balance, Posterize, Threshold, Invert colors or Gradient map.</li>
       <li>Drag its sliders; the canvas follows. Press <b>OK</b>.</li>
     </ol>
@@ -356,7 +358,7 @@ export const GUIDE = [
   ['vector', 'Vector layers', `
     <p class="lead">A <b>vector layer</b> remembers every line as a line, not as pixels. That makes cleaning up line
     art fast.</p>
-    <p>Make one with Layer → New vector layer, then draw on it with the Pen, Pencil, Brush, Airbrush or Figure tool.</p>
+    <p>Make one with Layer → New → Vector layer, then draw on it with the Pen, Pencil, Brush, Airbrush or Figure tool.</p>
     <figure data-pic="vector"><figcaption>The Eraser's <b>Vector</b> setting: the red circle is where the eraser
     went.</figcaption></figure>
     <ul>
@@ -374,7 +376,7 @@ export const GUIDE = [
     or the Move tool moves, turns, sizes or distorts them. They stay lines, and get thicker or thinner as you size
     them. With nothing selected, Transform takes every line.</p>
     <p class="tip">Fill, filters, Mesh and Smudge need pixels: they ask to <b>rasterize</b> the layer first
-    (Layer → Rasterize vector layer).</p>`],
+    (Layer → Rasterize → Vector layer).</p>`],
 
   ['masks', 'Masks and screentone', `
     <h4>Layer masks</h4>
@@ -386,10 +388,10 @@ export const GUIDE = [
       <li><b>Paint</b> to hide, <b>erase</b> to show again.</li>
       <li>Click the layer's own picture to paint on the layer again.</li>
     </ol>
-    <p>View → Show mask area tints the hidden part red while you paint on the mask. The Layer menu turns a mask off,
+    <p>View → Show mask area tints the hidden part red while you paint on the mask. Layer → Mask turns a mask off,
     applies it, or deletes it.</p>
     <h4>Screentone</h4>
-    <p>Layer → <b>New screentone</b> makes a layer that shows gray as dots, like printed manga. Paint in gray: darker
+    <p>Layer → New → <b>Screentone</b> makes a layer that shows gray as dots, like printed manga. Paint in gray: darker
     gives bigger dots, erasing removes them. Layer → Screentone settings changes the dot size, angle and shape.</p>
     <ul>
       <li>Set the dot size in pixels (<b>Spacing</b>) or in <b>Lines per inch</b>, as printed tones are sold: it uses
@@ -445,7 +447,7 @@ export const GUIDE = [
     </ol>
     <h4>Symmetry</h4>
     <figure data-pic="symmetry"></figure>
-    <p>View → <b>Symmetry settings…</b> mirrors everything you draw (left–right, top–bottom or four ways), or repeats
+    <p>View → Rulers and symmetry → <b>Symmetry settings…</b> mirrors everything you draw (left–right, top–bottom or four ways), or repeats
     it round a centre for flowers and mandalas. Drag the round centre with the Ruler tool.</p>
     <h4>Guides, lines and the grid</h4>
     <ul>
@@ -482,7 +484,7 @@ export const GUIDE = [
       <li>On a <b>touch screen</b>: pinch with two fingers to zoom, twist them to turn the canvas and drag them to move
       it. Tap with two fingers to undo, with three to redo. One finger draws; your palm is ignored while the pen draws.</li>
       <li><b>Tile preview</b> (View menu) repeats the picture all round itself on screen, to check that a pattern joins up
-      without seams (Filter → Offset moves the seams into the middle to paint over them).</li>
+      without seams (Filter → Effects → Offset moves the seams into the middle to paint over them).</li>
       <li><b>Pixel grid</b> (View menu, on at first) draws lines between the pixels from 800% zoom, for pixel art.</li>
       <li><b>Grayscale view</b> (View menu) shows the canvas in grays, to check that light and dark read well. Your
       colours stay; click the "Grayscale view" label at the top to turn it off.</li>
@@ -513,13 +515,13 @@ export const GUIDE = [
     each the size of the canvas, for other programs and game engines.</p>
     <h4>Timelapse</h4>
     <ol>
-      <li>Turn on File → <b>Record timelapse</b>. Each time the artwork saves, a small picture of it is kept,
+      <li>Turn on File → Timelapse → <b>Record timelapse</b>. Each time the artwork saves, a small picture of it is kept,
       and a red <b>Recording timelapse</b> mark shows at the top (click it to pause).</li>
       <li>Draw as usual. Recording stays on for this artwork until you turn it off.</li>
-      <li>File → <b>Export timelapse…</b> makes a WebM video of it. Choose how fast it plays and how long it may be:
+      <li>File → Timelapse → <b>Export timelapse…</b> makes a WebM video of it. Choose how fast it plays and how long it may be:
       a long recording skips pictures evenly to fit.</li>
     </ol>
-    <p class="tip">The video ends by showing the finished picture for two seconds. File → Discard timelapse… throws a
+    <p class="tip">The video ends by showing the finished picture for two seconds. File → Timelapse → Discard timelapse… throws a
     recording away to start again.</p>`],
 ];
 
@@ -540,7 +542,8 @@ export const SHORTCUTS = [
     ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'], ['Tab', 'Hide / show the panels'],
     ['Ctrl+2 / Ctrl+;', 'Snap to rulers / show guides']]],
   ['File and program', [['Ctrl+S', 'Save now'], ['Ctrl+Shift+S', 'Export a PNG'], ['Ctrl+Alt+Shift+S', 'Export…'],
-    ['Ctrl+Alt+C / Ctrl+Alt+I', 'Canvas size / image size'], ['F1', 'This guide'], ['F5 / Ctrl+R', 'Reload the screen']]],
+    ['Ctrl+Alt+C / Ctrl+Alt+I', 'Canvas size / image size'], ['F1', 'This guide'], ['F5 / Ctrl+R', 'Reload the screen'],
+    ['Arrow keys (in a menu)', 'Move through the menus; → opens a smaller menu, Esc closes']]],
 ];
 
 /** The tool keys from the tool list: [[key, 'Tool / tool'], ...] in key order, tools sharing a key together. */

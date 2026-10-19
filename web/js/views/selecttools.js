@@ -598,7 +598,7 @@ export const selectionMethods = {
   startDistort() {
     const x = this.xf;
     if (!x || x.quad || x.mesh || x.moveOnly) return;
-    if (x.text) return toast('Distort bends pixels: rasterize the text first (Layer → Rasterize text) to distort it.');
+    if (x.text) return toast('Distort bends pixels: rasterize the text first (Layer → Rasterize → Text) to distort it.');
     x.quad = corners(x.t);
     this.readTransformSource(x);
     this.viewport.querySelector('.xf-bar')?.classList.add('distort');
@@ -619,8 +619,8 @@ export const selectionMethods = {
   startMesh() {
     const x = this.xf;
     if (!x || x.mesh || x.moveOnly) return;
-    if (x.vector) return toast('Mesh works on pixels: rasterize the vector layer first (Layer → Rasterize vector layer) to bend it, or use Distort.');
-    if (x.text) return toast('Mesh bends pixels: rasterize the text first (Layer → Rasterize text) to bend it.');
+    if (x.vector) return toast('Mesh works on pixels: rasterize the vector layer first (Layer → Rasterize → Vector layer) to bend it, or use Distort.');
+    if (x.text) return toast('Mesh bends pixels: rasterize the text first (Layer → Rasterize → Text) to bend it.');
     const pts = meshFromQuad(x.quad || corners(x.t), MESH_N);
     x.mesh = { n: MESH_N, pts, start: pts.map(p => ({ ...p })) };
     x.quad = null;

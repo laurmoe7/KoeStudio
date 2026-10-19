@@ -17,7 +17,7 @@ import { gradientChoices } from '../gradient.js';
 import { mipLevel, mipSize, mipRect } from '../mips.js';
 import { Selection } from '../selection.js';
 import { TOOLS, TOOL_BY_ID, SETTING_FIELDS, BASIC_PAINT, SETTING_HINTS, sanitizeSettings, nextSize, toolForKey } from '../tools.js';
-import { esc, toast, menu, modal, promptBox, fileToDataUrl, store } from '../ui.js';
+import { esc, toast, menu, openMenuOwner, modal, promptBox, fileToDataUrl, store } from '../ui.js';
 import { exportMethods } from './exporttools.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, fitRectView, actualSize, pinchView } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
@@ -258,7 +258,17 @@ export class Editor {
       rulers: () => this.toggleEdgeRulers(), snap: () => this.toggleSnap(),
     };
     this.root.querySelectorAll('[data-act]').forEach(b => { b.onclick = () => acts[b.dataset.act](); });
-    this.root.querySelectorAll('[data-menu]').forEach(b => { b.onclick = () => { this.finishTransform(); menu(b, this.menuItems(b.dataset.menu)); }; });
+    // the menu bar: once one menu is open, pointing at another opens that one; ← / → move along the bar
+    const bar = [...this.root.querySelectorAll('[data-menu]')];
+    const openBar = (b, byKey = false) => {
+      this.finishTransform();
+      menu(b, this.menuItems(b.dataset.menu), { onSide: dir => openBar(bar[(bar.indexOf(b) + dir + bar.length) % bar.length], true) });
+      if (byKey) document.querySelector('.menu button:not(:disabled)')?.focus();
+    };
+    for (const b of bar) {
+      b.onclick = () => openBar(b);
+      b.onpointerenter = () => { const o = openMenuOwner(); if (o && o !== b && bar.includes(o)) openBar(b); };
+    }
     // using the side panels or the tool bar while transforming applies the transform first
     for (const el of this.root.querySelectorAll('.ed-side, .ed-left, .ed-tools, .ed-top')) {
       el.addEventListener('pointerdown', e => {
@@ -313,12 +323,13 @@ export class Editor {
         { label: 'Export animation (GIF, frames)…', run: () => this.exportAnimation(), disabled: !d.anim.on },
         { label: 'Save project file (.koe)…', run: () => this.saveProjectFile() },
         '-',
-        { label: 'Record timelapse', checked: !!d.timelapse, run: () => this.toggleTimelapse() },
-        { label: 'Export timelapse…', run: () => this.exportTimelapse() },
-        { label: 'Discard timelapse…', run: () => this.discardTimelapse() },
-        '-',
         { label: 'Import image as layer…', run: () => this.pickImage() },
         { label: 'Earlier versions…', run: () => this.openEarlierVersion(), disabled: !d.id },
+        { label: 'Timelapse', sub: [
+          { label: 'Record timelapse', checked: !!d.timelapse, run: () => this.toggleTimelapse() },
+          { label: 'Export timelapse…', run: () => this.exportTimelapse() },
+          { label: 'Discard timelapse…', run: () => this.discardTimelapse() },
+        ] },
         { label: 'Open artwork folder', run: () => api.openFolder() },
         { label: 'Pen pressure settings…', run: () => this.pressureDialog() },
         '-',
@@ -370,10 +381,12 @@ export class Editor {
       help: helpMenuItems(),
       layer: [
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
-        { label: 'New vector layer', run: () => this.newVectorLayer() },
-        { label: 'New folder', run: () => this.folderAdd() },
-        { label: this.sel.active ? 'New correction layer (in selection)…' : 'New correction layer…', run: () => this.newAdjustLayer() },
-        { label: 'Correction layer settings…', run: () => this.adjustSettings(), disabled: !d.active.adjust },
+        { label: 'New', sub: [
+          { label: 'Vector layer', run: () => this.newVectorLayer() },
+          { label: 'Folder', run: () => this.folderAdd() },
+          { label: this.sel.active ? 'Correction layer (in selection)…' : 'Correction layer…', run: () => this.newAdjustLayer() },
+          { label: this.sel.active ? 'Screentone (in selection)…' : 'Screentone…', run: () => this.newToneLayer() },
+        ] },
         { label: multi ? 'Duplicate selected layers' : 'Duplicate layer', run: () => this.layerDuplicate() },
         { label: 'Copy to new layer', key: 'Ctrl+J', run: () => this.layerViaCopy() },
         { label: 'Cut to new layer', key: 'Ctrl+Shift+J', run: () => this.layerViaCopy(true) },
@@ -388,24 +401,25 @@ export class Editor {
         { label: 'Merge visible to new layer', key: 'Ctrl+Shift+Alt+E', run: () => this.mergeVisible() },
         { label: 'Flatten image', run: () => this.flattenImage() },
         '-',
-        d.active.mask
-          ? { label: d.active.mask.enabled ? 'Turn mask off' : 'Turn mask on', run: () => this.toggleMask() }
-          : { label: this.sel.active ? 'Add mask (hide outside selection)' : 'Add mask', run: () => this.addMask() },
-        { label: 'Apply mask to layer', run: () => this.applyMask(), disabled: !d.active.mask || isFolder(d.active) },
-        { label: 'Delete mask', run: () => this.deleteMask(), disabled: !d.active.mask },
-        '-',
+        { label: 'Mask', sub: [
+          d.active.mask
+            ? { label: d.active.mask.enabled ? 'Turn mask off' : 'Turn mask on', run: () => this.toggleMask() }
+            : { label: this.sel.active ? 'Add mask (hide outside selection)' : 'Add mask', run: () => this.addMask() },
+          { label: 'Apply mask to layer', run: () => this.applyMask(), disabled: !d.active.mask || isFolder(d.active) },
+          { label: 'Delete mask', run: () => this.deleteMask(), disabled: !d.active.mask },
+        ] },
         { label: 'Layer effects (border, shadow)…', run: () => this.layerEffectsDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
-        { label: 'Rasterize layer effects', run: () => this.rasterizeEffects(d.active), disabled: !d.active.effects },
-        '-',
-        { label: this.sel.active ? 'New screentone (in selection)…' : 'New screentone…', run: () => this.newToneLayer() },
         { label: 'Screentone settings…', run: () => this.toneDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
-        { label: 'Rasterize screentone', run: () => this.rasterizeTone(d.active), disabled: !d.active.tone },
+        { label: 'Correction layer settings…', run: () => this.adjustSettings(), disabled: !d.active.adjust },
+        { label: 'Rasterize', sub: [
+          { label: 'Layer effects', run: () => this.rasterizeEffects(d.active), disabled: !d.active.effects },
+          { label: 'Screentone', run: () => this.rasterizeTone(d.active), disabled: !d.active.tone },
+          { label: 'Text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
+          { label: 'Vector layer', run: () => this.rasterizeVector(d.active), disabled: !d.active.vector },
+        ] },
         '-',
         { label: 'Flip layer horizontally', run: () => this.flipPixels(this.layerRasters(), 'h', 'Flip layer') },
         { label: 'Flip layer vertically', run: () => this.flipPixels(this.layerRasters(), 'v', 'Flip layer') },
-        '-',
-        { label: 'Rasterize text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
-        { label: 'Rasterize vector layer', run: () => this.rasterizeVector(d.active), disabled: !d.active.vector },
       ],
       view: [
         { label: 'Zoom in', key: 'Ctrl+=', run: () => this.zoomStep(1) },
@@ -413,30 +427,32 @@ export class Editor {
         { label: 'Actual size (100%)', key: 'Ctrl+1', run: () => this.actual() },
         { label: 'Fit to window', key: 'Ctrl+0', run: () => this.fit() },
         { label: 'Zoom to selection', key: 'Ctrl+Alt+0', run: () => this.zoomToSelection(), disabled: !this.sel.active },
+        { label: 'Rotate and mirror', sub: [
+          { label: 'Rotate left', key: '4', run: () => this.rotate(-15) },
+          { label: 'Rotate right', key: '6', run: () => this.rotate(15) },
+          { label: 'Reset rotation', key: '5', run: () => this.rotate(null) },
+          { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
+        ] },
         { label: 'Hide panels', key: 'Tab', checked: !!this.panelsHidden, run: () => this.togglePanels() },
-        '-',
-        { label: 'Rotate left', key: '4', run: () => this.rotate(-15) },
-        { label: 'Rotate right', key: '6', run: () => this.rotate(15) },
-        { label: 'Reset rotation', key: '5', run: () => this.rotate(null) },
-        { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         '-',
         { label: 'Grid', key: "Ctrl+'", checked: d.rulers.grid.show, run: () => this.toggleGrid() },
         { label: 'Grid settings…', run: () => this.gridDialog() },
         { label: 'Edge rulers', checked: this.showRulers, run: () => this.toggleEdgeRulers() },
-        '-',
-        { label: 'Show rulers and guides', key: 'Ctrl+;', checked: d.rulers.visible, run: () => this.toggleRulerVisibility() },
-        { label: 'Snap to rulers', key: 'Ctrl+2', checked: d.rulers.snap, run: () => this.toggleSnap() },
-        { label: 'Ruler tool…', key: 'U', run: () => this.selectTool('ruler') },
-        { label: 'Clear guides', run: () => this.clearGuides(), disabled: !d.rulers.guides.length },
-        { label: 'Clear line, curve and concentric rulers', run: () => this.clearShapes(), disabled: !d.rulers.shapes.length },
-        '-',
-        { label: 'Symmetry ruler', checked: d.rulers.symmetry.kind !== 'off', run: () => this.toggleSymmetry() },
-        { label: 'Symmetry settings…', run: () => this.symmetryDialog() },
+        { label: 'Pixel grid (when zoomed in)', checked: this.pixelGrid, run: () => this.togglePixelGrid() },
+        { label: 'Rulers and symmetry', sub: [
+          { label: 'Show rulers and guides', key: 'Ctrl+;', checked: d.rulers.visible, run: () => this.toggleRulerVisibility() },
+          { label: 'Snap to rulers', key: 'Ctrl+2', checked: d.rulers.snap, run: () => this.toggleSnap() },
+          { label: 'Ruler tool…', key: 'U', run: () => this.selectTool('ruler') },
+          { label: 'Clear guides', run: () => this.clearGuides(), disabled: !d.rulers.guides.length },
+          { label: 'Clear line, curve and concentric rulers', run: () => this.clearShapes(), disabled: !d.rulers.shapes.length },
+          '-',
+          { label: 'Symmetry ruler', checked: d.rulers.symmetry.kind !== 'off', run: () => this.toggleSymmetry() },
+          { label: 'Symmetry settings…', run: () => this.symmetryDialog() },
+        ] },
         '-',
         { label: 'Show mask area (while painting on a mask)', checked: this.maskOverlay, run: () => this.toggleMaskOverlay() },
         { label: 'Grayscale view (check values)', checked: !!this.grayView, run: () => this.toggleGrayView() },
         { label: 'Tile preview (seamless patterns)', checked: !!this.tileView, run: () => this.toggleTileView() },
-        { label: 'Pixel grid (when zoomed in)', checked: this.pixelGrid, run: () => this.togglePixelGrid() },
         { label: 'Selection bar', checked: this.selBarOn, run: () => this.toggleSelectionBar() },
         '-',
         { label: 'Animation timeline', checked: d.anim.on, run: () => this.toggleAnimation() },
@@ -451,6 +467,10 @@ export class Editor {
   // ---------- rendering ----------
 
   resize() {
+    // a tool bar taller than the window becomes two columns, so no tool is out of sight
+    const tools = this.root.querySelector('.ed-tools');
+    tools.classList.remove('two-col');
+    tools.classList.toggle('two-col', tools.scrollHeight > tools.clientHeight + 1);
     const r = this.viewport.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     this.vw = r.width; this.vh = r.height; this.dpr = dpr;

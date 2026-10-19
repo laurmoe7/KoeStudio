@@ -105,6 +105,8 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ed-body { flex: 1; display: flex; min-height: 0; }
 .ed-body.panels-hidden > .ed-tools, .ed-body.panels-hidden > .ed-left, .ed-body.panels-hidden > .ed-side { display: none; }
 .ed-tools { scrollbar-width: none; width: 48px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; overflow-y: auto; }
+.ed-tools.two-col { width: 86px; display: grid; grid-template-columns: 38px 38px; justify-content: center; align-content: start; }
+.ed-tools.two-col .tool-sep { grid-column: 1 / -1; justify-self: center; width: 64px; margin: 3px 0; }
 .tool-sep { width: 26px; height: 1px; background: var(--line); margin: 5px 0; flex: none; }
 .tool-btn { width: 38px; height: 38px; padding: 0; justify-content: center; background: transparent; border-color: transparent; }
 .tool-btn.active { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
@@ -284,7 +286,9 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
   max-height: calc(100vh - 8px); overflow-y: auto; }  /* long menus scroll on short windows */
 .menu > * { flex: none; }
 .menu button { background: transparent; border: none; justify-content: space-between; text-align: left; padding: 6px 10px; border-radius: 4px; }
-.menu button:hover:not(:disabled) { background: var(--accent-2); }
+.menu button:hover:not(:disabled), .menu button:focus-visible:not(:disabled), .menu button.sub-open { background: var(--accent-2); outline: none; }
+.menu .sub-arrow { font-style: normal; color: var(--muted); font-size: 15px; line-height: 1; padding-left: 16px; }
+.menu-btn.menu-open { background: var(--panel-2); }
 .menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 2px; }
 .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; z-index: 100; }
 .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; width: min(420px, 92vw); box-shadow: 0 16px 40px rgba(0,0,0,.5); }
@@ -422,6 +426,13 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .adjust-list button { text-align: left; }
 
 /* layer colour labels */
+.lp-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.lp-toggles .check { position: relative; border: 1px solid var(--line); border-radius: var(--radius); padding: 3px 8px; color: var(--muted); }
+.lp-toggles .check:hover { background: var(--panel-2); color: var(--text); }
+.lp-toggles .check:has(input:checked) { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.lp-toggles .check:has(input:disabled) { opacity: .45; cursor: default; background: transparent; }
+.lp-toggles .check:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.lp-toggles input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
 .lp-labels { display: flex; gap: 4px; align-items: center; }
 .lp-labels > span { font-size: 11px; color: var(--muted); margin-right: 4px; }
 .lp-label-btn { width: 13px; height: 13px; min-width: 0; padding: 0; border-radius: 50%; border: 1px solid rgba(0,0,0,.4); }

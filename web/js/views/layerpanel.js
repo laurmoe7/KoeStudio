@@ -56,11 +56,9 @@ export class LayerPanel {
         <select class="lp-blend" title="Blending mode"></select>
         <label class="lp-opacity" title="Opacity"><input type="range" min="0" max="100" step="1"><span></span></label>
       </div>
-      <div class="lp-props">
+      <div class="lp-toggles">
         <label class="check" title="Lock transparent pixels: paint only where the layer already has paint"><input type="checkbox" class="lp-lock">${icon('lockAlpha', 15)} Lock alpha</label>
         <label class="check" title="Clip to the layer below: show only where it has paint"><input type="checkbox" class="lp-clip">${icon('clip', 15)} Clip below</label>
-      </div>
-      <div class="lp-props">
         <label class="check" title="Lock the layer (or everything in the folder): no painting, filters, moving or transforming"><input type="checkbox" class="lp-locked">${icon('lock', 15)} Lock</label>
         <label class="check" title="Reference layer: Fill and the Magic wand set to 'Reference layers' find areas from these (e.g. your line art)"><input type="checkbox" class="lp-ref">${icon('ref', 15)} Reference</label>
       </div>

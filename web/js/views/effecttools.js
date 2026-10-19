@@ -31,7 +31,7 @@ export const effectMethods = {
         <div class="field-row">${num('sx', 'Right (px)', -SHADOW_OFFSET, SHADOW_OFFSET, s.x)}${num('sy', 'Down (px)', -SHADOW_OFFSET, SHADOW_OFFSET, s.y)}${num('sblur', 'Blur (px)', ...SHADOW_BLUR, s.blur)}</div>
         <div class="field-row">${num('sop', 'Opacity (%)', 0, 100, Math.round(s.opacity * 100))}
           <label class="field"><span>Color</span><input type="color" name="scolor" value="${s.color}"></label></div>
-        <p class="muted small">The effects are drawn under the layer and never change its pixels; Layer → Rasterize layer effects makes them pixels.</p>`,
+        <p class="muted small">The effects are drawn under the layer and never change its pixels; Layer → Rasterize → Layer effects makes them pixels.</p>`,
       buttons: [{ label: 'Cancel', value: null }, { label: 'OK', primary: true }],
       onOpen: root => {
         const update = () => show(readEffects(root));

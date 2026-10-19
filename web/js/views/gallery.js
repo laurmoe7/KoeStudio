@@ -30,10 +30,10 @@ export async function showGallery(root, { onOpen }) {
         <select class="gal-sort" aria-label="Sort artwork" title="Order of the artwork" hidden>${GALLERY_SORTS.map(([v, l]) =>
           `<option value="${v}"${(store('gallerySort') || 'modified') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
         <button class="primary" data-act="new">${icon('plus', 18)} New canvas</button>
-        <button data-act="import">Open image or project…</button>
+        <button data-act="import">${icon('open', 16)} Open image or project…</button>
         <button data-act="deleted" title="Put back artwork you deleted">${icon('trash', 16)} Deleted</button>
-        <button data-act="folder" title="Open the folder where artwork is saved">Artwork folder</button>
-        <button data-act="guide" title="How KoeStudio works (F1)">Guide</button>
+        <button data-act="folder" title="Open the folder where artwork is saved">${icon('folder', 16)} Artwork folder</button>
+        <button data-act="guide" title="How KoeStudio works (F1)">${icon('help', 16)} Guide</button>
       </header>
       <div class="gal-grid" aria-live="polite"><p class="muted">Loading…</p></div>
     </div>`;

@@ -1,6 +1,8 @@
 // Inline SVG icons (24x24, stroked with currentColor).
 
 const P = {
+  open: '<path d="M14 3H6a1 1 0 00-1 1v16a1 1 0 001 1h12a1 1 0 001-1V8z"/><path d="M14 3v5h5"/><path d="M12 18v-7M9 14l3-3 3 3"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 .5c0 1.7-2.5 2-2.5 3.5"/><circle cx="12" cy="17" r=".6"/>',
   pen: '<path d="M4 20l3-1 11-11-2-2L5 17l-1 3z"/><path d="M14 6l2 2"/><path d="M17 3l4 4-2 2-4-4z"/>',
   pencil: '<path d="M4 20l1-4L16 5l3 3L8 19l-4 1z"/><path d="M14 7l3 3"/><path d="M4 20l2-.5"/>',
   brush: '<path d="M20 4c-4 2-8 6-10 9l1.5 1.5c3-2 7-6 8.5-10.5z"/><path d="M9.5 14c-2 0-3.5 1.5-3.5 3.5 0 1-1 2-2 2.5 3 1 7 0 7-4z"/>',

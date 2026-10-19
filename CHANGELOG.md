@@ -5,7 +5,11 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
-- Record a timelapse of an artwork and export it as a video (File → Record timelapse).
+- Long menus are grouped into smaller menus (Layer → New, Mask and Rasterize; Filter by kind; View → Rulers and symmetry; File → Timelapse), so every menu fits on the screen.
+- With a menu open, pointing at another menu name opens it, and the arrow keys move through the menus.
+- Lock alpha, Clip below, Lock and Reference in the Layers panel are now neat toggle buttons.
+- The gallery's buttons all have icons.
+- Record a timelapse of an artwork and export it as a video (File → Timelapse → Record timelapse).
 - Transform: type an exact width, height or angle.
 - A bar under the selection with deselect, invert, transform, fill, delete, copy to new layer and crop.
 - Filter → Dust cleaner removes small specks, such as dust on a scan.
@@ -34,6 +38,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Picking a layer with Ctrl+click on the Move tool no longer slows the program down afterwards.
 
 ### Fixed
+- On short windows the tool bar shows in two columns instead of hiding the last tools.
 - Video export no longer fails the first time in a newly opened window.
 - Layer and timeline thumbnails are sharp on scaled screens and no longer skip thin lines.
 - Timeline thumbnails no longer draw their paper too faint.
