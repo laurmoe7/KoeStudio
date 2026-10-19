@@ -522,3 +522,9 @@ svg.curve polyline { fill: none; stroke: var(--accent, #6aa0ff); stroke-width: 1
 .sel-bar { position: absolute; left: 0; top: 0; z-index: 3; display: flex; gap: 1px; padding: 3px; border-radius: 7px;
   background: var(--panel, #26272d); border: 1px solid var(--line, #444); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
 .sel-bar .icon-btn { padding: 4px 6px; }
+
+/* finding layers by name */
+.lp-find { padding: 0 0 4px; }
+.lp-find input { width: 100%; box-sizing: border-box; }
+.lp-row.around { opacity: 0.55; }
+.lp-none { padding: 8px; margin: 0; }

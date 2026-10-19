@@ -418,3 +418,21 @@ test('dust cleaner removes small specks and keeps big ones', async () => {
   removeDust(p, 5, 5, 2);
   assert.deepEqual([...p.slice(48, 52)], [255, 255, 255, 255]);
 });
+
+test('median removes a lone pixel and keeps an edge', async () => {
+  const { median } = await import('../web/js/filters.js');
+  // 5 x 5 opaque gray 100 with one white pixel in the middle: the 3x3 median is 100 everywhere
+  const d = new Uint8ClampedArray(100);
+  for (let i = 0; i < 25; i++) d.set([100, 100, 100, 255], i * 4);
+  d.set([255, 255, 255, 255], 12 * 4);
+  median(d, 5, 5, 1);
+  assert.deepEqual([...d.slice(48, 52)], [100, 100, 100, 255]);
+  // left two columns black, the rest white: a straight edge stays where it is
+  const e = new Uint8ClampedArray(100);
+  for (let i = 0; i < 25; i++) e.set(i % 5 < 2 ? [0, 0, 0, 255] : [255, 255, 255, 255], i * 4);
+  median(e, 5, 5, 1);
+  const row = [0, 1, 2, 3, 4].map(x => e[(2 * 5 + x) * 4]);
+  assert.deepEqual(row, [0, 0, 255, 255, 255]);
+  // corner pixel (0,0) sees 4 values (2x2): black, black, black, black -> black; (2,0) sees 0,255,255 x2 rows -> 255
+  assert.equal(e[0], 0);
+});

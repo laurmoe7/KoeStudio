@@ -55,6 +55,30 @@ export function panelRows(root) {
 }
 
 /**
+ * The panel's rows while looking for layers by name: nodes whose name contains `query` (any case), with the folders
+ * they are in (open or not), top first as panelRows. An empty query gives panelRows itself.
+ */
+export function findRows(root, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return panelRows(root);
+  const rows = [];
+  const walk = (f, depth) => {
+    let any = false;
+    for (let i = f.children.length - 1; i >= 0; i--) {
+      const n = f.children[i], at = rows.length;
+      const hit = String(n.name || '').toLowerCase().includes(q);
+      rows.push({ node: n, depth, match: hit });
+      const inside = isFolder(n) && walk(n, depth + 1);
+      if (hit || inside) any = true;
+      else rows.length = at;
+    }
+    return any;
+  };
+  walk(root, 0);
+  return rows;
+}
+
+/**
  * Alt+click on an eye ("show only this"): which nodes to hide so only `node` shows. Its folders and itself must be
  * shown; what is inside it keeps its own eyes. Returns {show, hide} (arrays); `hide` empty means it already shows alone.
  */

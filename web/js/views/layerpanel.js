@@ -5,7 +5,7 @@ import { BLEND_MODES, PASS_THROUGH, LABELS } from '../doc.js';
 import { icon } from '../icons.js';
 import { isDoubleTap } from '../taps.js';
 import { adjustLabel } from '../adjust.js';
-import { isFolder, panelRows } from '../tree.js';
+import { isFolder, findRows } from '../tree.js';
 import { esc, promptBox } from '../ui.js';
 
 const TW = 40, TH = 30, INDENT = 14, DRAG_PX = 5;
@@ -71,6 +71,7 @@ export class LayerPanel {
         </span>
       </div>
       <div class="lp-picked" hidden title="The settings above and the buttons below change all of them"><span></span><button type="button" title="Keep only the selected layer picked">Only this one</button></div>
+      <div class="lp-find" hidden><input type="search" placeholder="Find layers by name" aria-label="Find layers by name"></div>
       <div class="lp-list" role="tree" aria-label="Layers"></div>
       <div class="lp-buttons">
         <button class="icon-btn" data-op="add" title="New layer (Ctrl+Shift+N)">${icon('plus', 18)}</button>
@@ -81,6 +82,7 @@ export class LayerPanel {
         <button class="icon-btn" data-op="down" title="Move down">${icon('down', 18)}</button>
         <button class="icon-btn" data-op="merge" title="Merge with layer below, or merge a folder into one layer (Ctrl+E)">${icon('merge', 18)}</button>
         <button class="icon-btn" data-op="del" title="Delete">${icon('trash', 18)}</button>
+        <button class="icon-btn" data-op="find" title="Find layers by name">${icon('search', 18)}</button>
       </div>`;
     this.list = root.querySelector('.lp-list');
     root.querySelector('.lp-picked button').onclick = () => editor.selectNode(editor.doc.active);
@@ -88,7 +90,17 @@ export class LayerPanel {
       add: () => editor.layerAdd(), folder: () => editor.folderAdd(), dup: () => editor.layerDuplicate(),
       mask: () => editor.doc.active.mask ? editor.editMask(true) : editor.addMask(),
       up: () => editor.layerMove(1), down: () => editor.layerMove(-1), merge: () => editor.mergeDown(), del: () => editor.layerDelete(),
+      find: () => this.showFind(this.findBox.hidden),
     };
+    // finding layers: the list shows only names containing the text, with the folders they are in
+    this.findBox = root.querySelector('.lp-find');
+    const find = this.findBox.querySelector('input');
+    find.addEventListener('input', () => this.render());
+    find.addEventListener('keydown', e => {
+      e.stopPropagation();  // typing a name must not choose tools
+      if (e.key === 'Escape') this.showFind(false);
+      if (e.key === 'Enter') { const hit = this.list.querySelector('.lp-row.found'); if (hit) editor.selectNode(hit._node); }
+    });
     root.querySelectorAll('.lp-buttons button').forEach(b => { b.onclick = () => ops[b.dataset.op](); });
     const blend = root.querySelector('.lp-blend');
     // with several layers picked, every setting here changes all of them (setPickedProp)
@@ -137,10 +149,14 @@ export class LayerPanel {
     const chip = ed.root.querySelector('.mask-chip:not(.qmask-chip)');
     if (chip) chip.hidden = !ed.maskEdit;
     this.list.innerHTML = '';
-    for (const { node, depth } of panelRows(ed.doc.root)) {
+    const query = this.findBox.hidden ? '' : this.findBox.querySelector('input').value.trim();
+    const rows = findRows(ed.doc.root, query);
+    this.root.querySelector('[data-op="find"]').classList.toggle('on', !!query);
+    if (query && !rows.length) this.list.innerHTML = `<p class="muted small lp-none">No layer is called “${esc(query)}”.</p>`;
+    for (const { node, depth, match } of rows) {
       const row = document.createElement('div');
       const active = node === n, picked = ed.picked.has(node);
-      row.className = 'lp-row' + (active ? ' active' : picked ? ' picked' : '') + (node.clip ? ' clipped' : '') + (isFolder(node) ? ' folder' : '');
+      row.className = 'lp-row' + (active ? ' active' : picked ? ' picked' : '') + (node.clip ? ' clipped' : '') + (isFolder(node) ? ' folder' : '') + (query ? (match ? ' found' : ' around') : '');
       row.setAttribute('role', 'treeitem');
       row.setAttribute('aria-selected', active || picked);
       if (isFolder(node)) row.setAttribute('aria-expanded', node.open);
@@ -170,6 +186,14 @@ export class LayerPanel {
     }
     this.thumbs();
     ed.animLayersChanged?.();
+  }
+
+  /** Shows or hides the find box (hiding it shows every layer again). */
+  showFind(on) {
+    this.findBox.hidden = !on;
+    const input = this.findBox.querySelector('input');
+    if (on) input.focus(); else input.value = '';
+    this.render();
   }
 
   /** Redraws the small previews (after painting). */

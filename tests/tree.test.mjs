@@ -1,7 +1,7 @@
 // Layer tree operations and the version 2 save format. Built from plain objects, no canvases.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { allLayers, panelRows, contains, removeNode, insertNode, pathOf, nodeAt, destination, moveNode, stepTarget, shownLayersTopFirst, clipBase, soloChange } from '../web/js/tree.js';
+import { allLayers, panelRows, contains, removeNode, insertNode, pathOf, nodeAt, destination, moveNode, stepTarget, shownLayersTopFirst, clipBase, soloChange, findRows } from '../web/js/tree.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
 // root: [A, F(open): [B, G(closed): [C]], D]   (bottom first)
@@ -148,4 +148,16 @@ test('show only one layer (Alt+click on its eye)', () => {
   assert.equal(names(c.hide), 'A,D', 'what is inside F keeps its own eyes');
   A.visible = D.visible = false;
   assert.equal(soloChange(root, f).hide.length, 0, 'F already shows alone');
+});
+
+test('finding layers by name keeps the folders they are in, even closed ones', () => {
+  const { root } = sample();
+  // top first: D, F, B, G, C, A; G is closed but holds C
+  const names = q => findRows(root, q).map(r => r.node.name + r.depth).join(' ');
+  assert.equal(names('c'), 'F0 G1 C2');
+  assert.equal(names('D'), 'D0');
+  assert.equal(names('g'), 'F0 G1');
+  assert.equal(names('zz'), '');
+  assert.equal(names(' '), panelRows(root).map(r => r.node.name + r.depth).join(' '));
+  assert.deepEqual(findRows(root, 'c').map(r => r.match), [false, false, true]);
 });

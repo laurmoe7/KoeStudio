@@ -7,6 +7,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ### New
 - A bar under the selection with deselect, invert, transform, fill, delete, copy to new layer and crop.
 - Filter → Dust cleaner removes small specks, such as dust on a scan.
+- Filter → Median reduces grain and noise while keeping edges sharp.
+- Find layers by name with the magnifier under the layer list.
 - Tab hides the tool bar and panels; Tab again brings them back.
 - Ctrl+click a layer thumbnail to select its pixels (Shift adds, Alt takes away).
 - Hold a tool's key to use that tool for a moment; let go to go back.

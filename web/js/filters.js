@@ -16,6 +16,9 @@ export const FILTERS = [
     margin: p => Math.ceil(p.radius * 3), apply: (d, w, h, p) => gaussianBlur(d, w, h, p.radius) },
   { id: 'sharpen', label: 'Sharpen…', fields: [f('amount', 'Amount', 1, 500, 1, 100, '%'), f('radius', 'Radius', 0.5, 50, 0.5, 2, ' px')],
     margin: p => Math.ceil(p.radius * 3), apply: (d, w, h, p) => sharpen(d, w, h, p.amount / 100, p.radius) },
+  { id: 'median', label: 'Median (reduce noise)…', fields: [f('radius', 'Radius', 1, 10, 1, 1, ' px')],
+    note: 'Each pixel takes the middle value of its surroundings: grain and specks go, edges stay sharp.',
+    margin: p => p.radius, apply: (d, w, h, p) => median(d, w, h, p.radius) },
   { id: 'mosaic', label: 'Mosaic…', fields: [f('cell', 'Cell size', 2, 200, 1, 8, ' px')],
     margin: () => 0, apply: (d, w, h, p, x0, y0) => mosaic(d, w, h, p.cell, x0, y0) },
   { id: 'motion', label: 'Motion blur…', fields: [f('distance', 'Distance', 1, 200, 1, 20, ' px'), f('angle', 'Angle', 0, 180, 1, 0, '°')],
@@ -595,6 +598,48 @@ export function posterize(data, levels) {
 
 export function invert(data) {
   for (let i = 0; i < data.length; i += 4) { data[i] = 255 - data[i]; data[i + 1] = 255 - data[i + 1]; data[i + 2] = 255 - data[i + 2]; }
+  return data;
+}
+
+/**
+ * Median filter: every channel (premultiplied, so clear pixels add no colour) takes the median of the
+ * (2r+1)² square round it, cut off at the edges. A running histogram per row keeps it to O(r) per pixel.
+ */
+export function median(data, w, h, r) {
+  const n = w * h, planes = [0, 1, 2, 3].map(() => new Uint8Array(n));
+  for (let i = 0; i < n; i++) {
+    const o = i * 4, a = data[o + 3];
+    planes[0][i] = Math.round(data[o] * a / 255); planes[1][i] = Math.round(data[o + 1] * a / 255);
+    planes[2][i] = Math.round(data[o + 2] * a / 255); planes[3][i] = a;
+  }
+  const out = planes.map(() => new Uint8Array(n)), hist = new Int32Array(256);
+  for (let c = 0; c < 4; c++) {
+    const src = planes[c], dst = out[c];
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
+      hist.fill(0);
+      let count = 0;
+      const column = (x, k) => { for (let yy = y0; yy <= y1; yy++) hist[src[yy * w + x]] += k; count += k * (y1 - y0 + 1); };
+      for (let x = 0; x <= Math.min(w - 1, r); x++) column(x, 1);
+      let med = 0, lt = 0;  // lt = how many values are below med
+      for (let x = 0; x < w; x++) {
+        if (x > 0) {
+          const xo = x - r - 1, xi = x + r;
+          if (xo >= 0) { for (let yy = y0; yy <= y1; yy++) if (src[yy * w + xo] < med) lt--; column(xo, -1); }
+          if (xi < w) { for (let yy = y0; yy <= y1; yy++) if (src[yy * w + xi] < med) lt++; column(xi, 1); }
+        }
+        const half = count >> 1;  // the median is the smallest m with more than half the values at most m
+        while (lt > half) { med--; lt -= hist[med]; }
+        while (lt + hist[med] <= half) { lt += hist[med]; med++; }
+        dst[y * w + x] = med;
+      }
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    const o = i * 4, a = out[3][i];
+    data[o + 3] = a;
+    if (a) { data[o] = Math.min(255, Math.round(out[0][i] * 255 / a)); data[o + 1] = Math.min(255, Math.round(out[1][i] * 255 / a)); data[o + 2] = Math.min(255, Math.round(out[2][i] * 255 / a)); }
+  }
   return data;
 }
 

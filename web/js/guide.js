@@ -276,7 +276,8 @@ export const GUIDE = [
       <li><b>Clip below</b> shows a layer only where the layer under it has paint: shade without going over the edges.</li>
       <li><b>Lock alpha</b> paints only where this layer already has paint.</li>
       <li><b>Lock</b> protects the layer from any change. <b>Reference</b> marks line art for Fill and the wand.</li>
-      <li>The coloured dots are labels, to help you find layers.</li>
+      <li>The coloured dots are labels, to help you find layers. The <b>magnifier</b> under the list finds layers by
+      name (inside closed folders too); <kbd>Enter</kbd> selects the first one, <kbd>Esc</kbd> shows all again.</li>
     </ul>
     <h4>More</h4>
     <ul>
@@ -408,7 +409,8 @@ export const GUIDE = [
     <ul>
       <li><b>Blurs</b>: Gaussian (soft all over), Motion (a streak in one direction), Zoom and Spin (click the canvas to
       set the centre).</li>
-      <li><b>Sharpen</b>, <b>Mosaic</b> (big pixels) and <b>Add noise</b> (grain).</li>
+      <li><b>Sharpen</b>, <b>Mosaic</b> (big pixels) and <b>Add noise</b> (grain). <b>Median</b> takes grain away
+      again while keeping edges sharp.</li>
       <li><b>Glow</b> lets light spill softly round the bright parts (set how bright with <b>Brighter than</b>);
       <b>Chromatic aberration</b> gives edges red and blue fringes, stronger towards the corners, like a cheap lens.</li>
       <li><b>Offset (wrap around)</b> slides the picture so what leaves one edge comes back at the other. To make a
