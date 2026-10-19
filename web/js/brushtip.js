@@ -74,10 +74,11 @@ export function bristleDots(n = 12) {
 /**
  * The hairs of the Flat brush tip (a flat oil brush seen edge on, turned across the stroke by Follow): many
  * overlapping hairs in a row, so the dab is solid, but each hair has its own strength, so every stroke is streaked
- * along its length. Hairs are a little shorter towards the ends of the row, like a worn flat. Positions and radii
- * are shares of the tip square; the same every time.
+ * along its length (and, as it runs dry, the weak ones drop out first). Hairs are a little shorter towards the ends of
+ * the row, like a worn flat, and a few thin stray hairs stick out at both ends, so the edges are ragged. Positions
+ * and radii are shares of the tip square; the same every time: the n hairs of the row first, then `strays` strays.
  */
-export function flatDots(n = 40) {
+export function flatDots(n = 40, strays = 6) {
   let h = 777;
   const rnd = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) + 0x9e3779b9 | 0; return ((h >>> 0) % 10000) / 10000; };
   const out = [];
@@ -85,7 +86,11 @@ export function flatDots(n = 40) {
     const t = (i + 0.5) / n, edge = 1 - Math.pow(Math.abs(t - 0.5) * 2, 3);  // 1 in the middle, 0 at the ends
     const r = 0.02 + 0.03 * edge + 0.012 * rnd();
     const x = Math.max(r, Math.min(1 - r, 0.03 + 0.94 * t + (rnd() - 0.5) * 0.4 / n));
-    out.push({ x, y: 0.5 + (rnd() - 0.5) * 0.05, r, a: 0.45 + 0.55 * rnd() });
+    out.push({ x, y: 0.5 + (rnd() - 0.5) * 0.05, r, a: 0.3 + 0.7 * rnd() });
+  }
+  for (let i = 0; i < strays; i++) {  // alternately past the left and the right end, a little off the row
+    const r = 0.008 + 0.008 * rnd(), out1 = 0.01 + 0.03 * rnd(), x = i % 2 ? 1 - r - out1 : r + out1;
+    out.push({ x, y: 0.5 + (rnd() - 0.5) * 0.12, r, a: 0.35 + 0.4 * rnd() });
   }
   return out;
 }

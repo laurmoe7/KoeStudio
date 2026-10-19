@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Runs dry (Brush settings → Paint): the brush gives out its paint along the stroke, so it starts solid and ends in dry, scratchy streaks on the paper grain, like a real loaded brush. Oil paint now uses it, and the Flat brush tip has ragged edges with a few stray hairs.
 - The app icon's cow has small, rounded pale pink horns instead of tall golden ones, softer spots, outlined ears and dark hooves that stand out.
 - Oil paint is redone: a flat brush tip lays solid paint with fine bristle streaks and square ends, the new Impasto setting makes the ridges and edges catch the light like thick paint, and it picks up the colours it crosses without turning see-through. The old canvas pattern that looked like a net is gone.
 - Brush settings → Paint has two new settings: Impasto (thick paint that catches the light) and Paint load (how much paint of its own a mixing brush carries).

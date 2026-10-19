@@ -22,13 +22,14 @@ export const BUILTIN_BRUSHES = [
   B('charcoal', 'Pencil and chalk', 'Charcoal', { size: 24, flow: 0.6, minFlow: 0.1, hardness: 0.45, spacing: 0.08, minSize: 0.55, smoothing: 2, thickness: 0.6, tipAngle: 40, tipRandom: 0.04, texture: 'paper', textureAmount: 0.7, textureScale: 1.6, grainPressure: true }),
   B('chalk', 'Pencil and chalk', 'Chalk', { size: 30, flow: 0.45, minFlow: 0.1, hardness: 0.7, spacing: 0.08, minSize: 0.7, smoothing: 2, texture: 'coldpress', textureAmount: 0.75, textureScale: 0.75, grainPressure: true }),
   // paint: gouache runs dry at a light touch, watercolour and marker ink gather at the edges (wetEdges), the dry
-  // brush's hairs leave streaks broken by the grain; oil paint (a flat brush whose ridges catch the light: impasto) and
+  // brush's hairs leave streaks broken by the grain; oil paint (a flat brush whose ridges catch the light: impasto, and
+// which runs dry into scratchy streaks on the paper grain: dryOut) and
 // the wet blender mix with the colours already there (mix); the blender carries little paint of its own (paintLoad)
   B('gouache', 'Paint', 'Gouache', { size: 30, flow: 0.9, minFlow: 0.3, hardness: 0.9, spacing: 0.05, minSize: 0.4, texture: 'paper', textureAmount: 0.5, textureScale: 1.5, grainPressure: true }),
   B('watercolor', 'Paint', 'Watercolour', { size: 50, opacity: 0.55, flow: 0.6, hardness: 0.8, spacing: 0.05, minSize: 0.7, texture: 'coldpress', textureAmount: 0.4, textureScale: 1.5, wetEdges: 0.6 }),
   B('drybrush', 'Paint', 'Dry brush', { size: 40, flow: 1, hardness: 0.8, spacing: 0.02, minSize: 0.6, tip: 'bristle', tipFollow: true, tipAngle: 90, texture: 'paper', textureAmount: 0.55, textureScale: 2 }),
   B('marker', 'Paint', 'Marker', { size: 24, opacity: 0.8, wetEdges: 0.2, flow: 1, hardness: 0.95, spacing: 0.04, pressureSize: false, pressureOpacity: false, thickness: 0.35, tipAngle: 45 }),
-  B('oil', 'Paint', 'Oil paint', { size: 40, flow: 0.95, minFlow: 0.3, hardness: 1, spacing: 0.03, minSize: 0.65, tip: 'flat', tipFollow: true, tipAngle: 90, impasto: 0.5, mix: 0.35, mixStretch: 0.8 }),
+  B('oil', 'Paint', 'Oil paint', { size: 40, flow: 0.95, minFlow: 0.3, hardness: 1, spacing: 0.03, minSize: 0.65, tip: 'flat', tipFollow: true, tipAngle: 90, impasto: 0.5, dryOut: 0.3, texture: 'paper', textureAmount: 0.5, mix: 0.35, mixStretch: 0.8 }),
   B('blender', 'Paint', 'Wet blender', { size: 50, flow: 0.6, hardness: 0.5, spacing: 0.04, pressureSize: false, mix: 0.95, mixStretch: 0.8, paintLoad: 0.1 }),
   B('soft', 'Paint', 'Soft blend', { size: 90, flow: 0.07, hardness: 0, spacing: 0.06, pressureSize: false, minSize: 0.5 }),
   B('spatter', 'Paint', 'Spatter', { size: 10, flow: 1, hardness: 0.9, spacing: 0.5, pressureSize: false, scatter: 2, count: 6, sizeJitter: 0.8, flowJitter: 0.5 }),

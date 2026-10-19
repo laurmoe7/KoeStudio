@@ -7,7 +7,7 @@
 
 import { textureTile, grooveAlpha, TILE } from './textures.js';
 import { imageRef, bristleDots, flatDots } from './brushtip.js';
-import { pixelSpans } from './brush.js';
+import { pixelSpans, dryness, dryDab, DRY_LEVELS } from './brush.js';
 
 const TIP = 128;
 const tipImages = new Map();      // image id -> canvas whose alpha is the tip shape
@@ -109,15 +109,20 @@ export class Painter {
    * random (0-1: share of a half turn either way), follow (turn with the stroke), rnd (random numbers 0-1; a seeded
    * source makes the random turns repeatable, as vector lines need), height ({ctx, k}: Impasto's height canvas, which
    * gets every dab too, in black at k times its density, so the hairs' streaks build up as ridges without saturating). */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null }) {
+  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, dryOut = 0, dryAt = 1, dryGrain = null }) {
     this.ctx = ctx;
     this.height = pixel ? null : height;
     this.grain = pixel ? null : grain;  // grainFor(s): every dab is cut against the paper (pressure fills the grooves)
     this.pixel = !!pixel;  // hard pixels (pixel art): whole-pixel round dabs, no soft edge, tip image or turn
     this.color = color;
     this.hardness = hardness;
-    this.mask = tipImages.get(imageRef(tip)) || builtinTip(tip);
+    this.mask = this.fullMask = tipImages.get(imageRef(tip)) || builtinTip(tip);
     this.image = this.mask ? tinted(this.mask, color) : null;
+    this.dryOut = this.mask && !pixel ? Math.max(0, Math.min(1, dryOut || 0)) : 0;  // Runs dry: tip images only
+    this.dryAt = dryAt;  // the brush size dryness is measured in
+    this.dryLevel = 0;
+    this.dryT = 0;
+    this.dryGrain = this.dryOut ? dryGrain : null;  // dryGrainFor(s): the texture, showing more as the brush runs dry
     this.hard = !this.image && hardness >= 0.99;
     if (!this.image && !this.hard) this.tip = makeTip(color, hardness);
     this.squash = Math.max(0.05, Math.min(1, thickness));
@@ -136,6 +141,23 @@ export class Painter {
       this.image = tinted(this.mask, color, this.image);
       if (this.small) { const mips = mipsOf(this.mask); this.small = this.small.map((c, i) => tinted(mips[i], color, c)); }
     } else if (!this.hard) this.tip = makeTip(color, this.hardness, this.tip);
+  }
+
+  /**
+   * Runs dry: sets the tip for a dab d px along the stroke (its weakest parts cut away as the paint gives out, so the
+   * strongest hairs streak on alone) and returns the share of its density the dab keeps. 1 when it is off.
+   */
+  dry(d) {
+    if (!this.dryOut) return 1;
+    this.dryT = dryness(d, this.dryAt, this.dryOut);
+    const { level, flowK } = dryDab(this.dryT);
+    if (level !== this.dryLevel) {
+      this.dryLevel = level;
+      this.mask = dryMask(this.fullMask, level);
+      this.image = tinted(this.mask, this.color, this.image);
+      this.small = null;
+    }
+    return flowK;
   }
 
   /**
@@ -158,7 +180,9 @@ export class Painter {
   dab(x, y, size, alpha, k = 0, color = null, dir = null) {
     if (color) this.setColor(color);
     const rot = this.pixel ? 0 : this.rotation(x, y, k, dir);  // once, so the height canvas gets the same turn
-    if (this.grain) this.grainDab(x, y, size, alpha, rot);
+    if (this.grain) this.grainDab(x, y, size, alpha, rot, this.grain);
+    // running dry on a texture: a loaded brush covers it, a drying one reaches less deep and the grooves show more
+    else if (this.dryGrain && this.dryT > 0.02) this.grainDab(x, y, size, alpha, rot, this.dryGrain, 1 - 0.3 * this.dryT, Math.min(1, 1.2 * this.dryT));
     else this.draw(this.ctx, x, y, size, alpha, rot);
     if (this.height) this.draw(this.height.ctx, x, y, size, alpha * this.height.k, rot);
   }
@@ -172,18 +196,19 @@ export class Painter {
    * it stays grey, as graphite does. Since every dab leaves the same grooves empty, overlapping dabs build up
    * density on the tooth without filling the grain in. The subtraction is done on the GPU:
    * xor with an opaque fill turns alpha x into 1 - x, 'lighter' adds the groove, and a second xor turns it back.
+   * Runs dry passes its own `depth` (instead of the pressure's) and `grooveK` (how much of the groove is cut).
    */
-  grainDab(x, y, size, alpha, rot) {
+  grainDab(x, y, size, alpha, rot, grain, depth = null, grooveK = 1) {
     const reach = size * 0.75 + 2;  // half the diagonal of a turned tip, and a margin
     const x0 = Math.floor(x - reach), y0 = Math.floor(y - reach), n = Math.ceil(2 * reach) + 1;
     const c = grainScratch ||= document.createElement('canvas');
     if (c.width < n || c.height < n) c.width = c.height = Math.max(n, 64);
-    const g = c.getContext('2d'), { tile, scale } = this.grain;
+    const g = c.getContext('2d'), { tile, scale } = grain;
     g.globalCompositeOperation = 'source-over';
     g.globalAlpha = 1;
     g.clearRect(0, 0, n, n);
     const a = Math.max(0, Math.min(1, alpha));
-    this.draw(g, x - x0, y - y0, size, Math.sqrt(Math.min(1, a / (this.grain.full || 1))), rot);
+    this.draw(g, x - x0, y - y0, size, depth ?? Math.sqrt(Math.min(1, a / (grain.full || 1))), rot);
     g.globalAlpha = 1;
     g.fillStyle = '#000';
     g.globalCompositeOperation = 'xor';
@@ -191,8 +216,10 @@ export class Painter {
     if (!tile.pattern) tile.pattern = g.createPattern(tile, 'repeat');
     tile.pattern.setTransform(new DOMMatrix().translateSelf(-x0, -y0).scaleSelf(scale));
     g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = grooveK;
     g.fillStyle = tile.pattern;
     g.fillRect(0, 0, n, n);
+    g.globalAlpha = 1;
     g.globalCompositeOperation = 'xor';
     g.fillStyle = '#000';
     g.fillRect(0, 0, n, n);
@@ -249,6 +276,28 @@ export class Painter {
     if (this.random) a += (this.rnd() * 2 - 1) * Math.PI * this.random;
     return a;
   }
+}
+
+const dryMasks = new WeakMap();  // tip mask -> its dry levels (dryMask)
+
+/**
+ * A tip mask at dry level `level` (0 = as it is): alpha a becomes (a - t) / (1 - t), t up to 65% at the driest, so
+ * the weak hairs and thin parts of the tip drop out first and the strong ones are left to streak on.
+ */
+function dryMask(mask, level) {
+  if (!level) return mask;
+  let levels = dryMasks.get(mask);
+  if (!levels) dryMasks.set(mask, levels = []);
+  if (!levels[level]) {
+    const w = mask.width, h = mask.height, t = 0.65 * level / (DRY_LEVELS - 1);
+    const src = mask.getContext('2d').getImageData(0, 0, w, h), out = new ImageData(w, h);
+    for (let i = 3; i < src.data.length; i += 4) out.data[i] = Math.max(0, Math.round((src.data[i] / 255 - t) / (1 - t) * 255));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').putImageData(out, 0, 0);
+    levels[level] = c;
+  }
+  return levels[level];
 }
 
 const tipMips = new WeakMap();  // tip mask -> [mask, its halves down to 4 px]
@@ -316,7 +365,7 @@ let grainScratch = null;
 /** The live.texture for a paint tool's settings, or null: a tile canvas whose alpha is what the grain removes. With
  * grainPressure the dabs carry the grain themselves (grainFor), so the stroke as a whole gets none. */
 export function textureFor(s) {
-  if (s.grainPressure) return null;
+  if (s.grainPressure || dryGrainFor(s)) return null;
   return grainTile(s);
 }
 
@@ -347,6 +396,12 @@ export function heightFor(c, w, h, r = null) {
   ctx.globalCompositeOperation = 'source-over';
   if (r) ctx.clearRect(r.x, r.y, r.w, r.h); else ctx.clearRect(0, 0, w, h);
   return { ctx, k: HEIGHT_SHARE };
+}
+
+/** Painter's `dryGrain` for settings with Runs dry: their texture then shows as the brush runs dry (in the dabs),
+ * not over the whole stroke. */
+export function dryGrainFor(s) {
+  return s.dryOut > 0 && !s.grainPressure && !s.pixel ? grainTile(s) : null;
 }
 
 /** Painter's `grain` for settings with grainPressure: the texture tile (alpha: groove depth times the grain amount),

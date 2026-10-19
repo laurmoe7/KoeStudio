@@ -3,7 +3,7 @@
 // pen stroke is committed; so a line looks the same drawn live and redrawn from the data.
 
 import { liveSource } from './doc.js';
-import { Painter, textureFor, grainFor, wetFor, impastoFor, heightFor } from './painter.js';
+import { Painter, textureFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from './painter.js';
 import { stampAt } from './brush.js';
 import { strokeBounds, strokeStamps, dualStamps, seeded, brushOf } from './vector.js';
 import { clip } from './rect.js';
@@ -34,10 +34,10 @@ export function renderVector(layer, rect = null) {
     let imp = impastoFor(b);
     if (imp) imp = { ...imp, canvas: heightScratch ||= document.createElement('canvas') };
     const painter = new Painter(sctx, { color: s.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-      random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q) });
+      random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(s, b)) {
       const { size, flow } = stampAt(b, st.p);
-      painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);
+      painter.dab(st.x, st.y, size * st.k, flow * st.f * painter.dry(st.d), 0, st.c, st.a ?? null);
     }
     let dual = null;
     if (b.dualTip !== 'none') {  // the dual brush: the line shows only where its second tip lands

@@ -21,7 +21,7 @@ function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0,
     tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false, refStop: false,
-    dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, impasto: 0, mix: 0, mixStretch: 0.5, paintLoad: 1,
+    dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, impasto: 0, dryOut: 0, mix: 0, mixStretch: 0.5, paintLoad: 1,
     ...COMBO_DEFAULTS, preset: '' };
 }
 
@@ -157,6 +157,7 @@ export const SETTING_FIELDS = [
   ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
   ['wetEdges', 'Wet edges', 'range', 0, 1, 0.01],
   ['impasto', 'Impasto', 'range', 0, 1, 0.01],
+  ['dryOut', 'Runs dry', 'range', 0, 1, 0.01],
   ['mix', 'Color mixing', 'range', 0, 1, 0.01],
   ['mixStretch', 'Color stretch', 'range', 0, 1, 0.01],
   ['paintLoad', 'Paint load', 'range', 0, 1, 0.01],
@@ -188,7 +189,7 @@ export const BASIC_PAINT = ['vectorErase', 'size', 'opacity', 'flow', 'hardness'
 
 /** The pages of the Brush settings window, and which settings each holds (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
-  ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness', 'wetEdges', 'impasto', 'mix', 'mixStretch', 'paintLoad', 'refStop']],
+  ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'refStop']],
   ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow', 'pixel']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'quickShape']],
@@ -232,6 +233,7 @@ export const SETTING_HINTS = {
   wetEdges: 'Like watercolour drying: the paint gathers at the edge of the stroke and the middle stays lighter',
   textureScale: 'Size of the texture (100% = as made)',
   impasto: 'Thick paint: light catches the top-left edges of the stroke and its bristle ridges, and the other side is shaded',
+  dryOut: 'The brush gives out its paint along the stroke: the weak hairs drop out first and the end breaks into streaks (with a tip image or the Bristles / Flat tips). Higher runs dry sooner; each stroke starts loaded',
   paintLoad: 'How much paint of its own the brush carries (with Color mixing on): lower, it mostly moves the colours already there and leaves little on bare paper, as a blender does',
   mix: 'Wet paint: the brush picks up the colours already on this layer and mixes them into its own colour (0 = off). Not on vector layers',
   mixStretch: 'How far the picked-up colour is dragged along the stroke before the brush colour comes back (with Color mixing on)',

@@ -86,6 +86,9 @@ export const GUIDE = [
       stroke and leaves the middle lighter, as watercolour does when it dries (on for Watercolour and Marker).
       <b>Impasto</b> makes the paint look thick: light catches the top-left edge of each stroke and its bristle
       ridges, and the other side is shaded (on for Oil paint).
+      <b>Runs dry</b> lets the brush give out its paint along the stroke: it starts solid, then the weaker hairs drop
+      out and the end breaks into dry, scratchy streaks; each new stroke starts loaded again. With it on, the brush's
+      Texture shows only where the paint runs dry (Oil paint uses Paper), so a short stroke stays solid.
       <b>Color mixing</b> makes the paint wet: the brush picks up the colours already on the layer and blends them
       into its own, and <b>Color stretch</b> sets how far it drags them along. <b>Paint load</b> is how much paint of
       its own the brush carries: turn it down for a blender that moves the colours already there and leaves little on
@@ -106,7 +109,8 @@ export const GUIDE = [
       decides how deep the grain fills, Density how dark each pass is.</li>
       <li><b>Tip</b>: Round, or <b>Bristles</b>, a row of hairs; with <b>Turn with the stroke</b> on and the angle at
       90° each hair leaves its own streak, as a dry brush does. <b>Flat brush</b> is a full row of hairs that
-      touch, like a flat oil brush: solid paint with fine streaks along the stroke (Oil paint uses it).</li>
+      touch, like a flat oil brush, with a few stray hairs at the ends: solid paint with fine streaks along the
+      stroke (Oil paint uses it).</li>
       <li><b>Dual brush</b>: a second tip stamped along the stroke (its own size, spacing and scatter); the paint shows
       only where it lands, for chalk, dry bristles or leaves.</li>
       <li><b>Combined</b>: a second brush that paints along the same stroke, as Procreate's combined brushes do. Pick

@@ -10,7 +10,7 @@ import { floodMask, growMask, closeGapFill, insideLines } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping, springBack } from '../keys.js';
-import { Painter, textureFor, grainFor, wetFor, impastoFor, heightFor, hasTipImage, tipOutline } from '../painter.js';
+import { Painter, textureFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor, hasTipImage, tipOutline } from '../painter.js';
 import { WetPaint, averageUnder, rgbHex, loadShare } from '../wetmix.js';
 import { comboSettings, comboOp } from '../combo.js';
 import { union, clip } from '../rect.js';
@@ -1397,7 +1397,7 @@ export class Editor {
       color, dabColors: varies && !s.colorJitterStroke, dyn,
       painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
         tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel,
-        grain: grainFor(s), height: imp && heightFor(imp.canvas, this.doc.width, this.doc.height) }),
+        grain: grainFor(s), height: imp && heightFor(imp.canvas, this.doc.width, this.doc.height), dryOut: s.dryOut, dryAt: s.size, dryGrain: dryGrainFor(s) }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
@@ -1638,7 +1638,7 @@ export class Editor {
     all.forEach((st, i) => {
       const { size, flow } = stampAt(g.s, st.p);
       const wet = g.wet ? this.wetColor(g, st, size * st.k, i % per) : null;
-      g.painter.dab(st.x, st.y, size * st.k, flow * st.f * (wet ? wet.share : 1), i % per, wet ? wet.color : st.c, st.a ?? null);
+      g.painter.dab(st.x, st.y, size * st.k, flow * st.f * (wet ? wet.share : 1) * g.painter.dry(st.d), i % per, wet ? wet.color : st.c, st.a ?? null);
     });
     const r = stampBounds(all, g.reachAt);
     g.bounds = union(g.bounds, r);
@@ -2201,7 +2201,7 @@ function fmt(key, v) {
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'mix', 'mixStretch', 'paintLoad'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
   if (key === 'tipAngle' || key === 'comboAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);

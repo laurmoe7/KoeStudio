@@ -101,6 +101,27 @@ export function previewSettings(s, maxSize) {
   return { ...s, size: (s.size || 1) * k, taperIn: (s.taperIn || 0) * k, taperOut: (s.taperOut || 0) * k };
 }
 
+/** How many steps of dryness a tip has (Painter.dry): 0 is full of paint, DRY_LEVELS - 1 as dry as it gets. */
+export const DRY_LEVELS = 16;
+
+/**
+ * Runs dry (dryOut 0-1, 0 = off), as a loaded brush gives out its paint: how dry it is after d px of a stroke of
+ * brush size `size`, from 0 (full) to 1. It gets there after 3 + 37 * (1 - dryOut)^2 brush widths (3 at 1, about
+ * 12 at 0.5, 33 at 0.1), slowly at first and then faster ((d / len)^1.5), as the paint holds out and then gives.
+ * Each stroke starts loaded again.
+ */
+export function dryness(d, size, dryOut) {
+  if (!(dryOut > 0)) return 0;
+  const k = 1 - Math.min(1, dryOut), len = Math.max(1, size) * (3 + 37 * k * k);
+  return Math.min(1, Math.max(0, d) / len) ** 1.5;
+}
+
+/** A dab at dryness t: the tip's dry level (its weakest parts left out) and the share of its density it keeps. */
+export function dryDab(t) {
+  const c = Math.max(0, Math.min(1, t));
+  return { level: Math.round(c * (DRY_LEVELS - 1)), flowK: 1 - 0.2 * c };
+}
+
 /** Size factor of the starting taper: grows from 10% to full over the first `length` pixels of the stroke. */
 export function taperIn(dist, length) {
   if (!(length > 0) || dist >= length) return 1;

@@ -272,13 +272,16 @@ test('wet edges', async () => {
 
 test('flat brush hairs', async () => {
   const { flatDots } = await import('../web/js/brushtip.js');
-  const d = flatDots();
-  assert.equal(d.length, 40);
-  assert.deepEqual(flatDots(), d, 'always the same layout');
-  for (const { x, y, r, a } of d) {
-    assert.ok(x - r >= 0 && x + r <= 1, 'inside the tip across');
-    assert.ok(Math.abs(y - 0.5) <= 0.025 && a >= 0.45 && a <= 1);
-  }
+  const all = flatDots(), d = all.slice(0, 40), strays = all.slice(40);
+  assert.equal(all.length, 46, '40 hairs in the row and 6 strays');
+  assert.deepEqual(flatDots(), all, 'always the same layout');
+  for (const { x, r } of all) assert.ok(x - r >= 0 && x + r <= 1, 'inside the tip across');
+  for (const { y, a } of d) assert.ok(Math.abs(y - 0.5) <= 0.025 && a >= 0.3 && a <= 1);
+  // strays: thin (r 0.008-0.016), within 0.06 of an end, a little off the row (y within 0.06), never full strength
+  strays.forEach(({ x, y, r, a }, i) => {
+    assert.ok(r >= 0.008 && r <= 0.016 && Math.abs(y - 0.5) <= 0.06 && a >= 0.35 && a <= 0.75);
+    assert.ok(i % 2 ? x > 0.94 : x < 0.06, `stray ${i} sticks out at the ${i % 2 ? 'right' : 'left'} end`);
+  });
   // hairs touch their neighbours, so a dab has no gaps: centres closer than the two radii together
   for (let i = 1; i < d.length; i++) assert.ok(d[i].x - d[i - 1].x < d[i].r + d[i - 1].r, `hair ${i} touches the one before`);
   // worn ends: the outer hairs are thinner than the middle ones (r = 0.02 + 0.03 * edge + up to 0.012)
@@ -328,4 +331,37 @@ test('paint load', async () => {
   assert.equal(sanitizeSettings(null).brush.paintLoad, 1);
   assert.equal(sanitizeSettings({ brush: { paintLoad: 5 } }).brush.paintLoad, 1);
   assert.equal(BUILTIN_BY_ID['b-blender'].settings.paintLoad, 0.1);
+});
+
+test('runs dry', async () => {
+  const { dryness, dryDab, DRY_LEVELS } = await import('../web/js/brush.js');
+  const { dryGrainFor, textureFor } = await import('../web/js/painter.js');
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  const { BUILTIN_BY_ID } = await import('../web/js/builtinbrushes.js');
+  assert.equal(dryness(500, 40, 0), 0, 'off: never dries');
+  // dryOut 1: dry after 3 brush widths (120 px at size 40); half way it is 0.5^1.5 dry
+  assert.equal(dryness(120, 40, 1), 1);
+  near(dryness(60, 40, 1), Math.SQRT1_2 / 2, 'half way: 0.5^1.5');
+  // dryOut 0.5: 3 + 37 * 0.25 = 12.25 widths = 490 px at size 40
+  near(dryness(490, 40, 0.5), 1, 'dry at 12.25 widths');
+  assert.equal(dryness(5000, 40, 0.5), 1, 'stays dry');
+  assert.equal(dryness(-5, 40, 0.5), 0);
+  // a dab's dry level and density: full at 0, the last level and 80% density when dry
+  assert.deepEqual(dryDab(0), { level: 0, flowK: 1 });
+  assert.deepEqual(dryDab(1), { level: DRY_LEVELS - 1, flowK: 0.8 });
+  assert.equal(dryDab(0.5).level, Math.round(0.5 * (DRY_LEVELS - 1)));
+  // with Runs dry the texture shows as it dries (in the dabs), not over the whole stroke
+  assert.equal(dryGrainFor({ dryOut: 0, texture: 'paper', textureAmount: 0.5 }), null);
+  assert.equal(dryGrainFor({ dryOut: 0.3, texture: 'none', textureAmount: 0.5 }), null, 'no texture: nothing to show');
+  assert.equal(dryGrainFor({ dryOut: 0.3, texture: 'paper', textureAmount: 0.5, grainPressure: true }), null, 'Grain by pressure keeps the grain');
+  assert.equal(textureFor({ dryOut: 0.3, texture: 'none', textureAmount: 0.5 }), null);
+  // settings: off by default, kept in 0-1 by tools and vector lines
+  assert.equal(sanitizeSettings(null).brush.dryOut, 0);
+  assert.equal(sanitizeSettings({ brush: { dryOut: 4 } }).brush.dryOut, 1);
+  assert.ok(BRUSH_KEYS.includes('dryOut'));
+  assert.equal(sanitizeBrush({ dryOut: 0.3 }).dryOut, 0.3);
+  assert.equal(sanitizeBrush({}).dryOut, 0, 'older lines have none');
+  const oil = BUILTIN_BY_ID['b-oil'].settings;
+  assert.equal(oil.dryOut, 0.3);
+  assert.equal(oil.texture, 'paper');
 });
