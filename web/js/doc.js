@@ -125,7 +125,9 @@ class Raster {
   }
   async loadPng(png) {
     if (!png) return;
-    this.ctx.drawImage(await loadImage(png), 0, 0);
+    const img = await loadImage(png);
+    await img.decode().catch(() => {});  // decoded off the page, so drawing it does not stall
+    this.ctx.drawImage(img, 0, 0);
     this.png = png;
     this.pngVersion = this.version;
   }
@@ -305,17 +307,20 @@ export class Doc {
     const d = new Doc({ ...s, id });
     d.rulers = s.rulers;
     d.anim = s.anim;
-    const build = async (src, parent) => {
+    // the tree is built first and every picture decoded at once (the browser decodes them in parallel, off the page)
+    const loads = [];
+    const build = (src, parent) => {
       const n = src.type === 'folder' ? new Folder(src) : new Layer(d.width, d.height, src);
-      if (src.type === 'folder') for (const c of src.children) await build(c, n);
-      else await n.loadPng(src.png);
+      if (src.type === 'folder') for (const c of src.children) build(c, n);
+      else loads.push(n.loadPng(src.png));
       if (src.mask) {
         n.mask = new Mask(d.width, d.height, src.mask.enabled);
-        await n.mask.loadPng(src.mask.png);
+        loads.push(n.mask.loadPng(src.mask.png));
       }
       insertNode(parent, parent.children.length, n);
     };
-    for (const l of s.layers) await build(l, d.root);
+    for (const l of s.layers) build(l, d.root);
+    await Promise.all(loads);
     if (!allLayers(d.root).length) insertNode(d.root, d.root.children.length, new Layer(d.width, d.height, { name: 'Layer 1' }));
     d.active = nodeAt(d.root, s.activePath) || d.root.children[d.root.children.length - 1];
     return d;
