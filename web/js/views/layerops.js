@@ -339,20 +339,20 @@ export const layerMethods = {
       c.globalCompositeOperation = 'copy'; c.drawImage(fx, 0, 0); c.globalCompositeOperation = 'source-over';
     }
     if (n.clip) { c.globalCompositeOperation = 'destination-in'; c.drawImage(lower.canvas, 0, 0); }
-    const before = lower.ctx.getImageData(0, 0, W, H);
+    // GPU copies for undo (trimmed when idle), so merging does not wait for the GPU to read both layers back
+    const full = { x: 0, y: 0, w: W, h: H }, before = this.snapshot(lower, full);
     lower.ctx.save();
     lower.ctx.globalAlpha = n.opacity;
     lower.ctx.globalCompositeOperation = lower.alphaLock || (n.adjust && n.blend === 'source-over') ? 'source-atop' : n.blend;
     lower.ctx.drawImage(src, 0, 0);
     lower.ctx.restore();
-    const after = lower.ctx.getImageData(0, 0, W, H);
-    lower.ctx.putImageData(before, 0, 0);
-    const put = img => { lower.ctx.putImageData(img, 0, 0); lower.touch(); };
+    const after = this.snapshot(lower, full);
+    const put = img => { this.putSnapshot(lower, full, img); lower.touch(); };
     const tx = this.textsIn([lower]);  // merged into, a text layer becomes ordinary pixels
     this.structural('Merge down',
       () => { put(after); removeNode(n); d.active = lower; tx.drop(); },
       () => { put(before); insertNode(parent, i, n); d.active = n; tx.restore(); },
-      W * H * 12);
+      () => snapBytes(before) + snapBytes(after) + W * H * 4);
   },
 
   /** Replaces a folder by one layer that looks the same; the folder's opacity, blend and mask carry over. */
@@ -419,21 +419,22 @@ export const layerMethods = {
       layer.ctx.globalCompositeOperation = 'source-over';
     }
     let before = null, after = null;
-    if (cut) {
-      before = t.ctx.getImageData(0, 0, W, H);
+    const full = { x: 0, y: 0, w: W, h: H };
+    if (cut) {  // GPU copies for undo (trimmed when idle), not readbacks of the whole layer
+      before = this.snapshot(t, full);
       if (this.sel.active) {
         t.ctx.save();
         t.ctx.globalCompositeOperation = 'destination-out';
         t.ctx.drawImage(this.sel.canvas, 0, 0);
         t.ctx.restore();
       } else t.ctx.clearRect(0, 0, W, H);
-      after = t.ctx.getImageData(0, 0, W, H);
+      after = this.snapshot(t, full);
     }
     const parent = t.parent, index = parent.children.indexOf(t) + 1, prev = d.active, prevMask = this.maskEdit;
     this.structural(cut ? 'Cut to new layer' : 'Copy to new layer',
-      () => { if (cut) { t.ctx.putImageData(after, 0, 0); t.touch(); } insertNode(parent, index, layer); d.active = layer; this.maskEdit = false; },
-      () => { removeNode(layer); if (cut) { t.ctx.putImageData(before, 0, 0); t.touch(); } d.active = prev; this.maskEdit = prevMask; },
-      W * H * 4 * (cut ? 3 : 1));
+      () => { if (cut) { this.putSnapshot(t, full, after); t.touch(); } insertNode(parent, index, layer); d.active = layer; this.maskEdit = false; },
+      () => { removeNode(layer); if (cut) { this.putSnapshot(t, full, before); t.touch(); } d.active = prev; this.maskEdit = prevMask; },
+      () => W * H * 4 + snapBytes(before) + snapBytes(after));
   },
 
   /** Layer → Flatten image: everything visible on one layer; hidden layers are left out. The paper stays the paper. */
