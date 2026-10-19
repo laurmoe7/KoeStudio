@@ -131,3 +131,36 @@ export function sliderStops(mode, hsv, key) {
   const max = SLIDER_CHANNELS[mode].find(c => c[0] === key)[2];
   return [0, max].map(x => rgbToHex(...hsvToRgb(...fromSlider(mode, hsv, key, x))));
 }
+
+const toLinear = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const toSrgb = v => 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.max(0, v) ** (1 / 2.4) - 0.055);
+
+/** [r, g, b] 0-255 to OKLab [L, a, b] (Björn Ottosson's perceptual colour space). */
+export function rgbToOklab([r, g, b]) {
+  const R = toLinear(r), G = toLinear(g), B = toLinear(b);
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+  return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
+}
+
+/** OKLab [L, a, b] back to [r, g, b] 0-255 (clamped, rounded). */
+export function oklabToRgb([L, a, b]) {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3, m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3, s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+  const rgb = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s];
+  return rgb.map(v => Math.max(0, Math.min(255, Math.round(toSrgb(v)))));
+}
+
+/**
+ * The colours between two hex colours, `steps` of them from a to b (both included), evenly spaced to the eye (in
+ * OKLab), for the Color panel's mixing strip.
+ */
+export function mixSteps(a, b, steps) {
+  const A = rgbToOklab(hexToRgb(a) || [0, 0, 0]), B = rgbToOklab(hexToRgb(b) || [255, 255, 255]);
+  return Array.from({ length: steps }, (_, i) => {
+    const t = steps > 1 ? i / (steps - 1) : 0;
+    return rgbToHex(...oklabToRgb(A.map((v, k) => v + (B[k] - v) * t)));
+  });
+}

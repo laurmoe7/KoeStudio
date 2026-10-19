@@ -146,6 +146,8 @@ export const GUIDE = [
     <ul>
       <li>Pick the colour in the <b>hue bar</b>, then how light and strong it is in the <b>square</b>.</li>
       <li>You paint with the <b>main</b> colour. The <b>sub</b> colour waits behind it; <kbd>X</kbd> swaps them.</li>
+      <li>The <b>mixing strip</b> under them shows nine steps from the main to the sub colour, evenly spaced to the eye.
+      Click one to paint with it; the strip keeps its two ends while you pick from it, for blending shades.</li>
       <li><b>Sliders</b> under the square: <b>HSV</b> (hue, saturation, brightness) or <b>RGB</b> (red, green, blue).
       Type a number in the box beside a slider for an exact value; <b>Hide</b> folds them away. A colour code such as
       <code>#ff8800</code> goes in the box next to the colour squares.</li>

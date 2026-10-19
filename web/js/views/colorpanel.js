@@ -4,7 +4,7 @@
 // The square and hue bar can be swapped for a colour wheel: a hue ring round the square (koe.colorWheel).
 // The palette's ⋯ menu imports palette files (palettes.js: .gpl, .aco, .ase, hex lists) and exports a .gpl.
 
-import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, paletteAdd, sanitizePalette, PALETTE_MAX, SLIDER_CHANNELS, sliderValues, fromSlider, sliderStops, wheelLayout, wheelHit } from '../color.js';
+import { hsvToRgb, rgbToHsv, rgbToHex, hexToRgb, mixSteps, paletteAdd, sanitizePalette, PALETTE_MAX, SLIDER_CHANNELS, sliderValues, fromSlider, sliderStops, wheelLayout, wheelHit } from '../color.js';
 import { icon } from '../icons.js';
 import { store, esc, menu, modal, toast, confirmBox } from '../ui.js';
 import { api } from '../api.js';
@@ -37,6 +37,7 @@ export class ColorPanel {
         <input class="cp-hex" type="text" maxlength="7" spellcheck="false" aria-label="Hex color">
         <button class="icon-btn cp-shape" title="Colour wheel or square">${icon('wheel', 18)}</button>
       </div>
+      <div class="cp-mix" title="Colours between the main and sub colour: click one to use it"></div>
       <div class="cp-slider-head"><span>Sliders</span>
         <span class="cp-modes">${['hsv', 'rgb', 'off'].map(m => `<button data-mode="${m}">${m === 'off' ? 'Hide' : m.toUpperCase()}</button>`).join('')}</span></div>
       <div class="cp-sliders"></div>
@@ -167,13 +168,16 @@ export class ColorPanel {
 
   setHsv(hsv) {
     this.hsv = hsv;
+    this.mixEnds = null;
     this.main = rgbToHex(...hsvToRgb(...hsv));
     this.refresh(false);
     this.onChange?.();
   }
 
-  /** Sets the main colour from a hex string (eyedropper, hex box, recent swatch). */
-  set(hex) {
+  /** Sets the main colour from a hex string (eyedropper, hex box, recent swatch). fromMix: picked from the
+   *  mixing strip, which then keeps its two ends. */
+  set(hex, fromMix = false) {
+    if (!fromMix) this.mixEnds = null;
     this.main = hex;
     const hsv = rgbToHsv(...hexToRgb(hex));
     // keep the hue when the new colour is grey, so the square does not jump to red
@@ -236,6 +240,17 @@ export class ColorPanel {
     this.drawSliders();
     this.drawRecent();
     this.drawPalette();
+    this.drawMix();
+  }
+
+  /** The mixing strip: nine steps from the main to the sub colour (kept while you pick from it). */
+  drawMix() {
+    const box = this.root.querySelector('.cp-mix'), ends = this.mixEnds || [this.main, this.sub];
+    const key = ends.join() + this.main;
+    if (box.dataset.key === key) return;
+    box.dataset.key = key;
+    box.innerHTML = mixSteps(ends[0], ends[1], 9).map(c => `<button style="background:${c}" data-c="${c}" title="${c}"${c === this.main ? ' class="on"' : ''}></button>`).join('');
+    box.querySelectorAll('button').forEach(b => { b.onclick = () => { this.mixEnds = ends; this.set(b.dataset.c, true); }; });
   }
 
   /** Reads a palette file and adds its colours to the palette, or puts them in its place. */
