@@ -5,6 +5,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- The tool bar has redrawn icons: one even style with soft fills, and clearer pictures for the airbrush, smudge, fill, eyedropper, dodge (a sun) and burn (a moon).
+- The Pencil has a crisper, graphite-like paper grain instead of soft blotches, and a firmer tip for new settings.
 - Long menus are grouped into smaller menus (Layer → New, Mask and Rasterize; Filter by kind; View → Rulers and symmetry; File → Timelapse), so every menu fits on the screen.
 - With a menu open, pointing at another menu name opens it, and the arrow keys move through the menus.
 - Lock alpha, Clip below, Lock and Reference in the Layers panel are now neat toggle buttons.

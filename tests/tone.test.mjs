@@ -101,7 +101,12 @@ test('noise tiles join up seamlessly', () => {
   for (const [x, y] of [[0, 0], [3.3, 7.9], [250.5, 13]]) {
     near(valueNoise(x + 8 * 32, y, 8, 32, 5), valueNoise(x, y, 8, 32, 5), 1e-9, 'repeats every cell * period');
     near(valueNoise(x, y + 8 * 32, 8, 32, 5), valueNoise(x, y, 8, 32, 5), 1e-9);
+    // stretched cells (4 x 1 px) still repeat after 4 * 64 = 256 px both ways
+    near(valueNoise(x + 256, y, 4, 64, 5, 1), valueNoise(x, y, 4, 64, 5, 1), 1e-9, 'stretched: across');
+    near(valueNoise(x, y + 256, 4, 64, 5, 1), valueNoise(x, y, 4, 64, 5, 1), 1e-9, 'stretched: down');
   }
+  // on lattice points the stretched noise is the hash of that point: (8, 3) with 4 x 1 cells is lattice (2, 3)
+  near(valueNoise(8, 3, 4, 64, 5, 1), hash01(2, 3, 5), 1e-12);
   // across the tile's wrap-around edge the values change no more than between neighbours inside it
   for (const id of ['paper', 'coldpress', 'rough']) {
     const t = textureTile(id);

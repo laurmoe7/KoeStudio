@@ -22,13 +22,14 @@ const mod = (a, n) => ((a % n) + n) % n;
 
 /**
  * Smooth value noise in [0, 1) on a lattice of `cell` pixels that repeats every `period` cells, so a tile of
- * cell * period pixels joins up seamlessly with itself.
+ * cell * period pixels joins up seamlessly with itself. A different `cellY` stretches it (cells cell x cellY,
+ * repeating after the same number of pixels down as across).
  */
-export function valueNoise(x, y, cell, period, seed = 0) {
-  const u = x / cell, v = y / cell;
+export function valueNoise(x, y, cell, period, seed = 0, cellY = cell) {
+  const u = x / cell, v = y / cellY, periodY = period * cell / cellY;
   const ix = Math.floor(u), iy = Math.floor(v);
   const fx = smooth(u - ix), fy = smooth(v - iy);
-  const at = (i, j) => hash01(mod(i, period), mod(j, period), seed);
+  const at = (i, j) => hash01(mod(i, period), mod(j, periodY), seed);
   const a = at(ix, iy), b = at(ix + 1, iy), c = at(ix, iy + 1), d = at(ix + 1, iy + 1);
   return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
 }
@@ -58,8 +59,9 @@ export function textureTile(id, size = TILE) {
     for (let x = 0; x < size; x++) {
       let v;
       if (id === 'paper') {
-        // fine tooth with a little larger-scale unevenness
-        v = fbm(x, y, size, [[2, 0.5], [4, 0.35], [16, 0.15]], 11);
+        // crisp pits a pixel or two wide in a fine tooth, with faint horizontal fibres: graphite catches the tops
+        v = 0.3 * hash01(x, y, 71) + 0.3 * valueNoise(x, y, 2, size / 2, 72)
+          + 0.25 * valueNoise(x, y, 4, size / 4, 74, 1) + 0.15 * valueNoise(x, y, 16, size / 16, 75, 4);
       } else if (id === 'coldpress') {
         // rounded bumps of a few pixels, grooves between them
         v = fbm(x, y, size, [[8, 0.6], [4, 0.25], [32, 0.15]], 23);
@@ -77,7 +79,7 @@ export function textureTile(id, size = TILE) {
     }
   }
   const curve = {
-    paper: t => smooth(Math.min(1, t * 1.25)),         // mostly tooth tops, narrow grooves
+    paper: t => smooth(Math.max(0, Math.min(1, (t - 0.25) * 1.9))),  // mostly tops, sharp-edged pits
     coldpress: t => smooth(Math.min(1, t * 1.15)),
     canvas: t => t,
     rough: t => smooth(Math.max(0, Math.min(1, (t - 0.3) * 2.5))),  // hard-edged chalky patches
