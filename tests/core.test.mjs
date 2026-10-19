@@ -167,6 +167,8 @@ test('document format sanitizing', () => {
   assert.equal(sanitizeDoc(null).format, 'koe');
   const labels = sanitizeDoc({ layers: [{ label: 'blue' }, { label: 'pink' }, { type: 'folder', label: 'red' }, {}] }).layers.map(l => l.label);
   assert.deepEqual(labels, ['blue', null, 'red', null], 'colour labels: only known ones are kept');
+  const drafts = sanitizeDoc({ layers: [{ draft: true }, { draft: 'yes' }, { type: 'folder', draft: true }, {}] }).layers.map(l => l.draft);
+  assert.deepEqual(drafts, [true, false, true, false], 'draft layers: only true counts; older files have none');
 });
 
 test('Smoother.distanceTo shrinks to the pen: a strength-20 stroke catches up in 67 steps, not 12', () => {

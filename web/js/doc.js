@@ -54,6 +54,7 @@ export function sanitizeDoc(raw) {
       label: LABEL_IDS.has(l?.label) ? l.label : null,
       locked: l?.locked === true,
       reference: l?.reference === true,
+      draft: l?.draft === true,  // shown while drawing, left out of exports and of Fill / the wand looking at all layers
     };
     if (folder) {
       out.open = l.open !== false;
@@ -163,6 +164,7 @@ export class Layer extends Raster {
     this.label = props.label || null;  // colour label in the layer list (LABELS)
     this.locked = !!props.locked;        // no pixel changes (Layer panel → Lock)
     this.reference = !!props.reference;  // Fill and the wand can look at reference layers only
+    this.draft = !!props.draft;  // a draft (sketch) layer: shown, but not exported nor seen by Fill / the wand
     this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
     this.vector = props.vector || null;  // set on vector layers: the lines (vector.js); never changed in place
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
@@ -188,12 +190,13 @@ export class Folder {
     this.label = props.label || null;
     this.locked = !!props.locked;
     this.reference = !!props.reference;
+    this.draft = !!props.draft;
   }
 }
 
 /** A deep copy of a layer or folder (with masks), for Duplicate. */
 export function cloneNode(n, w, h) {
-  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open, label: n.label, locked: n.locked, reference: n.reference };
+  const props = { name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, alphaLock: n.alphaLock, open: n.open, label: n.label, locked: n.locked, reference: n.reference, draft: n.draft };
   let c;
   if (isFolder(n)) {
     c = new Folder(props);
@@ -341,6 +344,7 @@ export class Doc {
       const out = { type: n.kind, name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };
       if (n.locked) out.locked = true;
       if (n.reference) out.reference = true;
+      if (n.draft) out.draft = true;
       if (isFolder(n)) {
         out.open = n.open;
         out.children = [];
@@ -424,6 +428,18 @@ export function composite(ctx, doc, r, live = null, keep = null) {
   try { compositeInto(ctx, doc, r, live); } finally { keepLooks = kept; }
 }
 
+// While true, draft layers and folders are drawn as if hidden (the picture as exported; see withoutDrafts).
+let skipDrafts = false;
+
+/** Runs draw() (any composite / renderFolder calls) with draft layers left out, as exports and Fill see the picture. */
+export function withoutDrafts(draw) {
+  const was = skipDrafts;
+  skipDrafts = true;
+  try { return draw(); } finally { skipDrafts = was; }
+}
+
+const shows = n => n.visible && !(skipDrafts && n.draft);
+
 function compositeInto(ctx, doc, r, live) {
   ctx.save();
   ctx.beginPath();
@@ -449,7 +465,7 @@ function drawChildren(ctx, nodes, r, live, depth) {
     if (base.clip && i > 0) continue;  // drawn with its base below
     let j = i + 1;
     while (j < nodes.length && nodes[j].clip) j++;
-    if (!base.visible) { i = j - 1; continue; }
+    if (!shows(base)) { i = j - 1; continue; }
     if (j === i + 1) {
       if (isFolder(base) && base.blend === PASS_THROUGH[0] && base.opacity === 1 && !maskOn(base)) {
         drawChildren(ctx, base.children, r, live, depth + 1);  // "Through": as if the folder were not there
@@ -464,7 +480,7 @@ function drawChildren(ctx, nodes, r, live, depth) {
       drawNode(gctx, base, r, live, 1, 'source-over', depth + 1);
       for (let k = i + 1; k < j; k++) {
         const n = nodes[k];
-        if (!n.visible) continue;
+        if (!shows(n)) continue;
         if (n.adjust) {  // a correction clipped to the base changes only the group so far
           drawAdjust(gctx, n, r, live, n.opacity, blendOf(n), depth + 1);
           continue;

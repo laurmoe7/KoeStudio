@@ -320,6 +320,8 @@ export const GUIDE = [
       <li><b>Clip below</b> shows a layer only where the layer under it has paint: shade without going over the edges.</li>
       <li><b>Lock alpha</b> paints only where this layer already has paint.</li>
       <li><b>Lock</b> protects the layer from any change. <b>Reference</b> marks line art for Fill and the wand.</li>
+      <li><b>Draft</b> is for sketches: you see the layer while you draw, but exports leave it out, and Fill and the
+      Magic wand looking at all layers ignore it, so the sketch lines never stop a fill.</li>
       <li>The coloured dots are labels, to help you find layers. The <b>magnifier</b> under the list finds layers by
       name (inside closed folders too); <kbd>Enter</kbd> selects the first one, <kbd>Esc</kbd> shows all again.</li>
       <li>Which layer is that stray dot on? Layer → <b>Find layer on canvas</b>, then click the dot: its layer gets

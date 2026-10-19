@@ -61,6 +61,7 @@ export class LayerPanel {
         <label class="check" title="Clip to the layer below: show only where it has paint"><input type="checkbox" class="lp-clip">${icon('clip', 15)} Clip below</label>
         <label class="check" title="Lock the layer (or everything in the folder): no painting, filters, moving or transforming"><input type="checkbox" class="lp-locked">${icon('lock', 15)} Lock</label>
         <label class="check" title="Reference layer: Fill and the Magic wand set to 'Reference layers' find areas from these (e.g. your line art)"><input type="checkbox" class="lp-ref">${icon('ref', 15)} Reference</label>
+        <label class="check" title="Draft layer: for sketches. You see it while drawing, but it is left out of exports, and Fill and the Magic wand looking at all layers ignore it"><input type="checkbox" class="lp-draft">${icon('pencil', 15)} Draft</label>
       </div>
       <div class="lp-props">
         <span class="lp-labels" role="radiogroup" aria-label="Color label" title="Color label: marks the layer in this list"><span>Label</span>
@@ -124,6 +125,7 @@ export class LayerPanel {
     root.querySelector('.lp-clip').onchange = e => editor.setPickedProp('clip', e.target.checked, 'Clip to layer below');
     root.querySelector('.lp-locked').onchange = e => editor.setPickedProp('locked', e.target.checked, e.target.checked ? 'Lock layer' : 'Unlock layer');
     root.querySelector('.lp-ref').onchange = e => editor.setPickedProp('reference', e.target.checked, 'Reference layer');
+    root.querySelector('.lp-draft').onchange = e => editor.setPickedProp('draft', e.target.checked, 'Draft layer');
     root.querySelectorAll('.lp-label-btn').forEach(b => { b.onclick = () => editor.setPickedProp('label', b.dataset.label || null, 'Color label'); });
     this.bindDrag();
   }
@@ -144,6 +146,7 @@ export class LayerPanel {
     this.root.querySelector('.lp-clip').checked = n.clip;
     this.root.querySelector('.lp-locked').checked = !!n.locked;
     this.root.querySelector('.lp-ref').checked = !!n.reference;
+    this.root.querySelector('.lp-draft').checked = !!n.draft;
     this.root.querySelectorAll('.lp-label-btn').forEach(b => { b.classList.toggle('on', (n.label || '') === b.dataset.label); b.setAttribute('aria-checked', (n.label || '') === b.dataset.label); });
     this.root.querySelector('[data-op="mask"]').title = n.mask ? 'Paint on the mask' : 'Add a mask (hides outside the selection, if there is one)';
     const chip = ed.root.querySelector('.mask-chip:not(.qmask-chip)');
@@ -169,6 +172,7 @@ export class LayerPanel {
       if (node.locked) sub.push('locked');
       else if (node.alphaLock) sub.push('alpha locked');
       if (node.reference) sub.push('reference');
+      if (node.draft) sub.push('draft');
       if (node.effects) sub.push(node.effects.border && node.effects.shadow ? 'border + shadow' : node.effects.border ? 'border' : 'shadow');
       if (node.mask && !node.mask.enabled) sub.push('mask off');
       row.innerHTML = `

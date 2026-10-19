@@ -26,6 +26,7 @@ const PROPS = {
   blend: v => [...BLEND_MODES.map(m => m[0]), PASS_THROUGH[0]].includes(v),
   opacity: v => typeof v === 'number' && v >= 0 && v <= 1,
   clip: v => typeof v === 'boolean', alphaLock: v => typeof v === 'boolean', locked: v => typeof v === 'boolean', reference: v => typeof v === 'boolean',
+  draft: v => typeof v === 'boolean',
   label: v => v === null || (typeof v === 'string' && /^[a-z]{1,10}$/.test(v)),
   layerColor: v => v === null || (typeof v === 'string' && /^#[0-9a-f]{6}$/.test(v)),
 };

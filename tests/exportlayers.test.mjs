@@ -17,6 +17,17 @@ function sample() {
 
 const names = parts => parts.map(p => p.name);
 
+test('draft layers are never exported, with or without hidden layers', () => {
+  const t = sample();
+  t.A.draft = true;  // its clipped layer Ac goes with it in the top-level parts
+  t.Bc.draft = true;
+  assert.deepEqual(names(layerExportParts(t.root, 'top', true)), ['H', 'F']);
+  assert.deepEqual(names(layerExportParts(t.root, 'all', true)), ['H', 'B'], 'on their own: no drafts, nor Ac clipped to one');
+  t.A.draft = false;
+  t.F.draft = true;
+  assert.deepEqual(names(layerExportParts(t.root, 'all', false)), ['A', 'Ac'], 'a draft folder takes its layers along');
+});
+
 test('top-level parts keep their clipped layers with them', () => {
   const t = sample(), parts = layerExportParts(t.root, 'top', false);
   assert.deepEqual(names(parts), ['A', 'F'], 'hidden and correction layers are left out, Ac goes with A');

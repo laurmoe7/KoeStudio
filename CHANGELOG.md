@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- Draft layers (the Draft switch in the Layers panel): for sketches you see while drawing but never want in the result. Exports leave them out, and Fill and the Magic wand looking at all layers ignore them.
 - The animation timeline, onion skins and animation export are taken out for now, so the app stays focused on drawing. Older artworks made with frames open with every frame as an ordinary layer.
 - A Settings menu holds the theme, pen pressure, the shortcut strip and keyboard shortcuts; on the start screen the Theme button became a Settings button.
 - The app icon has bolder colours (golden horns, a shaded edge and a shadow underneath), so the cow no longer fades into light backgrounds, and he now holds his palette up at his side.

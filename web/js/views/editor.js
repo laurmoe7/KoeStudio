@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor, averageColor } from '../color.js';
-import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach } from '../doc.js';
+import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach, withoutDrafts } from '../doc.js';
 import { isFolder } from '../tree.js';
 import { floodMask, growMask, closeGapFill, insideLines } from '../fill.js';
 import { History } from '../history.js';
@@ -1709,7 +1709,7 @@ export class Editor {
       sc.width = r.w; sc.height = r.h;
       const sctx = sc.getContext('2d', { willReadFrequently: true });
       sctx.translate(-r.x, -r.y);
-      composite(sctx, d, r);
+      withoutDrafts(() => composite(sctx, d, r));  // Fill and the wand never see draft layers
       const part = sctx.getImageData(0, 0, r.w, r.h).data, row = r.w * 4;
       if (r.w === W) c.data.set(part, r.y * row);
       else for (let y = 0; y < r.h; y++) c.data.set(part.subarray(y * row, (y + 1) * row), ((r.y + y) * W + r.x) * 4);

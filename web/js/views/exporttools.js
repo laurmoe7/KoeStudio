@@ -3,7 +3,7 @@
 // (koe.exportDir for pictures, koe.projectDir for project files; '' is Pictures\KoeStudio\Exports).
 
 import { api } from '../api.js';
-import { composite, renderFolder } from '../doc.js';
+import { composite, renderFolder, withoutDrafts } from '../doc.js';
 import { allLayers } from '../tree.js';
 import { EXPORT_FORMATS, EXPORT_BY_ID, EXPORT_MAX_SIDE, encodePixels, exportSize, sanitizeExportOptions } from '../imageformats.js';
 import { pngWithDpi, jpegWithDpi } from '../resolution.js';
@@ -131,7 +131,7 @@ export const exportMethods = {
     src.width = area.w; src.height = area.h;
     const sctx = src.getContext('2d');
     sctx.translate(-area.x, -area.y);
-    composite(sctx, o.paper ? d : { paper: null, root: d.root }, area);
+    withoutDrafts(() => composite(sctx, o.paper ? d : { paper: null, root: d.root }, area));  // draft layers are never exported
     const out = document.createElement('canvas');
     out.width = size.w; out.height = size.h;
     const ctx = out.getContext('2d', { willReadFrequently: true });
@@ -339,13 +339,14 @@ export const exportMethods = {
  * picture; 'all': every layer, a clipped one cut to its base. Correction layers alone have nothing to show.
  */
 export function layerExportParts(root, which, hidden) {
-  const shown = n => hidden || n.visible;
+  const shown = n => (hidden || n.visible) && !n.draft;  // draft layers are never exported
   const out = [];
   if (which === 'all') {
     for (const n of allLayers(root)) {
-      let ok = !n.adjust;
+      const base = clipBase(n);
+      let ok = !n.adjust && !base?.draft;  // clipped to a draft: it does not show in the export either
       for (let x = n; ok && x && x !== root; x = x.parent) if (!shown(x)) ok = false;
-      if (ok) out.push({ name: n.name, draw: [n], clipTo: clipBase(n) });
+      if (ok) out.push({ name: n.name, draw: [n], clipTo: base });
     }
     return out;
   }
