@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -2 120 124">
   <!-- KoeStudio app icon: a chubby cow ("koe") holding a paint palette, in the style of the BiggTaal and
        Varken Sketchpad pigs (soft flat shapes, no tile). Strong colours rather than an outline make it stand out on
-       light backgrounds: grey patches, golden horns, a warm shaded edge on the body and a shadow under the feet.
+       light backgrounds: grey patches, small pink horns, a warm shaded edge on the body and a shadow under the feet.
        The palette is held up at the side, clear of the feet. tools/make_icon.mjs renders it. -->
   <defs>
     <clipPath id="body"><ellipse cx="60" cy="70" rx="52" ry="40"/></clipPath>
@@ -10,11 +10,13 @@
   <ellipse cx="60" cy="113" rx="42" ry="5" fill="#3a1a22" opacity=".2"/>
   <!-- feet -->
   <ellipse cx="42" cy="106" rx="11" ry="6.4" fill="#5d4037"/><ellipse cx="78" cy="106" rx="11" ry="6.4" fill="#5d4037"/>
-  <!-- horns, golden with a darker base -->
-  <path d="M38 36 Q30 22 36 12 Q46 20 50 32 Z" fill="#ffc94a"/>
-  <path d="M82 36 Q90 22 84 12 Q74 20 70 32 Z" fill="#ffc94a"/>
-  <path d="M38 36 Q35 31 36 28 Q43 29 48 30 L50 32 Z" fill="#e39a2d"/>
-  <path d="M82 36 Q85 31 84 28 Q77 29 72 30 L70 32 Z" fill="#e39a2d"/>
+  <!-- horns: small rounded pink nubs leaning outwards, a deeper pink band at the base and a soft shine -->
+  <path d="M37.5 37 C33 31 33 24 37.5 21.5 C42 19.5 46.5 23 48 28.5 L50 34 Z" fill="#ffb3c8"/>
+  <path d="M82.5 37 C87 31 87 24 82.5 21.5 C78 19.5 73.5 23 72 28.5 L70 34 Z" fill="#ffb3c8"/>
+  <path d="M36.5 35.5 Q35.5 32 36.6 30.5 Q43 31 48.6 30.4 L50 34 Q44 37 37.5 37 Z" fill="#f48aa8"/>
+  <path d="M83.5 35.5 Q84.5 32 83.4 30.5 Q77 31 71.4 30.4 L70 34 Q76 37 82.5 37 Z" fill="#f48aa8"/>
+  <ellipse cx="39.3" cy="24.6" rx="1.7" ry="2.4" transform="rotate(-25 39.3 24.6)" fill="#fff" opacity=".7"/>
+  <ellipse cx="80.7" cy="24.6" rx="1.7" ry="2.4" transform="rotate(25 80.7 24.6)" fill="#fff" opacity=".7"/>
   <!-- ears, sticking out sideways -->
   <path d="M22 46 Q9 39 3 46 Q9 58 26 58 Z" fill="#f2dccd"/><path d="M20 49 Q11 45 8 49 Q13 55 22 55 Z" fill="#ff8fa0"/>
   <path d="M98 46 Q111 39 117 46 Q111 58 94 58 Z" fill="#f2dccd"/><path d="M100 49 Q109 45 112 49 Q107 55 98 55 Z" fill="#ff8fa0"/>
