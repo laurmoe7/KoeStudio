@@ -1,8 +1,8 @@
 # Creates KoeStudio shortcuts that run the app straight from this project folder (no build, no installer):
 #   - "Run KoeStudio.lnk" in the project folder
 #   - "KoeStudio.lnk" on the Desktop and in the Start menu (skip them with -LocalOnly)
-# They start KoeStudio.exe, the small launcher in the project folder that runs app.py with pythonw (no console
-# window) and stays as its parent, so Task Manager and the taskbar show KoeStudio with its icon. Rerun this if the folder moves.
+# They start KoeStudio.exe, the small launcher in the project folder that runs app.py with Python inside its own
+# process (no console window), so the window is KoeStudio.exe's and Task Manager and the taskbar show KoeStudio with its icon. Rerun this if the folder moves.
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\make_shortcut.ps1 [-LocalOnly]
 param([switch]$LocalOnly)
 $ErrorActionPreference = 'Stop'

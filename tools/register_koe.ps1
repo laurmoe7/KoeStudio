@@ -1,5 +1,5 @@
 # Makes Windows open .koe project files with KoeStudio when you double-click them (current user only, no admin needed).
-# The command runs app.py from this project folder with pythonw. Rerun it if the folder or Python moves.
+# The command runs KoeStudio.exe (or pythonw app.py without it) from this project folder. Rerun it if the folder or Python moves.
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\register_koe.ps1 [-Remove]
 param([switch]$Remove)
 $ErrorActionPreference = 'Stop'
