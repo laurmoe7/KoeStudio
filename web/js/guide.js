@@ -95,6 +95,7 @@ export const GUIDE = [
       bare paper. Try the Oil paint and Wet blender brushes. It mixes with the layer you paint on, so paint on the same layer as the colours to blend.</li>
       <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke. The
       outline under the pointer takes the tip's shape, so you see what a dab will look like.
+      <b>Squash jitter</b> and <b>Random flip</b> vary each dab, so a tip picture does not repeat the same way.
       <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).</li>
       <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
       <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>
@@ -251,6 +252,14 @@ export const GUIDE = [
       streaks and ragged edges.</li>
       <li>Turn on <b>Turn with the stroke</b> and set the angle to 90° so each hair draws its own streak along the
       stroke. Without it the hairs keep one direction, so a stroke that curves away from it smears sideways.</li>
+    </ul>
+
+    <h4>Squash jitter and Random flip (Tip page)</h4>
+    <ul>
+      <li>For tip pictures such as fur, leaves or rakes: each dab is squashed or mirrored at random, so the
+      stroke does not show the same picture over and over.</li>
+      <li>Squash jitter 0.2-0.4 is subtle. Higher values make some dabs thin slivers.</li>
+      <li>Random flip does nothing on a plain round tip, which looks the same mirrored. Neither works with Hard pixels.</li>
     </ul>
 
     <h4>Dual brush and Combined (their own pages)</h4>

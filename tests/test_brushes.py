@@ -192,6 +192,25 @@ class AbrReader(unittest.TestCase):
         self.assertEqual(png_pixels(from_url(res['images'][2]['png']))[3][1::2], b'\xab\x12', '16-bit: high bytes')
         self.assertEqual(png_pixels(from_url(res['images'][1]['png'])), (2, 2, 0, bytes([10, 20, 30, 40])))
 
+    def test_colour_dynamics_flip_and_roundness(self):
+        prc = lambda v: {'unit': '#Prc', 'value': v}
+        jit = lambda v, ty=0: {'_class': 'brVr', 'bVTy': ty, 'jitter': prc(v), 'Mnm ': prc(0)}
+        # as the Rake pack writes them: percent values, per tip
+        b = {'Brsh': {'_class': 'sampledBrush', 'Dmtr': {'unit': '#Pxl', 'value': 400}}, 'useTipDynamics': True,
+             'szVr': jit(0), 'angleDynamics': jit(0, 6), 'roundnessDynamics': jit(67), 'minimumRoundness': prc(61),
+             'flipX': True, 'flipY': False, 'useColorDynamics': True, 'H   ': prc(9), 'Strt': prc(6), 'Brgh': prc(8),
+             'colorDynamicsPerTip': True, 'clVr': jit(0), 'purity': prc(0)}
+        s, notes, *_ = bi._abr_settings(b)
+        self.assertEqual((s['hueJitter'], s['satJitter'], s['valJitter']), (0.09, 0.06, 0.08))
+        self.assertNotIn('colorJitterStroke', s, 'per tip: each dab')
+        # roundness jitter 67%, but never below 61% round: at most 39% squashed
+        self.assertEqual((s['roundJitter'], s['flipX']), (0.39, True))
+        self.assertNotIn('flipY', s)
+        self.assertEqual(notes, [])
+        s, notes, *_ = bi._abr_settings({**b, 'colorDynamicsPerTip': False, 'clVr': jit(50), 'purity': prc(-20)})
+        self.assertTrue(s['colorJitterStroke'])
+        self.assertEqual(notes, ['Foreground/background jitter', 'Purity'])
+
     def test_old_version(self):
         computed = u32(0) + u16(25) + u16(12) + u16(80) + struct.pack('>h', 45) + u16(50)
         sampled = u32(0) + u16(30) + ustr('Old') + b'\0' + bytes(8) + i32(0) + i32(0) + i32(1) + i32(2) + u16(8) + b'\0' + b'\x10\x20'
@@ -395,6 +414,11 @@ class ProcreateReader(unittest.TestCase):
         self.assertEqual((s['hueJitter'], s['valJitter'], s['colorJitterStroke']), (0.02, 0.2, True))
         self.assertNotIn('satJitter', s)
         self.assertEqual(notes, ['Its colour jitter only darkens'])
+
+    def test_shape_flip_and_roundness_jitter(self):
+        s = bi._procreate_settings({'shapeFlipXJitter': True, 'shapeFlipYJitter': False, 'jitterShapeRoundness': 0.76})[0]
+        self.assertEqual((s['flipX'], s['roundJitter']), (True, 0.76))
+        self.assertNotIn('flipY', s)
 
     def test_pressure_taper(self):
         s = bi._procreate_settings({'pencilTaperStartLength': 0.251, 'pencilTaperEndLength': 0.154, 'pencilTaperSize': 0.196,

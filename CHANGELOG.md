@@ -5,6 +5,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Squash jitter and Random flip (Brush settings → Tip): each dab is squashed or mirrored at random, so tip pictures such as fur or leaves don't repeat the same way.
+- Imported Photoshop brushes bring their Color Dynamics (hue, saturation and brightness jitter), roundness jitter and flip jitter; imported Procreate brushes bring their flip and roundness jitter.
 - Taper size and Taper opacity (Brush settings → Stroke): choose how thin the tapered ends of a stroke get and how much they fade.
 - Imported Procreate brushes bring their pen taper: its start and end length, size and opacity.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.

@@ -34,7 +34,7 @@ export function renderVector(layer, rect = null) {
     let imp = impastoFor(b);
     if (imp) imp = { ...imp, canvas: heightScratch ||= document.createElement('canvas') };
     const painter = new Painter(sctx, { color: s.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-      random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
+      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(s, b)) {
       const { size, flow } = stampAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f * painter.dry(st.d), 0, st.c, st.a ?? null);

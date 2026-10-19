@@ -18,7 +18,7 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
-  return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, pixel: false,
+  return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, flipX: false, flipY: false, roundJitter: 0, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0, taperSize: 1, taperOpacity: 0,
     tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false, refStop: false,
     dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, impasto: 0, dryOut: 0, mix: 0, mixStretch: 0.5, paintLoad: 1,
@@ -108,6 +108,9 @@ export const SETTING_FIELDS = [
   ['tipAngle', 'Angle', 'range', 0, 360, 1],
   ['tipRandom', 'Random turn', 'range', 0, 1, 0.01],
   ['tipFollow', 'Turn with the stroke', 'check'],
+  ['roundJitter', 'Squash jitter', 'range', 0, 1, 0.01],
+  ['flipX', 'Random flip ↔', 'check'],
+  ['flipY', 'Random flip ↕', 'check'],
   ['pixel', 'Hard pixels', 'check'],
   ['dualTip', 'Dual tip', 'choice', DUAL_TIPS],
   ['dualSize', 'Dual size', 'range', 0.05, 3, 0.01],
@@ -192,7 +195,7 @@ export const BASIC_PAINT = ['vectorErase', 'size', 'opacity', 'flow', 'hardness'
 /** The pages of the Brush settings window, and which settings each holds (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
   ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'refStop']],
-  ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow', 'pixel']],
+  ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow', 'roundJitter', 'flipX', 'flipY', 'pixel']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'taperSize', 'taperOpacity', 'quickShape']],
   ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
@@ -253,6 +256,9 @@ export const SETTING_HINTS = {
   tipAngle: 'Turns the tip (most useful with a squashed or image tip)',
   tipRandom: 'Turns each dab by a random amount, up to this share of a half turn either way',
   tipFollow: 'Turns the tip with the direction the stroke is going',
+  roundJitter: 'Squashes each dab flatter by a random amount, up to this much (Photoshop and Procreate: roundness jitter)',
+  flipX: 'Mirrors each dab left to right at random, so a tip picture does not repeat the same way along the stroke',
+  flipY: 'Mirrors each dab top to bottom at random',
   comboTip: 'A second brush painting along the same stroke, as in Procreate combined brushes: pick its tip to turn it on (Off: just one brush). Copy a brush… takes a whole brush',
   comboMode: 'How the paint of the second brush goes over the first within the stroke: Normal on top, Multiply and Darken only darken, Screen and Lighten only lighten, Overlay deepens contrast',
   comboSize: 'Size of the second brush, as a share of the brush size (so both grow and shrink together)',

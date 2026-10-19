@@ -406,8 +406,16 @@ def _abr_settings(b):
         control, jitter, _ = _dyn(b, 'angleDynamics')
         s['tipRandom'] = round(_clamp(jitter, 0, 1), 2)
         s['tipFollow'] = control in (DIRECTION, INITIAL_DIRECTION)
-        if _dyn(b, 'roundnessDynamics')[1]:
-            notes.append('Roundness jitter')
+        # Roundness jitter: each dab squashed at random, never below the minimum roundness
+        rj = _dyn(b, 'roundnessDynamics')[1]
+        if rj:
+            low = _clamp(_num(b.get('minimumRoundness'), 0) / 100, 0, 1)
+            s['roundJitter'] = round(_clamp(min(rj, 1 - low), 0, 1), 2)
+        # Flip X / Flip Y jitter: each dab mirrored at random
+        if b.get('flipX') is True:
+            s['flipX'] = True
+        if b.get('flipY') is True:
+            s['flipY'] = True
     else:
         s['pressureSize'] = False
     if b.get('usePaintDynamics'):
@@ -449,9 +457,19 @@ def _abr_settings(b):
         notes.append('Dual brush')
     if b.get('Wtdg'):  # Wet edges is a tick in Photoshop
         s['wetEdges'] = 0.5
-    for key, label in (('useColorDynamics', 'Color dynamics'), ('Nose', 'Noise')):
-        if b.get(key):
-            notes.append(label)
+    if b.get('useColorDynamics'):  # hue, saturation and brightness jitter (percent), per dab or once per stroke
+        for key, setting in (('H   ', 'hueJitter'), ('Strt', 'satJitter'), ('Brgh', 'valJitter')):
+            v = _num(b.get(key), 0) / 100
+            if v > 0:
+                s[setting] = round(_clamp(v, 0, 1), 2)
+        if b.get('colorDynamicsPerTip') is False:
+            s['colorJitterStroke'] = True
+        if _dyn(b, 'clVr')[1] or _dyn(b, 'clVr')[0]:
+            notes.append('Foreground/background jitter')
+        if _num(b.get('purity'), 0):
+            notes.append('Purity')
+    if b.get('Nose'):
+        notes.append('Noise')
     opts = b.get('toolOptions') if isinstance(b.get('toolOptions'), dict) else {}
     op, fl = _num(opts.get('Opct')), _num(opts.get('flow'))
     if op is not None:
@@ -690,6 +708,14 @@ def _procreate_settings(b):
                 notes.append('Its colour jitter only lightens' if light > dark else 'Its colour jitter only darkens')
             break
     s.update({k: v for k, v in jitter.items() if v})
+    # Shape: each stamp mirrored at random, and squashed at random (roundness jitter)
+    if b.get('shapeFlipXJitter') is True:
+        s['flipX'] = True
+    if b.get('shapeFlipYJitter') is True:
+        s['flipY'] = True
+    rj = _pnum(b, 'jitterShapeRoundness')
+    if rj:
+        s['roundJitter'] = round(rj, 2)
     # Apple Pencil tilt: bigger and lighter as the pen leans
     for key, setting in (('dynamicsTiltSize', 'tiltSize'), ('dynamicsTiltOpacity', 'tiltFlow')):
         v = _pnum(b, key)

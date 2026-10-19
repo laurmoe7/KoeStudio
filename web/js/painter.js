@@ -109,7 +109,7 @@ export class Painter {
    * random (0-1: share of a half turn either way), follow (turn with the stroke), rnd (random numbers 0-1; a seeded
    * source makes the random turns repeatable, as vector lines need), height ({ctx, k}: Impasto's height canvas, which
    * gets every dab too, in black at k times its density, so the hairs' streaks build up as ridges without saturating). */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, dryOut = 0, dryAt = 1, dryGrain = null }) {
+  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
     this.ctx = ctx;
     this.height = pixel ? null : height;
     this.grain = pixel ? null : grain;  // grainFor(s): every dab is cut against the paper (pressure fills the grooves)
@@ -130,6 +130,10 @@ export class Painter {
     this.random = Math.max(0, Math.min(1, random || 0));
     this.follow = !!follow;
     this.rnd = rnd;
+    // each dab mirrored at random (Flip jitter) and squashed at random (Roundness jitter), as Photoshop and Procreate do
+    this.flipX = !!flipX && !pixel;
+    this.flipY = !!flipY && !pixel;
+    this.roundJitter = pixel ? 0 : Math.max(0, Math.min(1, roundJitter || 0));
     this.last = [];  // per symmetric copy: last dab position and direction
   }
 
@@ -209,6 +213,10 @@ export class Painter {
 
   /** One dab at turn rot (radians), with the paper grain and the impasto height when they are on. */
   put(x, y, size, alpha, rot) {
+    if (this.flipX || this.flipY || this.roundJitter) {  // once, so the height canvas gets the same dab
+      const sx = this.flipX && this.rnd() < 0.5 ? -1 : 1, sy = this.flipY && this.rnd() < 0.5 ? -1 : 1;
+      this.mirror = [sx, sy * (this.roundJitter ? 1 - this.roundJitter * this.rnd() : 1)];
+    } else this.mirror = null;
     if (this.grain) this.grainDab(x, y, size, alpha, rot, this.grain);
     // running dry on a texture: a loaded brush covers it, a drying one reaches less deep and the grooves show more.
     // The grain comes in only once the hairs have started to drop out, and never fully, so the dry end is streaks
@@ -270,7 +278,8 @@ export class Painter {
       for (const [x0, y0, w] of pixelSpans(x, y, size)) ctx.fillRect(x0, y0, w, 1);
       return;
     }
-    if (!this.image && !rot && this.squash === 1) {
+    const m = this.mirror;
+    if (!this.image && !rot && this.squash === 1 && !m) {
       if (this.hard) {
         ctx.fillStyle = this.color;
         ctx.beginPath();
@@ -283,6 +292,7 @@ export class Painter {
     ctx.translate(x, y);
     if (rot) ctx.rotate(rot);
     if (this.squash < 1) ctx.scale(1, this.squash);
+    if (m) ctx.scale(m[0], m[1]);
     if (this.image) {  // the longer side of the image is the brush size
       const img = this.imageAt(size), { width: w, height: h } = img, m = size / Math.max(w, h);
       ctx.drawImage(img, -w * m / 2, -h * m / 2, w * m, h * m);
