@@ -11,7 +11,7 @@ import { api } from '../api.js';
 import { curveAt, stampAt, previewPath, previewSettings } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage, liveSource } from '../doc.js';
-import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor } from '../painter.js';
+import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, grainFor } from '../painter.js';
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
@@ -193,7 +193,7 @@ export const brushMethods = {
       scratch.width = w; scratch.height = h;
       const sctx = scratch.getContext('2d');
       const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-        random: b.tipRandom, follow: b.tipFollow, rnd: seeded(PREVIEW_SEED + 7) });
+        random: b.tipRandom, follow: b.tipFollow, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b) });
       for (const st of strokeStamps(line, b)) {
         const { size, flow } = stampAt(b, st.p);
         painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);

@@ -2,7 +2,8 @@
 // brush colour) scaled to each dab; fully hard brushes draw anti-aliased circles; a tip image (brushtip.js,
 // registered with registerTip) is tinted in the brush colour. Any tip can be squashed (thickness), turned
 // (angle), turned at random per dab and turned with the stroke's direction. Also makes the texture tiles that
-// give a whole stroke a paper grain (textures.js or a texture image; applied in doc.js liveSource).
+// give a whole stroke a paper grain (textures.js or a texture image; applied in doc.js liveSource), or, with
+// grainPressure, the paper height each dab is cut against (grainFor; see Painter.dab).
 
 import { textureTile, grooveAlpha, TILE } from './textures.js';
 import { imageRef } from './brushtip.js';
@@ -83,8 +84,9 @@ export class Painter {
   /** opts: color, hardness, and optionally tip ('round' or 'img:<id>'), thickness (0-1), angle (degrees),
    * random (0-1: share of a half turn either way), follow (turn with the stroke), rnd (random numbers 0-1; a seeded
    * source makes the random turns repeatable, as vector lines need). */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false }) {
+  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null }) {
     this.ctx = ctx;
+    this.grain = pixel ? null : grain;  // grainFor(s): every dab is cut against the paper (pressure fills the grooves)
     this.pixel = !!pixel;  // hard pixels (pixel art): whole-pixel round dabs, no soft edge, tip image or turn
     this.color = color;
     this.hardness = hardness;
@@ -113,7 +115,51 @@ export class Painter {
    * stroke (the pen's lean). */
   dab(x, y, size, alpha, k = 0, color = null, dir = null) {
     if (color) this.setColor(color);
-    const ctx = this.ctx;
+    if (this.grain) return this.grainDab(x, y, size, alpha, k, dir);
+    this.draw(this.ctx, x, y, size, alpha, k, dir);
+  }
+
+  /**
+   * A dab cut against the paper: the tip's alpha t times how deep the dab reaches (sqrt of its density a, which
+   * follows the pressure), minus the groove depth d of the doc-anchored texture times the grain amount g, laid down
+   * at density a: a * max(0, t * sqrt(a) - g * d). A light touch marks only the tops of the tooth, and faintly; a
+   * firm one fills the grooves too. Since every dab leaves the same grooves empty, overlapping dabs build up
+   * density on the tooth without filling the grain in. The subtraction is done on the GPU:
+   * xor with an opaque fill turns alpha x into 1 - x, 'lighter' adds the groove, and a second xor turns it back.
+   */
+  grainDab(x, y, size, alpha, k, dir) {
+    const reach = size * 0.75 + 2;  // half the diagonal of a turned tip, and a margin
+    const x0 = Math.floor(x - reach), y0 = Math.floor(y - reach), n = Math.ceil(2 * reach) + 1;
+    const c = grainScratch ||= document.createElement('canvas');
+    if (c.width < n || c.height < n) c.width = c.height = Math.max(n, 64);
+    const g = c.getContext('2d'), { tile, scale } = this.grain;
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+    g.clearRect(0, 0, n, n);
+    const a = Math.max(0, Math.min(1, alpha));
+    this.draw(g, x - x0, y - y0, size, Math.sqrt(a), k, dir);
+    g.globalAlpha = 1;
+    g.fillStyle = '#000';
+    g.globalCompositeOperation = 'xor';
+    g.fillRect(0, 0, n, n);
+    if (!tile.pattern) tile.pattern = g.createPattern(tile, 'repeat');
+    tile.pattern.setTransform(new DOMMatrix().translateSelf(-x0, -y0).scaleSelf(scale));
+    g.globalCompositeOperation = 'lighter';
+    g.fillStyle = tile.pattern;
+    g.fillRect(0, 0, n, n);
+    g.globalCompositeOperation = 'xor';
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, n, n);
+    g.globalCompositeOperation = 'source-in';  // the colour was lost on the way: fill it back in
+    g.fillStyle = this.color;
+    g.fillRect(0, 0, n, n);
+    g.globalCompositeOperation = 'source-over';
+    this.ctx.globalAlpha = a;
+    this.ctx.drawImage(c, 0, 0, n, n, x0, y0, n, n);
+  }
+
+  /** Draws one dab onto ctx at density alpha. */
+  draw(ctx, x, y, size, alpha, k, dir) {
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     if (this.pixel) {
       ctx.fillStyle = this.color;
@@ -198,9 +244,21 @@ function withAlpha(hex, a) {
 }
 
 const tiles = {};
+let grainScratch = null;
 
-/** The live.texture for a paint tool's settings, or null: a tile canvas whose alpha is what the grain removes. */
+/** The live.texture for a paint tool's settings, or null: a tile canvas whose alpha is what the grain removes. With
+ * grainPressure the dabs carry the grain themselves (grainFor), so the stroke as a whole gets none. */
 export function textureFor(s) {
+  if (s.grainPressure) return null;
+  return grainTile(s);
+}
+
+/** Painter's `grain` for settings with grainPressure: the texture tile (alpha: groove depth times the grain amount). */
+export function grainFor(s) {
+  return s.grainPressure && !s.pixel ? grainTile(s) : null;
+}
+
+function grainTile(s) {
   if (!s.texture || s.texture === 'none' || !(s.textureAmount > 0)) return null;
   const key = `${s.texture}:${s.textureAmount}:${s.textureInvert ? 1 : 0}`;
   if (!tiles[key]) {

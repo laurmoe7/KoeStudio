@@ -60,8 +60,8 @@ export function textureTile(id, size = TILE) {
       let v;
       if (id === 'paper') {
         // crisp pits a pixel or two wide in a fine tooth, with faint horizontal fibres: graphite catches the tops
-        v = 0.3 * hash01(x, y, 71) + 0.3 * valueNoise(x, y, 2, size / 2, 72)
-          + 0.25 * valueNoise(x, y, 4, size / 4, 74, 1) + 0.15 * valueNoise(x, y, 16, size / 16, 75, 4);
+        v = 0.15 * hash01(x, y, 71) + 0.4 * valueNoise(x, y, 2, size / 2, 72)
+          + 0.25 * valueNoise(x, y, 4, size / 4, 74, 2) + 0.2 * valueNoise(x, y, 16, size / 16, 75, 8);
       } else if (id === 'coldpress') {
         // rounded bumps of a few pixels, grooves between them
         v = fbm(x, y, size, [[8, 0.6], [4, 0.25], [32, 0.15]], 23);

@@ -86,6 +86,21 @@ test('brush settings: tips, curves and saved brushes', () => {
   assert.ok(BRUSH_KEYS.includes('tip') && BRUSH_KEYS.includes('size') && !BRUSH_KEYS.includes('preset'));
 });
 
+test('grain by pressure', async () => {
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  const all = sanitizeSettings(null);
+  assert.equal(all.pencil.grainPressure, true, 'the Pencil has it');
+  assert.equal(all.pencil.texture, 'paper');
+  assert.equal(all.brush.grainPressure, false, 'other brushes keep the grain of the whole stroke');
+  assert.ok(BRUSH_KEYS.includes('grainPressure'), 'saved with brushes');
+  // a Pencil saved before the setting existed takes it up; one that turned it off keeps it off
+  assert.equal(sanitizeSettings({ pencil: { size: 9 } }).pencil.grainPressure, true);
+  assert.equal(sanitizeSettings({ pencil: { grainPressure: false } }).pencil.grainPressure, false);
+  // vector lines keep it with their brush; older lines have none
+  assert.equal(sanitizeBrush({ grainPressure: 1 }).grainPressure, true);
+  assert.equal(sanitizeBrush({}).grainPressure, false);
+});
+
 test('dab variation and the starting taper', async () => {
   const { dabJitter, taperIn } = await import('../web/js/brush.js');
   const seq = list => () => list.shift();

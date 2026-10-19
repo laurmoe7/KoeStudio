@@ -3,7 +3,7 @@
 // pen stroke is committed; so a line looks the same drawn live and redrawn from the data.
 
 import { liveSource } from './doc.js';
-import { Painter, textureFor } from './painter.js';
+import { Painter, textureFor, grainFor } from './painter.js';
 import { stampAt } from './brush.js';
 import { strokeBounds, strokeStamps, dualStamps, seeded, brushOf } from './vector.js';
 import { clip } from './rect.js';
@@ -32,7 +32,7 @@ export function renderVector(layer, rect = null) {
     sctx.globalCompositeOperation = 'source-over';
     sctx.clearRect(q.x, q.y, q.w, q.h);
     const painter = new Painter(sctx, { color: s.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-      random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7) });
+      random: b.tipRandom, follow: b.tipFollow, rnd: seeded(s.seed + 7), grain: grainFor(b) });
     for (const st of strokeStamps(s, b)) {
       const { size, flow } = stampAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f, 0, st.c, st.a ?? null);

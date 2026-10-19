@@ -17,7 +17,7 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
-  return { texture, textureAmount, textureScale: 1, textureInvert: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, pixel: false,
+  return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0,
     tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false,
     dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, preset: '' };
@@ -34,7 +34,7 @@ export const TOOLS = [
   { id: 'pen', label: 'Pen', key: 'p', kind: 'paint', icon: 'pen', group: 'draw',
     defaults: { size: 6, opacity: 1, flow: 1, hardness: 1, spacing: 0.08, pressureSize: true, pressureOpacity: false, minSize: 0.15, smoothing: 4, gamma: 1, ...tex() } },
   { id: 'pencil', label: 'Pencil', key: 'n', kind: 'paint', icon: 'pencil', group: 'draw',
-    defaults: { size: 4, opacity: 0.85, flow: 0.7, hardness: 0.85, spacing: 0.12, pressureSize: true, pressureOpacity: true, minSize: 0.4, smoothing: 1, gamma: 1, ...tex('paper', 0.75) } },
+    defaults: { size: 6, opacity: 1, flow: 0.7, hardness: 0.6, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.5, smoothing: 1, gamma: 1, ...tex('paper', 0.6), grainPressure: true } },
   { id: 'brush', label: 'Brush', key: 'b', kind: 'paint', icon: 'brush', group: 'draw',
     defaults: { size: 30, opacity: 1, flow: 0.35, hardness: 0.5, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1, ...tex() } },
   { id: 'airbrush', label: 'Airbrush', key: 'a', kind: 'paint', icon: 'air', group: 'draw',
@@ -130,6 +130,7 @@ export const SETTING_FIELDS = [
   ['flowCurve', 'Density curve', 'curve'],
   ['texture', 'Texture', 'choice', TEXTURES],
   ['textureInvert', 'Invert texture', 'check'],
+  ['grainPressure', 'Grain by pressure', 'check'],
   ['preset', 'Brush', 'id'],
   ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
   ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
@@ -166,7 +167,7 @@ export const SETTING_GROUPS = [
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'quickShape']],
   ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
   ['Variation', ['scatter', 'count', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
-  ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert']],
+  ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert', 'grainPressure']],
   ['Dual brush', ['dualTip', 'dualSize', 'dualSpacing', 'dualScatter']],
 ];
 
@@ -221,6 +222,7 @@ export const SETTING_HINTS = {
   minFlow: 'Density at the lightest pen pressure, as a share of Density',
   sizeCurve: 'How pen pressure maps to size (from an imported brush); it replaces the Pressure setting for size',
   flowCurve: 'How pen pressure maps to density (from an imported brush); it replaces the Pressure setting for density',
+  grainPressure: 'Like a real pencil: a light touch marks only the tops of the paper grain, pressing harder fills the grooves too',
   textureInvert: 'Swaps the texture: paint goes into the dark parts instead of the light ones',
   count: 'Dabs at each step: more than 1 lays several at once, each with its own scatter and jitter (spray, foliage, sparkles; turn Scatter up to spread them)',
   scatter: 'Moves each dab a random distance from the stroke, up to this many times the brush size',

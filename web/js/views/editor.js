@@ -10,7 +10,7 @@ import { floodMask, growMask, closeGapFill } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping, springBack } from '../keys.js';
-import { Painter, textureFor, hasTipImage, tipOutline } from '../painter.js';
+import { Painter, textureFor, grainFor, hasTipImage, tipOutline } from '../painter.js';
 import { union, clip } from '../rect.js';
 import { trimmedSnapshot, drawSnapshot, snapBytes } from '../snapshot.js';
 import { gradientChoices } from '../gradient.js';
@@ -1327,7 +1327,8 @@ export class Editor {
       type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
       color, dabColors: varies && !s.colorJitterStroke, dyn,
       painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
-        tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel }),
+        tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel,
+        grain: grainFor(s) }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
