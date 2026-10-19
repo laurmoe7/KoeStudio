@@ -142,10 +142,12 @@ export class Painter {
   }
 
   /**
-   * A dab cut against the paper: the tip's alpha t times how deep the dab reaches (sqrt of its density a, which
-   * follows the pressure), minus the groove depth d of the doc-anchored texture times the grain amount g, laid down
-   * at density a: a * max(0, t * sqrt(a) - g * d). A light touch marks only the tops of the tooth, and faintly; a
-   * firm one fills the grooves too. Since every dab leaves the same grooves empty, overlapping dabs build up
+   * A dab cut against the paper: the tip's alpha t times how deep the dab reaches (sqrt of its density a as a share
+   * of the brush's full density F, so it follows the pressure and not the Density setting), minus the groove depth
+   * d of the doc-anchored texture times the grain amount g, laid down at density a: a * max(0, t * sqrt(a / F) -
+   * g * d). A light touch marks only the tops of the tooth, and faintly; a firm one fills the grooves too. A low
+   * Density keeps the ~1/spacing dabs over each point from piling a light line up to black on the tooth tops, so
+   * it stays grey, as graphite does. Since every dab leaves the same grooves empty, overlapping dabs build up
    * density on the tooth without filling the grain in. The subtraction is done on the GPU:
    * xor with an opaque fill turns alpha x into 1 - x, 'lighter' adds the groove, and a second xor turns it back.
    */
@@ -159,7 +161,7 @@ export class Painter {
     g.globalAlpha = 1;
     g.clearRect(0, 0, n, n);
     const a = Math.max(0, Math.min(1, alpha));
-    this.draw(g, x - x0, y - y0, size, Math.sqrt(a), k, dir);
+    this.draw(g, x - x0, y - y0, size, Math.sqrt(Math.min(1, a / (this.grain.full || 1))), k, dir);
     g.globalAlpha = 1;
     g.fillStyle = '#000';
     g.globalCompositeOperation = 'xor';
@@ -275,7 +277,8 @@ export function textureFor(s) {
   return grainTile(s);
 }
 
-/** Painter's `grain` for settings with grainPressure: the texture tile (alpha: groove depth times the grain amount). */
+/** Painter's `grain` for settings with grainPressure: the texture tile (alpha: groove depth times the grain amount),
+ * its scale, and the brush's full density (a dab at it reaches the bottom of the grain). */
 export function grainFor(s) {
   return s.grainPressure && !s.pixel ? grainTile(s) : null;
 }
@@ -295,5 +298,5 @@ function grainTile(s) {
     c.getContext('2d').putImageData(data, 0, 0);
     tiles[key] = c;
   }
-  return { tile: tiles[key], scale: s.textureScale || 1 };
+  return { tile: tiles[key], scale: s.textureScale || 1, full: s.flow > 0 ? s.flow : 1 };
 }

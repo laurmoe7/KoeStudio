@@ -95,7 +95,8 @@ export const GUIDE = [
       <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles).</li>
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.
       With <b>Grain by pressure</b> (on for the Pencil) a light touch only catches the tops of the grain and a firm one
-      fills it in, as with graphite.</li>
+      fills it in, as with graphite. Keep <b>Density</b> low (the Pencil uses 45%) so light lines stay grey: pressure
+      decides how deep the grain fills, Density how dark each pass is.</li>
       <li><b>Tip</b>: Round, or <b>Bristles</b>, a row of hairs; with <b>Turn with the stroke</b> on and the angle at
       90° each hair leaves its own streak, as a dry brush does.</li>
       <li><b>Dual brush</b>: a second tip stamped along the stroke (its own size, spacing and scatter); the paint shows

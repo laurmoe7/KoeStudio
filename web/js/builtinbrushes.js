@@ -16,10 +16,10 @@ export const BUILTIN_BRUSHES = [
   B('fineliner', 'Ink', 'Fineliner', { size: 4, flow: 1, hardness: 1, spacing: 0.05, pressureSize: false, pressureOpacity: false, smoothing: 4, taperOut: 4 }),
   B('brushpen', 'Ink', 'Brush pen', { size: 22, flow: 1, hardness: 0.95, spacing: 0.04, minSize: 0.02, gamma: 1.6, smoothing: 4, thickness: 0.7, tipAngle: 35, taperIn: 30, taperOut: 70, pressureOpacity: false }),
   // dry media: the grain fills with pressure (grainPressure)
-  B('hb', 'Pencil and chalk', 'HB pencil', { size: 4, flow: 0.6, hardness: 0.7, spacing: 0.1, minSize: 0.5, smoothing: 1, texture: 'paper', textureAmount: 0.55, grainPressure: true }),
-  B('6b', 'Pencil and chalk', 'Soft pencil 6B', { size: 10, flow: 0.75, hardness: 0.5, spacing: 0.1, minSize: 0.4, smoothing: 1, texture: 'paper', textureAmount: 0.6, grainPressure: true, tiltSize: 0.6, tiltFlow: 0.3 }),
-  B('charcoal', 'Pencil and chalk', 'Charcoal', { size: 24, flow: 0.85, hardness: 0.45, spacing: 0.08, minSize: 0.55, smoothing: 2, thickness: 0.6, tipAngle: 40, tipRandom: 0.04, texture: 'paper', textureAmount: 0.7, textureScale: 1.6, grainPressure: true }),
-  B('chalk', 'Pencil and chalk', 'Chalk', { size: 30, flow: 0.6, hardness: 0.7, spacing: 0.08, minSize: 0.7, smoothing: 2, texture: 'coldpress', textureAmount: 0.75, textureScale: 0.75, grainPressure: true }),
+  B('hb', 'Pencil and chalk', 'HB pencil', { size: 4, flow: 0.35, minFlow: 0.1, hardness: 0.7, spacing: 0.1, minSize: 0.5, smoothing: 1, texture: 'paper', textureAmount: 0.55, grainPressure: true }),
+  B('6b', 'Pencil and chalk', 'Soft pencil 6B', { size: 10, flow: 0.5, minFlow: 0.1, hardness: 0.5, spacing: 0.1, minSize: 0.4, smoothing: 1, texture: 'paper', textureAmount: 0.6, grainPressure: true, tiltSize: 0.6, tiltFlow: 0.3 }),
+  B('charcoal', 'Pencil and chalk', 'Charcoal', { size: 24, flow: 0.6, minFlow: 0.1, hardness: 0.45, spacing: 0.08, minSize: 0.55, smoothing: 2, thickness: 0.6, tipAngle: 40, tipRandom: 0.04, texture: 'paper', textureAmount: 0.7, textureScale: 1.6, grainPressure: true }),
+  B('chalk', 'Pencil and chalk', 'Chalk', { size: 30, flow: 0.45, minFlow: 0.1, hardness: 0.7, spacing: 0.08, minSize: 0.7, smoothing: 2, texture: 'coldpress', textureAmount: 0.75, textureScale: 0.75, grainPressure: true }),
   // paint
   B('gouache', 'Paint', 'Gouache', { size: 30, flow: 0.9, hardness: 0.85, spacing: 0.05, minSize: 0.4, pressureOpacity: false, valJitter: 0.02, texture: 'paper', textureAmount: 0.15 }),
   B('watercolor', 'Paint', 'Watercolour', { size: 50, opacity: 0.8, flow: 0.1, hardness: 0.3, spacing: 0.05, minSize: 0.7, texture: 'coldpress', textureAmount: 0.35, textureScale: 1.5 }),

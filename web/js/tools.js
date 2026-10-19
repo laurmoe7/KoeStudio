@@ -34,7 +34,7 @@ export const TOOLS = [
   { id: 'pen', label: 'Pen', key: 'p', kind: 'paint', icon: 'pen', group: 'draw',
     defaults: { size: 6, opacity: 1, flow: 1, hardness: 1, spacing: 0.08, pressureSize: true, pressureOpacity: false, minSize: 0.15, smoothing: 4, gamma: 1, ...tex() } },
   { id: 'pencil', label: 'Pencil', key: 'n', kind: 'paint', icon: 'pencil', group: 'draw',
-    defaults: { size: 6, opacity: 1, flow: 0.7, hardness: 0.6, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.5, smoothing: 1, gamma: 1, ...tex('paper', 0.6), grainPressure: true } },
+    defaults: { size: 6, opacity: 1, flow: 0.45, hardness: 0.6, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.5, smoothing: 1, gamma: 1, ...tex('paper', 0.6), minFlow: 0.1, grainPressure: true } },
   { id: 'brush', label: 'Brush', key: 'b', kind: 'paint', icon: 'brush', group: 'draw',
     defaults: { size: 30, opacity: 1, flow: 0.55, hardness: 0.8, spacing: 0.05, pressureSize: true, pressureOpacity: true, minSize: 0.25, smoothing: 2, gamma: 1, ...tex(), taperOut: 20 } },
   { id: 'airbrush', label: 'Airbrush', key: 'a', kind: 'paint', icon: 'air', group: 'draw',
@@ -254,6 +254,8 @@ export function sanitizeSettings(stored) {
     let from = stored && typeof stored === 'object' ? stored[t.id] : null;
     // before 'sample', Fill and the wand had a "look at all layers" tick
     if (from && typeof from === 'object' && !('sample' in from) && from.sampleAll === false) from = { ...from, sample: 'layer' };
+    // a Pencil still on the defaults from before its grain followed pressure takes the lighter density that needs
+    if (t.id === 'pencil' && from && typeof from === 'object' && from.flow === 0.7 && !(from.minFlow > 0) && from.hardness === 0.6) from = { ...from, flow: 0.45, minFlow: 0.1 };
     applySettings(s, from);
     out[t.id] = s;
   }

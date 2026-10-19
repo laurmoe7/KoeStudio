@@ -96,6 +96,16 @@ test('grain by pressure', async () => {
   // a Pencil saved before the setting existed takes it up; one that turned it off keeps it off
   assert.equal(sanitizeSettings({ pencil: { size: 9 } }).pencil.grainPressure, true);
   assert.equal(sanitizeSettings({ pencil: { grainPressure: false } }).pencil.grainPressure, false);
+  // a light density, so ten overlapping dabs leave a light line grey: at 25% pressure each dab is
+  // 0.45 * (0.1 + 0.9 * 0.25) = 0.146, and ten of them 1 - 0.854^10 = 0.79, not the 0.85 a 0.7 density gave
+  assert.equal(all.pencil.flow, 0.45);
+  assert.equal(all.pencil.minFlow, 0.1);
+  // a Pencil saved on the old defaults (density 0.7, no minimum, tip 60%) takes the new ones; changed ones stay
+  const old = sanitizeSettings({ pencil: { flow: 0.7, minFlow: 0, hardness: 0.6, size: 12 } }).pencil;
+  assert.deepEqual([old.flow, old.minFlow, old.size], [0.45, 0.1, 12]);
+  assert.equal(sanitizeSettings({ pencil: { flow: 0.8, minFlow: 0, hardness: 0.6 } }).pencil.flow, 0.8);
+  assert.equal(sanitizeSettings({ pencil: { flow: 0.7, minFlow: 0, hardness: 0.9 } }).pencil.flow, 0.7);
+  assert.equal(sanitizeSettings({ pencil: { flow: 0.7, minFlow: 0, hardness: 0.6 } }).brush.flow, 0.55, 'only the Pencil');
   // vector lines keep it with their brush; older lines have none
   assert.equal(sanitizeBrush({ grainPressure: 1 }).grainPressure, true);
   assert.equal(sanitizeBrush({}).grainPressure, false);

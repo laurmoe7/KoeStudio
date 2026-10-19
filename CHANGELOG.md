@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-19
 
 ### New
+- The Pencil shades more like graphite: a light touch now gives a soft grey line instead of broken black dots, and pressing harder darkens it smoothly to near black. The HB, 6B, Charcoal and Chalk brushes do the same.
 - Brushes window: every brush with a sample stroke in your colour, a search box, and one click to use it. Open it from View → Brushes or by clicking the new stroke of the current brush under the Brush choice.
 - A * after a brush's name shows that you changed its settings; click the brush again to undo the changes.
 - The Brushes window has small, medium and large strokes, can be resized, steps through brushes with the arrow keys, and has a right-click menu to copy, update, rename or delete a brush.
