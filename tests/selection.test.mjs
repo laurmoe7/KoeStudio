@@ -1,7 +1,7 @@
 // Selection and transform maths. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { maskBounds, outlineSegments, maskOutline, modeFor, compositeFor, rectBetween, selectionBarSpot } from '../web/js/selection.js';
+import { maskBounds, outlineSegments, maskOutline, modeFor, compositeFor, rectBetween, selectionBarSpot, alphaOf, fromAlpha, selBytes } from '../web/js/selection.js';
 import { newTransform, xfMatrix, boxPoint, toBox, hitTest, dragHandle, dragRotate, dragMove, xfBounds, isIdentity, typedTransform } from '../web/js/transform.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, msg || `${a} ≈ ${b}`);
@@ -164,4 +164,17 @@ test('numbers typed into the transform bar', () => {
   assert.deepEqual(typedTransform(t, 'w', 'abc'), {});
   assert.deepEqual(typedTransform(t, 'w', ''), {});
   assert.deepEqual(typedTransform(t, 'w', '0'), { sx: -0.01 }, 'at least 1%');
+});
+
+test('selection undo copies keep only the alpha', () => {
+  // two RGBA pixels: black at alpha 10, then red at alpha 200 (colour is dropped: the mask is black)
+  const a = alphaOf(new Uint8ClampedArray([0, 0, 0, 10, 255, 0, 0, 200]));
+  assert.deepEqual([...a], [10, 200]);
+  globalThis.ImageData ??= class { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } };
+  const img = fromAlpha(a, 2, 1);
+  assert.deepEqual([img.width, img.height], [2, 1]);
+  assert.deepEqual([...img.data], [0, 0, 0, 10, 0, 0, 0, 200]);
+  // 2 alpha bytes + 3 outline segments at 40 bytes each
+  assert.equal(selBytes({ alpha: a, segments: [1, 2, 3] }), 122);
+  assert.equal(selBytes({ alpha: null, segments: [] }), 0);
 });

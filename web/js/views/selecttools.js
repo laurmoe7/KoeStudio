@@ -11,7 +11,7 @@ import { strokesInside, removeStrokes, mapStrokes, strokeBounds, brushOf } from 
 import { renderVector } from '../vectorlayer.js';
 import { trimmedSnapshot, snapBytes } from '../snapshot.js';
 import { icon } from '../icons.js';
-import { maskBounds, modeFor, rectBetween, SELECT_MODES } from '../selection.js';
+import { maskBounds, modeFor, rectBetween, SELECT_MODES, selBytes } from '../selection.js';
 import { newTransform, xfMatrix, boxPoint, corners, hitTest, dragHandle, dragRotate, dragMove, isIdentity, typedTransform, HANDLES, quadHit, quadBounds, warpImage, meshFromQuad, meshSurface, meshWarp, meshHit, pointsBounds, homography, project } from '../transform.js';
 import { clip, union } from '../rect.js';
 import { esc, modal, store, toast } from '../ui.js';
@@ -33,7 +33,7 @@ export const selectionMethods = {
     fn();
     const after = this.sel.snapshot();
     const restore = s => { this.sel.restore(s); this.drawOverlay(); };
-    const bytes = [before, after].reduce((n, s) => n + s.canvas.width * s.canvas.height * 4 + s.segments.length * 40, 0);
+    const bytes = selBytes(before) + selBytes(after);
     this.history.push({ label, bytes, undo: () => restore(before), redo: () => restore(after) });
     this.drawOverlay();
   },
@@ -465,7 +465,7 @@ export const selectionMethods = {
       this.sel.restore(s.sel);
       this.changed(null);
     };
-    return { label, ends: { ...ends, from, to }, get bytes() { return [from.img, to.img, from.mimg, to.mimg].reduce((n, s) => n + snapBytes(s), 0); },
+    return { label, ends: { ...ends, from, to }, get bytes() { return [from.img, to.img, from.mimg, to.mimg].reduce((n, s) => n + snapBytes(s), selBytes(from.sel) + selBytes(to.sel)); },
       undo: () => put(from), redo: () => put(to) };
   },
 

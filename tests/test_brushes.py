@@ -14,6 +14,9 @@ import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+# the app folder (error.log, brushes) is a temp one for the whole run: never the user's %LOCALAPPDATA%\KoeStudio
+_APP_DIR = tempfile.TemporaryDirectory()
+os.environ['KOE_APP_DIR'] = _APP_DIR.name
 import app  # noqa: E402
 import brushimport as bi  # noqa: E402
 
@@ -384,7 +387,7 @@ class Library(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
-        os.environ.pop('KOE_APP_DIR', None)
+        os.environ['KOE_APP_DIR'] = _APP_DIR.name
 
     def test_images_and_presets(self):
         self.assertEqual(app.load_brushes(), {'images': [], 'presets': []})

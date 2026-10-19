@@ -187,8 +187,28 @@ export class Editor {
     clearTimeout(this.lapseTimer);
     cancelIdleCallback(this.sampleIdle);
     clearInterval(this.antsTimer);
+    cancelAnimationFrame(this.raf);
+    cancelAnimationFrame(this.overlayRaf);
+    cancelIdleCallback(this.snapIdle);
     this.releaseStripHolds();
     this.root.innerHTML = '';
+    this.freeCanvases();
+  }
+
+  /**
+   * Gives back the GPU memory of a closed artwork (its layers, the composite, the stroke canvases, the selection and
+   * undo copies) at once: dropped canvases wait for garbage collection, which a small JS heap runs rarely, so each
+   * artwork opened and closed kept its few hundred MB for a while.
+   */
+  freeCanvases() {
+    const free = c => { if (c) c.width = c.height = 0; };
+    for (const r of this.doc?.rasters() || []) free(r.canvas);
+    for (const c of this.mips || []) free(c);
+    for (const s of this.snapQueue || []) free(s.canvas);
+    [this.stroke, this.dualCanvas, this.comboCanvas, this.sel?.canvas, this.paperLayer, this.insideClip?.canvas].forEach(free);
+    this.snapQueue = [];
+    this.history = new History();  // its undo copies go too
+    this.compRead = null;
   }
 
   build() {
@@ -543,7 +563,7 @@ export class Editor {
   /** Brings the composite canvas up to date (see updateComp); call before drawing or reading this.comp. */
   flushComp() {
     const q = this.compQueue, d = this.doc;
-    if (!q) return;
+    if (!q || this.destroyed) return;
     this.compQueue = null;
     const area = clip(q, d.width, d.height);  // the canvas may have shrunk since
     if (area) {
@@ -598,6 +618,7 @@ export class Editor {
    * renders) and copied exactly for partial ones; clipping to whole pixels keeps the edges free of blending.
    */
   render(region = 'all') {
+    if (this.destroyed) return;  // its canvases are freed (freeCanvases)
     this.flushComp();
     if (this.tileView) region = 'all';  // the copies round the canvas change with every stroke too
     const ctx = this.vctx, d = this.doc, dpr = this.dpr || 1;
@@ -816,7 +837,7 @@ export class Editor {
   /** The overlay canvas: selection, crop box, guides and perspective, brush outline, then the edge rulers. */
   paintOverlay() {
     const ctx = this.octx;
-    if (!ctx) return;
+    if (!ctx || this.destroyed) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
     this.drawPixelGrid(ctx);

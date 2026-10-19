@@ -10,6 +10,9 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+# the app folder (error.log, brushes) is a temp one for the whole run: never the user's %LOCALAPPDATA%\KoeStudio
+_APP_DIR = tempfile.TemporaryDirectory()
+os.environ['KOE_APP_DIR'] = _APP_DIR.name
 import app  # noqa: E402
 
 PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
@@ -413,10 +416,7 @@ class ReferencePictureTests(unittest.TestCase):
         os.environ['KOE_APP_DIR'] = self.tmp.name
 
     def tearDown(self):
-        if self.old is None:
-            os.environ.pop('KOE_APP_DIR', None)
-        else:
-            os.environ['KOE_APP_DIR'] = self.old
+        os.environ['KOE_APP_DIR'] = self.old or _APP_DIR.name
         self.tmp.cleanup()
 
     def test_add_list_read_delete(self):

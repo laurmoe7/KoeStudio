@@ -29,17 +29,19 @@ export class Selection {
     };
   }
 
-  /** A copy of the mask for undo (with its bounds and outline, so restoring it reads nothing back). */
+  /**
+   * A copy of the mask for undo (with its bounds and outline, so restoring it reads nothing back): {alpha, bounds,
+   * segments}, only the selected part and only its alpha (the mask is black), read from the mask canvas, which lives
+   * in memory (willReadFrequently). A canvas copy kept a GPU texture per undo step: 48 MB for Select all on 3000 x 4000.
+   */
   snapshot() {
-    const c = document.createElement('canvas'), b = this.bounds;  // only the selected part: outside it the mask is empty
-    c.width = b ? b.w : 1; c.height = b ? b.h : 1;
-    if (b) c.getContext('2d').drawImage(this.canvas, b.x, b.y, b.w, b.h, 0, 0, b.w, b.h);
-    return { canvas: c, bounds: b && { ...b }, segments: this.segments };
+    const b = this.bounds;  // outside them the mask is empty
+    return { alpha: b ? alphaOf(this.ctx.getImageData(b.x, b.y, b.w, b.h).data) : null, bounds: b && { ...b }, segments: this.segments };
   }
 
   restore(snap) {
     this.ctx.clearRect(0, 0, this.w, this.h);
-    if (snap.bounds) this.ctx.drawImage(snap.canvas, snap.bounds.x, snap.bounds.y);
+    if (snap.bounds) this.ctx.putImageData(fromAlpha(snap.alpha, snap.bounds.w, snap.bounds.h), snap.bounds.x, snap.bounds.y);
     if (!snap.segments) return this.refresh(snap.bounds);
     this.bounds = snap.bounds && { ...snap.bounds };
     this.segments = snap.segments;
@@ -270,3 +272,20 @@ export function selectionBarSpot(pts, barW, barH, vw, vh, gap = 10, margin = 8) 
   const x = Math.max(margin, Math.min(vw - margin - barW, mid - barW / 2));
   return { x: Math.round(x), y: Math.round(Math.max(margin, y)) };
 }
+
+/** The alpha channel of RGBA pixels. */
+export function alphaOf(rgba) {
+  const a = new Uint8Array(rgba.length >> 2);
+  for (let i = 0; i < a.length; i++) a[i] = rgba[i * 4 + 3];
+  return a;
+}
+
+/** Black pixels with alpha a, as w x h ImageData. */
+export function fromAlpha(a, w, h) {
+  const img = new ImageData(w, h), d = img.data;
+  for (let i = 0; i < a.length; i++) d[i * 4 + 3] = a[i];
+  return img;
+}
+
+/** Memory a selection snapshot holds. */
+export const selBytes = snap => (snap?.alpha ? snap.alpha.length : 0) + (snap?.segments?.length || 0) * 40;
