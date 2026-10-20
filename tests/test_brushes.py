@@ -583,21 +583,35 @@ class ClipStudioReader(unittest.TestCase):
             'BrushFlowEffector': csp_effector(0x10, 10, 0, [(0, 0), (1, 1)]),
             'BrushUseIn': 1, 'BrushInLength': 40.0, 'BrushInLengthUnit': 0, 'BrushUseOut': 1, 'BrushOutLength': 20.0, 'BrushOutLengthUnit': 2,
             'BrushChangeStrokeColor': 1, 'BrushStrokeHueChange': 36, 'BrushStrokeSaturationChange': 0, 'BrushStrokeValueChange': 25,
-            'BrushUseWaterColor': 1, 'BrushMixColor': 70, 'UseDualBrush': 1}))
+            'BrushUseWaterColor': 1, 'BrushMixColor': 70, 'BrushMixAlpha': 45, 'BrushMixColorExtension': 15, 'UseDualBrush': 1}))
         self.assertEqual(res['name'], 'Graphite')
         b = res['brushes'][0]
         self.assertEqual(b['name'], 'Graphite')
         # 50% thick and horizontal turns it 90° more; the size curve is kept (not straight), the density one is not;
-        # stabilization 25 of 100 is 5 of 20; hue 36° of 180, value 25%
+        # stabilization 25 of 100 is 5 of 20; hue 36° of 180, value 25%; Amount of paint 70% leaves the canvas colour 30%
+        # (Gouache: 70, 45, 15)
         self.assertEqual(b['settings'], {
             'gamma': 1, 'size': 30.0, 'opacity': 0.8, 'flow': 0.5, 'hardness': 0.4, 'spacing': 0.12, 'smoothing': 5,
             'thickness': 0.5, 'tipAngle': 120, 'tipRandom': 0.2, 'tipFollow': True, 'flipX': True,
             'pressureSize': True, 'minSize': 0.3, 'sizeCurve': [[0, 0], [0.5, 0.25], [1, 1]], 'sizeJitter': 0.4,
             'pressureOpacity': True, 'minFlow': 0.1, 'taperIn': 40, 'hueJitter': 0.2, 'valJitter': 0.25, 'colorJitterStroke': True,
-            'mix': 0.7})
+            'mix': 0.3, 'paintLoad': 0.45, 'mixStretch': 0.15})
         self.assertEqual(b['notes'], ['End taper as a share of the stroke', 'Dual brush'])
         self.assertIsNone(b['tip'])
         self.assertEqual(res['images'], [])
+
+    def test_colour_mixing(self):
+        # CLIP STUDIO's own Blend tool: no paint of its own at all, so all canvas colour and no load
+        s = bi._sut_settings({'BrushSize': 40.0, 'BrushUseWaterColor': 1, 'BrushMixColor': 0, 'BrushMixAlpha': 0, 'BrushMixColorExtension': 10})[0]
+        self.assertEqual((s['mix'], s['paintLoad'], s['mixStretch']), (1, 0, 0.1))
+        # Oil paint: 61% paint, 81% density, 87% stretch
+        s = bi._sut_settings({'BrushSize': 40.0, 'BrushUseWaterColor2': 1, 'BrushMixColor': 61, 'BrushMixAlpha': 81, 'BrushMixColorExtension': 87})[0]
+        self.assertEqual((s['mix'], s['paintLoad'], s['mixStretch']), (0.39, 0.81, 0.87))
+        # all paint: the least mixing KoeStudio has; full density leaves Paint load as it is
+        s = bi._sut_settings({'BrushSize': 40.0, 'BrushUseWaterColor': 1, 'BrushMixColor': 100, 'BrushMixAlpha': 100})[0]
+        self.assertEqual(s['mix'], 0.05)
+        self.assertNotIn('paintLoad', s)
+        self.assertNotIn('mix', bi._sut_settings({'BrushSize': 40.0, 'BrushMixColor': 30})[0], 'off: no mixing')
 
     def test_direction_spray_thickness_and_speed(self):
         # the Rake pack's Flat rakes (3: no turning) and turning rakes (67 = 0x40 + 3)

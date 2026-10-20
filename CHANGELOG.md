@@ -19,6 +19,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Imported Clip Studio Paint blenders and colour-mixing brushes mix the right way round (blenders used to barely mix), and bring their paint density and colour stretch.
 - Imported Clip Studio Paint brushes no longer all turn with the stroke; only those set to follow the line's direction do.
 - Scattered brushes that turn with the stroke (fur, grass) keep their tips along the stroke instead of pointing every which way.
 - The first dab of a brush that turns with the stroke is no longer drawn back to front.

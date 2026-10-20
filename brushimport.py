@@ -1570,8 +1570,15 @@ def _sut_settings(v):
                 s['colorJitterStroke'] = True
             break
 
-    if g('BrushUseWaterColor') or g('BrushUseWaterColor2'):  # Color mixing: how much of the canvas colour it takes
-        s['mix'] = round(_clamp(g('BrushMixColor', 50) / 100, 0.05, 1), 2)
+    if g('BrushUseWaterColor') or g('BrushUseWaterColor2'):
+        # Color mixing. BrushMixColor is Amount of paint (the brush colour's share: every blender in CLIP STUDIO's own
+        # tools has 0), BrushMixAlpha Density of paint (how much paint of its own it lays: 0 in the blenders),
+        # BrushMixColorExtension Color stretch: KoeStudio's mix (the canvas colour's share), paintLoad and mixStretch
+        s['mix'] = round(_clamp(1 - g('BrushMixColor', 50) / 100, 0.05, 1), 2)
+        if g('BrushMixAlpha', 100) < 100:
+            s['paintLoad'] = round(_clamp(g('BrushMixAlpha', 100) / 100, 0, 1), 2)
+        if isinstance(v.get('BrushMixColorExtension'), (int, float)):
+            s['mixStretch'] = round(_clamp(g('BrushMixColorExtension') / 100, 0, 1), 2)
     if g('BrushUseWaterEdge'):
         s['wetEdges'] = round(_clamp(g('BrushWaterEdgeAlphaPower', 50) / 100, 0.05, 1), 2)
     for col, label in (('UseDualBrush', 'Dual brush'), ('BrushRibbon', 'Ribbon'),
