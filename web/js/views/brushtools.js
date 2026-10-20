@@ -264,7 +264,7 @@ export const brushMethods = {
       random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, w, h), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(line, b)) {
       const { size, flow } = stampAt(b, st.p);
-      painter.dab(st.x, st.y, size * st.k, flow * st.f * painter.dry(st.d), 0, st.c, st.a ?? null);
+      painter.dab(st.x, st.y, size * st.k, flow * st.f * painter.dry(st.d), 0, st.c, st.a ?? null, st.px != null ? { x: st.px, y: st.py } : null);
     }
     painter.finish();
     const cs = comboSettings(previewSettings(s, h * maxSize));
@@ -280,7 +280,7 @@ export const brushMethods = {
         thickness: c.thickness, angle: c.tipAngle, random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel, rnd: seeded(PREVIEW_SEED + 11) });
       for (const st of strokeStamps({ ...line, seed: PREVIEW_SEED + 3 }, c)) {
         const { size, flow } = stampAt(c, st.p);
-        cp.dab(st.x, st.y, size * st.k, flow * st.f, 0);
+        cp.dab(st.x, st.y, size * st.k, flow * st.f, 0, null, null, st.px != null ? { x: st.px, y: st.py } : null);
       }
       cp.finish();
     }

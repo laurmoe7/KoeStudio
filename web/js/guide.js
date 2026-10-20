@@ -103,7 +103,8 @@ export const GUIDE = [
       pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. Tilt needs a pen that reports it.
       Lines on a vector layer remember the tilt and speed, so they keep their look when you erase or bend them.</li>
       <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.
-      <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles).</li>
+      <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles). Turn off <b>Both ways</b>
+      to scatter dabs only sideways across the stroke.</li>
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.
       With <b>Grain by pressure</b> (on for the Pencil) a light touch only catches the tops of the grain and a firm one
       fills it in, as with graphite. Keep <b>Density</b> low (the Pencil uses 45%) so light lines stay grey: pressure
@@ -261,6 +262,15 @@ export const GUIDE = [
       stroke does not show the same picture over and over.</li>
       <li>Squash jitter 0.2-0.4 is subtle. Higher values make some dabs thin slivers.</li>
       <li>Random flip does nothing on a plain round tip, which looks the same mirrored. Neither works with Hard pixels.</li>
+    </ul>
+
+    <h4>Scatter: Both ways (Variation page)</h4>
+    <ul>
+      <li>On (the usual): each dab moves in any direction, so dabs bunch up and leave gaps along the stroke too.</li>
+      <li>Off: dabs move only sideways across the stroke and stay evenly spaced along it. Good for fur and grass
+      tips spaced far apart, where every tuft should keep its place. Photoshop calls this Both Axes, and imported
+      brushes bring it.</li>
+      <li>It does nothing while <b>Scatter</b> is 0.</li>
     </ul>
 
     <h4>Dual brush and Combined (their own pages)</h4>

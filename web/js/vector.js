@@ -33,7 +33,7 @@ const NUM = {
   tiltSize: [0, 0, 1], tiltFlow: [0, 0, 1], speedSize: [0, -1, 1], speedFlow: [0, -1, 1],
   dualSize: [0.6, 0.05, 3], dualSpacing: [0.25, 0.02, 2], dualScatter: [0.5, 0, 3],
 };
-const BOOL = { pressureSize: true, pressureOpacity: false, tipFollow: false, flipX: false, flipY: false, textureInvert: false, grainPressure: false, colorJitterStroke: false, pixel: false, tiltAngle: false };
+const BOOL = { scatterBoth: true, pressureSize: true, pressureOpacity: false, tipFollow: false, flipX: false, flipY: false, textureInvert: false, grainPressure: false, colorJitterStroke: false, pixel: false, tiltAngle: false };
 const CURVES = ['sizeCurve', 'flowCurve'];
 export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture', 'dualTip'];
 
@@ -191,18 +191,23 @@ export function strokeStamps(s, b) {
   const sizeAt = p => stampAt(b, p).size, path = new StampPath(sizeAt, b.spacing), rnd = seeded(s.seed);
   const dabColors = !b.colorJitterStroke && !!colorJitter(b);
   const out = [];
-  let dist = 0, prev = null;
+  let dist = 0, prev = null, heading = null;
   const dyn = usesDynamics(b);
   for (const q of s.pts) {
     const pt = { x: q[0], y: q[1], p: q[2] };
     if (dyn && q.length > 3) { pt.t = q[3]; pt.v = q[4]; pt.az = q[5] ?? null; }
     for (const st of path.add(pt)) {
-      if (prev) dist += Math.hypot(st.x - prev.x, st.y - prev.y);
+      if (prev) {
+        const dx = st.x - prev.x, dy = st.y - prev.y;
+        dist += Math.hypot(dx, dy);
+        if (dx || dy) heading = Math.atan2(dy, dx);  // for scatter across the stroke
+      }
       prev = { x: st.x, y: st.y };
       for (let n = 0; n < (b.count || 1); n++) {  // Count: several dabs per step, each with its own variation
-        const j = dabJitter(b, sizeAt(st.p), rnd);
+        const j = dabJitter(b, sizeAt(st.p), rnd, heading);
         const tp = taperDab(taperIn(dist, b.taperIn), b);
         const o = { x: st.x + j.dx, y: st.y + j.dy, p: st.p, k: j.sizeK * tp.k, f: j.flowK * tp.f, d: dist };
+        if (j.dx || j.dy) { o.px = st.x; o.py = st.y; }  // where it lay on the line, for a tip turning with it
         if (dyn) {  // pen tilt and speed, as addStampPoint applies them while drawing
           const m = dynamicsAt(b, st.t, st.v);
           o.k *= m.sizeK;

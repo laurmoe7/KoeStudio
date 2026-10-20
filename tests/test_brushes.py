@@ -218,6 +218,10 @@ class AbrReader(unittest.TestCase):
         self.assertNotIn('flipY', s)
         self.assertEqual(notes, [])
         self.assertEqual(s['flow'], 1, 'no tool options: full flow, as in Photoshop')
+        self.assertNotIn('scatterBoth', s, 'no scatter')
+        on = {'useScatter': True, 'scatterDynamics': jit(34)}
+        self.assertEqual(bi._abr_settings({**b, **on, 'bothAxes': False})[0]['scatterBoth'], False, 'Fur Rake: only across the stroke')
+        self.assertNotIn('scatterBoth', bi._abr_settings({**b, **on, 'bothAxes': True})[0], 'both axes: the default')
         s, notes, *_ = bi._abr_settings({**b, 'colorDynamicsPerTip': False, 'clVr': jit(50), 'purity': prc(-20)})
         self.assertTrue(s['colorJitterStroke'])
         self.assertEqual(notes, ['Foreground/background jitter', 'Purity'])

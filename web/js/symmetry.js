@@ -53,11 +53,15 @@ export function symmetryPoints(sym, x, y, w, h) {
   return out;
 }
 
-/** Stamps ({x, y, p}) with their symmetric copies added (each copy keeps its stamp's pressure). */
+/** Stamps ({x, y, p, and px, py: where a scattered one lay on the stroke}) with their symmetric copies added (each copy keeps its stamp's pressure). */
 export function symmetryStamps(sym, stamps, w, h) {
   if (!sym || sym.kind === 'off') return stamps;
   const out = [];
-  for (const s of stamps) for (const q of symmetryPoints(sym, s.x, s.y, w, h)) out.push({ ...s, x: q.x, y: q.y });
+  for (const s of stamps) {
+    // a scattered stamp's place on the stroke (px, py) is mirrored with it
+    const at = s.px != null ? symmetryPoints(sym, s.px, s.py, w, h) : null;
+    symmetryPoints(sym, s.x, s.y, w, h).forEach((q, i) => out.push(at ? { ...s, x: q.x, y: q.y, px: at[i].x, py: at[i].y } : { ...s, x: q.x, y: q.y }));
+  }
   return out;
 }
 

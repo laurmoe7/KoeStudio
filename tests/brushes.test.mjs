@@ -378,3 +378,39 @@ test('runs dry', async () => {
   assert.equal(oil.dryOut, 0.3);
   assert.equal(oil.texture, 'paper');
 });
+
+test('scatter across the stroke only (Both ways off)', async () => {
+  const { dabJitter } = await import('../web/js/brush.js');
+  const s = { scatter: 0.5, scatterBoth: false };
+  // random 0.9 -> (0.9 * 2 - 1) * 0.5 * 100 = 40 px; heading right (0): straight down, +y
+  let j = dabJitter(s, 100, () => 0.9, 0);
+  near(j.dx, 0, 'not along the stroke'); near(j.dy, 40, 'across it');
+  // heading down (pi/2): across is to the left, -x
+  j = dabJitter(s, 100, () => 0.9, Math.PI / 2);
+  near(j.dx, -40, 'across a downward stroke'); near(j.dy, 0, 'none along it');
+  j = dabJitter(s, 100, () => 0.1, 0);
+  near(j.dy, -40, 'the other side');
+  j = dabJitter(s, 100, () => 0.9, null);
+  assert.deepEqual([j.dx, j.dy], [0, 0], 'no heading yet (the first dab): stays on the path');
+  // Both ways (the default) still scatters over a disc: angle 0.25 turn, radius sqrt(0.25) * 50 = 25 -> straight down
+  const r = [0.25, 0.25];
+  j = dabJitter({ scatter: 0.5 }, 100, () => r.shift(), 0);
+  near(j.dx, 0, 'disc'); near(j.dy, 25, 'disc');
+  assert.equal(sanitizeSettings(null).brush.scatterBoth, true, 'on by default');
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  assert.equal(sanitizeBrush({}).scatterBoth, true, 'older lines scatter both ways');
+  assert.equal(sanitizeBrush({ scatterBoth: false }).scatterBoth, false);
+});
+
+test('a tip turning with the stroke follows the stroke, not its scattered dabs', async () => {
+  const { Painter } = await import('../web/js/painter.js');
+  const turns = [];
+  const ctx = { save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, arc() {}, fill() {}, rotate(r) { turns.push(r - Math.PI / 2); } };
+  // turned a quarter, so no dab is drawn unturned (which skips rotate)
+  const p = new Painter(ctx, { color: '#000', hardness: 1, thickness: 0.5, angle: 90, follow: true });
+  // along y = 0 to the right, the dabs scattered 20 px up and down in turn
+  for (let x = 0; x <= 40; x += 10) p.dab(x, x % 20 ? 20 : -20, 10, 1, 0, null, null, { x, y: 0 });
+  p.finish();
+  assert.equal(turns.length, 5);
+  for (const r of turns) near(r, 0, 'every dab turned along the stroke, the first one too');
+});

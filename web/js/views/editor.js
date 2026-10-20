@@ -1469,7 +1469,7 @@ export class Editor {
       g.dual.painter.last = [];
     }
     g.smoother = new Smoother(0);
-    g.prevStamp = null; g.dist = 0; g.held = []; g.bounds = null;
+    g.prevStamp = null; g.heading = null; g.dist = 0; g.held = []; g.bounds = null;
     if (g.wet) g.wet.copies = [];
     if (g.combo) { g.combo.path = new StampPath(g.combo.sizeAt, g.combo.s.spacing); g.combo.painter.last = []; }
     g.painter.last = [];
@@ -1491,10 +1491,15 @@ export class Editor {
     const stamps = count === 1 ? steps : steps.flatMap(st => Array.from({ length: count }, () => ({ ...st })));
     stamps.forEach((st, n) => {  // distance along the stroke (for the taper) and random variation; symmetric copies share it
       if (n % count === 0) {
-        if (g.prevStamp) g.dist += Math.hypot(st.x - g.prevStamp.x, st.y - g.prevStamp.y);
+        if (g.prevStamp) {
+          const dx = st.x - g.prevStamp.x, dy = st.y - g.prevStamp.y;
+          g.dist += Math.hypot(dx, dy);
+          if (dx || dy) g.heading = Math.atan2(dy, dx);  // for scatter across the stroke
+        }
         g.prevStamp = { x: st.x, y: st.y };
       }
-      const j = dabJitter(g.s, stampAt(g.s, st.p).size);
+      const j = dabJitter(g.s, stampAt(g.s, st.p).size, Math.random, g.heading ?? null);
+      if (j.dx || j.dy) { st.px = st.x; st.py = st.y; }  // a tip turning with the stroke follows the stroke, not the scatter
       st.x += j.dx; st.y += j.dy;
       const tp = taperDab(taperIn(g.dist, g.s.taperIn), g.s);
       st.k = j.sizeK * tp.k;
@@ -1550,13 +1555,14 @@ export class Editor {
     if (!stamps.length) return;
     for (const st of stamps) {
       const j = dabJitter(c.s, c.sizeAt(st.p));
+      if (j.dx || j.dy) { st.px = st.x; st.py = st.y; }
       st.x += j.dx; st.y += j.dy; st.k = j.sizeK; st.f = j.flowK;
     }
     const all = symmetryStamps(this.doc.rulers.symmetry, stamps, this.doc.width, this.doc.height);
     const per = all.length / stamps.length;
     all.forEach((st, i) => {
       const { size, flow } = stampAt(c.s, st.p);
-      c.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per);
+      c.painter.dab(st.x, st.y, size * st.k, flow * st.f, i % per, null, null, st.px != null ? { x: st.px, y: st.py } : null);
     });
     const r = stampBounds(all, c.reachAt);
     g.bounds = union(g.bounds, r);
@@ -1639,7 +1645,7 @@ export class Editor {
     all.forEach((st, i) => {
       const { size, flow } = stampAt(g.s, st.p);
       const wet = g.wet ? this.wetColor(g, st, size * st.k, i % per) : null;
-      g.painter.dab(st.x, st.y, size * st.k, flow * st.f * (wet ? wet.share : 1) * g.painter.dry(st.d), i % per, wet ? wet.color : st.c, st.a ?? null);
+      g.painter.dab(st.x, st.y, size * st.k, flow * st.f * (wet ? wet.share : 1) * g.painter.dry(st.d), i % per, wet ? wet.color : st.c, st.a ?? null, st.px != null ? { x: st.px, y: st.py } : null);
     });
     const r = stampBounds(all, g.reachAt);
     g.bounds = union(g.bounds, r);

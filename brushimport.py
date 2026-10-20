@@ -449,6 +449,8 @@ def _abr_settings(b):
         s['pressureOpacity'] = False
     if b.get('useScatter'):
         s['scatter'] = round(_clamp(_dyn(b, 'scatterDynamics')[1], 0, 2), 2)  # Photoshop: a share of the diameter
+        if b.get('bothAxes') is False:  # only across the stroke
+            s['scatterBoth'] = False
         cnt = _num(b.get('Cnt '), 1) or 1
         if cnt > 1:
             s['count'] = int(_clamp(round(cnt), 1, 16))

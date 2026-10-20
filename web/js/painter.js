@@ -180,18 +180,21 @@ export class Painter {
 
   /** One dab; k numbers the symmetric copy it belongs to, so each copy follows its own direction. With a colour,
    * this dab (and the next ones) take it. dir (radians), when given, turns the tip that way instead of with the
-   * stroke (the pen's lean). */
-  dab(x, y, size, alpha, k = 0, color = null, dir = null) {
+   * stroke (the pen's lean). at ({x, y}), when given, is where the dab lay on the stroke before Scatter moved it: a
+   * tip turning with the stroke follows those points, as Photoshop does (the scattered dabs zigzag, and a fur tip
+   * turned every which way). */
+  dab(x, y, size, alpha, k = 0, color = null, dir = null, at = null) {
     if (color) this.setColor(color);
+    const hx = at ? at.x : x, hy = at ? at.y : y;
     // a tip that turns with the stroke waits for the stroke's direction: drawn straight away, the first dab lies
     // along the stroke and a flat tip leaves a spike at its start
     if (this.follow && dir === null && !this.pixel && !this.last[k]?.known) {
       const l = this.last[k] ||= { pending: [] }, p0 = l.pending[0];
-      if (!p0 || (x - p0.x) ** 2 + (y - p0.y) ** 2 <= 0.25) { l.pending.push({ x, y, size, alpha, color: this.color, dryT: this.dryT }); return; }
-      this.last[k] = { x, y, dir: Math.atan2(y - p0.y, x - p0.x), known: true };
+      if (!p0 || (hx - p0.hx) ** 2 + (hy - p0.hy) ** 2 <= 0.25) { l.pending.push({ x, y, hx, hy, size, alpha, color: this.color, dryT: this.dryT }); return; }
+      this.last[k] = { x: hx, y: hy, dir: Math.atan2(hy - p0.hy, hx - p0.hx), known: true };
       this.drawPending(l.pending, k);
     }
-    this.put(x, y, size, alpha, this.pixel ? 0 : this.rotation(x, y, k, dir));
+    this.put(x, y, size, alpha, this.pixel ? 0 : this.rotation(hx, hy, k, dir));
   }
 
   /** Draws the dabs held back until the stroke's direction was known (copy k's direction, or 0 for a tap). */
@@ -200,7 +203,8 @@ export class Painter {
     for (const p of pending) {
       this.setColor(p.color);
       this.dryT = p.dryT;
-      this.put(p.x, p.y, p.size, p.alpha, this.rotation(p.x, p.y, k, this.last[k]?.known ? null : 0));
+      // in the direction found (worked out from these dabs, it pointed back from the next one: the first dab drawn back to front)
+      this.put(p.x, p.y, p.size, p.alpha, this.rotation(p.hx, p.hy, k, this.last[k]?.known ? this.last[k].dir : 0));
     }
     this.setColor(color);
     this.dryT = dryT;

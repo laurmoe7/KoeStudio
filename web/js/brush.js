@@ -60,9 +60,15 @@ export function stampAt(s, p) {
  * Random variation of one dab: an offset of up to scatter x its size in any direction, and size and density
  * lowered by up to sizeJitter / flowJitter. rnd() gives numbers in [0, 1) (Math.random, or a fixed list in tests).
  */
-export function dabJitter(s, size, rnd = Math.random) {
+export function dabJitter(s, size, rnd = Math.random, dir = null) {
   const out = { dx: 0, dy: 0, sizeK: 1, flowK: 1 };
-  if (s.scatter > 0) {
+  if (s.scatter > 0 && s.scatterBoth === false) {  // only sideways across the stroke (heading dir), as Photoshop without Both Axes
+    if (dir !== null) {
+      const r = (rnd() * 2 - 1) * s.scatter * size;
+      out.dx = -Math.sin(dir) * r;
+      out.dy = Math.cos(dir) * r;
+    }
+  } else if (s.scatter > 0) {
     const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * s.scatter * size;  // even spread over the disc
     out.dx = Math.cos(a) * r;
     out.dy = Math.sin(a) * r;

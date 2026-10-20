@@ -34,6 +34,9 @@ test('radial and kaleidoscope copies', () => {
   assert.deepEqual(k, [{ x: 10, y: -5 }, { x: -10, y: -5 }, { x: -10, y: 5 }, { x: 10, y: 5 }]);
   const stamps = symmetryStamps({ kind: 'vertical', x: 0, y: 0 }, [{ x: 3, y: 1, p: 0.5 }, { x: 4, y: 1, p: 0.7 }], 10, 10);
   assert.deepEqual(stamps, [{ x: 3, y: 1, p: 0.5 }, { x: -3, y: 1, p: 0.5 }, { x: 4, y: 1, p: 0.7 }, { x: -4, y: 1, p: 0.7 }], 'copies follow each stamp, pressure kept');
+  // a scattered stamp's place on the stroke is mirrored with it
+  assert.deepEqual(symmetryStamps({ kind: 'vertical', x: 0, y: 0 }, [{ x: 3, y: 2, px: 3, py: 1 }], 10, 10),
+    [{ x: 3, y: 2, px: 3, py: 1 }, { x: -3, y: 2, px: -3, py: 1 }]);
   assert.equal(symmetryRays({ kind: 'radial', lines: 5 }).length, 5);
   assert.equal(symmetryRays({ kind: 'kaleido', lines: 5 }).length, 10);
   assert.deepEqual(symmetryRays({ kind: 'off' }), []);
