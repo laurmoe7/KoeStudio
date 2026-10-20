@@ -7,6 +7,7 @@ export const COMMANDS = [
   ['sizeDown', 'Painting', 'Smaller brush', ['[']],
   ['sizeUp', 'Painting', 'Bigger brush', [']']],
   ['swapColors', 'Painting', 'Swap main and sub colour', ['x']],
+  ['pickScreen', 'Painting', 'Pick a colour from anywhere on the screen', []],
   ['undo', 'Edit', 'Undo', ['ctrl+z']],
   ['redo', 'Edit', 'Redo', ['ctrl+y', 'ctrl+shift+z']],
   ['copy', 'Edit', 'Copy', ['ctrl+c']],

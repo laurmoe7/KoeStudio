@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Edit → Pick screen color takes the main colour from anywhere on the screen, other programs included.
 - Fill gaps (G, after Lasso fill), like Clip Studio Paint's Paint unfilled area: brush over the specks a fill left empty and every spot wholly inside your stroke is filled.
 - Select → Reselect (Ctrl+Shift+D) brings back the selection you last deselected.
 - Alt+] and Alt+[ select the layer above or below, as in Clip Studio Paint (also in the Layer menu).

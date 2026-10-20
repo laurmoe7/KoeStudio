@@ -337,6 +337,8 @@ export const GUIDE = [
       Its settings pick from everything you see or only the selected layer, and can average a small square, so a
       grainy texture does not decide the colour. While you pick, a ring round the pointer shows the new colour on
       top and the one you had below.</li>
+      <li>Edit → <b>Pick screen color</b> takes a colour from anywhere on the screen, even another program or a
+      photo in your browser: click it (Esc gives up). Give it a key in Settings → Keyboard shortcuts if you use it often.</li>
       <li><b>Recent</b> colours appear by themselves. For colours you want to keep, press <b>+</b> next to
       <b>Palette</b>. Click a swatch to use it, right-click to remove it.</li>
       <li>The palette's <b>⋯</b> button imports palette files (GIMP and Krita <code>.gpl</code>, Photoshop

@@ -188,6 +188,20 @@ export class ColorPanel {
     this.onChange?.();
   }
 
+  /**
+   * Edit → Pick screen color (Clip Studio Paint): the main colour from anywhere on the screen, other programs too,
+   * through the browser's EyeDropper (Esc gives up). False when this window has none.
+   */
+  async pickFromScreen() {
+    if (!window.EyeDropper) return false;
+    try {
+      const { sRGBHex } = await new window.EyeDropper().open();
+      const hex = /^#[0-9a-f]{6}$/i.test(sRGBHex) ? sRGBHex.toLowerCase() : null;
+      if (hex) this.set(hex);
+    } catch { /* given up with Esc */ }
+    return true;
+  }
+
   swap() {
     [this.main, this.sub] = [this.sub, this.main];
     this.set(this.main);

@@ -387,6 +387,7 @@ export class Editor {
         { label: 'Paste', key: 'Ctrl+V', run: () => this.pasteInternal(), disabled: !this.clipboard },
         { label: 'Stroke selection…', run: () => this.strokeSelectionDialog(), disabled: !this.sel.active },
         { label: 'Colorize…', run: () => this.colorizeDialog() },
+        { label: 'Pick screen color', run: () => this.pickScreenColor() },
         '-',
         { label: 'Transform…', key: 'Ctrl+T', run: () => this.beginTransform() },
         { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', rec: 'clear', key: 'Del', run: () => this.clearLayer() },
@@ -2136,13 +2137,17 @@ export class Editor {
 
   renameLayer() { return this.layerPanel.rename(this.doc.active); }
 
+  async pickScreenColor() {
+    if (!(await this.colors.pickFromScreen())) toast('Picking colours from the screen does not work in this window.');
+  }
+
   /** What each keyboard command (COMMANDS in shortcuts.js) does; Auto actions play recorded commands through it too. */
   commandActs() {
     const s = this.settings[this.tool];
     return {
       sizeDown: () => s.size && this.setSize(nextSize(s.size, -1)),
       sizeUp: () => s.size && this.setSize(nextSize(s.size, 1)),
-      swapColors: () => this.colors.swap(),
+      swapColors: () => this.colors.swap(), pickScreen: () => this.pickScreenColor(),
       quickMask: () => this.toggleQuickMask(),
       mirrorView: () => this.flipView(),
       selectAll: () => this.selectAll(), deselect: () => this.deselect(), invertSelection: () => this.invertSelection(),
