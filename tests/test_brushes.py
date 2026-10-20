@@ -217,6 +217,7 @@ class AbrReader(unittest.TestCase):
         self.assertEqual((s['roundJitter'], s['flipX']), (0.39, True))
         self.assertNotIn('flipY', s)
         self.assertEqual(notes, [])
+        self.assertEqual(s['flow'], 1, 'no tool options: full flow, as in Photoshop')
         s, notes, *_ = bi._abr_settings({**b, 'colorDynamicsPerTip': False, 'clVr': jit(50), 'purity': prc(-20)})
         self.assertTrue(s['colorJitterStroke'])
         self.assertEqual(notes, ['Foreground/background jitter', 'Purity'])

@@ -380,19 +380,14 @@ test('runs dry', async () => {
 });
 
 test('a tip turning with the stroke: smoothed direction and dabs added on turns', async () => {
-  const { smoothDir, turnFill, startReach } = await import('../web/js/painter.js');
-  // a 50 px tip averages over 1 px: a 1 px move straight down from heading right counts fully (pi/2), but it may
-  // turn only 4 * 1 / 50 = 0.08 rad
-  near(smoothDir(0, 0, 1, 50), 0.08, 'turns slowly');
-  // a 10 px tip averages over half a pixel and may turn 4 * 2 / 10 = 0.8 rad on a 2 px move: 45° is let through
-  near(smoothDir(0, 2, 2, 10), Math.PI / 4, 'a small tip turns freely');
-  // a 500 px tip averages over 10 px: 5 px up and back to the left -> half-way between 0 and that move, (0.5 - 0.3,
-  // -0.4); asked to turn -1.107 rad, it turns only 4 * 5 / 500 = 0.04
-  near(smoothDir(0, -3, -4, 500), -0.04, 'a big tip turns slowly');
-  // from 3.1 rad to a move whose direction is -3.04 (= 3.24): 0.14 the short way round, past pi, not -6.14 back
-  near(smoothDir(3.1, -1, -0.1, 10), 2 * Math.PI + Math.atan2(-0.1, -1), 'short way round past pi');
+  const { smoothDir, turnFill, startReach, shortTurn } = await import('../web/js/painter.js');
+  // a 500 px tip averages over 10 px: a 5 px move straight down from heading right goes halfway, (0.5, 0.5) -> 45°
+  near(smoothDir(0, 0, 5, 500), Math.PI / 4, 'half a turn toward the move');
+  near(smoothDir(0, 0, 10, 500), Math.PI / 2, 'a full stretch: the move itself');
+  near(smoothDir(0, 0, 1, 10), Math.PI / 2, 'a small tip averages over half a pixel only');
   near(smoothDir(1, 0, 0, 500), 1, 'no move keeps the direction');
-  near(smoothDir(0, 0, 1, 0), Math.PI / 2, 'no size: no limit');
+  near(shortTurn(3 * Math.PI / 2), -Math.PI / 2, 'three quarters one way is a quarter the other');
+  near(shortTurn(-5), 2 * Math.PI - 5); near(shortTurn(1), 1);
   assert.equal(startReach(10), 0.5); assert.equal(startReach(100), 4); assert.equal(startReach(700), 12);
   // turning 0.1 rad over a 2 px step with a tip reaching 100 px: its end swings 10 px -> 5 parts, 4 dabs in between
   const f = turnFill({ x: 0, y: 0, dir: 0, half: 100 }, { x: 2, y: 0, dir: 0.1, half: 100 });
@@ -409,5 +404,32 @@ test('a tip turning with the stroke: smoothed direction and dabs added on turns'
   const s = turnFill({ x: 0, y: 0, dir: 0, half: 100 }, { x: 2, y: 0, dir: 0, half: 90 });
   assert.equal(s.length, 4);
   near(s[1].half, 96, 'shrinks evenly'); near(s[1].x, 0.8, 'and moves on');
-  assert.equal(turnFill({ x: 0, y: 0, dir: 0, half: 1000 }, { x: 1, y: 0, dir: 3, half: 1000 }).length, 47, 'at most 48 parts');
+  // 0.15 rad over a 1 px step at 100 px: the ends swing 15 px -> filled; 0.25 rad: 25 px, more than 20 times the
+  // step, is a corner: the tip turns at once
+  assert.equal(turnFill({ x: 0, y: 0, dir: 0, half: 100 }, { x: 1, y: 0, dir: 0.15, half: 100 }).length, 14);
+  assert.equal(turnFill({ x: 0, y: 0, dir: 0, half: 100 }, { x: 1, y: 0, dir: 0.25, half: 100 }).length, 0, 'a corner');
+  // 0.1 rad over 2 px with a 1000 px tip is a corner too (50 times), but it shrinks by 100 px: 50 parts, at most 48
+  const c = turnFill({ x: 0, y: 0, dir: 0, half: 1000 }, { x: 2, y: 0, dir: 0.1, half: 900 });
+  assert.equal(c.length, 47, 'at most 48 parts');
+  near(c[0].dir, 0, 'no turn at a corner');
+});
+
+test('a tip turning with the stroke ignores the pen hooking as it lands and lifts', async () => {
+  const { Painter } = await import('../web/js/painter.js');
+  const turns = [];  // the turn of every dab drawn, through a stand-in canvas
+  const ctx = { save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, arc() {}, fill() {}, rotate(r) { turns.push(r - Math.PI / 2); } };
+  // turned a quarter, so no dab is drawn unturned (which skips rotate)
+  const p = new Painter(ctx, { color: '#000', hardness: 1, thickness: 0.5, angle: 90, follow: true });
+  // a 100 px tip (held back over 4 px): 2 px up first, then 40 px to the right, then 3 px straight down
+  const pts = [[0, 0], [0, -1], [0, -2]];
+  for (let x = 1; x <= 40; x++) pts.push([x, -2]);
+  pts.push([40, -1], [40, 0], [40, 1]);
+  for (const [x, y] of pts) p.dab(x, y, 100, 1);
+  const waiting = p.last[0].held.length;
+  p.finish();
+  assert.ok(turns.length >= pts.length, 'every dab drawn (and some in between where the start evens out)');
+  assert.equal(waiting, 6, 'the dabs within 4 px of the pen at (40, 1) wait for it to lift: (38, -2) is 3.6 px away, (37, -2) 4.2');
+  // the first move (2 px up) is within 4 px: the direction comes from (0, 0) to (4, -2), the first dab more than 4 px away, then evens out to the right
+  near(turns[0], Math.atan2(-2, 4), 'the start takes the direction over the first 4 px');
+  for (const r of turns.slice(-3)) near(r, 0, 'the hook down at the end leaves the tip pointing along the line');
 });

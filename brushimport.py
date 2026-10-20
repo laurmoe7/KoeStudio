@@ -495,8 +495,8 @@ def _abr_settings(b):
     op, fl = _num(opts.get('Opct')), _num(opts.get('flow'))
     if op is not None:
         s['opacity'] = round(_clamp(op / 100, 0.01, 1), 2)
-    if fl is not None:
-        s['flow'] = round(_clamp(fl / 100, 0.01, 1), 2)
+    # without tool options, Photoshop paints at full flow (not KoeStudio's Brush tool default of 55%)
+    s['flow'] = round(_clamp(fl / 100, 0.01, 1), 2) if fl is not None else 1
     s['gamma'] = 1
     return s, notes, sid, tex, dual_sid
 
