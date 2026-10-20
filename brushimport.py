@@ -1090,6 +1090,11 @@ def read_krita_bundle(z, filename):
 # density 0xb0: pressure, tilt and random). 0x100 is offered on size and density (not opacity or closed shapes) but
 # never ticked in any tool seen, and the popup shows no fifth input
 CSP_PRESSURE, CSP_TILT, CSP_VELOCITY, CSP_RANDOM = 0x10, 0x20, 0x40, 0x80
+# Length units (BrushInLengthUnit, ...) in the order of CLIP STUDIO's unit list: px, cm, mm, inch, pt, Q, as mm each.
+# 2 is mm: Real G-Pen's ends are 2.0 in it, about 28 px, where the px tools have 20 (cm would be 276 px). Converted
+# at CSP_DPI, CLIP STUDIO's usual canvas resolution, since a brush does not know the canvas.
+CSP_UNIT_MM = {0: None, 1: 10, 2: 1, 3: 25.4, 4: 25.4 / 72, 5: 0.25}
+CSP_DPI = 350
 CSP_BLOCK = 256
 # Starting and ending targets (BrushInOutTarget ids), read off CLIP STUDIO's list: Round watercolor brush ticks only
 # 1001 and shows Brush Size, Firework ticks 1001 and 1021 and shows Brush Size, Brush density
@@ -1445,6 +1450,8 @@ def read_sut(data, filename):
         pic = csp_material(files[tex_ref[0]]) if tex_ref[0] in files else None
         if pic:
             w, h, gray, alpha = pic
+            if v.get('TextureBrightness') or v.get('TextureContrast'):
+                gray, alpha = csp_texture_tone(gray, alpha, _num(v.get('TextureBrightness'), 0), _num(v.get('TextureContrast'), 0))
             # CLIP STUDIO scales the texture by a percentage of its own size; KoeStudio draws it at the picture's size,
             # so the picture is made that size when saved (up to TEXTURE_SIDE, scaled up beyond that)
             want = max(w, h) * (_num(v.get('TextureScale2'), 100) or 100) / 100
@@ -1460,6 +1467,18 @@ def read_sut(data, filename):
                 settings.pop(k, None)
             notes.append(f'Its texture ({tex_ref[1]}) ' + ('could not be read' if tex_ref[0] in files else 'is not in the file'))
     return {'name': name, 'brushes': [{'name': name, 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes}], 'images': images}
+
+
+def csp_texture_tone(gray, alpha, brightness, contrast):
+    """A texture picture with CLIP STUDIO's texture Brightness and Contrast (-100 to 100) applied, as (gray, alpha):
+    flattened onto white first (see-through is paper, as textureGray in brushtip.js reads it), then brightness moves
+    every level by brightness% of the range, and contrast stretches round the middle: slope 1 + c/100 below 0 (flat
+    gray at -100), 1 / (1 - c/100) above (a hard threshold at 100), as a Brightness/Contrast filter does."""
+    b, c = _clamp(brightness, -100, 100) / 100 * 255, _clamp(contrast, -100, 100) / 100
+    slope = 1 + c if c <= 0 else 1 / max(1e-3, 1 - c)
+    lut = bytes(int(_clamp(math.floor((x + b - 127.5) * slope + 128), 0, 255)) for x in range(256))  # rounded half up
+    flat = bytes(lut[(g * a + 255 * (255 - a) + 127) // 255] for g, a in zip(gray, alpha))
+    return flat, bytes([255]) * len(flat)
 
 
 TEXTURE_SIDE = 1024  # the browser loads textures up to this side (TEXTURE_MAX in brushtip.js)
@@ -1574,15 +1593,15 @@ def _sut_settings(v):
             s['grainPressure'] = True
         if g('TextureRotate'):
             notes.append('Texture turned')
-        if g('TextureBrightness') or g('TextureContrast'):
-            notes.append('Texture brightness and contrast')
         te = csp_effector(v.get('TextureDensityEffector'))
         if te and te['pressure']:  # stronger as the pen presses harder, from its minimum at the lightest touch
             s['texturePressure'] = round(1 - te['pressureMin'], 2)
 
     # Starting and ending: CLIP STUDIO tapers only the settings ticked in its list, down to each one's minimum, and
     # only at the ends ticked. Starting and Ending are on in nearly every tool (the G-pen, the rakes) with nothing in
-    # the list ticked, and then nothing tapers. How to specify (BrushInOutType): 0 by length, 1 by percentage, 2 fade
+    # the list ticked, and then nothing tapers. How to specify (BrushInOutType): 0 by length, 1 by percentage, 2 fade.
+    # A fade measures both from the start of the line: Starting is then a start taper by length as usual, while
+    # Ending fades the line out a set length after its start, whether or not the pen is lifted (not in KoeStudio)
     targets = csp_taper_targets(v.get('BrushInOutTarget'))
     size_min, dens_min = targets.get(CSP_TAPER_SIZE), targets.get(CSP_TAPER_DENSITY)
     ends = [(setting, length, unit, label) for use, length, unit, setting, label in (
@@ -1596,12 +1615,13 @@ def _sut_settings(v):
             for setting, length, unit, label in ends:
                 if kind == 1:
                     notes.append(f'{label} as a share of the stroke')
-                elif kind == 2:
-                    notes.append(f'{label} as a fade')
-                elif g(unit):
-                    notes.append(f'{label} in mm or points (check the length)')
+                elif kind == 2 and setting == 'taperOut':
+                    notes.append('Ending as a fade from the start of the line')
+                elif g(unit) not in CSP_UNIT_MM:
+                    notes.append(f'{label} in an unknown unit (check the length)')
                 elif g(length) > 0:
-                    s[setting], tapered = round(_clamp(g(length), 1, 500)), True
+                    px = g(length) * (CSP_UNIT_MM[g(unit)] * CSP_DPI / 25.4 if g(unit) else 1)
+                    s[setting], tapered = round(_clamp(px, 1, 500)), True
             if tapered:
                 # KoeStudio's taper goes down to 10% of the size at full Taper size, and fades by Taper opacity
                 s['taperSize'] = round(_clamp((1 - size_min) / 0.9, 0, 1), 2) if size_min is not None else 0

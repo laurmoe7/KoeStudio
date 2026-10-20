@@ -678,10 +678,21 @@ class ClipStudioReader(unittest.TestCase):
         notes = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushUseOut': 0, 'BrushInOutType': 1,
                                   'BrushInOutTarget': csp_taper_list((1001, 0))})[1]
         self.assertEqual(notes, ['Start taper as a share of the stroke'])
+        # lengths in mm are converted at 350 dpi: 20 mm is 20 * 350 / 25.4 = 275.6 px; 0.2 mm is 2.76 px
         s, notes, *_ = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushOutLengthUnit': 2, 'BrushInOutType': 0,
                                          'BrushInOutTarget': csp_taper_list((1001, 50))})
-        self.assertEqual([s.get(k) for k in keys], [20, None, 0.56, None])
-        self.assertEqual(notes, ['End taper in mm or points (check the length)'])
+        self.assertEqual([s.get(k) for k in keys], [20, 276, 0.56, None])
+        self.assertEqual(notes, [])
+        notes = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushOutLengthUnit': 9, 'BrushInOutTarget': csp_taper_list((1001, 50))})[1]
+        self.assertEqual(notes, ['End taper in an unknown unit (check the length)'])
+        # Greasil: a fade with only Starting ticked (0.2 mm, density from 16%) is a start taper by length
+        s, notes, *_ = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushInLength': 0.2, 'BrushInLengthUnit': 2, 'BrushUseOut': 0,
+                                         'BrushInOutType': 2, 'BrushInOutTarget': csp_taper_list((1001, 100), (1021, 16))})
+        self.assertEqual([s.get(k) for k in keys], [3, None, 0, 0.84])
+        self.assertEqual(notes, [])
+        # a fading Ending (gone a set length after the start, pen down or not) has no match
+        notes = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushInOutType': 2, 'BrushInOutTarget': csp_taper_list((1021, 0))})[1]
+        self.assertEqual(notes, ['Ending as a fade from the start of the line'])
         self.assertEqual(bi.csp_taper_targets(b'junk'), {})
 
     def test_spacing_modes(self):
@@ -730,6 +741,25 @@ class ClipStudioReader(unittest.TestCase):
         self.assertNotIn('texturePressure', b['settings'])
         self.assertEqual(s['notes'], ['Texture turned'])
         self.assertIs(b['settings']['textureInvert'], True, 'CLIP STUDIO paints where the texture is dark')
+
+    def test_texture_tone(self):
+        # gray 0, 100, 200, 255 opaque, and gray 0 half see-through (flattened on white: (0 * 128 + 255 * 127) / 255 = 127)
+        gray, alpha = bytes([0, 100, 200, 255, 0]), bytes([255, 255, 255, 255, 128])
+        g, a = bi.csp_texture_tone(gray, alpha, 0, 0)
+        self.assertEqual((list(g), set(a)), ([0, 100, 200, 255, 127], {255}), 'nothing to change: only flattened')
+        # brightness -28: every level 28% of 255 = 71.4 darker
+        self.assertEqual(list(bi.csp_texture_tone(gray, alpha, -28, 0)[0]), [0, 29, 129, 184, 56])
+        # contrast 50: twice as steep round 127.5; -50: half as steep
+        self.assertEqual(list(bi.csp_texture_tone(gray, alpha, 0, 50)[0]), [0, 73, 255, 255, 127])
+        self.assertEqual(list(bi.csp_texture_tone(gray, alpha, 0, -50)[0]), [64, 114, 164, 191, 127])
+        # in an import: Greasil's -28 darkens the saved picture (the test material has ink only: half see-through
+        # flattens to 127, -28 makes it 56; solid ink stays 0)
+        tex = csp_layer(2, 1, {(0, 0): (128, 0), (1, 0): (255, 0)})
+        res = bi.import_brushes('g.sut', make_sut({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40,
+                                                   'TextureBrightness': -28}, [(self.TEX, csp_package(tex))]))
+        self.assertEqual(res['brushes'][0]['notes'], [])
+        w, h, ct, raw = png_pixels(from_url(res['images'][0]['png']))
+        self.assertEqual((raw[0::2], set(raw[1::2])), (bytes([56, 0]), {255}))
 
     def test_texture_size(self):
         tex = csp_layer(200, 100, {(0, 0): (255, 0)})
