@@ -2212,7 +2212,7 @@ function fmt(key, v) {
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
   if (key === 'spacing' && v < 0.1) return (Math.round(v * 1000) / 10) + '%';  // fine spacing: 0.5%, 2.5%
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'taperSize', 'taperOpacity', 'roundJitter'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'taperSize', 'taperOpacity', 'roundJitter', 'countJitter'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
   if (key === 'tipAngle' || key === 'comboAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
