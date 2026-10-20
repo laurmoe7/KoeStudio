@@ -452,3 +452,9 @@ test('Pressure → grain: how strongly the texture shows at each pressure', asyn
   assert.equal(sanitizeBrush({ texturePressure: 2 }).texturePressure, 1);
   assert.equal(textureFor({ texture: 'none', textureAmount: 0.5, texturePressure: 1 }, {}), null, 'no texture: nothing to weigh');
 });
+
+test('combined brush: its second brush gets a copy only with a texture worked out per pixel', async () => {
+  const { comboCopyFor } = await import('../web/js/painter.js');
+  assert.equal(comboCopyFor(null, 'source-over', 10, 10), null, 'no texture');
+  assert.equal(comboCopyFor({ scale: 1 }, 'multiply', 10, 10), null, 'Multiply texture: cut on the GPU from the blended stroke');
+});

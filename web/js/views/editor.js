@@ -10,7 +10,7 @@ import { floodMask, growMask, closeGapFill, insideLines } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping, springBack } from '../keys.js';
-import { Painter, textureFor, strengthFor, copyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor, hasTipImage, tipOutline } from '../painter.js';
+import { Painter, textureFor, strengthFor, copyFor, comboCopyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor, hasTipImage, tipOutline } from '../painter.js';
 import { WetPaint, averageUnder, rgbHex, loadShare } from '../wetmix.js';
 import { comboSettings, comboOp } from '../combo.js';
 import { union, clip } from '../rect.js';
@@ -1420,7 +1420,7 @@ export class Editor {
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)
       raw: s.quickShape && !line ? [] : null,  // QuickShape: the pen's own path, to recognise a line or a loop
       dual: this.dualBrush(s, layer, sizeAt),  // the dual brush's own dabs, which the stroke shows through (or null)
-      combo: layer.vector ? null : this.comboBrush(s, color),  // the second brush of a combined brush (or null)
+      combo: layer.vector ? null : this.comboBrush(s, color, texture),  // the second brush of a combined brush (or null)
       vec: layer.vector ? [] : null,  // on a vector layer: the smoothed path, kept as a line at pen-up (vectortools.js)
       // Color mixing: each dab picks up the layer's colours as they were at pen-down (read tile by tile, wetmix.js)
       wet: s.mix > 0 && !tool.erase && layer.kind !== 'mask' && !layer.vector ? { cache: this.pixelCache(layer.canvas), copies: [] } : null,
@@ -1542,9 +1542,10 @@ export class Editor {
    * The second brush of a combined brush (Brush settings → Combined, combo.js): its own path, spacing, jitter and tip
    * along the same smoothed points, in the stroke's colour. In Normal mode it dabs straight into the stroke canvas;
    * other modes dab into this.comboCanvas, which liveSource blends over the stroke with the comboMode operation
-   * (a blend mode dab by dab on the big stroke canvas cost gigabytes of GPU memory).
+   * (a blend mode dab by dab on the big stroke canvas cost gigabytes of GPU memory). With a texture mode other than
+   * Multiply its dabs also go into the in-memory copy liveSource works the mode out from (comboCopyFor).
    */
-  comboBrush(s, color) {
+  comboBrush(s, color, texture) {
     const c = comboSettings(s);
     if (!c) return null;
     const sizeAt = p => stampAt(c, p).size, op = comboOp(s.comboMode);
@@ -1562,7 +1563,7 @@ export class Editor {
     return {
       s: c, sizeAt, op, canvas, path: new StampPath(sizeAt, c.spacing),
       painter: new Painter(ctx, { color, hardness: c.hardness, tip: c.tip, thickness: c.thickness, angle: c.tipAngle,
-        random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel }),
+        random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel, copy: comboCopyFor(texture, op, this.doc.width, this.doc.height) }),
       reachAt: p => sizeAt(p) * tipReach(hasTipImage(c.tip)) * 2 * (1 + c.scatter),
     };
   }

@@ -841,11 +841,22 @@ function strokeOf(live, r) {
  * A texture mode other than Multiply (live.texture.cpu, painter.js textureFor): region r of the stroke worked out
  * pixel by pixel (texmodes.js) from the copy of the stroke the Painter keeps in memory, so nothing is read back from
  * the GPU; with Pen → grain the texture density is weighed by the strength canvas (also in memory). A combined
- * brush's second brush is not in the copy and does not show with these modes.
+ * brush's second brush dabs into the copy too (painter.js comboCopyFor), or with a combine mode other than Normal
+ * into a copy of its own, blended over the first brush's here (in memory as well) before the mode is worked out,
+ * as strokeOf does for Multiply.
  */
-function textureModeSource(ctx, texture, r) {
-  const { cpu, strength } = texture, v = cpu.values;
-  const img = cpu.copy.getContext('2d').getImageData(r.x, r.y, r.w, r.h);
+function textureModeSource(ctx, live, r) {
+  const { cpu, strength } = live.texture, v = cpu.values;
+  let src = cpu.copy, sx = r.x, sy = r.y;
+  if (live.combo && cpu.combo.width) {
+    const [c, mctx] = scratchCanvas('comboCopy', r, { willReadFrequently: true });
+    mctx.drawImage(cpu.copy, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    mctx.globalCompositeOperation = live.combo.op;
+    mctx.drawImage(cpu.combo, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    mctx.globalCompositeOperation = 'source-over';
+    src = c; sx = sy = 0;
+  }
+  const img = src.getContext('2d').getImageData(sx, sy, r.w, r.h);
   const st = strength ? strength.getContext('2d').getImageData(r.x, r.y, r.w, r.h).data : null;
   if (v) applyTextureMode(img.data, cpu.mode, cpu.D, i => textureValueAt(v, r.x + i % r.w, r.y + (i / r.w | 0)), st && (i => st[i * 4 + 3]));
   ctx.putImageData(img, 0, 0);
@@ -865,7 +876,7 @@ export function liveSource(live, r) {
   if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet && !live.impasto) return strokeOf(live, r);
   const [c, ctx] = scratchCanvas('live', r);
   const cpu = live.texture?.cpu;
-  if (cpu) textureModeSource(ctx, live.texture, r);
+  if (cpu) textureModeSource(ctx, live, r);
   else {
     const [src, sx, sy] = strokeOf(live, r);
     ctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);

@@ -12,7 +12,7 @@ import { api } from '../api.js';
 import { curveAt, stampAt, grainAt, previewPath, previewSettings } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage, liveSource } from '../doc.js';
-import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, strengthFor, copyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from '../painter.js';
+import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, strengthFor, copyFor, comboCopyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from '../painter.js';
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
@@ -279,7 +279,8 @@ export const brushMethods = {
         combo = { canvas: cc, op };
       }
       const c = sanitizeBrush(cs), cp = new Painter(combo ? combo.canvas.getContext('2d') : sctx, { color: line.color, hardness: c.hardness, tip: c.tip,
-        thickness: c.thickness, angle: c.tipAngle, random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel, rnd: seeded(PREVIEW_SEED + 11) });
+        thickness: c.thickness, angle: c.tipAngle, random: c.tipRandom, follow: c.tipFollow, pixel: c.pixel, rnd: seeded(PREVIEW_SEED + 11),
+        copy: comboCopyFor(texture, op, w, h) });
       for (const st of strokeStamps({ ...line, seed: PREVIEW_SEED + 3 }, c)) {
         const { size, flow } = stampAt(c, st.p);
         cp.dab(st.x, st.y, size * st.k, flow * st.f, 0, null, null, st.px != null ? { x: st.px, y: st.py } : null);

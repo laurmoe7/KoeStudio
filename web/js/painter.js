@@ -485,12 +485,21 @@ export function textureFor(s, canvases = null) {
   const mode = s.textureMode || 'multiply';
   if (mode === 'multiply') return s.texturePressure ? { ...t, strength: canvases.strength ||= document.createElement('canvas') } : t;
   const strength = s.texturePressure ? canvases.cpuStrength ||= memoryCanvas() : null;
-  return { ...t, strength, cpu: { mode, D: s.textureAmount, values: grainValues(s), copy: canvases.copy ||= memoryCanvas() } };
+  return { ...t, strength, cpu: { mode, D: s.textureAmount, values: grainValues(s), copy: canvases.copy ||= memoryCanvas(), combo: canvases.comboCopy ||= memoryCanvas() } };
 }
 
 /** Painter's `copy` for a live.texture worked out per pixel (textureFor's `cpu`), cleared in r (or all of it). */
 export function copyFor(texture, w, h, r = null) {
   return texture?.cpu ? { ctx: heightFor(texture.cpu.copy, w, h, r).ctx } : null;
+}
+
+/** The `copy` for a combined brush's second Painter with a texture worked out per pixel, or null: with the combine
+ * operation `op` 'source-over' (Normal) its dabs go into the stroke's own copy (so make it after the first Painter's
+ * copyFor, which clears that), otherwise into a copy of their own, cleared in r (or all of it), which liveSource
+ * blends over the stroke's copy with `op`. */
+export function comboCopyFor(texture, op, w, h, r = null) {
+  if (!texture?.cpu) return null;
+  return { ctx: op === 'source-over' ? texture.cpu.copy.getContext('2d') : heightFor(texture.cpu.combo, w, h, r).ctx };
 }
 
 /** Painter's `texDab` for settings with Texture each dab: {mode, D, values}, or null. Grain by pressure goes first. */

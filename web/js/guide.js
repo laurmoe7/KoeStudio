@@ -301,8 +301,8 @@ export const GUIDE = [
       chalk, leaves or dry bristles.</li>
       <li><b>Combined</b> adds paint: a second brush along the same stroke. A <b>Combine</b> mode other than Normal is
       blended over the whole stroke, not dab by dab.</li>
-      <li>Texture, Wet edges, Opacity and the selection treat the main and second brush as one stroke. Impasto and
-      Runs dry follow only the main brush.</li>
+      <li>Texture, Wet edges, Opacity and the selection treat the main and second brush as one stroke, in every
+      Texture mode. Impasto, Runs dry and Texture each dab follow only the main brush.</li>
     </ul>
 
     <h4>Settings that don't go together</h4>
