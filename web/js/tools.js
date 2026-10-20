@@ -4,6 +4,7 @@ import { SELECT_MODES } from './selection.js';
 import { GRADIENT_COLORS, GRADIENT_SHAPES, GRADIENT_REPEATS, isUserGradient } from './gradient.js';
 import { FONTS, ALIGNS, OUTLINE_COLORS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
+import { TEXTURE_MODES } from './texmodes.js';
 import { FIGURE_SHAPES } from './figure.js';
 import { LIQUIFY_MODES } from './liquify.js';
 import { sanitizeCurve } from './brush.js';
@@ -18,7 +19,7 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
-  return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, texturePressure: 0, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, flipX: false, flipY: false, roundJitter: 0, pixel: false,
+  return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, texturePressure: 0, textureMode: 'multiply', textureEachDab: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, flipX: false, flipY: false, roundJitter: 0, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, scatterBoth: true, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0, taperSize: 1, taperOpacity: 0,
     tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, countJitter: 0, quickShape: false, refStop: false,
     dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, impasto: 0, dryOut: 0, mix: 0, mixStretch: 0.5, paintLoad: 1,
@@ -160,6 +161,8 @@ export const SETTING_FIELDS = [
   ['texture', 'Texture', 'choice', TEXTURES],
   ['textureInvert', 'Invert texture', 'check'],
   ['grainPressure', 'Grain by pressure', 'check'],
+  ['textureMode', 'Texture mode', 'choice', TEXTURE_MODES],
+  ['textureEachDab', 'Texture each dab', 'check'],
   ['texturePressure', 'Pen → grain', 'range', -1, 1, 0.01],
   ['preset', 'Brush', 'id'],
   ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
@@ -204,7 +207,7 @@ export const SETTING_GROUPS = [
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'taperSize', 'taperOpacity', 'quickShape']],
   ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
   ['Variation', ['scatter', 'scatterBoth', 'count', 'countJitter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
-  ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert', 'texturePressure', 'grainPressure']],
+  ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert', 'textureMode', 'textureEachDab', 'texturePressure', 'grainPressure']],
   ['Dual brush', ['dualTip', 'dualSize', 'dualSpacing', 'dualScatter']],
   ['Combined', ['comboTip', 'comboMode', 'comboSize', 'comboFlow', 'comboHardness', 'comboSpacing', 'comboThickness', 'comboAngle', 'comboRandom', 'comboFollow',
     'comboScatter', 'comboSizeJitter', 'comboPressureSize', 'comboMinSize', 'comboPressureFlow', 'comboMinFlow']],
@@ -279,6 +282,8 @@ export const SETTING_HINTS = {
   flowCurve: 'How pen pressure maps to density (from an imported brush); it replaces the Pressure setting for density',
   grainPressure: 'Like a real pencil: a light touch marks only the tops of the paper grain, pressing harder fills the grooves too',
   texturePressure: 'Pen pressure changes how strongly the texture shows: above 0, pressing harder shows more grain (100%: a light touch shows none); below 0, pressing harder fills it in',
+  textureMode: 'How the texture mixes with the paint, as the texture modes of Clip Studio Paint: Multiply leaves out paint in the grooves; Subtract takes the grooves out of thin paint first; Compare caps the paint at the texture; Height lets paint fill the low parts as it gets denser. Grain is the texture density',
+  textureEachDab: 'Applies the texture to every dab on its own, so overlapping dabs build up on the grain (Clip Studio Paint: Apply by each plot). Off, it goes over the stroke as a whole',
   textureInvert: 'Swaps the texture: paint goes into the dark parts instead of the light ones',
   count: 'Dabs at each step: more than 1 lays several at once, each with its own scatter and jitter (spray, foliage, sparkles; turn Scatter up to spread them)',
   scatter: 'Moves each dab a random distance from the stroke, up to this many times the brush size',

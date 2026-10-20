@@ -10,7 +10,7 @@ import { floodMask, growMask, closeGapFill, insideLines } from '../fill.js';
 import { History } from '../history.js';
 import { icon } from '../icons.js';
 import { comboOf, isTyping, springBack } from '../keys.js';
-import { Painter, textureFor, strengthFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor, hasTipImage, tipOutline } from '../painter.js';
+import { Painter, textureFor, strengthFor, copyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor, hasTipImage, tipOutline } from '../painter.js';
 import { WetPaint, averageUnder, rgbHex, loadShare } from '../wetmix.js';
 import { comboSettings, comboOp } from '../combo.js';
 import { union, clip } from '../rect.js';
@@ -207,7 +207,7 @@ export class Editor {
     for (const r of this.doc?.rasters() || []) free(r.canvas);
     for (const c of this.mips || []) free(c);
     for (const s of this.snapQueue || []) free(s.canvas);
-    [this.stroke, this.dualCanvas, this.comboCanvas, this.heightCanvas, this.grainCanvas, this.sel?.canvas, this.paperLayer, this.insideClip?.canvas].forEach(free);
+    [this.stroke, this.dualCanvas, this.comboCanvas, this.heightCanvas, ...Object.values(this.texCanvases || {}), this.sel?.canvas, this.paperLayer, this.insideClip?.canvas].forEach(free);
     this.snapQueue = [];
     this.history = new History();  // its undo copies go too
     this.compRead = null;
@@ -1406,14 +1406,15 @@ export class Editor {
     const color = varies && s.colorJitterStroke ? shiftColor(ink, colorJitter(s)) : ink;
     // Impasto: the dabs are stamped faintly into a height canvas too, which liveSource lights
     const imp = tool.erase || layer.kind === 'mask' ? null : impastoFor(s, this.heightCanvas ||= document.createElement('canvas'));
-    // Pressure → grain: each dab stamps how strongly the texture shows into a canvas of its own
-    const texture = textureFor(s, this.grainCanvas ||= document.createElement('canvas'));
+    // Pen → grain: each dab stamps how strongly the texture shows into a canvas of its own; a texture mode other
+    // than Multiply keeps a copy of the stroke in memory to work the mode out from (painter.js textureFor)
+    const texture = textureFor(s, this.texCanvases ||= {});
     this.gesture = {
       type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
       color, dabColors: varies && !s.colorJitterStroke, dyn,
       painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
         tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel, flipX: s.flipX, flipY: s.flipY, roundJitter: s.roundJitter,
-        grain: grainFor(s), height: imp && heightFor(imp.canvas, this.doc.width, this.doc.height), strength: strengthFor(texture, this.doc.width, this.doc.height), dryOut: s.dryOut, dryAt: s.size, dryGrain: dryGrainFor(s) }),
+        grain: grainFor(s), height: imp && heightFor(imp.canvas, this.doc.width, this.doc.height), strength: strengthFor(texture, this.doc.width, this.doc.height), copy: copyFor(texture, this.doc.width, this.doc.height), texDab: textureDabFor(s), dryOut: s.dryOut, dryAt: s.size, dryGrain: dryGrainFor(s) }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
       snap: line ? null : this.snapFor(pt),  // follow a guide or perspective line (rulertools.js)

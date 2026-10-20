@@ -109,7 +109,8 @@ export const GUIDE = [
       With <b>Grain by pressure</b> (on for the Pencil) a light touch only catches the tops of the grain and a firm one
       fills it in, as with graphite. Keep <b>Density</b> low (the Pencil uses 45%) so light lines stay grey: pressure
       decides how deep the grain fills, Density how dark each pass is. <b>Pen → grain</b> lets pressure change how
-      strongly the texture shows: above 0 a firm touch shows more grain, below 0 it shows less.</li>
+      strongly the texture shows: above 0 a firm touch shows more grain, below 0 it shows less. <b>Texture mode</b>
+      picks how the texture mixes with the paint, and <b>Texture each dab</b> puts it on every dab on its own.</li>
       <li><b>Tip</b>: Round, or <b>Bristles</b>, a row of hairs; with <b>Turn with the stroke</b> on and the angle at
       90° each hair leaves its own streak, as a dry brush does. <b>Flat brush</b> is a full row of hairs that
       touch, like a flat oil brush, with a few stray hairs at the ends: solid paint with fine streaks along the
@@ -237,7 +238,7 @@ export const GUIDE = [
       leaves little on bare paper (the Wet blender).</li>
     </ul>
 
-    <h4>Texture, Pen → grain and Grain by pressure (Texture page)</h4>
+    <h4>Texture, Texture mode, Pen → grain and Grain by pressure (Texture page)</h4>
     <ul>
       <li>The grain is fixed to the canvas, so strokes share it, like real paper.</li>
       <li><b>Grain by pressure</b>: a light touch catches only the tops of the grain and a firm one fills it in. Use
@@ -247,6 +248,16 @@ export const GUIDE = [
       <li><b>Pen → grain</b>: at 100% a light touch paints smooth and pressing harder brings the grain in; at -100%
       it is the other way round. 50% keeps half the grain at the lightest touch. It works with every tip, and with
       Grain by pressure and Runs dry it scales the grain they show.</li>
+      <li><b>Texture mode</b> is how the texture mixes with the paint; they are the modes of Clip Studio Paint and
+      give the same result. <b>Multiply</b> (the usual one) leaves out paint in the grooves. <b>Subtract</b> takes the
+      grooves out of thin paint first, so light strokes break up and dense ones stay solid (pencils). <b>Compare</b>
+      keeps the paint below the texture. <b>Height</b> fills the low parts first and goes solid quickly as the paint
+      gets denser: keep Grain and Density low with it (Clip Studio pencils use about 25-40%).
+      <b>Normal</b>, <b>Overlay</b>, <b>Color dodge</b>, <b>Color burn</b>, <b>Hard mix</b> and <b>Outline</b>
+      push the grain lighter or darker in other ways.</li>
+      <li><b>Texture each dab</b> (Clip Studio Paint: Apply by each plot) puts the texture on every dab on its own,
+      so overlapping dabs build up on the grain. Off, the texture goes over the stroke as a whole, and a stroke never
+      gets darker than one pass. Grain by pressure goes first when both are on.</li>
       <li>The <b>Canvas</b> grain is a weave, so over a whole stroke it reads as cloth. For broken, painterly edges,
       Paper or Chalk look more natural.</li>
     </ul>

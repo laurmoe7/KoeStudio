@@ -15,6 +15,7 @@
 // passes over, 'intersection' removes the stretch of a touched line up to the nearest crossings with other lines,
 // and 'line' removes every line it touches.
 
+import { TEXTURE_MODES } from './texmodes.js';
 import { shiftColor } from './color.js';
 import { stampAt, dabCount, dabJitter, colorJitter, taperIn, taperOut, taperDab, StampPath, sanitizeCurve, dynamicsAt, dynamicsReach } from './brush.js';
 import { tipReach } from './brushtip.js';
@@ -33,9 +34,9 @@ const NUM = {
   tiltSize: [0, 0, 1], tiltFlow: [0, 0, 1], speedSize: [0, -1, 1], speedFlow: [0, -1, 1],
   dualSize: [0.6, 0.05, 3], dualSpacing: [0.25, 0.02, 2], dualScatter: [0.5, 0, 3],
 };
-const BOOL = { scatterBoth: true, pressureSize: true, pressureOpacity: false, tipFollow: false, flipX: false, flipY: false, textureInvert: false, grainPressure: false, colorJitterStroke: false, pixel: false, tiltAngle: false };
+const BOOL = { scatterBoth: true, pressureSize: true, pressureOpacity: false, tipFollow: false, flipX: false, flipY: false, textureInvert: false, grainPressure: false, textureEachDab: false, colorJitterStroke: false, pixel: false, tiltAngle: false };
 const CURVES = ['sizeCurve', 'flowCurve'];
-export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture', 'dualTip'];
+export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture', 'textureMode', 'dualTip'];
 
 const NAME = /^(?:[a-z]{1,20}|img:[0-9a-f]{8,32})$/;
 
@@ -52,6 +53,7 @@ export function sanitizeBrush(raw) {
   out.tip = typeof s.tip === 'string' && NAME.test(s.tip) ? s.tip : 'round';
   out.texture = typeof s.texture === 'string' && NAME.test(s.texture) ? s.texture : 'none';
   out.dualTip = typeof s.dualTip === 'string' && NAME.test(s.dualTip) ? s.dualTip : 'none';
+  out.textureMode = TEXTURE_MODES.some(m => m[0] === s.textureMode) ? s.textureMode : 'multiply';
   return out;
 }
 

@@ -732,11 +732,21 @@ class ClipStudioReader(unittest.TestCase):
         self.assertNotIn('side', grain)
         self.assertEqual(b['settings']['textureScale'], 0.25)
         self.assertEqual(b['settings']['textureAmount'], 0.4)
-        self.assertNotIn('grainPressure', b['settings'])
+        self.assertNotIn('textureEachDab', b['settings'])
+        self.assertNotIn('textureMode', b['settings'], 'no TextureCompositeMode: Multiply, the default')
         s = bi.import_brushes('g.sut', make_sut({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40,
-                                                 'TextureForPlot': 1, 'TextureRotate': 45.0, 'TextureDensityEffector': csp_effector(0x10, 25)},
+                                                 'TextureForPlot': 1, 'TextureRotate': 45.0, 'TextureDensityEffector': csp_effector(0x10, 25),
+                                                 'TextureCompositeMode': 9},
                                                 [(self.TEX, csp_package(tex))]))['brushes'][0]
-        self.assertIs(s['settings']['grainPressure'], True, 'Apply texture to each dab')
+        self.assertIs(s['settings']['textureEachDab'], True, 'Apply by each plot')
+        self.assertNotIn('grainPressure', s['settings'])
+        self.assertEqual(s['settings']['textureMode'], 'height', 'mode 9 is Height (Greasil Mk2)')
+        for mode, name in ((0, 'normal'), (2, 'subtract'), (3, 'compare'), (4, 'outline'), (7, 'burn')):
+            got = bi._sut_settings({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40,
+                                    'TextureCompositeMode': mode})[0]
+            self.assertEqual(got.get('textureMode'), name, f'mode {mode}')
+        got = bi._sut_settings({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40, 'TextureCompositeMode': 1})[0]
+        self.assertNotIn('textureMode', got, 'Multiply is the default')
         self.assertEqual(s['settings']['texturePressure'], 0.75, 'texture density by pressure, 25% at the lightest touch')
         self.assertNotIn('texturePressure', b['settings'])
         self.assertEqual(s['notes'], ['Texture turned'])
@@ -747,19 +757,19 @@ class ClipStudioReader(unittest.TestCase):
         gray, alpha = bytes([0, 100, 200, 255, 0]), bytes([255, 255, 255, 255, 128])
         g, a = bi.csp_texture_tone(gray, alpha, 0, 0)
         self.assertEqual((list(g), set(a)), ([0, 100, 200, 255, 127], {255}), 'nothing to change: only flattened')
-        # brightness -28: every level 28% of 255 = 71.4 darker
-        self.assertEqual(list(bi.csp_texture_tone(gray, alpha, -28, 0)[0]), [0, 29, 129, 184, 56])
+        # brightness -28: every level 14% of 255 = 35.7 darker (CLIP STUDIO moves it by half the value)
+        self.assertEqual(list(bi.csp_texture_tone(gray, alpha, -28, 0)[0]), [0, 64, 164, 219, 91])
         # contrast 50: twice as steep round 127.5; -50: half as steep
         self.assertEqual(list(bi.csp_texture_tone(gray, alpha, 0, 50)[0]), [0, 73, 255, 255, 127])
         self.assertEqual(list(bi.csp_texture_tone(gray, alpha, 0, -50)[0]), [64, 114, 164, 191, 127])
         # in an import: Greasil's -28 darkens the saved picture (the test material has ink only: half see-through
-        # flattens to 127, -28 makes it 56; solid ink stays 0)
+        # flattens to 127, -28 makes it 91; solid ink stays 0)
         tex = csp_layer(2, 1, {(0, 0): (128, 0), (1, 0): (255, 0)})
         res = bi.import_brushes('g.sut', make_sut({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40,
                                                    'TextureBrightness': -28}, [(self.TEX, csp_package(tex))]))
         self.assertEqual(res['brushes'][0]['notes'], [])
         w, h, ct, raw = png_pixels(from_url(res['images'][0]['png']))
-        self.assertEqual((raw[0::2], set(raw[1::2])), (bytes([56, 0]), {255}))
+        self.assertEqual((raw[0::2], set(raw[1::2])), (bytes([91, 0]), {255}))
 
     def test_texture_size(self):
         tex = csp_layer(200, 100, {(0, 0): (255, 0)})

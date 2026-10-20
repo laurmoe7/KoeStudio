@@ -3,12 +3,13 @@
 // pen stroke is committed; so a line looks the same drawn live and redrawn from the data.
 
 import { liveSource } from './doc.js';
-import { Painter, textureFor, strengthFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from './painter.js';
+import { Painter, textureFor, strengthFor, copyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from './painter.js';
 import { stampAt, grainAt } from './brush.js';
 import { strokeBounds, strokeStamps, dualStamps, seeded, brushOf } from './vector.js';
 import { clip } from './rect.js';
 
-let scratch = null, dualScratch = null, heightScratch = null, grainScratch = null;
+let scratch = null, dualScratch = null, heightScratch = null;
+const texCanvases = {};  // painter.js textureFor
 
 /** Redraws the layer's lines inside rect (doc px; the whole layer when null), clearing that area first. */
 export function renderVector(layer, rect = null) {
@@ -33,9 +34,9 @@ export function renderVector(layer, rect = null) {
     sctx.clearRect(q.x, q.y, q.w, q.h);
     let imp = impastoFor(b);
     if (imp) imp = { ...imp, canvas: heightScratch ||= document.createElement('canvas') };
-    const texture = textureFor(b, grainScratch ||= document.createElement('canvas'));
+    const texture = textureFor(b, texCanvases);
     const painter = new Painter(sctx, { color: s.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q), strength: strengthFor(texture, W, H, q), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
+      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q), strength: strengthFor(texture, W, H, q), copy: copyFor(texture, W, H, q), texDab: textureDabFor(b), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(s, b)) {
       const { size, flow } = stampAt(b, st.p);
       painter.grainK = grainAt(b, st.p);

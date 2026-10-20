@@ -8,6 +8,7 @@
 import { textureTile, grooveAlpha, TILE } from './textures.js';
 import { imageRef, bristleDots, flatDots } from './brushtip.js';
 import { pixelSpans, dryness, dryDab, DRY_LEVELS } from './brush.js';
+import { applyTextureMode, textureValueAt } from './texmodes.js';
 
 const TIP = 128;
 const tipImages = new Map();      // image id -> canvas whose alpha is the tip shape
@@ -20,6 +21,7 @@ export function registerTip(id, canvas) { tipImages.set(id, canvas); }
 export function registerTexture(id, gray, w, h) {
   textureImages.set(id, { gray, w, h });
   for (const k of Object.keys(tiles)) if (k.startsWith(`img:${id}:`)) delete tiles[k];
+  for (const k of Object.keys(values)) if (k.startsWith(`img:${id}:`)) delete values[k];
 }
 
 export function forgetBrushImage(id) {
@@ -110,11 +112,16 @@ export class Painter {
    * source makes the random turns repeatable, as vector lines need), height ({ctx, k}: Impasto's height canvas, which
    * gets every dab too, in black at k times its density, so the hairs' streaks build up as ridges without saturating),
    * strength ({ctx}: strengthFor, Pressure → grain on a stroke-wide texture: each dab stamps grainK there, which
-   * liveSource weighs the texture by). grainK (grainAt) is set before each dab and scales any texture it carries. */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, strength = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
+   * liveSource weighs the texture by), copy ({ctx}: copyFor, a texture mode other than Multiply on the whole stroke:
+   * every dab is drawn there too, in memory, for liveSource to work the mode out from), texDab (textureDabFor:
+   * Texture each dab, every dab worked out with its texture mode on its own). grainK (grainAt) is set before each
+   * dab and scales any texture it carries. */
+  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, strength = null, copy = null, texDab = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
     this.ctx = ctx;
     this.height = pixel ? null : height;
     this.strength = strength;
+    this.copy = copy;
+    this.texDab = pixel ? null : texDab;
     this.grainK = 1;
     this.grain = pixel ? null : grain;  // grainFor(s): every dab is cut against the paper (pressure fills the grooves)
     this.pixel = !!pixel;  // hard pixels (pixel art): whole-pixel round dabs, no soft edge, tip image or turn
@@ -228,12 +235,14 @@ export class Painter {
       this.mirror = [sx, sy * (this.roundJitter ? 1 - this.roundJitter * this.rnd() : 1)];
     } else this.mirror = null;
     if (this.grain) this.grainDab(x, y, size, alpha, rot, this.grain, null, this.grainK);
+    else if (this.texDab) this.modeDab(x, y, size, alpha, rot);
     // running dry on a texture: a loaded brush covers it, a drying one reaches less deep and the grooves show more.
     // The grain comes in only once the hairs have started to drop out, and never fully, so the dry end is streaks
     // broken by the grain rather than an even speckle
     else if (this.dryGrain && this.dryT > DRY_GRAIN_FROM) this.grainDab(x, y, size, alpha, rot, this.dryGrain, 1 - 0.3 * this.dryT, 0.75 * this.grainK * (this.dryT - DRY_GRAIN_FROM) / (1 - DRY_GRAIN_FROM));
     else this.draw(this.ctx, x, y, size, alpha, rot);
     if (this.height) this.draw(this.height.ctx, x, y, size, alpha * this.height.k, rot);
+    if (this.copy) this.draw(this.copy.ctx, x, y, size, alpha, rot);
     if (this.strength) {  // the newest dab's strength replaces what lies under it (round, wide enough for a turned tip)
       // cut out, then added: at an anti-aliased edge of coverage e that is s (1 - e) + k e, an even blend; source-over
       // there gives less than both, and the edges of the overlapping circles showed as a fine mesh in the grain
@@ -291,6 +300,28 @@ export class Painter {
     g.fillRect(0, 0, n, n);
     g.globalCompositeOperation = 'source-over';
     this.ctx.globalAlpha = a;
+    this.ctx.drawImage(c, 0, 0, n, n, x0, y0, n, n);
+  }
+
+  /**
+   * Texture each dab (CLIP STUDIO's Apply by each plot): the dab is drawn into a small canvas in memory, its density
+   * worked out pixel by pixel with the texture mode (texmodes.js) against the doc-anchored texture, and laid down.
+   * Pen → grain scales the texture density per dab (grainK).
+   */
+  modeDab(x, y, size, alpha, rot) {
+    const reach = size * 0.75 + 2;
+    const x0 = Math.floor(x - reach), y0 = Math.floor(y - reach), n = Math.ceil(2 * reach) + 1;
+    const c = modeScratch ||= memoryCanvas();
+    if (c.width < n || c.height < n) c.width = c.height = Math.max(n, 64);
+    const g = c.getContext('2d');
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+    g.clearRect(0, 0, n, n);
+    this.draw(g, x - x0, y - y0, size, alpha, rot);
+    const img = g.getImageData(0, 0, n, n), { mode, D, values: v } = this.texDab;
+    applyTextureMode(img.data, mode, D * Math.max(0, Math.min(1, this.grainK)), i => textureValueAt(v, x0 + i % n, y0 + (i / n | 0)));
+    g.putImageData(img, 0, 0);
+    this.ctx.globalAlpha = 1;
     this.ctx.drawImage(c, 0, 0, n, n, x0, y0, n, n);
   }
 
@@ -428,16 +459,57 @@ function withAlpha(hex, a) {
 }
 
 const tiles = {};
-let grainScratch = null;
+const values = {};
+let grainScratch = null, modeScratch = null;
 
-/** The live.texture for a paint tool's settings, or null: a tile canvas whose alpha is what the grain removes. With
- * grainPressure the dabs carry the grain themselves (grainFor), so the stroke as a whole gets none. With Pressure →
- * grain (texturePressure) it takes the canvas `strength` (alpha: how much of the grain shows, stamped by the
- * Painter; give it to the Painter through strengthFor). */
-export function textureFor(s, strength = null) {
-  if (s.grainPressure || dryGrainFor(s)) return null;
+/** A canvas kept in memory (read back often, never drawn on the GPU): for the texture modes worked out per pixel. */
+function memoryCanvas() {
+  const c = document.createElement('canvas');
+  c.getContext('2d', { willReadFrequently: true });
+  return c;
+}
+
+/**
+ * The live.texture for a paint tool's settings, or null: a tile canvas whose alpha is what the grain removes. With
+ * grainPressure or Texture each dab the dabs carry the grain themselves (grainFor, textureDabFor), so the stroke as
+ * a whole gets none. `canvases` (an object the caller keeps, e.g. the editor's) holds the canvases it needs: with
+ * Pen → grain (texturePressure) `strength` (alpha: how much of the grain shows, stamped by the Painter: give it to the
+ * Painter through strengthFor); with a texture mode other than Multiply `cpu` = {mode, D, values, copy}, the mode
+ * worked out per pixel by liveSource from `copy`, a copy of the stroke kept in memory (copyFor). Without `canvases`
+ * every mode is drawn as Multiply.
+ */
+export function textureFor(s, canvases = null) {
+  if (s.grainPressure || textureDabFor(s) || dryGrainFor(s)) return null;
   const t = grainTile(s);
-  return t && s.texturePressure && strength ? { ...t, strength } : t;
+  if (!t || !canvases) return t;
+  const mode = s.textureMode || 'multiply';
+  if (mode === 'multiply') return s.texturePressure ? { ...t, strength: canvases.strength ||= document.createElement('canvas') } : t;
+  const strength = s.texturePressure ? canvases.cpuStrength ||= memoryCanvas() : null;
+  return { ...t, strength, cpu: { mode, D: s.textureAmount, values: grainValues(s), copy: canvases.copy ||= memoryCanvas() } };
+}
+
+/** Painter's `copy` for a live.texture worked out per pixel (textureFor's `cpu`), cleared in r (or all of it). */
+export function copyFor(texture, w, h, r = null) {
+  return texture?.cpu ? { ctx: heightFor(texture.cpu.copy, w, h, r).ctx } : null;
+}
+
+/** Painter's `texDab` for settings with Texture each dab: {mode, D, values}, or null. Grain by pressure goes first. */
+export function textureDabFor(s) {
+  if (!s.textureEachDab || s.grainPressure || s.pixel || !grainTile(s)) return null;
+  return { mode: s.textureMode || 'multiply', D: s.textureAmount, values: grainValues(s) };
+}
+
+/** The texture of settings s as values 0-255 (how much paint it lets through, after Invert texture) with its size and
+ * scale ({gray, w, h, scale}), for the texture modes (texmodes.js textureValueAt). Kept per texture. */
+function grainValues(s) {
+  const key = `${s.texture}:${s.textureInvert ? 1 : 0}`;
+  if (!values[key]) {
+    const id = imageRef(s.texture), img = id ? textureImages.get(id) : null;
+    const gray = img ? img.gray : textureTile(s.texture);
+    if (!gray) return null;
+    values[key] = { gray: s.textureInvert ? Uint8Array.from(gray, g => 255 - g) : gray, w: img ? img.w : TILE, h: img ? img.h : TILE };
+  }
+  return { ...values[key], scale: s.textureScale || 1 };
 }
 
 /** Painter's `strength` for a live.texture that has one (textureFor), cleared in r (all of it when r is left out). */
@@ -477,7 +549,7 @@ export function heightFor(c, w, h, r = null) {
 /** Painter's `dryGrain` for settings with Runs dry: their texture then shows as the brush runs dry (in the dabs),
  * not over the whole stroke. */
 export function dryGrainFor(s) {
-  return s.dryOut > 0 && !s.grainPressure && !s.pixel ? grainTile(s) : null;
+  return s.dryOut > 0 && !s.grainPressure && !s.textureEachDab && !s.pixel ? grainTile(s) : null;
 }
 
 /** Painter's `grain` for settings with grainPressure: the texture tile (alpha: groove depth times the grain amount),

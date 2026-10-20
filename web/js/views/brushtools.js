@@ -12,7 +12,7 @@ import { api } from '../api.js';
 import { curveAt, stampAt, grainAt, previewPath, previewSettings } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage, liveSource } from '../doc.js';
-import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, strengthFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from '../painter.js';
+import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, strengthFor, copyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from '../painter.js';
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
@@ -260,9 +260,9 @@ export const brushMethods = {
     const sctx = scratch.getContext('2d');
     let imp = impastoFor(b);
     if (imp) imp = { ...imp, canvas: this.previewHeight ||= document.createElement('canvas') };
-    const texture = textureFor(b, this.previewGrain ||= document.createElement('canvas'));
+    const texture = textureFor(b, this.previewTex ||= {});
     const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, w, h), strength: strengthFor(texture, w, h), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
+      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, w, h), strength: strengthFor(texture, w, h), copy: copyFor(texture, w, h), texDab: textureDabFor(b), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(line, b)) {
       const { size, flow } = stampAt(b, st.p);
       painter.grainK = grainAt(b, st.p);

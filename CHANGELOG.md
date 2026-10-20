@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Texture mode and Texture each dab (Brush settings → Texture): the ten ways Clip Studio Paint mixes a texture with the paint, matched to Clip Studio's own output, and imported Clip Studio brushes bring theirs.
 - Clip Studio Paint brushes now bring their texture brightness and contrast and their taper lengths in every unit Clip Studio uses for them; a Fade with only Starting ticked no longer counts as missing, since Clip Studio ignores it.
 - Pen → grain (Brush settings → Texture): pen pressure changes how strongly the texture shows, either way round; Clip Studio Paint brushes that do this bring it along.
 - Color mixing panel, as in Clip Studio Paint: dab and blend paint on a little scrap of paper under the Color panel, then click to take the mixed colour; it is kept between sessions.
@@ -28,6 +29,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Imported Clip Studio brushes with a darkened or lightened texture no longer come out twice as dark or light as in Clip Studio.
 - Imported Clip Studio Paint brushes taper only where Clip Studio tapers them (most, such as the G-pen and rake brushes, don't), thinning or fading as far as the brush says, and get their spacing right when it is set to Narrow, Normal or Wide.
 - Imported Clip Studio Paint blenders and colour-mixing brushes mix the right way round (blenders used to barely mix), and bring their paint density and colour stretch.
 - Imported Clip Studio Paint brushes no longer all turn with the stroke; only those set to follow the line's direction do.

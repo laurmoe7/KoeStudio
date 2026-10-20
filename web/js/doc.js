@@ -10,6 +10,7 @@ import { sanitizeVector } from './vector.js';
 import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
 import { sanitizeDpi } from './resolution.js';
+import { applyTextureMode, textureValueAt } from './texmodes.js';
 
 export const BLEND_MODES = [
   ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
@@ -837,6 +838,20 @@ function strokeOf(live, r) {
 }
 
 /**
+ * A texture mode other than Multiply (live.texture.cpu, painter.js textureFor): region r of the stroke worked out
+ * pixel by pixel (texmodes.js) from the copy of the stroke the Painter keeps in memory, so nothing is read back from
+ * the GPU; with Pen → grain the texture density is weighed by the strength canvas (also in memory). A combined
+ * brush's second brush is not in the copy and does not show with these modes.
+ */
+function textureModeSource(ctx, texture, r) {
+  const { cpu, strength } = texture, v = cpu.values;
+  const img = cpu.copy.getContext('2d').getImageData(r.x, r.y, r.w, r.h);
+  const st = strength ? strength.getContext('2d').getImageData(r.x, r.y, r.w, r.h).data : null;
+  if (v) applyTextureMode(img.data, cpu.mode, cpu.D, i => textureValueAt(v, r.x + i % r.w, r.y + (i / r.w | 0)), st && (i => st[i * 4 + 3]));
+  ctx.putImageData(img, 0, 0);
+}
+
+/**
  * Where to read region r of a live stroke from: [canvas, sx, sy]. A stroke with a brush texture
  * (live.texture = {tile, scale}, tile being a canvas whose alpha is what the grain removes) is copied to a scratch
  * canvas and the grain cut out of it there; the texture is anchored to the doc, so it never shifts between updates.
@@ -848,12 +863,16 @@ function strokeOf(live, r) {
  */
 export function liveSource(live, r) {
   if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet && !live.impasto) return strokeOf(live, r);
-  const [src, sx, sy] = strokeOf(live, r);
   const [c, ctx] = scratchCanvas('live', r);
-  ctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);
+  const cpu = live.texture?.cpu;
+  if (cpu) textureModeSource(ctx, live.texture, r);
+  else {
+    const [src, sx, sy] = strokeOf(live, r);
+    ctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);
+  }
   if (live.wet) wetEdges(ctx, live, r);
   if (live.impasto) impasto(ctx, live, r);
-  if (live.texture) {
+  if (live.texture && !cpu) {
     const { tile, scale, strength } = live.texture;
     if (!tile.pattern) tile.pattern = ctx.createPattern(tile, 'repeat');
     tile.pattern.setTransform(new DOMMatrix().translateSelf(-r.x, -r.y).scaleSelf(scale));

@@ -1090,6 +1090,8 @@ def read_krita_bundle(z, filename):
 # density 0xb0: pressure, tilt and random). 0x100 is offered on size and density (not opacity or closed shapes) but
 # never ticked in any tool seen, and the popup shows no fifth input
 CSP_PRESSURE, CSP_TILT, CSP_VELOCITY, CSP_RANDOM = 0x10, 0x20, 0x40, 0x80
+# TextureCompositeMode 0-9 as KoeStudio texture modes (web/js/texmodes.js CSP_TEXTURE_MODES, checked in CLIP STUDIO)
+CSP_TEXTURE_MODES = ['normal', 'multiply', 'subtract', 'compare', 'outline', 'overlay', 'dodge', 'burn', 'hardmix', 'height']
 # Starting and ending lengths (BrushInLength, ...) in px for each BrushInLengthUnit seen: 0 is px; 2 shows ten times
 # its value in CLIP STUDIO (Real G-Pen's 2.0 reads 20) and draws that many px (measured: a 20 px taper on a 72 dpi
 # canvas, the same at brush size 10 and 30, so neither mm nor a share of the size). Other units are noted.
@@ -1471,9 +1473,10 @@ def read_sut(data, filename):
 def csp_texture_tone(gray, alpha, brightness, contrast):
     """A texture picture with CLIP STUDIO's texture Brightness and Contrast (-100 to 100) applied, as (gray, alpha):
     flattened onto white first (see-through is paper, as textureGray in brushtip.js reads it), then brightness moves
-    every level by brightness% of the range, and contrast stretches round the middle: slope 1 + c/100 below 0 (flat
-    gray at -100), 1 / (1 - c/100) above (a hard threshold at 100), as a Brightness/Contrast filter does."""
-    b, c = _clamp(brightness, -100, 100) / 100 * 255, _clamp(contrast, -100, 100) / 100
+    every level by half its value in % of the range (measured in CLIP STUDIO: -28 made the texture 0.14 darker, before
+    Invert texture), and contrast stretches round the middle: slope 1 + c/100 below 0 (flat gray at -100),
+    1 / (1 - c/100) above (a hard threshold at 100), as a Brightness/Contrast filter does (not measured)."""
+    b, c = _clamp(brightness, -100, 100) / 200 * 255, _clamp(contrast, -100, 100) / 100
     slope = 1 + c if c <= 0 else 1 / max(1e-3, 1 - c)
     lut = bytes(int(_clamp(math.floor((x + b - 127.5) * slope + 128), 0, 255)) for x in range(256))  # rounded half up
     flat = bytes(lut[(g * a + 255 * (255 - a) + 127) // 255] for g, a in zip(gray, alpha))
@@ -1588,8 +1591,12 @@ def _sut_settings(v):
         tex = t[0]
         s['textureAmount'] = round(_clamp(g('TextureDensity') / 100, 0, 1), 2)
         s['textureInvert'] = not g('TextureReverseDensity')
-        if g('TextureForPlot'):  # Apply texture to each dab: the grain is cut out of every dab, so overlaps build up on it
-            s['grainPressure'] = True
+        # Texture mode (TextureCompositeMode, the order of CLIP STUDIO's list): KoeStudio has them all (texmodes.js)
+        mode = v.get('TextureCompositeMode')
+        if isinstance(mode, int) and 0 <= mode < len(CSP_TEXTURE_MODES) and CSP_TEXTURE_MODES[mode] != 'multiply':
+            s['textureMode'] = CSP_TEXTURE_MODES[mode]
+        if g('TextureForPlot'):  # Apply by each plot: every dab gets the texture on its own, so overlaps build up on it
+            s['textureEachDab'] = True
         if g('TextureRotate'):
             notes.append('Texture turned')
         te = csp_effector(v.get('TextureDensityEffector'))
