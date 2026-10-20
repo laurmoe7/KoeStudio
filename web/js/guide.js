@@ -348,7 +348,7 @@ export const GUIDE = [
     artwork.</p>`],
 
   ['fill', 'Fill and gradients', `
-    <p class="lead"><kbd>G</kbd> picks the Fill tool. Press <kbd>G</kbd> again for Gradient, then Lasso fill.</p>
+    <p class="lead"><kbd>G</kbd> picks the Fill tool. Press <kbd>G</kbd> again for Gradient, then Lasso fill and Fill gaps.</p>
     <h4>Fill</h4>
     <p>Click inside an area to fill it with the main colour.</p>
     <figure data-pic="gaps"><figcaption>Lines with small gaps? Raise <b>Close gaps</b> so the fill stays inside.</figcaption></figure>
@@ -385,6 +385,16 @@ export const GUIDE = [
     <h4>Lasso fill</h4>
     <p>Draw round an area and it fills with the main colour, like colouring in with a marker. Tick <b>Erase</b> to
     clear the area you draw round instead.</p>
+    <h4>Fill gaps</h4>
+    <p>After filling, little specks and slivers often stay empty next to the line art. Fill gaps (Clip Studio
+    Paint's Paint unfilled area) mops them up:</p>
+    <ol>
+      <li>Pick your colour layer and the same colour as the fill.</li>
+      <li>Press <kbd>G</kbd> until Fill gaps shows, and brush over the specks.</li>
+      <li>When you lift the pen, every area that lies wholly inside what you brushed over is filled. The big areas
+      round it (the fill, the lines, the paper outside) run on past your stroke, so they are left alone.</li>
+    </ol>
+    <p class="tip">Brush a little wider than the specks. A speck your stroke only half covers is not filled.</p>
     <p class="tip">With a selection, every fill stays inside it. Colouring under line art is shown step by step in <button type="button" class="guide-link" data-goto="first">Your first picture</button>.</p>`],
 
   ['shapes', 'Shapes and text', `

@@ -50,6 +50,7 @@ const P = {
   burn: `<path d="M19.5 14.5A8 8 0 119.5 4.5a6.5 6.5 0 0010 10z" fill="currentColor" fill-opacity=".55"/>`,
   clone: `<circle cx="12" cy="5.8" r="2.8"/><path d="M10.6 8.4L10 12.5M13.4 8.4l.6 4.1"/><rect x="5" y="12.5" width="14" height="4" rx="1.5"${F}/><path d="M6 20h12"/>`,
   smudge: `<path d="M6.7 12.3L14.5 4.5A2.5 2.5 0 0118 8l-7.8 7.8a2.5 2.5 0 01-3.5-3.5z"${F}/><path d="M8.2 11.8a1.6 1.6 0 012.2 2.2"/><path d="M13 8.5l2.5 2.5" opacity=".6"/><path d="M3 20.5c2.5-1.5 5.5-1.5 8.5 0"/><path d="M3 17.5c1-.6 2.2-.8 3.2-.5"/>`,
+  gapFill: `<path d="M3.5 17.5c3-4.5 6-6.5 9-5.5s5.5-1 8-5" stroke-width="5" stroke-opacity=".3"/><circle cx="9" cy="12.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="14" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="15" r=".9" fill="currentColor" stroke="none"/><path d="M3.5 6.5h5M3.5 9h3"/>`,
   lassoFill: `<path d="M8.4 15.6C5.4 14.5 3.5 12.4 3.5 10c0-3.3 3.8-6 8.5-6s8.5 2.7 8.5 6-3.8 6-8.5 6c-.9 0-1.8-.1-2.6-.3" fill="currentColor" fill-opacity=".45"/><path d="M7.5 16.5c-1.5 1.5-.8 3.8 1.5 4"/><circle cx="8.4" cy="15.6" r="1.4" fill="currentColor" stroke="none"/>`,
   ref: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   grid: '<path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/>',

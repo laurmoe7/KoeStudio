@@ -75,7 +75,8 @@ test('tools sharing a key take turns', () => {
   assert.equal(toolForKey('g', 'pen'), 'fill');
   assert.equal(toolForKey('g', 'fill'), 'gradient');
   assert.equal(toolForKey('g', 'gradient'), 'lassofill');
-  assert.equal(toolForKey('g', 'lassofill'), 'fill', 'and round again');
+  assert.equal(toolForKey('g', 'lassofill'), 'gapfill');
+  assert.equal(toolForKey('g', 'gapfill'), 'fill', 'and round again');
   assert.equal(toolForKey('t', 'pen'), 'text');
   assert.equal(toolForKey('z', 'pen'), null);
   const s = sanitizeSettings({ text: { font: 'Meiryo', align: 'nowhere', vertical: 1 }, gradient: { shape: 'radial' } });

@@ -63,6 +63,7 @@ export const TOOLS = [
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
     defaults: { colors: 'main-sub', shape: 'linear', repeat: 'none', dither: false, opacity: 1 } },
   { id: 'lassofill', label: 'Lasso fill', key: 'g', kind: 'lassofill', icon: 'lassoFill', group: 'draw', defaults: { opacity: 1, lassoErase: false } },
+  { id: 'gapfill', label: 'Fill gaps', key: 'g', kind: 'gapfill', icon: 'gapFill', group: 'draw', defaults: { size: 30, opacity: 1, tolerance: 12, sample: 'all' } },
   { id: 'figure', label: 'Figure', key: 'u', kind: 'figure', icon: 'figure', group: 'draw',
     defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, sides: 5, depth: 0.5, fill: false } },
   { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',

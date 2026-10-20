@@ -43,6 +43,7 @@ Press **F5** or **Ctrl+R** to reload the screen (your work is saved first). The 
   - **Liquify (J again):** bends the picture under the brush: Push drags it with the pen, Pinch pulls it in, Bloat swells it, Twirl turns it right or left (these keep working while you hold the pen still). Stays inside the selection and follows the symmetry ruler.
   - **Retouching:** **Blur** (J, press until it shows) softens what you paint over; **Dodge** and **Burn** (O, press again to switch) lighten and darken; **Clone stamp** (S) copies from where you Ctrl+clicked (a crosshair shows it), from this layer or everything visible, with **Aligned** keeping the same distance stroke after stroke. They stay inside the selection; Blur, Dodge and Burn follow the symmetry ruler.
   - **Lasso fill (G, press until it shows):** draw round an area and it fills with the main colour (or, with **Erase** ticked, clears it).
+  - **Fill gaps (G, after Lasso fill):** brush over the little specks a fill left empty next to the line art; every area wholly inside the stroke is filled with the main colour (Clip Studio Paint's Paint unfilled area). Look at and Margin work as for Fill.
   - **Hold to straighten** (Brush settings → Stroke, as Procreate's QuickShape): keep the pen still at the end of a stroke and a line becomes straight, a loop a clean ellipse; moving the pen before lifting it stretches the shape.
   - **Shift+click** draws a straight line from where the last stroke on the layer ended.
 - **Figure (U, press again for the Ruler):** drag to draw a straight line, an arrow or double arrow, rectangle, ellipse, regular polygon or star (with the number of corners and the star's depth) with the brush size, opacity and hardness, outlined or filled; Shift makes a 45° line, a square or a circle. **Round corners** gives rectangles rounded corners of that radius. **Polyline** and **Polygon** are clicked corner by corner (Shift keeps each side to 45° steps): double-click or Enter finishes, a click on the first corner closes a polygon, Backspace takes back the last corner and Esc drops the shape.
@@ -88,7 +89,7 @@ Hold a tool's key instead of tapping it to use that tool only until you let go (
 | Ctrl+A / Ctrl+D | Select all / Deselect | Ctrl+Shift+I | Invert selection |
 | Ctrl+C / Ctrl+X | Copy / cut | Ctrl+V | Paste |
 | E | Eraser | Alt (hold) | Eyedropper |
-| J | Smudge / Liquify / Blur | G (again) | Fill / Gradient / Lasso fill |
+| J | Smudge / Liquify / Blur | G (again) | Fill / Gradient / Lasso fill / Fill gaps |
 | O | Dodge / Burn | S | Clone stamp (Ctrl+click: source) |
 | G | Fill | [ / ] (or Ctrl+Alt+drag) | Smaller / bigger brush |
 | I | Eyedropper | X | Swap main and sub colour |

@@ -872,7 +872,7 @@ export class Editor {
     if (this.findPick) { set('crosshair'); return null; }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
-    set({ paint: 'none', smudge: 'none', liquify: 'none', retouch: 'none', lineedit: 'crosshair', lassofill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+    set({ paint: 'none', smudge: 'none', liquify: 'none', retouch: 'none', lineedit: 'crosshair', lassofill: 'crosshair', gapfill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
     return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge' || tool.kind === 'liquify' || tool.kind === 'retouch') ? tool : null;
   }
@@ -1199,6 +1199,7 @@ export class Editor {
       else if (tool.kind === 'retouch') this.beginRetouch(toolId, dp, e.pointerId, e.ctrlKey);
       else if (tool.kind === 'lineedit') this.beginLineEdit(dp, e.pointerId);
       else if (tool.kind === 'lassofill') this.beginLassoFill(dp, e.pointerId);
+      else if (tool.kind === 'gapfill') this.beginGapFill(dp, e.pointerId);
       else if (tool.kind === 'figure') this.beginFigure(this.gridPoint(dp), e.pointerId, e.shiftKey, e.detail >= 2);
       else if (tool.kind === 'fill') this.fillAt(dp);
       else if (tool.kind === 'gradient') this.beginGradient(dp, e.pointerId);
@@ -1239,6 +1240,8 @@ export class Editor {
           this.vectorEraseTo({ ...toDoc(this.view, p.x, p.y), p: pressure(e) });
         } else if (g.type === 'lassofill') {
           this.lassoFillDrag(toDoc(this.view, p.x, p.y));
+        } else if (g.type === 'gapfill') {
+          this.gapFillDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'pan') {
           this.panDrag(p);
         } else if (g.type === 'brushsize') {
@@ -1279,6 +1282,7 @@ export class Editor {
       else if (g.type === 'lineedit') this.endLineEdit();
       else if (g.type === 'verase') this.endVectorErase();
       else if (g.type === 'lassofill') this.endLassoFill();
+      else if (g.type === 'gapfill') this.endGapFill();
       else if (g.type === 'guide' || g.type === 'vp' || g.type === 'shape') this.rulerEnd(this.pointer);
       else if (g.type === 'gradient') this.endGradient();
       else if (g.type === 'figure') this.endFigure();

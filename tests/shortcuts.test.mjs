@@ -39,7 +39,8 @@ test('bindings, the combo table and tools taking turns', () => {
   assert.equal(table.get('ctrl+z'), undefined, 'the old key is free');
   assert.equal(toolForCombo(table, 'g', 'pen'), 'fill');
   assert.equal(toolForCombo(table, 'g', 'fill'), 'gradient');
-  assert.equal(toolForCombo(table, 'g', 'lassofill'), 'fill', 'round again');
+  assert.equal(toolForCombo(table, 'g', 'lassofill'), 'gapfill');
+  assert.equal(toolForCombo(table, 'g', 'gapfill'), 'fill', 'round again');
   assert.equal(toolForCombo(table, 'ctrl+k', 'pen'), null, 'not a tool key');
 });
 

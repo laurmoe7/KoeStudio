@@ -1,12 +1,18 @@
-// The Smudge tool (J) and Lasso fill (G, after Fill and Gradient), as Editor methods.
+// The Smudge tool (J), Lasso fill and Fill gaps (G, after Fill and Gradient), as Editor methods.
 //
 // Smudge changes the layer directly dab by dab (it has to read what earlier dabs left), through a pixel cache
 // (directpaint.js); on pen-up the changed rectangle becomes one undo step, and outside the selection the old
 // pixels are put back (softly where it is feathered). Lasso fill draws the enclosed shape into the stroke canvas
-// and commits it like a stroke, so opacity, alpha lock, masks and undo behave as for painting.
+// and commits it like a stroke, so opacity, alpha lock, masks and undo behave as for painting. Fill gaps (Clip Studio
+// Paint's Paint unfilled area) shows the traced band in the stroke canvas, then on pen-up replaces it with the
+// areas wholly inside it (enclosedAreas in fill.js) and commits that the same way.
 
 import { Smoother, StampPath, stampAt, stampBounds } from '../brush.js';
-import { union } from '../rect.js';
+import { readPixels } from '../doc.js';
+import { enclosedAreas } from '../fill.js';
+import { hexToRgb } from '../color.js';
+import { clip, union } from '../rect.js';
+import { toast } from '../ui.js';
 import { smudgeDab } from '../smudge.js';
 import { symmetryStamps } from '../symmetry.js';
 
@@ -99,5 +105,62 @@ export const smudgeMethods = {
     const erase = this.settings.lassofill.lassoErase;
     this.commitStroke(g.layer, g.bounds, erase ? 'Lasso erase' : 'Lasso fill');
     if (g.layer.kind !== 'mask' && !erase) this.colors.used();
+  },
+
+  // ---------- fill gaps ----------
+
+  beginGapFill(pt, id) {
+    const layer = this.target('fill');
+    if (!layer) return;
+    this.resetStroke();
+    this.gesture = { type: 'gapfill', tool: 'gapfill', id, layer, last: pt, bounds: null };
+    this.live = { layer, canvas: this.stroke, alpha: 0.35, mode: 'source-over' };
+    this.gapFillDrag(pt);
+  },
+
+  /** The traced band, a line of the tool's size, in the stroke canvas (shown faintly until pen-up). */
+  gapFillDrag(pt) {
+    const g = this.gesture, d = this.doc, ctx = this.strokeCtx, size = Math.max(1, this.settings.gapfill.size);
+    ctx.strokeStyle = this.inkFor(g.layer);
+    ctx.lineWidth = size;
+    ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(g.last.x, g.last.y);
+    ctx.lineTo(pt.x + (pt === g.last ? 0.01 : 0), pt.y);
+    ctx.stroke();
+    const r = Math.ceil(size / 2) + 2;
+    const seg = clip({ x: Math.floor(Math.min(g.last.x, pt.x)) - r, y: Math.floor(Math.min(g.last.y, pt.y)) - r,
+      w: Math.ceil(Math.abs(pt.x - g.last.x)) + 2 * r + 1, h: Math.ceil(Math.abs(pt.y - g.last.y)) + 2 * r + 1 }, d.width, d.height);
+    g.last = pt;
+    if (!seg) return;
+    g.bounds = union(g.bounds, seg);
+    this.strokeVersion = (this.strokeVersion || 0) + 1;
+    this.updateComp(seg);
+    this.requestRender();
+  },
+
+  /** Pen up: every colour area wholly inside the traced band is filled with the main colour, as one undo step. */
+  endGapFill() {
+    const g = this.gesture, b = g.bounds, d = this.doc, s = this.settings.gapfill;
+    const drop = () => { this.live = null; this.resetStroke(); if (b) this.updateComp(b); this.requestRender(); };
+    if (!b) return drop();
+    const band = readPixels(this.stroke, b.x, b.y, b.w, b.h).data, traced = new Uint8Array(b.w * b.h);
+    for (let k = 0; k < traced.length; k++) traced[k] = band[k * 4 + 3] > 127 ? 1 : 0;
+    const out = enclosedAreas(this.sampleData(s.sample, g.layer), d.width, d.height, traced, b, s.tolerance);
+    if (!out.some(v => v)) {
+      drop();
+      return toast('Nothing to fill there: only areas wholly inside what you trace over are filled.');
+    }
+    const [cr, cg, cb] = hexToRgb(this.inkFor(g.layer)), img = new ImageData(b.w, b.h);
+    for (let k = 0; k < out.length; k++) {
+      if (!out[k]) continue;
+      img.data[k * 4] = cr; img.data[k * 4 + 1] = cg; img.data[k * 4 + 2] = cb; img.data[k * 4 + 3] = 255;
+    }
+    this.resetStroke();
+    this.strokeCtx.putImageData(img, b.x, b.y);
+    this.sel.clipCanvas(this.strokeCtx, b);
+    this.live = { layer: g.layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(g.layer, false) };
+    this.commitStroke(g.layer, b, 'Fill gaps');
+    if (g.layer.kind !== 'mask') this.colors.used();
   },
 };

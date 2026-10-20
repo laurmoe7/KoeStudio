@@ -192,3 +192,44 @@ export function insideLines(data, w, h, x, y, reach = 0, grow = 2) {
   }
   return { mask, bounds: { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 } };
 }
+
+/**
+ * Paint unfilled area (Clip Studio Paint's Fill → Paint unfilled area): the colour areas (as Fill finds them: the
+ * pixels within `tolerance` of a start pixel, 4-connected) that lie wholly inside the traced part of a box. traced
+ * is a Uint8Array over box {x, y, w, h} (1 = traced); an area that reaches a pixel of its colour outside the
+ * traced part or the box, or the canvas edge inside the box, is left alone. Returns a Uint8Array over the box,
+ * 1 = fill: the specks and slivers a fill left between colours and line art, without the areas round them.
+ */
+export function enclosedAreas(data, w, h, traced, box, tolerance = 0) {
+  const { x: bx, y: by, w: bw, h: bh } = box, out = new Uint8Array(bw * bh), seen = new Uint8Array(bw * bh);
+  const same = (i, j) => {  // doc pixels i and j have the same colour, as floodMask sees it from start pixel i
+    const a = i * 4, b = j * 4;
+    if (data[a + 3] === 0 && data[b + 3] <= tolerance) return true;
+    return Math.abs(data[a] - data[b]) <= tolerance && Math.abs(data[a + 1] - data[b + 1]) <= tolerance &&
+      Math.abs(data[a + 2] - data[b + 2]) <= tolerance && Math.abs(data[a + 3] - data[b + 3]) <= tolerance;
+  };
+  const area = [];
+  for (let k0 = 0; k0 < out.length; k0++) {
+    if (!traced[k0] || seen[k0]) continue;
+    const start = (by + Math.floor(k0 / bw)) * w + bx + (k0 % bw);
+    let escaped = false;
+    area.length = 0;
+    area.push(k0);
+    seen[k0] = 1;
+    for (let n = 0; n < area.length; n++) {
+      const k = area[n], lx = k % bw, ly = (k - lx) / bw, x = bx + lx, y = by + ly;
+      for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) { escaped = true; continue; }
+        if (!same(start, ny * w + nx)) continue;
+        const qx = nx - bx, qy = ny - by;
+        if (qx < 0 || qy < 0 || qx >= bw || qy >= bh) { escaped = true; continue; }
+        const q = qy * bw + qx;
+        if (!traced[q]) { escaped = true; continue; }
+        if (!seen[q]) { seen[q] = 1; area.push(q); }
+      }
+    }
+    if (!escaped) for (const k of area) out[k] = 1;
+  }
+  return out;
+}
