@@ -54,6 +54,10 @@ function pickFile(accept) {
   });
 }
 
+/** The longest side an imported tip picture is saved at: twice what it is loaded at (TIP_MAX), so the step down when
+ * loading stays smooth. */
+const TIP_SAVE = TIP_MAX * 2;
+
 /** The combo… settings for an imported combined brush b whose second brush has the tip `tip` ({} when not combined). */
 function combined(b, tip) {
   if (!b.combo) return {};
@@ -639,13 +643,16 @@ export const brushMethods = {
   },
 
   /**
-   * A brush file's image as PNG bytes to save: Procreate shapes (white on black) become see-through tips, and an image
-   * with a `side` (a Clip Studio Paint texture, sized by its own scale) is made that size along its longer side.
+   * A brush file's image as PNG bytes to save: Procreate shapes (white on black) become see-through tips, an image
+   * with a `side` (a Clip Studio Paint texture, sized by its own scale) is made that size along its longer side, and
+   * a tip is kept to TIP_SAVE along its longer side (tips are loaded at TIP_MAX: a Photoshop stamp pack's 4000 px tips
+   * were saved whole, 55 MB for 16 brushes, and read back at every start).
    */
   async importedImagePng(im) {
-    if (!im.white && !im.side) return (await fetch(im.png)).blob();
-    const img = await loadImage(im.png);
-    const k = im.side ? Math.min(1, im.side / Math.max(img.naturalWidth, img.naturalHeight)) : 1;
+    const img = await loadImage(im.png), long = Math.max(img.naturalWidth, img.naturalHeight);
+    const side = im.side || (im.kind === 'tip' && long > TIP_SAVE ? TIP_SAVE : 0);
+    if (!im.white && !side) return (await fetch(im.png)).blob();
+    const k = side ? Math.min(1, side / long) : 1;
     const c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
     const ctx = c.getContext('2d', { willReadFrequently: true });

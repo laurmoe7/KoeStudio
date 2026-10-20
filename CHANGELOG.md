@@ -30,6 +30,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Imported brushes that all share one name are numbered (Brush 1, Brush 2, ... when the name is just the pack's), and a Photoshop brush bigger than 1000 px says so.
+- Imported brushes with very big tip pictures take far less space and load faster: a pack of 16 big Photoshop paint stamps went from 55 MB to 7 MB.
 - A combined brush's second brush now shows when the texture uses a Texture mode other than Multiply.
 - Imported Clip Studio brushes with a darkened or lightened texture no longer come out twice as dark or light as in Clip Studio.
 - Imported Clip Studio Paint brushes taper only where Clip Studio tapers them (most, such as the G-pen and rake brushes, don't), thinning or fading as far as the brush says, and get their spacing right when it is set to Narrow, Normal or Wide.

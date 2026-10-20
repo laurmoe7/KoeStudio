@@ -420,6 +420,8 @@ def _abr_settings(b):
     dm = _num(shape.get('Dmtr'))
     if dm:
         s['size'] = round(_clamp(dm, 1, 1000), 1)
+        if dm > 1000:
+            notes.append(f'Its size, {round(dm)} px, is more than the largest KoeStudio has (1000 px)')
     sp = _num(shape.get('Spcn'))
     if sp is not None:
         # a share of the tip's short side, as Photoshop measures it (made a share of the long side in _abr_brushes)
@@ -1710,6 +1712,29 @@ def _stem(filename):
 
 
 def import_brushes(filename, data):
+    res = _read_brushes(filename, data)
+    _number_repeats(res['brushes'], res.get('name', ''))
+    return res
+
+
+def _number_repeats(brushes, pack=''):
+    """Brushes sharing a name are numbered in order: 'Name 1', 'Name 2'. A name that only repeats the pack's (which
+    is already their group: 'Paint Brushes _by KRAKOGRAFF' in 'Paint Brushes_by Krakograff_2020') becomes 'Brush 1',
+    'Brush 2', as the number would be cut off the end of a long name in the cards and the brush list."""
+    letters = lambda t: re.sub(r'[^a-z0-9]', '', t.lower())
+    count = {}
+    for b in brushes:
+        count[b['name']] = count.get(b['name'], 0) + 1
+    seen = {}
+    for b in brushes:
+        name = b['name']
+        if count[name] > 1:
+            n = seen[name] = seen.get(name, 0) + 1
+            key, own = letters(name), letters(pack)
+            b['name'] = f'Brush {n}' if key and own and (key in own or own in key) else f'{name} {n}'
+
+
+def _read_brushes(filename, data):
     if not isinstance(data, bytes) or not data:
         raise ValueError('That file is empty.')
     if len(data) > MAX_FILE:

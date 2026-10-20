@@ -237,6 +237,20 @@ class AbrReader(unittest.TestCase):
         self.assertTrue(s['colorJitterStroke'])
         self.assertEqual(notes, ['Foreground/background jitter', 'Purity'])
 
+    def test_repeated_names_and_huge_sizes(self):
+        # a pack that names every brush after itself: numbered in order; unique names stay as they are
+        bs = [{'name': n} for n in ('Paint', 'Ink', 'Paint', 'Paint')]
+        bi._number_repeats(bs)
+        self.assertEqual([b['name'] for b in bs], ['Paint 1', 'Ink', 'Paint 2', 'Paint 3'])
+        # named after the pack, which is already their group: just numbered
+        bs = [{'name': 'Paint Brushes _by KRAKOGRAFF'} for _ in range(3)] + [{'name': 'Ink'}]
+        bi._number_repeats(bs, 'Paint Brushes_by Krakograff_2020')
+        self.assertEqual([b['name'] for b in bs], ['Brush 1', 'Brush 2', 'Brush 3', 'Ink'])
+        # Photoshop goes to 5000 px, KoeStudio to 1000 (Krakograff's paint stamps are 3000-4000)
+        s, notes, *_ = bi._abr_settings({'Brsh': {'_class': 'sampledBrush', 'Dmtr': {'unit': '#Pxl', 'value': 3872.0}}})
+        self.assertEqual((s['size'], notes), (1000, ['Its size, 3872 px, is more than the largest KoeStudio has (1000 px)']))
+        self.assertEqual(bi._abr_settings({'Brsh': {'_class': 'sampledBrush', 'Dmtr': {'unit': '#Pxl', 'value': 1000.0}}})[1], [])
+
     def test_texture_mode_and_each_tip(self):
         prc = lambda v: {'unit': '#Prc', 'value': v}
         mode = lambda m: {'textureBlendMode': {'type': 'BlnM', 'enum': m}}
