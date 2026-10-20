@@ -271,7 +271,11 @@ test('wet edges', async () => {
   const { BUILTIN_BY_ID } = await import('../web/js/builtinbrushes.js');
   assert.equal(wetFor({ wetEdges: 0, size: 50 }), null, 'off by default');
   // the edge is found with a blur of a sixth of the size: 60 px -> 10 px, never under 1 px or over 40
-  assert.deepEqual(wetFor({ wetEdges: 0.6, size: 60 }), { amount: 0.6, blur: 10 });
+  assert.deepEqual(wetFor({ wetEdges: 0.6, size: 60 }), { amount: 0.6, blur: 10, darken: 0 });
+  // Edge width sets it in px instead (Dry Salmon's 1.3 px), Edge darkening is kept within 0-1
+  assert.deepEqual(wetFor({ wetEdges: 0.15, size: 30, wetEdgeSize: 1.3, wetEdgeDarken: 0.4 }), { amount: 0.15, blur: 1.3, darken: 0.4 });
+  assert.equal(wetFor({ wetEdges: 1, size: 30, wetEdgeSize: 90, wetEdgeDarken: 2 }).blur, 40);
+  assert.equal(wetFor({ wetEdges: 1, size: 30, wetEdgeDarken: 2 }).darken, 1);
   assert.equal(wetFor({ wetEdges: 1, size: 3 }).blur, 1);
   assert.equal(wetFor({ wetEdges: 1, size: 600 }).blur, 40);
   assert.equal(wetFor({ wetEdges: 0.5, size: 20, pixel: true }), null, 'hard pixels stay hard');
@@ -551,4 +555,36 @@ test('No build-up: each pixel keeps the strongest dab, laid with source-over', a
   assert.equal(sanitizeSettings(null).brush.darkenDabs, false);
   assert.equal(sanitizeSettings({ brush: { darkenDabs: 1 } }).brush.darkenDabs, true);
   assert.deepEqual([sanitizeBrush({}).darkenDabs, sanitizeBrush({ darkenDabs: true }).darkenDabs], [false, true]);
+});
+
+test('density by spacing', async () => {
+  const { spacingDensity } = await import('../web/js/brush.js');
+  // spacing / 0.35, never above 1: 10% -> 0.2857 (CLIP STUDIO measured 0.287), 20% -> 0.5714, 35% and more -> 1
+  near(spacingDensity({ spacingDensity: true, spacing: 0.1 }), 0.1 / 0.35, '10%');
+  near(spacingDensity({ spacingDensity: true, spacing: 0.2 }), 0.2 / 0.35, '20%');
+  assert.equal(spacingDensity({ spacingDensity: true, spacing: 0.5 }), 1);
+  assert.equal(spacingDensity({ spacing: 0.1 }), 1, 'off');
+  // it scales the density of every dab: SU-Cream Pencil, 8% spacing, full density at full pressure: 0.08 / 0.35
+  const s = { size: 10, flow: 1, pressureSize: false, pressureOpacity: true, minFlow: 0, gamma: 1, spacing: 0.08, spacingDensity: true };
+  near(stampAt(s, 1).flow, 0.08 / 0.35, 'full pressure');
+  near(stampAt(s, 0.5).flow, 0.5 * 0.08 / 0.35, 'half pressure');
+  // ten dabs at 10% spacing and density 30% build up to 1 - (1 - 0.3 x 0.2857)^10 = 0.592 (CLIP STUDIO: 0.596)
+  near(Math.round((1 - (1 - 0.3 * spacingDensity({ spacingDensity: true, spacing: 0.1 })) ** 10) * 1000) / 1000, 0.592, 'stroke');
+  assert.equal(applySettings({ ...sanitizeSettings({}).brush }, { spacingDensity: 1 }).spacingDensity, true);
+});
+
+test('paint and load by pressure', async () => {
+  const { paintAt } = await import('../web/js/brush.js');
+  // no pressure settings: the brush's own mix and load at any pressure
+  assert.deepEqual(paintAt({ mix: 0.2, paintLoad: 0.45 }, 0.3), { mix: 0.2, load: 0.45 });
+  // Amount of paint from 0 at the lightest touch: the brush colour's share 0.8 x p, so mix 1 - 0.8 p
+  const s = { mix: 0.2, paintLoad: 0.5, paintMin: 0, loadMin: 0.2, gamma: 1 };
+  assert.deepEqual(paintAt(s, 0), { mix: 1, load: 0.1 });
+  near(paintAt(s, 0.5).mix, 0.6, 'half pressure mix');
+  near(paintAt(s, 0.5).load, 0.5 * (0.2 + 0.8 * 0.5), 'half pressure load');
+  near(paintAt(s, 1).mix, 0.2, 'full pressure mix');
+  // along a curve: at p 0.5 the curve [[0,0],[0.5,0.25],[1,1]] gives 0.25, so the colour share is 0.8 x 0.25
+  near(paintAt({ ...s, paintCurve: [[0, 0], [0.5, 0.25], [1, 1]] }, 0.5).mix, 1 - 0.8 * 0.25, 'curve');
+  const k = applySettings({ ...sanitizeSettings({}).brush }, { paintMin: 0.3, paintCurve: [[0, 0], [1, 1]], loadMin: 2 });
+  assert.deepEqual([k.paintMin, k.paintCurve, k.loadMin], [0.3, [[0, 0], [1, 1]], 1]);
 });

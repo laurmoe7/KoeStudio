@@ -727,11 +727,40 @@ class ClipStudioReader(unittest.TestCase):
         # Oil paint: 61% paint, 81% density, 87% stretch
         s = bi._sut_settings({'BrushSize': 40.0, 'BrushUseWaterColor2': 1, 'BrushMixColor': 61, 'BrushMixAlpha': 81, 'BrushMixColorExtension': 87})[0]
         self.assertEqual((s['mix'], s['paintLoad'], s['mixStretch']), (0.39, 0.81, 0.87))
-        # all paint: the least mixing KoeStudio has; full density leaves Paint load as it is
+        # all paint and full density at every pressure (the Artemus pencils): nothing mixes, so mixing stays off
         s = bi._sut_settings({'BrushSize': 40.0, 'BrushUseWaterColor': 1, 'BrushMixColor': 100, 'BrushMixAlpha': 100})[0]
-        self.assertEqual(s['mix'], 0.05)
+        self.assertNotIn('mix', s)
         self.assertNotIn('paintLoad', s)
         self.assertNotIn('mix', bi._sut_settings({'BrushSize': 40.0, 'BrushMixColor': 30})[0], 'off: no mixing')
+        # all paint at a firm touch but less at a light one (Dry Salmon): the least mixing KoeStudio has, then less
+        # paint along the curve; Density of paint 65%, from 18% of it at the lightest touch
+        paint, load = [[0, 0], [0.5, 0.5], [0.8, 0.52], [1, 1]], [[0, 0], [0.8, 0.14], [1, 1]]
+        s = bi._sut_settings({'BrushSize': 40.0, 'BrushUseWaterColor': 1, 'BrushMixColor': 100, 'BrushMixAlpha': 65,
+                              'BrushMixColorEffector': csp_effector(0x10, 0, curve=paint),
+                              'BrushMixAlphaEffector': csp_effector(0x10, 18, curve=load)})[0]
+        self.assertEqual([s.get(k) for k in ('mix', 'paintLoad', 'paintMin', 'paintCurve', 'loadMin', 'loadCurve')],
+                         [0.05, 0.65, 0, paint, 0.18, load])
+        # a straight response keeps no curve; pressure ticked with a minimum of 100% changes nothing
+        s = bi._sut_settings({'BrushSize': 40.0, 'BrushUseWaterColor': 1, 'BrushMixColor': 80,
+                              'BrushMixColorEffector': csp_effector(0x10, 0, curve=[[0, 0], [1, 1]]),
+                              'BrushMixAlphaEffector': csp_effector(0x10, 100)})[0]
+        self.assertEqual([s.get(k) for k in ('paintMin', 'paintCurve', 'loadMin')], [0, None, None])
+
+    def test_water_edge(self):
+        # Dry Salmon: Opacity effect 15%, Range 1.3 px, Brightness effect 40%
+        s = bi._sut_settings({'BrushSize': 30.0, 'BrushUseWaterEdge': 1, 'BrushWaterEdgeAlphaPower': 15, 'BrushWaterEdgeRadius': 1.3,
+                              'BrushWaterEdgeRadiusUnit': 0, 'BrushWaterEdgeValuePower': 40})[0]
+        self.assertEqual([s.get(k) for k in ('wetEdges', 'wetEdgeSize', 'wetEdgeDarken')], [0.15, 1.3, 0.4])
+        # a Range in another unit is left to KoeStudio's own width; no Brightness effect, no darkening
+        s = bi._sut_settings({'BrushSize': 30.0, 'BrushUseWaterEdge': 1, 'BrushWaterEdgeAlphaPower': 50, 'BrushWaterEdgeRadius': 5.0,
+                              'BrushWaterEdgeRadiusUnit': 1})[0]
+        self.assertEqual([s.get(k) for k in ('wetEdges', 'wetEdgeSize', 'wetEdgeDarken')], [0.5, None, None])
+        self.assertNotIn('wetEdgeSize', bi._sut_settings({'BrushSize': 30.0, 'BrushWaterEdgeRadius': 1.3})[0], 'water edge off')
+
+    def test_density_by_gap_and_emphasize(self):
+        s = bi._sut_settings({'BrushSize': 10.0, 'BrushAdjustFlowByInterval': 1})[0]
+        self.assertIs(s.get('spacingDensity'), True)
+        self.assertNotIn('spacingDensity', bi._sut_settings({'BrushSize': 10.0, 'BrushAdjustFlowByInterval': 0})[0])
 
     def test_direction_spray_thickness_and_speed(self):
         # the Rake pack's Flat rakes (3: no turning) and turning rakes (67 = 0x40 + 3)
@@ -861,6 +890,9 @@ class ClipStudioReader(unittest.TestCase):
             self.assertEqual(got.get('textureMode'), name, f'mode {mode}')
         got = bi._sut_settings({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40, 'TextureCompositeMode': 1})[0]
         self.assertNotIn('textureMode', got, 'Multiply is the default')
+        self.assertNotIn('textureEmphasis', got)
+        got = bi._sut_settings({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40, 'TextureStressDensity': 1})[0]
+        self.assertIs(got['textureEmphasis'], True, 'Emphasize density (Fresh Salmon)')
         self.assertEqual(s['settings']['texturePressure'], 0.75, 'texture density by pressure, 25% at the lightest touch')
         self.assertNotIn('texturePressure', b['settings'])
         self.assertEqual((s['settings']['textureAngle'], s['notes']), (45.0, []), 'Rotation angle: Grain angle')
@@ -894,6 +926,15 @@ class ClipStudioReader(unittest.TestCase):
         self.assertEqual(res['brushes'][0]['notes'], [])
         w, h, ct, raw = png_pixels(from_url(res['images'][0]['png']))
         self.assertEqual((raw[0::2], set(raw[1::2])), (bytes([91, 0]), {255}))
+
+    def test_texture_ignores_colour(self):
+        # CLIP STUDIO reads a texture from its see-through only: a gray picture covering everything (Fresh Salmon's)
+        # is solid, so it gives no grain; half see-through stays half, whatever its colour
+        tex = csp_layer(3, 1, {(0, 0): (255, 189), (1, 0): (255, 58), (2, 0): (128, 200)})
+        res = bi.import_brushes('w.sut', make_sut({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'watercolor')),
+                                                   'TextureDensity': 63}, [(self.TEX, csp_package(tex))]))
+        w, h, ct, raw = png_pixels(from_url(res['images'][0]['png']))
+        self.assertEqual((raw[0::2], raw[1::2]), (bytes(3), bytes([255, 255, 128])), 'black, with the see-through kept')
 
     def test_texture_size(self):
         tex = csp_layer(200, 100, {(0, 0): (255, 0)})

@@ -46,8 +46,9 @@ export class WetPaint {
     this.at = null;
   }
 
-  /** The colour {r, g, b} of a dab of diameter size at (x, y) in brush colour {r, g, b}, over `under` (averageUnder). */
-  next(x, y, size, under, brush) {
+  /** The colour {r, g, b} of a dab of diameter size at (x, y) in brush colour {r, g, b}, over `under` (averageUnder);
+   * `mix` for this dab only (brush.js paintAt: Paint by pressure), else the stroke's. */
+  next(x, y, size, under, brush, mix = this.mix) {
     const d = this.at ? Math.hypot(x - this.at.x, y - this.at.y) : 0;
     this.at = { x, y };
     const p = this.picked, wp = p ? p.cover * perDistance(this.stretch, d, size) : 0, wu = under.cover;
@@ -61,7 +62,7 @@ export class WetPaint {
       this.picked = { r: ((p ? p.r : 0) * tp + under.r * wu) / w, g: ((p ? p.g : 0) * tp + under.g * wu) / w,
         b: ((p ? p.b : 0) * tp + under.b * wu) / w, cover };
     }
-    return mixRgb(brush, this.picked, this.mix * this.picked.cover);
+    return mixRgb(brush, this.picked, Math.max(0, Math.min(1, mix)) * this.picked.cover);
   }
 }
 

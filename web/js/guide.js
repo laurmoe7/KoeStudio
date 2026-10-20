@@ -84,6 +84,7 @@ export const GUIDE = [
     <ul>
       <li><b>Paint</b>: size, opacity, density, hardness. <b>Wet edges</b> lets the paint gather at the edge of the
       stroke and leaves the middle lighter, as watercolour does when it dries (on for Watercolour and Marker).
+      <b>Edge width</b> sets how wide that darker edge is, and <b>Darker edge</b> darkens its colour too.
       <b>Impasto</b> makes the paint look thick: light catches the top-left edge of each stroke and its bristle
       ridges, and the other side is shaded (on for Oil paint).
       <b>Runs dry</b> lets the brush give out its paint along the stroke: it starts solid, then the weaker hairs drop
@@ -92,7 +93,9 @@ export const GUIDE = [
       <b>Color mixing</b> makes the paint wet: the brush picks up the colours already on the layer and blends them
       into its own, and <b>Color stretch</b> sets how far it drags them along. <b>Paint load</b> is how much paint of
       its own the brush carries: turn it down for a blender that moves the colours already there and leaves little on
-      bare paper. Try the Oil paint and Wet blender brushes. It mixes with the layer you paint on, so paint on the same layer as the colours to blend.</li>
+      bare paper. Try the Oil paint and Wet blender brushes. It mixes with the layer you paint on, so paint on the same layer as the colours to blend.
+      <b>Min. paint</b> and <b>Min. load</b> below 100% make a light touch lay less of the brush colour, or less
+      paint, so it mostly blends.</li>
       <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke. The
       outline under the pointer takes the tip's shape, so you see what a dab will look like.
       <b>Squash jitter</b> and <b>Random flip</b> vary each dab, so a tip picture does not repeat the same way.
@@ -100,7 +103,8 @@ export const GUIDE = [
       A brush imported with several tip pictures shows them under <b>More tips</b> and takes turns with them, as <b>Tip order</b> says.</li>
       <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
       <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below). <b>No build-up</b> stops overlapping
-      dabs from adding up, so a stroke stays as light as one dab.</li>
+      dabs from adding up, so a stroke stays as light as one dab. <b>Density by spacing</b> lightens each dab when
+      the gap is small, so changing the gap hardly changes how dark a stroke gets.</li>
       <li><b>Tilt and speed</b>: tilt the pen to make the brush bigger or lighter (like shading with the side of a
       pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. <b>Upright size</b> below 100% makes
       the brush thinner with the pen held upright, so it only grows as you lean it. Tilt needs a pen that reports it.
@@ -113,7 +117,8 @@ export const GUIDE = [
       fills it in, as with graphite. Keep <b>Density</b> low (the Pencil uses 45%) so light lines stay grey: pressure
       decides how deep the grain fills, Density how dark each pass is. <b>Pen → grain</b> lets pressure change how
       strongly the texture shows: above 0 a firm touch shows more grain, below 0 it shows less. <b>Texture mode</b>
-      picks how the texture mixes with the paint, and <b>Texture each dab</b> puts it on every dab on its own.</li>
+      picks how the texture mixes with the paint, and <b>Texture each dab</b> puts it on every dab on its own.
+      <b>Emphasize density</b> makes the grain hard black and white.</li>
       <li><b>Tip</b>: Round, or <b>Bristles</b>, a row of hairs; with <b>Turn with the stroke</b> on and the angle at
       90° each hair leaves its own streak, as a dry brush does. <b>Flat brush</b> is a full row of hairs that
       touch, like a flat oil brush, with a few stray hairs at the ends: solid paint with fine streaks along the
@@ -179,8 +184,8 @@ export const GUIDE = [
       <li>Pick the ones you want and click <b>Import</b>. They go in a group called Clip Studio Paint.</li>
     </ol>
     <p class="tip">Close Clip Studio Paint first: it saves the brushes you added only when it closes, so new ones are missing while it is open.</p>
-    <p class="tip">There is nothing to export first, and Clip Studio Paint can stay open. Install a new brush in Clip
-    Studio Paint, then import again to bring it over.</p>
+    <p class="tip">There is nothing to export first. Install a new brush in Clip Studio Paint, close it, then import
+    again to bring the brush over.</p>
     <p>Procreate brushes keep the size they have in Procreate. A pack's title cards (a logo or a "free sample" banner
     shown as a brush) are left out.</p>
     <p class="tip">A brush marked <b>!</b> has a setting KoeStudio does not have: point at the ! to see which. Tick <b>Only
@@ -209,6 +214,10 @@ export const GUIDE = [
       <li>Good values: 0.2 for a marker, 0.5-0.6 for watercolour.</li>
       <li>It needs an even stroke to find the edge. Keep <b>Density</b> high and lower <b>Opacity</b> instead (Watercolour
       uses 60% density and 55% opacity).</li>
+      <li><b>Edge width</b> is how wide the darker edge is, in pixels. Auto makes it a sixth of the brush size; 1-3 px
+      gives a thin, crisp rim, as Clip Studio Paint's watercolour brushes do.</li>
+      <li><b>Darker edge</b> also darkens the edge's colour, not just its thickness (Clip Studio Paint: Brightness
+      effect). 0.3-0.5 is plenty; it shows most on light colours.</li>
     </ul>
 
     <h4>Impasto (Paint page)</h4>
@@ -250,6 +259,11 @@ export const GUIDE = [
       0.5). Higher mixing makes a dark stroke look see-through over light colours.</li>
       <li>For a blender, use mixing 0.9 or more and <b>Paint load</b> 0.1-0.2: it moves the colours already there and
       leaves little on bare paper (the Wet blender).</li>
+      <li><b>Min. paint</b>: how much of the brush colour the lightest touch lays, as a share of a firm one. At 0 a
+      light touch only blends and pressing harder brings the colour in, as with a real loaded brush. <b>Min. load</b>
+      does the same for Paint load, so a light touch leaves little on bare paper. Both at 100% (the usual) ignore
+      pressure. Clip Studio Paint brushes bring them with their curves (<b>Paint curve</b>, <b>Load curve</b>).</li>
+      <li>They need Color mixing on (above 0), and a pen that reports pressure.</li>
     </ul>
 
     <h4>Texture, Texture mode, Pen → grain and Grain by pressure (Texture page)</h4>
@@ -278,6 +292,10 @@ export const GUIDE = [
       gets darker than one pass. Grain by pressure goes first when both are on.</li>
       <li>The <b>Canvas</b> grain is a weave, so over a whole stroke it reads as cloth. For broken, painterly edges,
       Paper or Chalk look more natural.</li>
+      <li><b>Emphasize density</b> (as in Clip Studio Paint) turns the grain into hard black and white: paint shows in
+      full where the texture is light and not at all where it is dark, with mid-grey the dividing line. <b>Grain</b>
+      sets how sharp the step is (100% very sharp, 50% softer). A texture that is mostly light or mostly dark goes
+      almost blank or almost solid with it.</li>
     </ul>
 
     <h4>Hair tips (Tip page)</h4>
@@ -315,6 +333,15 @@ export const GUIDE = [
       Blend brush tips with Darken come with it on.</li>
       <li>Crossing your own stroke does not darken it either; lift the pen to build up a darker tone. It does not
       apply with Grain by pressure.</li>
+    </ul>
+
+    <h4>Density by spacing (Stroke page)</h4>
+    <ul>
+      <li>Lightens each dab when the dabs are close together, so a stroke builds up about as one with the gap at 35%
+      does, whatever the gap. A gap of 35% or more is left as it is.</li>
+      <li>Useful when you change the gap and want the stroke to keep its darkness. Clip Studio Paint brushes with
+      Adjust brush density by gap come with it on (SU-Cream Pencil).</li>
+      <li>With a tight gap and a low Density the stroke can get very light: raise Density rather than the gap.</li>
     </ul>
 
     <h4>Upright size and Tilt size curve (Tilt and speed page)</h4>

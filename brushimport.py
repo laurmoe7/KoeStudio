@@ -1667,7 +1667,10 @@ def csp_brush(name, v, load, missing):
     if tex_ref:
         pic = csp_material(files[tex_ref[0]]) if tex_ref[0] in files else None
         if pic:
-            w, h, gray, alpha = pic
+            # CLIP STUDIO reads a texture from its see-through alone and ignores its colour: Fresh Salmon's texture, a
+            # gray picture covering everything, gave no grain at all in it (Multiply at full density: solid paint)
+            w, h, _, alpha = pic
+            gray = bytes(len(alpha))
             if v.get('TextureBrightness') or v.get('TextureContrast'):
                 gray, alpha = csp_texture_tone(gray, alpha, _num(v.get('TextureBrightness'), 0), _num(v.get('TextureContrast'), 0))
             # CLIP STUDIO scales the texture by a percentage of its own size; KoeStudio draws it at the picture's size,
@@ -1724,6 +1727,8 @@ def _sut_settings(v):
     s['hardness'] = round(_clamp(g('BrushHardness', 100) / 100, 0, 1), 2)
     gap = CSP_AUTO_SPACING.get(g('BrushAutoIntervalType'))
     s['spacing'] = gap if gap else round(_clamp(g('BrushInterval', 10) / 100, MIN_SPACING, 1), 3)
+    if g('BrushAdjustFlowByInterval'):  # Adjust brush density by gap (brush.js spacingDensity)
+        s['spacingDensity'] = True
     if g('FlickerReduction'):  # stabilization 0-100
         s['smoothing'] = round(_clamp(g('FlickerReduction') / 5, 0, 20))
 
@@ -1825,6 +1830,8 @@ def _sut_settings(v):
         mode = v.get('TextureCompositeMode')
         if isinstance(mode, int) and 0 <= mode < len(CSP_TEXTURE_MODES) and CSP_TEXTURE_MODES[mode] != 'multiply':
             s['textureMode'] = CSP_TEXTURE_MODES[mode]
+        if g('TextureStressDensity'):  # Emphasize density: the texture as a steep ramp (texmodes.js emphasized)
+            s['textureEmphasis'] = True
         if g('TextureForPlot'):  # Apply by each plot: every dab gets the texture on its own, so overlaps build up on it
             s['textureEachDab'] = True
         if g('TextureRotate') % 360:  # Rotation angle: clockwise, as Grain angle (checked in CLIP STUDIO)
@@ -1875,7 +1882,11 @@ def _sut_settings(v):
                 s['colorJitterStroke'] = True
             break
 
-    if g('BrushUseWaterColor') or g('BrushUseWaterColor2'):
+    mix_effects = csp_effector(v.get('BrushMixColorEffector')), csp_effector(v.get('BrushMixAlphaEffector'))
+    paint, load = (e if e and e['pressure'] and e['pressureMin'] < 1 else None for e in mix_effects)
+    # with all of its own colour and paint at every pressure the brush mixes nothing (the Artemus pencils tick it so)
+    mixes = g('BrushMixColor', 50) < 100 or g('BrushMixAlpha', 100) < 100 or paint or load
+    if (g('BrushUseWaterColor') or g('BrushUseWaterColor2')) and mixes:
         # Color mixing. BrushMixColor is Amount of paint (the brush colour's share: every blender in CLIP STUDIO's own
         # tools has 0), BrushMixAlpha Density of paint (how much paint of its own it lays: 0 in the blenders),
         # BrushMixColorExtension Color stretch: KoeStudio's mix (the canvas colour's share), paintLoad and mixStretch
@@ -1884,8 +1895,22 @@ def _sut_settings(v):
             s['paintLoad'] = round(_clamp(g('BrushMixAlpha', 100) / 100, 0, 1), 2)
         if isinstance(v.get('BrushMixColorExtension'), (int, float)):
             s['mixStretch'] = round(_clamp(g('BrushMixColorExtension') / 100, 0, 1), 2)
+        # Amount and Density of paint following pen pressure, from their minimum along their curve
+        for e, lo, curve in ((paint, 'paintMin', 'paintCurve'), (load, 'loadMin', 'loadCurve')):
+            if e:
+                s[lo] = round(e['pressureMin'], 2)
+                if not _straight(e['curve']):
+                    s[curve] = e['curve']
+        for e, label in zip(mix_effects, ('Amount of paint', 'Density of paint')):
+            if e:
+                _sut_inputs(e, label, notes, speed=False)
     if g('BrushUseWaterEdge'):
         s['wetEdges'] = round(_clamp(g('BrushWaterEdgeAlphaPower', 50) / 100, 0.05, 1), 2)
+        # Range in px (unit 0; the other units are not known) and Brightness effect, the edge's colour darkened too
+        if not g('BrushWaterEdgeRadiusUnit') and g('BrushWaterEdgeRadius'):
+            s['wetEdgeSize'] = round(_clamp(g('BrushWaterEdgeRadius'), 0.1, 40), 1)
+        if g('BrushWaterEdgeValuePower'):
+            s['wetEdgeDarken'] = round(_clamp(g('BrushWaterEdgeValuePower') / 100, 0, 1), 2)
     for col, label in (('UseDualBrush', 'Dual brush'), ('BrushRibbon', 'Ribbon'),
                        ('BrushUseVectorEraser', 'Vector eraser'), ('CompositeMode', 'Blending mode')):
         if g(col):

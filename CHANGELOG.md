@@ -5,6 +5,10 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Min. paint and Min. load (Brush settings → Paint): with Color mixing, a light touch can lay less of the brush colour or less paint and mostly blend, and Clip Studio Paint brushes bring their paint amount and density following pen pressure, curves included.
+- Density by spacing (Brush settings → Stroke) lightens dabs that sit close together, as Clip Studio Paint's Adjust brush density by gap does, measured against it; brushes that use it bring it.
+- Emphasize density (Brush settings → Texture) turns the grain into hard black and white, measured against Clip Studio Paint, and its brushes bring it.
+- Edge width and Darker edge (Brush settings → Paint) for Wet edges, and Clip Studio Paint brushes bring their watercolour edge's range and brightness.
 - No build-up (Brush settings → Stroke): overlapping dabs of a stroke keep the strongest one instead of piling up to solid, and Clip Studio Paint brushes that blend their tips with Darken bring it, so the Artemus pencils stay pencil-grey.
 - Brushes can take turns with several tip pictures (Brush settings → Tip: More tips and Tip order), and Clip Studio Paint brushes bring all of theirs.
 - Upright size and Tilt size curve (Brush settings → Tilt and speed): a brush can be thin with the pen held up and widen as you lean it, and Tilt → size now goes up to ten times; Clip Studio Paint brushes bring their size changing with pen tilt.
@@ -36,6 +40,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Clip Studio Paint brushes with colour mixing set to all paint at every pressure (the Artemus pencils) no longer mix in a little of the colour underneath.
+- Clip Studio Paint brush textures now use only how see-through the texture is, as Clip Studio does, so a texture picture that covers everything (Fresh Salmon's) no longer adds grain Clip Studio doesn't show.
 - Switching to a brush saved before a setting existed now turns that setting off, instead of keeping it from the brush used before (for example the Artemus pencils' second tip and No build-up).
 - Choosing another Tip for a brush with several tip pictures now uses just that tip, instead of still taking turns with the old ones.
 - Clip Studio Paint pressure and tilt curves with more than 16 points keep their whole shape instead of being cut short.

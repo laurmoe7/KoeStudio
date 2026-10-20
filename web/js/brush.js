@@ -52,8 +52,34 @@ export function stampAt(s, p) {
   const pf = s.flowCurve ? curveAt(s.flowCurve, p) : pressureCurve(p, s.gamma ?? 1);
   const minSize = s.minSize ?? 0.1, minFlow = s.minFlow ?? 0;
   const size = s.size * (s.pressureSize ? minSize + (1 - minSize) * ps : 1);
-  const flow = (s.flow ?? 1) * (s.pressureOpacity ? minFlow + (1 - minFlow) * pf : 1);
+  const flow = (s.flow ?? 1) * (s.pressureOpacity ? minFlow + (1 - minFlow) * pf : 1) * spacingDensity(s);
   return { size: Math.max(0.5, size), flow };
+}
+
+/** The spacing (a share of the size) at which Density by spacing leaves a dab's density as it is. */
+export const SPACING_DENSITY_REF = 0.35;
+
+/**
+ * Density by spacing (CLIP STUDIO's Adjust brush density by gap): each dab's density is scaled by spacing / 0.35
+ * (never up), so a tightly spaced stroke builds up about as a stroke at 35% spacing does. Measured in CLIP STUDIO
+ * PAINT 1.5 (G-pen, size 40, fixed gaps 10-100%, densities 10, 30 and 80%: the scale was 0.287, 0.56 and 0.86 at
+ * gaps 10, 20 and 30%, the same at every density, and 1 at 50% and 100%). 1 when it is off.
+ */
+export function spacingDensity(s) {
+  return s.spacingDensity ? Math.min(1, Math.max(0.01, s.spacing ?? 0.12) / SPACING_DENSITY_REF) : 1;
+}
+
+/**
+ * Color mixing at pen pressure p: {mix, load}. Without pressure settings they are the brush's Color mixing and Paint
+ * load. With Paint by pressure (paintMin below 1, CLIP STUDIO's Amount of paint following pressure) the brush's own
+ * colour, 1 - mix, is scaled from paintMin at the lightest touch to all of it, along paintCurve (else the brush's
+ * pressure response), so a light touch mostly blends; Load by pressure (loadMin, loadCurve) scales Paint load the same
+ * way (CLIP STUDIO's Density of paint).
+ */
+export function paintAt(s, p) {
+  const along = (min, curve) => (min ?? 1) >= 1 ? 1 : min + (1 - min) * (curve ? curveAt(curve, p) : pressureCurve(p, s.gamma ?? 1));
+  const paint = along(s.paintMin, s.paintCurve);
+  return { mix: paint < 1 ? 1 - (1 - (s.mix || 0)) * paint : s.mix || 0, load: (s.paintLoad ?? 1) * along(s.loadMin, s.loadCurve) };
 }
 
 /**

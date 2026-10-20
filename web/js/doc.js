@@ -747,7 +747,7 @@ export function tonedCanvas(layer) {
 }
 
 /**
- * Wet edges (live.wet = {amount k, blur}): region r of the stroke A, already in ctx, becomes A * (1 - k) + 2k * A *
+ * Wet edges (live.wet = {amount k, blur, darken}): region r of the stroke A, already in ctx, becomes A * (1 - k) + 2k * A *
  * (1 - B), B being A blurred: the middle of the stroke (where B is as full as A) gives up k of its paint, and a rim
  * just inside the edge (where B has dropped) gains it, as watercolour does when it dries. The blur reads a margin
  * round r, so a part redrawn on its own matches the whole.
@@ -771,6 +771,14 @@ function wetEdges(ctx, live, r) {
   ctx.globalCompositeOperation = 'lighter';  // same colours, so adding them only adds paint
   for (let left = 2 * k; left > 0; left -= 1) {
     ctx.globalAlpha = Math.min(1, left);
+    ctx.drawImage(rim, 0, 0, r.w, r.h, 0, 0, r.w, r.h);
+  }
+  if (live.wet.darken > 0) {  // the rim's colour darkened too (CLIP STUDIO's Brightness effect), as far as it gathered
+    rctx.globalCompositeOperation = 'source-in';
+    rctx.fillStyle = '#000';
+    rctx.fillRect(0, 0, r.w, r.h);
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = Math.min(1, live.wet.darken);
     ctx.drawImage(rim, 0, 0, r.w, r.h, 0, 0, r.w, r.h);
   }
   ctx.globalAlpha = 1;
@@ -858,7 +866,7 @@ function textureModeSource(ctx, live, r) {
   }
   const img = src.getContext('2d').getImageData(sx, sy, r.w, r.h);
   const st = strength ? strength.getContext('2d').getImageData(r.x, r.y, r.w, r.h).data : null;
-  if (v) applyTextureMode(img.data, cpu.mode, cpu.D, i => textureValueAt(v, r.x + i % r.w, r.y + (i / r.w | 0)), st && (i => st[i * 4 + 3]));
+  if (v) applyTextureMode(img.data, cpu.mode, cpu.D, i => textureValueAt(v, r.x + i % r.w, r.y + (i / r.w | 0)), st && (i => st[i * 4 + 3]), cpu.emph);
   ctx.putImageData(img, 0, 0);
 }
 

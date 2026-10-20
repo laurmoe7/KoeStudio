@@ -8,7 +8,7 @@
 import { textureTile, grooveAlpha, TILE } from './textures.js';
 import { imageRef, bristleDots, flatDots } from './brushtip.js';
 import { pixelSpans, dryness, dryDab, DRY_LEVELS, tipIndex, maxDabAlpha } from './brush.js';
-import { applyTextureMode, textureValueAt } from './texmodes.js';
+import { applyTextureMode, textureValueAt, emphasized } from './texmodes.js';
 
 const TIP = 128;
 const tipImages = new Map();      // image id -> canvas whose alpha is the tip shape
@@ -359,8 +359,8 @@ export class Painter {
     this.draw(g, x - x0, y - y0, size, alpha, rot);
     const img = g.getImageData(0, 0, n, n);
     if (this.texDab) {
-      const { mode, D, values: v } = this.texDab;
-      applyTextureMode(img.data, mode, D * Math.max(0, Math.min(1, this.grainK)), i => textureValueAt(v, x0 + i % n, y0 + (i / n | 0)));
+      const { mode, D, values: v, emph } = this.texDab;
+      applyTextureMode(img.data, mode, D * Math.max(0, Math.min(1, this.grainK)), i => textureValueAt(v, x0 + i % n, y0 + (i / n | 0)), null, emph);
     }
     if (this.darken) maxDabAlpha(img.data, n, x0, y0, this.ctx.canvas.width, this.ctx.canvas.height, this.darken);
     g.putImageData(img, 0, 0);
@@ -531,7 +531,7 @@ export function textureFor(s, canvases = null) {
   const mode = s.textureMode || 'multiply';
   if (mode === 'multiply') return s.texturePressure ? { ...t, strength: canvases.strength ||= document.createElement('canvas') } : t;
   const strength = s.texturePressure ? canvases.cpuStrength ||= memoryCanvas() : null;
-  return { ...t, strength, cpu: { mode, D: s.textureAmount, values: grainValues(s), copy: canvases.copy ||= memoryCanvas(), combo: canvases.comboCopy ||= memoryCanvas() } };
+  return { ...t, strength, cpu: { mode, D: s.textureAmount, emph: !!s.textureEmphasis, values: grainValues(s), copy: canvases.copy ||= memoryCanvas(), combo: canvases.comboCopy ||= memoryCanvas() } };
 }
 
 /** Painter's `copy` for a live.texture worked out per pixel (textureFor's `cpu`), cleared in r (or all of it). */
@@ -551,7 +551,7 @@ export function comboCopyFor(texture, op, w, h, r = null) {
 /** Painter's `texDab` for settings with Texture each dab: {mode, D, values}, or null. Grain by pressure goes first. */
 export function textureDabFor(s) {
   if (!s.textureEachDab || s.grainPressure || s.pixel || !grainTile(s)) return null;
-  return { mode: s.textureMode || 'multiply', D: s.textureAmount, values: grainValues(s) };
+  return { mode: s.textureMode || 'multiply', D: s.textureAmount, emph: !!s.textureEmphasis, values: grainValues(s) };
 }
 
 /** The texture of settings s as values 0-255 (how much paint it lets through, after Invert texture) with its size and
@@ -579,10 +579,13 @@ export function strengthFor(texture, w, h, r = null) {
   return texture?.strength ? { ctx: heightFor(texture.strength, w, h, r).ctx } : null;
 }
 
-/** The live.wet for a paint tool's settings, or null: how much of the stroke's middle drains to its edge (0-1), and
- * how far in from the edge the paint gathers (the blur that finds the edge, in px: a sixth of the brush size). */
+/** The live.wet for a paint tool's settings, or null: how much of the stroke's middle drains to its edge (0-1), how
+ * far in from the edge the paint gathers (the blur that finds the edge, in px: Edge width, or without one a sixth of
+ * the brush size) and how much the edge's colour is darkened (Edge darkening, 0-1). */
 export function wetFor(s) {
-  return s.wetEdges > 0 && !s.pixel ? { amount: Math.min(1, s.wetEdges), blur: Math.max(1, Math.min(40, (s.size || 1) / 6)) } : null;
+  if (!(s.wetEdges > 0) || s.pixel) return null;
+  const blur = Math.max(1, Math.min(40, s.wetEdgeSize > 0 ? s.wetEdgeSize : (s.size || 1) / 6));
+  return { amount: Math.min(1, s.wetEdges), blur, darken: Math.max(0, Math.min(1, s.wetEdgeDarken || 0)) };
 }
 
 /** How much of each dab's density goes into Impasto's height canvas (Painter `height`). */
@@ -622,7 +625,7 @@ export function grainFor(s) {
 
 function grainTile(s) {
   if (!s.texture || s.texture === 'none' || !(s.textureAmount > 0)) return null;
-  const key = `${s.texture}:${s.textureAmount}:${s.textureInvert ? 1 : 0}`;
+  const key = `${s.texture}:${s.textureAmount}:${s.textureInvert ? 1 : 0}:${s.textureEmphasis ? 1 : 0}`;
   if (!tiles[key]) {
     const id = imageRef(s.texture), img = id ? textureImages.get(id) : null;
     const gray = img ? img.gray : textureTile(s.texture);
@@ -631,7 +634,10 @@ function grainTile(s) {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const data = new ImageData(w, h);
-    for (let i = 0; i < gray.length; i++) data.data[i * 4 + 3] = grooveAlpha(s.textureInvert ? 255 - gray[i] : gray[i], s.textureAmount);
+    for (let i = 0; i < gray.length; i++) {
+      const g = s.textureInvert ? 255 - gray[i] : gray[i];  // Emphasize density: what it cuts is 1 - the ramp
+      data.data[i * 4 + 3] = s.textureEmphasis ? Math.round(255 * (1 - emphasized(g / 255, s.textureAmount))) : grooveAlpha(g, s.textureAmount);
+    }
     c.getContext('2d').putImageData(data, 0, 0);
     tiles[key] = c;
   }

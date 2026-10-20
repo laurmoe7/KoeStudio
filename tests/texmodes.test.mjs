@@ -2,7 +2,7 @@
 // its Rough textured paper; the measured value is the average over texture values within 0.05 of s).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { textureMode, applyTextureMode, textureValueAt, TEXTURE_MODES, CSP_TEXTURE_MODES } from '../web/js/texmodes.js';
+import { textureMode, applyTextureMode, textureValueAt, TEXTURE_MODES, CSP_TEXTURE_MODES, emphasized } from '../web/js/texmodes.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} is not ${b}`);
 
@@ -78,4 +78,23 @@ test('the texture turned by Grain angle, round the canvas origin', async () => {
   assert.equal(textureValueAt({ ...v, ...turnOf(360) }, 1, 2), 9, '360 is not turned');
   // with scale 2 the texel covers 2 x 2 doc pixels: turned 90, texel (1, 2) covers x -6..-4, y 2..4
   assert.equal(textureValueAt({ ...v, scale: 2, ...turnOf(90) }, -4.5, 2.5), 9);
+});
+
+test('Emphasize density: a steep ramp round the middle grey, its steepness set by the texture density', () => {
+  const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} is not ${b}`);
+  // D 1: 0.5 + 10 (s - 0.5): none at 0.45 and under, full at 0.55 and over (CLIP STUDIO: 0.11 at 0.46, 0.97 at 0.55)
+  near(emphasized(0.45, 1), 0, '0.45');
+  near(emphasized(0.5, 1), 0.5, 'middle');
+  near(emphasized(0.46, 1), 0.1, '0.46');
+  near(emphasized(0.55, 1), 1, '0.55');
+  // D 0.5: half as steep, 0.4 to 0.6 (CLIP STUDIO: 0.05 at 0.41, 1 at 0.6)
+  near(emphasized(0.4, 0.5), 0, '0.4 at D 0.5');
+  near(emphasized(0.45, 0.5), 0.25, '0.45 at D 0.5');
+  near(emphasized(0.6, 0.5), 1, '0.6 at D 0.5');
+  // it takes the place of t in the modes: Multiply at brush density 0.5 over s 0.5 is 0.5 x 0.5 (CLIP STUDIO: 0.27)
+  near(textureMode('multiply', 0.5, 0.5, 1, true), 0.25, 'multiply');
+  near(textureMode('subtract', 0.8, 0.52, 1, true), 0.8 - (1 - 0.7), 'subtract');
+  const px = new Uint8ClampedArray([0, 0, 0, 255, 0, 0, 0, 255]);
+  applyTextureMode(px, 'multiply', 1, i => [102, 153][i], null, true);  // s 0.4 and 0.6
+  assert.deepEqual([px[3], px[7]], [0, 255]);
 });

@@ -1,7 +1,7 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, stampAt, grainAt, stampBounds, dabCount, dabJitter, colorJitter, taperIn, taperOut, taperDab, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL } from '../brush.js';
+import { Smoother, StampPath, stampAt, grainAt, stampBounds, dabCount, dabJitter, colorJitter, taperIn, taperOut, taperDab, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL, paintAt } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor, averageColor } from '../color.js';
 import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach, withoutDrafts } from '../doc.js';
@@ -1060,7 +1060,7 @@ export class Editor {
     const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
     const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'dualTip' || key === 'comboTip' ? [['none', 'Off'], ...this.tipChoices()] : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : list;
     const row = ([key, label, type, min, max, step]) => type === 'curve'
-      ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="${key === 'tiltSizeCurve' ? 'Remove the curve (the size then follows tilt in a straight line)' : 'Remove the curve (use the Pressure setting instead)'}">✕</button></div>`
+      ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="${key === 'tiltSizeCurve' ? 'Remove the curve (the size then follows tilt in a straight line)' : key === 'paintCurve' || key === 'loadCurve' ? 'Remove the curve (it then follows pressure as the brush does)' : 'Remove the curve (use the Pressure setting instead)'}">✕</button></div>`
       : type === 'tips'
       ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span><span class="tips-list">${s[key].map(t => this.tipThumb(t)).join('')}</span><button class="icon-btn" data-clear-curve="${key}" title="Remove these tips (keep only the Tip)">✕</button></div>`
       : type === 'choice'
@@ -1429,7 +1429,7 @@ export class Editor {
       combo: layer.vector ? null : this.comboBrush(s, color, texture),  // the second brush of a combined brush (or null)
       vec: layer.vector ? [] : null,  // on a vector layer: the smoothed path, kept as a line at pen-up (vectortools.js)
       // Color mixing: each dab picks up the layer's colours as they were at pen-down (read tile by tile, wetmix.js)
-      wet: s.mix > 0 && !tool.erase && layer.kind !== 'mask' && !layer.vector ? { cache: this.pixelCache(layer.canvas), copies: [] } : null,
+      wet: (s.mix > 0 || (s.paintMin ?? 1) < 1) && !tool.erase && layer.kind !== 'mask' && !layer.vector ? { cache: this.pixelCache(layer.canvas), copies: [] } : null,
     };
     // vector lines are kept whole, so the selection does not cut them
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, tool.erase), texture, wet: wetFor(s), sel: this.sel.active && !layer.vector ? this.sel : null,
@@ -1684,9 +1684,9 @@ export class Editor {
    */
   wetColor(g, st, size, k) {
     const [r, gr, b] = hexToRgb(st.c || g.color), cache = g.wet.cache;
-    const paint = g.wet.copies[k] ||= new WetPaint(g.s.mix, g.s.mixStretch);
-    const color = rgbHex(paint.next(st.x, st.y, size, averageUnder((x, y) => cache.pixel(x, y), st.x, st.y, size), { r, g: gr, b }));
-    return { color, share: loadShare(g.s.paintLoad, paint.picked.cover) };
+    const paint = g.wet.copies[k] ||= new WetPaint(g.s.mix, g.s.mixStretch), { mix, load } = paintAt(g.s, st.p);
+    const color = rgbHex(paint.next(st.x, st.y, size, averageUnder((x, y) => cache.pixel(x, y), st.x, st.y, size), { r, g: gr, b }, mix));
+    return { color, share: loadShare(load, paint.picked.cover) };
   }
 
   endPaint() {
@@ -2241,9 +2241,10 @@ function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
+  if (key === 'wetEdgeSize') return v ? (Math.round(v * 10) / 10) + ' px' : 'Auto';
   if (key === 'depth') return Math.round(v * 100) + '%';
   if (key === 'spacing' && v < 0.1) return (Math.round(v * 1000) / 10) + '%';  // fine spacing: 0.5%, 2.5%
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltSizeMin', 'tiltFlow', 'speedSize', 'speedFlow', 'texturePressure', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'taperSize', 'taperOpacity', 'roundJitter', 'countJitter'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltSizeMin', 'tiltFlow', 'speedSize', 'speedFlow', 'texturePressure', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'paintMin', 'loadMin', 'wetEdgeDarken', 'taperSize', 'taperOpacity', 'roundJitter', 'countJitter'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
   if (key === 'tipAngle' || key === 'comboAngle' || key === 'textureAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
