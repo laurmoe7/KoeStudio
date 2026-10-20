@@ -53,6 +53,12 @@ export function panelRows(root) {
   return rows;
 }
 
+/** The row above (dir -1) or below (dir 1) `node` in the panel (Alt+] / Alt+[), or null at the top or bottom. */
+export function rowNeighbour(root, node, dir) {
+  const rows = panelRows(root), i = rows.findIndex(r => r.node === node);
+  return i < 0 ? null : rows[i + dir]?.node || null;
+}
+
 /**
  * The panel's rows while looking for layers by name: nodes whose name contains `query` (any case), with the folders
  * they are in (open or not), top first as panelRows. An empty query gives panelRows itself.

@@ -5,7 +5,7 @@
 // set by clicking the mask thumbnail). Folders have no pixels of their own, only an optional mask.
 
 import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, effectsCanvas, PASS_THROUGH } from '../doc.js';
-import { isFolder, allLayers, allNodes, soloChange, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase, clearNode } from '../tree.js';
+import { isFolder, allLayers, allNodes, soloChange, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase, clearNode, rowNeighbour } from '../tree.js';
 import { toast, menu } from '../ui.js';
 import { toneDensity } from '../tone.js';
 import { translateVector, strokesInside, removeStrokes } from '../vector.js';
@@ -91,6 +91,12 @@ export const layerMethods = {
     this.layerPanel.render();
     this.doc.version++;
     this.scheduleSave();
+  },
+
+  /** Alt+] / Alt+[ (as in Clip Studio Paint): makes the row above (dir -1) or below (dir 1) in the panel current. */
+  selectNeighbour(dir) {
+    const n = rowNeighbour(this.doc.root, this.doc.active, dir);
+    if (n) this.selectNode(n);
   },
 
   /**

@@ -80,6 +80,24 @@ export const FILTERS = [
     margin: p => p.radius, apply: (d, w, h, p) => oilPaint(d, w, h, p.radius) },
   { id: 'wave', label: 'Wave…', fields: [f('amplitude', 'Height', 1, 100, 1, 6, ' px'), f('wavelength', 'Length', 4, 500, 1, 60, ' px')],
     margin: p => Math.ceil(p.amplitude) + 1, apply: (d, w, h, p, x0, y0) => wave(d, w, h, p.amplitude, p.wavelength, x0, y0) },
+  { id: 'twirl', label: 'Twirl…', centre: true, fields: [f('angle', 'Angle', -720, 720, 1, 180, '°'), f('size', 'Size', 1, 150, 1, 80, '%'),
+    f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
+    note: 'Turns the picture round the centre, most in the middle. Size is how far it reaches, in % of half the shorter side.',
+    margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => twirl(d, w, h, p.angle, distortRadius(p.size, W ?? w, H ?? h), (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
+  { id: 'pinch', label: 'Pinch / bulge…', centre: true, fields: [f('amount', 'Amount', -100, 100, 1, 50, '%'), f('size', 'Size', 1, 150, 1, 80, '%'),
+    f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
+    note: 'Above 0 swells the middle out like a fish-eye lens; below 0 pinches it in.',
+    margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => pinch(d, w, h, p.amount / 100, distortRadius(p.size, W ?? w, H ?? h), (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
+  { id: 'ripple', label: 'Ripple…', centre: true, fields: [f('amplitude', 'Height', 1, 100, 1, 6, ' px'), f('wavelength', 'Length', 4, 500, 1, 40, ' px'),
+    f('cx', 'Center X', 0, 100, 1, 50, '%'), f('cy', 'Center Y', 0, 100, 1, 50, '%')],
+    note: 'Rings round the centre, like a stone dropped in water.',
+    margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => ripple(d, w, h, p.amplitude, p.wavelength, (p.cx / 100) * (W ?? w) - x0, (p.cy / 100) * (H ?? h) - y0) },
+  { id: 'polar', label: 'Polar coordinates (rows to rings)', fields: [],
+    note: 'The top of the picture goes to the middle and the bottom to the edge, wrapped round in a circle.',
+    margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => polar(d, w, h, false, x0, y0, W ?? w, H ?? h) },
+  { id: 'unpolar', label: 'Polar coordinates (rings to rows)', fields: [],
+    note: 'Unrolls the picture round its middle into rows: the middle becomes the top, the edge the bottom.',
+    margin: () => 1e6, apply: (d, w, h, p, x0, y0, W, H) => polar(d, w, h, true, x0, y0, W ?? w, H ?? h) },
   { id: 'clouds', label: 'Clouds…', fields: [f('scale', 'Size', 4, 1000, 1, 160, ' px'), f('detail', 'Detail', 1, 8, 1, 5)], twoColors: true,
     note: 'Fills with soft clouds from the main to the sub colour.',
     margin: () => 0, apply: (d, w, h, p, x0, y0) => clouds(d, w, h, p.scale, p.detail, p.color || [0, 0, 0], p.color2 || [255, 255, 255], x0, y0) },
@@ -90,7 +108,8 @@ export const FILTER_MENU = [
   ['Blur', ['blur', 'motion', 'zoom', 'spin']],
   ['Sharpen and noise', ['sharpen', 'median', 'noise']],
   ['Color', ['balance', 'brightness', 'hsl', 'curves', 'levels', 'autocontrast', 'posterize', 'threshold', 'gray', 'invert', 'recolor', 'gradmap', 'palette']],
-  ['Effects', ['glow', 'chroma', 'vignette', 'emboss', 'oilpaint', 'wave', 'mosaic', 'offset']],
+  ['Effects', ['glow', 'chroma', 'vignette', 'emboss', 'oilpaint', 'mosaic', 'offset']],
+  ['Distort', ['wave', 'twirl', 'pinch', 'ripple', 'polar', 'unpolar']],
   ['Line art', ['lines', 'edges', 'dust', 'whitealpha', 'colorkey']],
   ['Render', ['clouds']],
 ];
@@ -959,13 +978,24 @@ export function oilPaint(data, w, h, radius) {
  * between pixels are mixed (premultiplied, so clear pixels do not darken edges); outside the data the edge repeats.
  */
 export function wave(data, w, h, amplitude, wavelength, x0 = 0, y0 = 0) {
-  const src = new Uint8ClampedArray(data), k = 2 * Math.PI / Math.max(1, wavelength);
+  const k = 2 * Math.PI / Math.max(1, wavelength);
   const shiftX = new Float32Array(h), shiftY = new Float32Array(w);
   for (let y = 0; y < h; y++) shiftX[y] = amplitude * Math.sin((y + y0) * k);
   for (let x = 0; x < w; x++) shiftY[x] = amplitude * Math.sin((x + x0) * k);
+  return remap(data, w, h, (x, y) => [x + shiftX[y], y + shiftY[x]]);
+}
+
+/**
+ * Moves pixels: each pixel (x, y) of the data takes the colour at from(x, y) = [sx, sy] (same pixel coordinates,
+ * between pixels allowed). Samples are mixed bilinearly and premultiplied, so clear pixels do not darken edges;
+ * outside the data the edge repeats. Wave and the other distort filters are built on it.
+ */
+export function remap(data, w, h, from) {
+  const src = new Uint8ClampedArray(data);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const sx = Math.max(0, Math.min(w - 1, x + shiftX[y])), sy = Math.max(0, Math.min(h - 1, y + shiftY[x]));
+      const [fx0, fy0] = from(x, y);
+      const sx = Math.max(0, Math.min(w - 1, fx0)), sy = Math.max(0, Math.min(h - 1, fy0));
       const xa = Math.floor(sx), ya = Math.floor(sy), xb = Math.min(w - 1, xa + 1), yb = Math.min(h - 1, ya + 1), fx = sx - xa, fy = sy - ya;
       const j00 = (ya * w + xa) * 4, j10 = (ya * w + xb) * 4, j01 = (yb * w + xa) * 4, j11 = (yb * w + xb) * 4;
       const w00 = (1 - fx) * (1 - fy) * src[j00 + 3], w10 = fx * (1 - fy) * src[j10 + 3], w01 = (1 - fx) * fy * src[j01 + 3], w11 = fx * fy * src[j11 + 3];
@@ -977,6 +1007,76 @@ export function wave(data, w, h, amplitude, wavelength, x0 = 0, y0 = 0) {
     }
   }
   return data;
+}
+
+/** How far Twirl and Pinch reach, in px: `size` % of half the canvas's shorter side. */
+export function distortRadius(size, W, H) {
+  return Math.max(1, (size / 100) * Math.min(W, H) / 2);
+}
+
+/** A remap source for pixels within `radius` of (cx, cy): fn(dx, dy, r) gives the offset from the centre to sample. */
+const radial = (cx, cy, radius, fn) => (x, y) => {
+  const dx = x - cx, dy = y - cy, r = Math.hypot(dx, dy);
+  if (r >= radius) return [x, y];
+  const [ox, oy] = fn(dx, dy, r);
+  return [cx + ox, cy + oy];
+};
+
+/**
+ * Twirl: turns the picture round (cx, cy) by `angle` degrees at the centre, less further out (by the square of
+ * the distance left) down to nothing at `radius` px. Outside the radius nothing moves.
+ */
+export function twirl(data, w, h, angle, radius, cx, cy) {
+  const a = (angle * Math.PI) / 180;
+  return remap(data, w, h, radial(cx, cy, radius, (dx, dy, r) => {
+    const t = 1 - r / radius, th = a * t * t, c = Math.cos(th), s = Math.sin(th);
+    return [dx * c - dy * s, dx * s + dy * c];
+  }));
+}
+
+/**
+ * Pinch / bulge: inside `radius` px of (cx, cy), a pixel at fraction q of the radius shows what was at q^e of it,
+ * e = 2^amount (amount -1..1). Above 0 the middle swells out (fish-eye), below 0 it is pulled in; the rim stays.
+ */
+export function pinch(data, w, h, amount, radius, cx, cy) {
+  const e = 2 ** amount;
+  return remap(data, w, h, radial(cx, cy, radius, (dx, dy, r) => {
+    if (r < 1e-9) return [0, 0];
+    const k = (r / radius) ** (e - 1);
+    return [dx * k, dy * k];
+  }));
+}
+
+/** Ripple: rings round (cx, cy): a pixel r px from it shows what was at r + amplitude * sin(2 pi r / wavelength). */
+export function ripple(data, w, h, amplitude, wavelength, cx, cy) {
+  const k = 2 * Math.PI / Math.max(1, wavelength);
+  return remap(data, w, h, radial(cx, cy, Infinity, (dx, dy, r) => {
+    if (r < 1e-9) return [0, 0];
+    const m = (r + amplitude * Math.sin(r * k)) / r;
+    return [dx * m, dy * m];
+  }));
+}
+
+/**
+ * Polar coordinates over the whole canvas (W x H, the data sitting at x0, y0). To rings (back = false): each row
+ * becomes a ring round the canvas's middle, the top row at the centre and the bottom row on the ellipse touching
+ * the canvas's edges; the left edge points straight up and the rows run round clockwise. To rows (back = true)
+ * undoes it.
+ */
+export function polar(data, w, h, back, x0, y0, W, H) {
+  const hw = W / 2, hh = H / 2, TAU = 2 * Math.PI;
+  return remap(data, w, h, (x, y) => {
+    const px = x + x0 + 0.5, py = y + y0 + 0.5;  // the pixel's centre on the canvas
+    let sx, sy;
+    if (back) {
+      const a = (px / W) * TAU, q = py / H;
+      sx = hw + q * Math.sin(a) * hw; sy = hh - q * Math.cos(a) * hh;
+    } else {
+      const nx = (px - hw) / hw, ny = (py - hh) / hh, a = Math.atan2(nx, -ny);
+      sx = ((((a / TAU) % 1) + 1) % 1) * W; sy = Math.hypot(nx, ny) * H;
+    }
+    return [sx - x0 - 0.5, sy - y0 - 0.5];
+  });
 }
 
 /** Fractal value noise at a document pixel (0..sum of the octaves' strengths): smooth between lattice points. */

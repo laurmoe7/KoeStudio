@@ -1,7 +1,7 @@
 // Layer tree operations and the version 2 save format. Built from plain objects, no canvases.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { allLayers, panelRows, contains, removeNode, insertNode, pathOf, nodeAt, destination, moveNode, stepTarget, shownLayersTopFirst, clipBase, soloChange, findRows } from '../web/js/tree.js';
+import { allLayers, panelRows, contains, removeNode, insertNode, pathOf, nodeAt, destination, moveNode, stepTarget, shownLayersTopFirst, clipBase, soloChange, findRows, rowNeighbour } from '../web/js/tree.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 
 // root: [A, F(open): [B, G(closed): [C]], D]   (bottom first)
@@ -170,4 +170,16 @@ test('a layer at 0% opacity, or in a folder at 0%, is found so painting on it ca
   assert.equal(clearNode(layer), folder);
   layer.opacity = 0;
   assert.equal(clearNode(layer), layer, 'the layer itself first');
+});
+
+test('the layer above and below in the panel (Alt+] / Alt+[)', () => {
+  const { root, A, f, B, g, C, D } = sample();
+  // rows top first: D, F, G, B, A (C is hidden in the closed folder G)
+  assert.equal(rowNeighbour(root, D, -1), null, 'nothing above the top row');
+  assert.equal(rowNeighbour(root, D, 1), f);
+  assert.equal(rowNeighbour(root, f, 1), g, 'into an open folder');
+  assert.equal(rowNeighbour(root, g, 1), B, 'past a closed folder\'s contents');
+  assert.equal(rowNeighbour(root, A, -1), B);
+  assert.equal(rowNeighbour(root, A, 1), null, 'nothing below the bottom row');
+  assert.equal(rowNeighbour(root, C, 1), null, 'a node in a closed folder has no row');
 });

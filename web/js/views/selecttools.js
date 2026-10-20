@@ -32,6 +32,8 @@ export const selectionMethods = {
     const before = this.sel.snapshot();
     fn();
     const after = this.sel.snapshot();
+    // Reselect brings back the last selection that was taken away (kept with its Selection: a canvas resize drops it)
+    if (before.bounds && !after.bounds) this.lastSel = { sel: this.sel, snap: before };
     const restore = s => { this.sel.restore(s); this.drawOverlay(); };
     const bytes = selBytes(before) + selBytes(after);
     this.history.push({ label, bytes, undo: () => restore(before), redo: () => restore(after) });
@@ -40,6 +42,13 @@ export const selectionMethods = {
 
   selectAll() { this.changeSelection('Select all', () => this.sel.all()); },
   deselect() { if (this.sel.active) this.changeSelection('Deselect', () => this.sel.clear()); },
+  /** Select → Reselect (Ctrl+Shift+D, as in Clip Studio Paint): the selection last deselected comes back. */
+  canReselect() { return this.lastSel?.sel === this.sel && !this.sel.active; },
+  reselect() {
+    if (!this.canReselect()) return toast(this.sel.active ? 'There is already a selection.' : 'There is no earlier selection to bring back.');
+    const { snap } = this.lastSel;
+    this.changeSelection('Reselect', () => this.sel.restore(snap));
+  },
   invertSelection() { this.changeSelection('Invert selection', () => this.sel.invert()); },
   /**
    * Select → Select layer pixels (the current layer), or Ctrl+click a layer's thumbnail (that layer; with Shift

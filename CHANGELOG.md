@@ -5,6 +5,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Select → Reselect (Ctrl+Shift+D) brings back the selection you last deselected.
+- Alt+] and Alt+[ select the layer above or below, as in Clip Studio Paint (also in the Layer menu).
+- New Distort filters: Twirl, Pinch / bulge (a fish-eye lens), Ripple and Polar coordinates; Wave moved into the same group.
 - Count jitter (Brush settings → Variation): each step lays a random number of dabs; imported Photoshop brushes bring it.
 - Imported Clip Studio Paint spray brushes keep their spray: particle size, how many land at once, how far they spread and which way they point.
 - Imported Clip Studio Paint brushes bring random tip thickness, size and density changing with speed, and Apply texture to each dab.

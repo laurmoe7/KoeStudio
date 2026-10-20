@@ -424,7 +424,8 @@ export const GUIDE = [
       <li><b>Magic wand</b> <kbd>W</kbd>: click an area of one colour.</li>
     </ul>
     <figure data-pic="selmodes"><figcaption>Hold a key while you drag to change the selection you already have.</figcaption></figure>
-    <p><kbd>Ctrl+A</kbd> selects everything, <kbd>Ctrl+D</kbd> deselects, <kbd>Ctrl+Shift+I</kbd> swaps inside and outside.</p>
+    <p><kbd>Ctrl+A</kbd> selects everything, <kbd>Ctrl+D</kbd> deselects, <kbd>Ctrl+Shift+I</kbd> swaps inside and outside.
+    Deselected by mistake? <kbd>Ctrl+Shift+D</kbd> (Select → <b>Reselect</b>) brings the last selection back.</p>
     <p>A small bar under the selection has the usual next steps: deselect, invert, transform, fill, delete, copy to a
     new layer and crop. Turn it off under View → Selection bar.</p>
     <h4>Select menu</h4>
@@ -614,7 +615,12 @@ export const GUIDE = [
       <li><b>Reduce to palette colors</b> gives every pixel the nearest colour of your palette (Color panel), for
       pixel art. <b>Dither</b> mixes two colours in a fine pattern instead of hard bands.</li>
       <li><b>Vignette</b> darkens (or lightens) the corners; <b>Emboss</b> turns the picture into a relief;
-      <b>Oil paint</b> flattens areas into patches of colour; <b>Wave</b> bends it along ripples.</li>
+      <b>Oil paint</b> flattens areas into patches of colour.</li>
+      <li><b>Distort</b>: <b>Wave</b> bends the picture along waves, <b>Twirl</b> swirls it round a centre,
+      <b>Pinch / bulge</b> swells the middle out like a fish-eye lens (or pulls it in below 0) and <b>Ripple</b> makes
+      rings like a stone dropped in water. Click the canvas to put the centre there. <b>Polar coordinates</b> wraps
+      the rows of the picture into rings round the middle (stripes become a target, a row of trees a round planet);
+      the other one unrolls rings into rows.</li>
       <li><b>Render → Clouds</b> fills with soft clouds from the main to the sub colour, for skies and textures.</li>
     </ul>
     <h4>For line art</h4>
@@ -764,10 +770,11 @@ export const SHORTCUTS = [
     ['Shift+click', 'Straight line from the last stroke']]],
   ['Edit', [['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy / cut / paste'], ['Ctrl+T', 'Transform'],
     ['Del', 'Clear the selection or layer'], ['Alt+Del / Shift+Alt+Del', 'Fill the selection or layer with the main / sub colour'], ['Ctrl+F', 'Repeat the last filter']]],
-  ['Selection', [['Ctrl+A / Ctrl+D', 'Select all / deselect'], ['Ctrl+Shift+I', 'Invert the selection'], ['Q', 'Quick mask'],
+  ['Selection', [['Ctrl+A / Ctrl+D', 'Select all / deselect'], ['Ctrl+Shift+I', 'Invert the selection'], ['Ctrl+Shift+D', 'Reselect (bring back the last selection)'], ['Q', 'Quick mask'],
     ['Shift / Alt (while dragging)', 'Add to / subtract from the selection'], ['Ctrl+click a layer thumbnail', 'Select its pixels (+Shift add, +Alt subtract)']]],
   ['Layers', [['Ctrl+click (Move tool)', 'Pick the layer under the pointer'], ['Arrows / Shift+arrows (Move tool)', 'Move the layer or selection 1 / 10 px'], ['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],
     ['Ctrl+Shift+Alt+E', 'Merge visible to a new layer'], ['Ctrl+J / Ctrl+Shift+J', 'Copy / cut to a new layer'], ['F2', 'Rename the layer'],
+    ['Alt+] / Alt+[', 'Select the layer above / below'],
     ['Ctrl+click / Shift+click', 'Pick several layers'], ['Alt+click an eye', 'Show only that layer (again: the others come back)']]],
   ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
   ['View', [['Space (hold)', 'Move the view'], ['Shift+Space+drag', 'Turn the view'], ['Ctrl+Space+drag', 'Zoom in (right) / out (left)'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+Alt+0', 'Zoom to the selection'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
