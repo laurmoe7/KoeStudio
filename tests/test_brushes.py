@@ -687,9 +687,10 @@ class ClipStudioReader(unittest.TestCase):
     def test_spacing_modes(self):
         sp = lambda kind, gap: bi._sut_settings({'BrushSize': 10.0, 'BrushAutoIntervalType': kind, 'BrushInterval': gap})[0]['spacing']
         # Fixed uses the slider (A Grainy Textured Rake: 6.36%); the automatic ones ignore the greyed-out value left
-        # behind: Waved line keeps 100 on Normal, Pencil 10 on Wide, Oil paint 1 on Narrow
+        # behind (Waved line keeps 100 on Normal, Pencil 10 on Wide, Oil paint 1 on Narrow). Measured in CLIP STUDIO on
+        # a 100 px round tip: dabs 7.93 px apart on Normal, 11.89 on Wide, 3.97 on Narrow, so 8%, 12% and 4%
         self.assertEqual(sp(0, 6.357615894039736), 0.064)
-        self.assertEqual((sp(2, 100.0), sp(1, 10.0), sp(3, 1.0)), (0.1, 0.2, 0.05))
+        self.assertEqual((sp(2, 100.0), sp(1, 10.0), sp(3, 1.0)), (0.08, 0.12, 0.04))
         self.assertEqual(bi._sut_settings({'BrushSize': 10.0, 'BrushInterval': 12.0})[0]['spacing'], 0.12, 'no mode: fixed')
 
     def test_tilt(self):

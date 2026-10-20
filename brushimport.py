@@ -1095,9 +1095,10 @@ CSP_BLOCK = 256
 # 1001 and shows Brush Size, Firework ticks 1001 and 1021 and shows Brush Size, Brush density
 CSP_TAPER_SIZE, CSP_TAPER_DENSITY = 1001, 1021
 # Gap (BrushAutoIntervalType): 0 Fixed (the slider, BrushInterval), 1 Wide, 2 Normal, 3 Narrow (seen on the G-pen,
-# Pencil and Mechanical pencil). The automatic ones grey the slider out and leave its last value behind, so they get
-# a spacing of their own; these are estimates, not measured
-CSP_AUTO_SPACING = {1: 0.2, 2: 0.1, 3: 0.05}
+# Pencil and Mechanical pencil). The automatic ones grey the slider out and leave its last value behind. Measured in
+# CLIP STUDIO with a hard round tip at 10% density, from the steps where each dab starts in exported strokes: Narrow
+# 4%, Normal 8% and Wide 12% of the brush size, the same at 20, 100 and 300 px (Fixed 10 measured 10 px exactly)
+CSP_AUTO_SPACING = {1: 0.12, 2: 0.08, 3: 0.04}
 # a tip's direction (BrushRotationEffector, BrushRotationEffectorInSpray: plain ints, not blobs): 0x40 turns it with the
 # line, 0x80 at random; the two lowest bits are always set. Found by comparing the Rake pack's .sut and .abr brushes
 # (the Flat rakes, which do not turn in Photoshop, have 3; the turning ones 67)
