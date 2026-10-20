@@ -9,10 +9,10 @@
 // images; the dialog picks which to keep, saves their images (each once) and adds them as presets.
 
 import { api } from '../api.js';
-import { curveAt, stampAt, previewPath, previewSettings } from '../brush.js';
+import { curveAt, stampAt, grainAt, previewPath, previewSettings } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage, liveSource } from '../doc.js';
-import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from '../painter.js';
+import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, strengthFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from '../painter.js';
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
@@ -260,10 +260,12 @@ export const brushMethods = {
     const sctx = scratch.getContext('2d');
     let imp = impastoFor(b);
     if (imp) imp = { ...imp, canvas: this.previewHeight ||= document.createElement('canvas') };
+    const texture = textureFor(b, this.previewGrain ||= document.createElement('canvas'));
     const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, w, h), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
+      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, w, h), strength: strengthFor(texture, w, h), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(line, b)) {
       const { size, flow } = stampAt(b, st.p);
+      painter.grainK = grainAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f * painter.dry(st.d), 0, st.c, st.a ?? null, st.px != null ? { x: st.px, y: st.py } : null);
     }
     painter.finish();
@@ -291,7 +293,7 @@ export const brushMethods = {
       const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: b.dualTip });
       for (const st of dualStamps(line, b)) dp.dab(st.x, st.y, st.size, 1);
     }
-    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), wet: wetFor(b), impasto: imp, dual, combo }, r);
+    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture, wet: wetFor(b), impasto: imp, dual, combo }, r);
     ctx.globalAlpha = s.opacity ?? 1;
     ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
     ctx.globalAlpha = 1;

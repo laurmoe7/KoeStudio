@@ -3,12 +3,12 @@
 // pen stroke is committed; so a line looks the same drawn live and redrawn from the data.
 
 import { liveSource } from './doc.js';
-import { Painter, textureFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from './painter.js';
-import { stampAt } from './brush.js';
+import { Painter, textureFor, strengthFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from './painter.js';
+import { stampAt, grainAt } from './brush.js';
 import { strokeBounds, strokeStamps, dualStamps, seeded, brushOf } from './vector.js';
 import { clip } from './rect.js';
 
-let scratch = null, dualScratch = null, heightScratch = null;
+let scratch = null, dualScratch = null, heightScratch = null, grainScratch = null;
 
 /** Redraws the layer's lines inside rect (doc px; the whole layer when null), clearing that area first. */
 export function renderVector(layer, rect = null) {
@@ -33,10 +33,12 @@ export function renderVector(layer, rect = null) {
     sctx.clearRect(q.x, q.y, q.w, q.h);
     let imp = impastoFor(b);
     if (imp) imp = { ...imp, canvas: heightScratch ||= document.createElement('canvas') };
+    const texture = textureFor(b, grainScratch ||= document.createElement('canvas'));
     const painter = new Painter(sctx, { color: s.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
-      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
+      random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(s.seed + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, W, H, q), strength: strengthFor(texture, W, H, q), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(s, b)) {
       const { size, flow } = stampAt(b, st.p);
+      painter.grainK = grainAt(b, st.p);
       painter.dab(st.x, st.y, size * st.k, flow * st.f * painter.dry(st.d), 0, st.c, st.a ?? null, st.px != null ? { x: st.px, y: st.py } : null);
     }
     painter.finish();
@@ -49,7 +51,7 @@ export function renderVector(layer, rect = null) {
       const dp = new Painter(dctx, { color: '#000000', hardness: b.hardness, tip: b.dualTip });
       for (const st of dualStamps(s, b)) dp.dab(st.x, st.y, st.size, 1);
     }
-    const [src, sx, sy] = liveSource({ canvas: scratch, texture: textureFor(b), wet: wetFor(b), impasto: imp, dual }, a);
+    const [src, sx, sy] = liveSource({ canvas: scratch, texture, wet: wetFor(b), impasto: imp, dual }, a);
     ctx.globalAlpha = s.opacity;
     ctx.drawImage(src, sx, sy, a.w, a.h, a.x, a.y, a.w, a.h);
     ctx.globalAlpha = 1;

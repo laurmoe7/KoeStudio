@@ -723,8 +723,11 @@ class ClipStudioReader(unittest.TestCase):
         self.assertEqual(b['settings']['textureAmount'], 0.4)
         self.assertNotIn('grainPressure', b['settings'])
         s = bi.import_brushes('g.sut', make_sut({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40,
-                                                 'TextureForPlot': 1, 'TextureRotate': 45.0}, [(self.TEX, csp_package(tex))]))['brushes'][0]
+                                                 'TextureForPlot': 1, 'TextureRotate': 45.0, 'TextureDensityEffector': csp_effector(0x10, 25)},
+                                                [(self.TEX, csp_package(tex))]))['brushes'][0]
         self.assertIs(s['settings']['grainPressure'], True, 'Apply texture to each dab')
+        self.assertEqual(s['settings']['texturePressure'], 0.75, 'texture density by pressure, 25% at the lightest touch')
+        self.assertNotIn('texturePressure', b['settings'])
         self.assertEqual(s['notes'], ['Texture turned'])
         self.assertIs(b['settings']['textureInvert'], True, 'CLIP STUDIO paints where the texture is dark')
 

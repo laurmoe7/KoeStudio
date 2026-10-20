@@ -1577,8 +1577,8 @@ def _sut_settings(v):
         if g('TextureBrightness') or g('TextureContrast'):
             notes.append('Texture brightness and contrast')
         te = csp_effector(v.get('TextureDensityEffector'))
-        if te and te['pressure']:
-            notes.append('Texture strength changing with pen pressure')
+        if te and te['pressure']:  # stronger as the pen presses harder, from its minimum at the lightest touch
+            s['texturePressure'] = round(1 - te['pressureMin'], 2)
 
     # Starting and ending: CLIP STUDIO tapers only the settings ticked in its list, down to each one's minimum, and
     # only at the ends ticked. Starting and Ending are on in nearly every tool (the G-pen, the rakes) with nothing in

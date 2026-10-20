@@ -108,7 +108,8 @@ export const GUIDE = [
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.
       With <b>Grain by pressure</b> (on for the Pencil) a light touch only catches the tops of the grain and a firm one
       fills it in, as with graphite. Keep <b>Density</b> low (the Pencil uses 45%) so light lines stay grey: pressure
-      decides how deep the grain fills, Density how dark each pass is.</li>
+      decides how deep the grain fills, Density how dark each pass is. <b>Pen → grain</b> lets pressure change how
+      strongly the texture shows: above 0 a firm touch shows more grain, below 0 it shows less.</li>
       <li><b>Tip</b>: Round, or <b>Bristles</b>, a row of hairs; with <b>Turn with the stroke</b> on and the angle at
       90° each hair leaves its own streak, as a dry brush does. <b>Flat brush</b> is a full row of hairs that
       touch, like a flat oil brush, with a few stray hairs at the ends: solid paint with fine streaks along the
@@ -236,13 +237,16 @@ export const GUIDE = [
       leaves little on bare paper (the Wet blender).</li>
     </ul>
 
-    <h4>Texture and Grain by pressure (Texture page)</h4>
+    <h4>Texture, Pen → grain and Grain by pressure (Texture page)</h4>
     <ul>
       <li>The grain is fixed to the canvas, so strokes share it, like real paper.</li>
       <li><b>Grain by pressure</b>: a light touch catches only the tops of the grain and a firm one fills it in. Use
       it for pencils and chalk with the Round tip, and keep <b>Density</b> low (Pencil: 45%).</li>
       <li>Don't use Grain by pressure with the <b>Bristles</b> or <b>Flat brush</b> tip: each thin dab is cut on its
       own and the stroke turns into hatching. Use <b>Runs dry</b> instead.</li>
+      <li><b>Pen → grain</b>: at 100% a light touch paints smooth and pressing harder brings the grain in; at -100%
+      it is the other way round. 50% keeps half the grain at the lightest touch. It works with every tip, and with
+      Grain by pressure and Runs dry it scales the grain they show.</li>
       <li>The <b>Canvas</b> grain is a weave, so over a whole stroke it reads as cloth. For broken, painterly edges,
       Paper or Chalk look more natural.</li>
     </ul>

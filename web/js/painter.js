@@ -108,10 +108,14 @@ export class Painter {
   /** opts: color, hardness, and optionally tip ('round' or 'img:<id>'), thickness (0-1), angle (degrees),
    * random (0-1: share of a half turn either way), follow (turn with the stroke), rnd (random numbers 0-1; a seeded
    * source makes the random turns repeatable, as vector lines need), height ({ctx, k}: Impasto's height canvas, which
-   * gets every dab too, in black at k times its density, so the hairs' streaks build up as ridges without saturating). */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
+   * gets every dab too, in black at k times its density, so the hairs' streaks build up as ridges without saturating),
+   * strength ({ctx}: strengthFor, Pressure → grain on a stroke-wide texture: each dab stamps grainK there, which
+   * liveSource weighs the texture by). grainK (grainAt) is set before each dab and scales any texture it carries. */
+  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, strength = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
     this.ctx = ctx;
     this.height = pixel ? null : height;
+    this.strength = strength;
+    this.grainK = 1;
     this.grain = pixel ? null : grain;  // grainFor(s): every dab is cut against the paper (pressure fills the grooves)
     this.pixel = !!pixel;  // hard pixels (pixel art): whole-pixel round dabs, no soft edge, tip image or turn
     this.color = color;
@@ -190,7 +194,7 @@ export class Painter {
     // along the stroke and a flat tip leaves a spike at its start
     if (this.follow && dir === null && !this.pixel && !this.last[k]?.known) {
       const l = this.last[k] ||= { pending: [] }, p0 = l.pending[0];
-      if (!p0 || (hx - p0.hx) ** 2 + (hy - p0.hy) ** 2 <= 0.25) { l.pending.push({ x, y, hx, hy, size, alpha, color: this.color, dryT: this.dryT }); return; }
+      if (!p0 || (hx - p0.hx) ** 2 + (hy - p0.hy) ** 2 <= 0.25) { l.pending.push({ x, y, hx, hy, size, alpha, color: this.color, dryT: this.dryT, grainK: this.grainK }); return; }
       this.last[k] = { x: hx, y: hy, dir: Math.atan2(hy - p0.hy, hx - p0.hx), known: true };
       this.drawPending(l.pending, k);
     }
@@ -199,15 +203,17 @@ export class Painter {
 
   /** Draws the dabs held back until the stroke's direction was known (copy k's direction, or 0 for a tap). */
   drawPending(pending, k) {
-    const color = this.color, dryT = this.dryT;
+    const color = this.color, dryT = this.dryT, grainK = this.grainK;
     for (const p of pending) {
       this.setColor(p.color);
       this.dryT = p.dryT;
+      this.grainK = p.grainK;
       // in the direction found (worked out from these dabs, it pointed back from the next one: the first dab drawn back to front)
       this.put(p.x, p.y, p.size, p.alpha, this.rotation(p.hx, p.hy, k, this.last[k]?.known ? this.last[k].dir : 0));
     }
     this.setColor(color);
     this.dryT = dryT;
+    this.grainK = grainK;
   }
 
   /** At pen-up: draws dabs still waiting for a direction (a tap, or a stroke that never moved half a pixel). */
@@ -221,13 +227,27 @@ export class Painter {
       const sx = this.flipX && this.rnd() < 0.5 ? -1 : 1, sy = this.flipY && this.rnd() < 0.5 ? -1 : 1;
       this.mirror = [sx, sy * (this.roundJitter ? 1 - this.roundJitter * this.rnd() : 1)];
     } else this.mirror = null;
-    if (this.grain) this.grainDab(x, y, size, alpha, rot, this.grain);
+    if (this.grain) this.grainDab(x, y, size, alpha, rot, this.grain, null, this.grainK);
     // running dry on a texture: a loaded brush covers it, a drying one reaches less deep and the grooves show more.
     // The grain comes in only once the hairs have started to drop out, and never fully, so the dry end is streaks
     // broken by the grain rather than an even speckle
-    else if (this.dryGrain && this.dryT > DRY_GRAIN_FROM) this.grainDab(x, y, size, alpha, rot, this.dryGrain, 1 - 0.3 * this.dryT, 0.75 * (this.dryT - DRY_GRAIN_FROM) / (1 - DRY_GRAIN_FROM));
+    else if (this.dryGrain && this.dryT > DRY_GRAIN_FROM) this.grainDab(x, y, size, alpha, rot, this.dryGrain, 1 - 0.3 * this.dryT, 0.75 * this.grainK * (this.dryT - DRY_GRAIN_FROM) / (1 - DRY_GRAIN_FROM));
     else this.draw(this.ctx, x, y, size, alpha, rot);
     if (this.height) this.draw(this.height.ctx, x, y, size, alpha * this.height.k, rot);
+    if (this.strength) {  // the newest dab's strength replaces what lies under it (round, wide enough for a turned tip)
+      // cut out, then added: at an anti-aliased edge of coverage e that is s (1 - e) + k e, an even blend; source-over
+      // there gives less than both, and the edges of the overlapping circles showed as a fine mesh in the grain
+      const c = this.strength.ctx;
+      c.beginPath();
+      c.arc(x, y, size * 0.75 + 1, 0, Math.PI * 2);
+      c.globalAlpha = 1;
+      c.globalCompositeOperation = 'destination-out';
+      c.fill();
+      c.globalAlpha = Math.max(0, Math.min(1, this.grainK));
+      c.globalCompositeOperation = 'lighter';
+      c.fill();
+      c.globalCompositeOperation = 'source-over';
+    }
   }
 
   /**
@@ -411,10 +431,18 @@ const tiles = {};
 let grainScratch = null;
 
 /** The live.texture for a paint tool's settings, or null: a tile canvas whose alpha is what the grain removes. With
- * grainPressure the dabs carry the grain themselves (grainFor), so the stroke as a whole gets none. */
-export function textureFor(s) {
+ * grainPressure the dabs carry the grain themselves (grainFor), so the stroke as a whole gets none. With Pressure →
+ * grain (texturePressure) it takes the canvas `strength` (alpha: how much of the grain shows, stamped by the
+ * Painter; give it to the Painter through strengthFor). */
+export function textureFor(s, strength = null) {
   if (s.grainPressure || dryGrainFor(s)) return null;
-  return grainTile(s);
+  const t = grainTile(s);
+  return t && s.texturePressure && strength ? { ...t, strength } : t;
+}
+
+/** Painter's `strength` for a live.texture that has one (textureFor), cleared in r (all of it when r is left out). */
+export function strengthFor(texture, w, h, r = null) {
+  return texture?.strength ? { ctx: heightFor(texture.strength, w, h, r).ctx } : null;
 }
 
 /** The live.wet for a paint tool's settings, or null: how much of the stroke's middle drains to its edge (0-1), and

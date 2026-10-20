@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Pen → grain (Brush settings → Texture): pen pressure changes how strongly the texture shows, either way round; Clip Studio Paint brushes that do this bring it along.
 - Color mixing panel, as in Clip Studio Paint: dab and blend paint on a little scrap of paper under the Color panel, then click to take the mixed colour; it is kept between sessions.
 - Expression color, as in Clip Studio Paint: show a layer in Gray or Monochrome (black and white, with a threshold and optional see-through white) without changing its pixels, from the Layers panel or Layer → Expression color….
 - Edit → Pick screen color takes the main colour from anywhere on the screen, other programs included.

@@ -57,6 +57,17 @@ export function stampAt(s, p) {
 }
 
 /**
+ * How strongly the texture shows in a dab at raw pen pressure p (0-1, a share of Grain), through the gamma curve.
+ * texturePressure v above 0: a light touch shows (1 - v) of it and a firm one all; below 0 the other way round.
+ */
+export function grainAt(s, p) {
+  const v = Math.max(-1, Math.min(1, s.texturePressure || 0));
+  if (!v) return 1;
+  const q = pressureCurve(p, s.gamma ?? 1);
+  return v > 0 ? 1 - v * (1 - q) : 1 + v * q;
+}
+
+/**
  * Random variation of one dab: an offset of up to scatter x its size in any direction, and size and density
  * lowered by up to sizeJitter / flowJitter. rnd() gives numbers in [0, 1) (Math.random, or a fixed list in tests).
  */

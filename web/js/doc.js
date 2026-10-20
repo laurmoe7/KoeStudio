@@ -840,6 +840,7 @@ function strokeOf(live, r) {
  * Where to read region r of a live stroke from: [canvas, sx, sy]. A stroke with a brush texture
  * (live.texture = {tile, scale}, tile being a canvas whose alpha is what the grain removes) is copied to a scratch
  * canvas and the grain cut out of it there; the texture is anchored to the doc, so it never shifts between updates.
+ * With live.texture.strength (Pressure → grain) the grain is first weighed by that canvas's alpha.
  * A stroke inside a selection (live.sel) is cut down to it the same way, once per read: clipping the stroke canvas
  * itself after every dab would apply a feathered selection's partial alpha again and again. live.dual (a canvas of
  * the dual brush's dabs) and live.inside (where a brush that stays inside reference lines may paint) cut it down the same way.
@@ -853,12 +854,22 @@ export function liveSource(live, r) {
   if (live.wet) wetEdges(ctx, live, r);
   if (live.impasto) impasto(ctx, live, r);
   if (live.texture) {
-    const { tile, scale } = live.texture;
+    const { tile, scale, strength } = live.texture;
     if (!tile.pattern) tile.pattern = ctx.createPattern(tile, 'repeat');
     tile.pattern.setTransform(new DOMMatrix().translateSelf(-r.x, -r.y).scaleSelf(scale));
     ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = tile.pattern;
-    ctx.fillRect(0, 0, r.w, r.h);
+    if (strength) {  // Pressure → grain: the grain weighed by how strongly each dab showed it
+      const [g, gctx] = scratchCanvas('grain', r);
+      gctx.fillStyle = tile.pattern;
+      gctx.fillRect(0, 0, r.w, r.h);
+      gctx.globalCompositeOperation = 'destination-in';
+      gctx.drawImage(strength, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+      gctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(g, 0, 0, r.w, r.h, 0, 0, r.w, r.h);
+    } else {
+      ctx.fillStyle = tile.pattern;
+      ctx.fillRect(0, 0, r.w, r.h);
+    }
   }
   if (live.sel) {
     ctx.globalCompositeOperation = 'destination-in';

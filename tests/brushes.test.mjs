@@ -2,7 +2,7 @@
 // worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeCurve, curveAt, stampAt } from '../web/js/brush.js';
+import { sanitizeCurve, curveAt, stampAt, grainAt } from '../web/js/brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, tipReach } from '../web/js/brushtip.js';
 import { sanitizeSettings, applySettings, BRUSH_KEYS } from '../web/js/tools.js';
 
@@ -424,4 +424,31 @@ test('count jitter', async () => {
   assert.equal(dabCount({ count: 1, countJitter: 1 }, () => 0.99), 1, 'never fewer than 1');
   assert.equal(dabCount({ count: 4, countJitter: 1 }, () => 0.99), 1, 'at 100%: down to 1');
   assert.equal(sanitizeSettings(null).brush.countJitter, 0);
+});
+
+test('Pressure → grain: how strongly the texture shows at each pressure', async () => {
+  const { textureFor } = await import('../web/js/painter.js');
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  assert.equal(grainAt({}, 0.2), 1, 'off: always all of it');
+  assert.equal(grainAt({ texturePressure: 0 }, 0), 1);
+  // above 0: a light touch shows 1 - v, a firm one all of it, in a straight line between (gamma 1)
+  near(grainAt({ texturePressure: 1 }, 0), 0, 'full: none at the lightest touch');
+  near(grainAt({ texturePressure: 1 }, 0.3), 0.3, 'full: as the pressure');
+  near(grainAt({ texturePressure: 0.6 }, 0), 0.4, '1 - 0.6');
+  near(grainAt({ texturePressure: 0.6 }, 0.5), 0.7, '1 - 0.6 * 0.5');
+  near(grainAt({ texturePressure: 0.6 }, 1), 1, 'firm: all');
+  // below 0: the other way round
+  near(grainAt({ texturePressure: -1 }, 0.25), 0.75, 'pressing harder fills it in');
+  near(grainAt({ texturePressure: -0.5 }, 1), 0.5, 'firm: 1 - 0.5');
+  near(grainAt({ texturePressure: -0.5 }, 0), 1, 'light: all');
+  // through the pressure curve: gamma 2 makes 0.5 count as 0.25
+  near(grainAt({ texturePressure: 1, gamma: 2 }, 0.5), 0.25, 'gamma');
+  near(grainAt({ texturePressure: 5 }, 0.5), 0.5, 'clamped to 1');
+  // settings: off by default, kept in -1..1 by tools and vector lines
+  assert.equal(sanitizeSettings(null).brush.texturePressure, 0);
+  assert.equal(sanitizeSettings({ brush: { texturePressure: -3 } }).brush.texturePressure, -1);
+  assert.ok(BRUSH_KEYS.includes('texturePressure'));
+  assert.equal(sanitizeBrush({ texturePressure: -0.4 }).texturePressure, -0.4);
+  assert.equal(sanitizeBrush({ texturePressure: 2 }).texturePressure, 1);
+  assert.equal(textureFor({ texture: 'none', textureAmount: 0.5, texturePressure: 1 }, {}), null, 'no texture: nothing to weigh');
 });
