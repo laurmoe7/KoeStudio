@@ -1090,11 +1090,10 @@ def read_krita_bundle(z, filename):
 # density 0xb0: pressure, tilt and random). 0x100 is offered on size and density (not opacity or closed shapes) but
 # never ticked in any tool seen, and the popup shows no fifth input
 CSP_PRESSURE, CSP_TILT, CSP_VELOCITY, CSP_RANDOM = 0x10, 0x20, 0x40, 0x80
-# Length units (BrushInLengthUnit, ...) in the order of CLIP STUDIO's unit list: px, cm, mm, inch, pt, Q, as mm each.
-# 2 is mm: Real G-Pen's ends are 2.0 in it, about 28 px, where the px tools have 20 (cm would be 276 px). Converted
-# at CSP_DPI, CLIP STUDIO's usual canvas resolution, since a brush does not know the canvas.
-CSP_UNIT_MM = {0: None, 1: 10, 2: 1, 3: 25.4, 4: 25.4 / 72, 5: 0.25}
-CSP_DPI = 350
+# Starting and ending lengths (BrushInLength, ...) in px for each BrushInLengthUnit seen: 0 is px; 2 shows ten times
+# its value in CLIP STUDIO (Real G-Pen's 2.0 reads 20) and draws that many px (measured: a 20 px taper on a 72 dpi
+# canvas, the same at brush size 10 and 30, so neither mm nor a share of the size). Other units are noted.
+CSP_LENGTH_PX = {0: 1, 2: 10}
 CSP_BLOCK = 256
 # Starting and ending targets (BrushInOutTarget ids), read off CLIP STUDIO's list: Round watercolor brush ticks only
 # 1001 and shows Brush Size, Firework ticks 1001 and 1021 and shows Brush Size, Brush density
@@ -1599,9 +1598,9 @@ def _sut_settings(v):
 
     # Starting and ending: CLIP STUDIO tapers only the settings ticked in its list, down to each one's minimum, and
     # only at the ends ticked. Starting and Ending are on in nearly every tool (the G-pen, the rakes) with nothing in
-    # the list ticked, and then nothing tapers. How to specify (BrushInOutType): 0 by length, 1 by percentage, 2 fade.
-    # A fade measures both from the start of the line: Starting is then a start taper by length as usual, while
-    # Ending fades the line out a set length after its start, whether or not the pen is lifted (not in KoeStudio)
+    # the list ticked, and then nothing tapers. How to specify (BrushInOutType): 0 by length, 1 by percentage, 2 fade:
+    # a fade has no Starting (greyed out in CLIP STUDIO) and fades the line out the Ending length after its start,
+    # whether or not the pen is lifted (not in KoeStudio)
     targets = csp_taper_targets(v.get('BrushInOutTarget'))
     size_min, dens_min = targets.get(CSP_TAPER_SIZE), targets.get(CSP_TAPER_DENSITY)
     ends = [(setting, length, unit, label) for use, length, unit, setting, label in (
@@ -1615,13 +1614,13 @@ def _sut_settings(v):
             for setting, length, unit, label in ends:
                 if kind == 1:
                     notes.append(f'{label} as a share of the stroke')
-                elif kind == 2 and setting == 'taperOut':
-                    notes.append('Ending as a fade from the start of the line')
-                elif g(unit) not in CSP_UNIT_MM:
+                elif kind == 2:  # CLIP STUDIO greys Starting out for a fade (Greasil Mk2 has it ticked)
+                    if setting == 'taperOut':
+                        notes.append('Ending as a fade from the start of the line')
+                elif g(unit) not in CSP_LENGTH_PX:
                     notes.append(f'{label} in an unknown unit (check the length)')
                 elif g(length) > 0:
-                    px = g(length) * (CSP_UNIT_MM[g(unit)] * CSP_DPI / 25.4 if g(unit) else 1)
-                    s[setting], tapered = round(_clamp(px, 1, 500)), True
+                    s[setting], tapered = round(_clamp(g(length) * CSP_LENGTH_PX[g(unit)], 1, 500)), True
             if tapered:
                 # KoeStudio's taper goes down to 10% of the size at full Taper size, and fades by Taper opacity
                 s['taperSize'] = round(_clamp((1 - size_min) / 0.9, 0, 1), 2) if size_min is not None else 0

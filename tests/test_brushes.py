@@ -678,17 +678,17 @@ class ClipStudioReader(unittest.TestCase):
         notes = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushUseOut': 0, 'BrushInOutType': 1,
                                   'BrushInOutTarget': csp_taper_list((1001, 0))})[1]
         self.assertEqual(notes, ['Start taper as a share of the stroke'])
-        # lengths in mm are converted at 350 dpi: 20 mm is 20 * 350 / 25.4 = 275.6 px; 0.2 mm is 2.76 px
-        s, notes, *_ = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushOutLengthUnit': 2, 'BrushInOutType': 0,
+        # unit 2 is ten px a step (Real G-Pen's 2.0 shows as 20 in CLIP STUDIO and tapers over 20 px)
+        s, notes, *_ = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushOutLength': 1.4, 'BrushOutLengthUnit': 2, 'BrushInOutType': 0,
                                          'BrushInOutTarget': csp_taper_list((1001, 50))})
-        self.assertEqual([s.get(k) for k in keys], [20, 276, 0.56, None])
+        self.assertEqual([s.get(k) for k in keys], [20, 14, 0.56, None])
         self.assertEqual(notes, [])
         notes = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushOutLengthUnit': 9, 'BrushInOutTarget': csp_taper_list((1001, 50))})[1]
         self.assertEqual(notes, ['End taper in an unknown unit (check the length)'])
-        # Greasil: a fade with only Starting ticked (0.2 mm, density from 16%) is a start taper by length
+        # Greasil: a fade with only Starting ticked (density from 16%): CLIP STUDIO greys Starting out, so no taper
         s, notes, *_ = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushInLength': 0.2, 'BrushInLengthUnit': 2, 'BrushUseOut': 0,
                                          'BrushInOutType': 2, 'BrushInOutTarget': csp_taper_list((1001, 100), (1021, 16))})
-        self.assertEqual([s.get(k) for k in keys], [3, None, 0, 0.84])
+        self.assertEqual([s.get(k) for k in keys], [None, None, None, None])
         self.assertEqual(notes, [])
         # a fading Ending (gone a set length after the start, pen down or not) has no match
         notes = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushInOutType': 2, 'BrushInOutTarget': csp_taper_list((1021, 0))})[1]
