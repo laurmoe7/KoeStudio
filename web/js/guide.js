@@ -303,7 +303,7 @@ export const GUIDE = [
       or a leaf brush does not stamp the same shape over and over.</li>
       <li><b>In turn</b> goes round them; <b>Back and forth</b> goes to the last and back; <b>Once, then the last</b>
       uses each once at the start of the stroke and the last one for the rest; <b>At random</b> picks any.</li>
-      <li>Click ✕ to keep only the Tip. The pictures stay in your library.</li>
+      <li>Click ✕ to keep only the Tip. The pictures stay in your library. Choosing another Tip does the same.</li>
     </ul>
 
     <h4>No build-up (Stroke page)</h4>
