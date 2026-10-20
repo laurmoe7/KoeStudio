@@ -663,6 +663,33 @@ class ClipStudioReader(unittest.TestCase):
         self.assertIsNone(lost['tip'])
         self.assertEqual(lost['notes'], ["Its tip picture (Gone) is missing from Clip Studio Paint's materials"])
 
+    def test_clip_studio_open(self):
+        """Clip Studio saves its tool list only when it closes: while it is open the dialog says so."""
+        from unittest import mock
+
+        def build(db, names):
+            db.execute('CREATE TABLE Node(_PW_ID INTEGER PRIMARY KEY, NodeUuid BLOB, NodeName BLOB, NodeVariantID INTEGER)')
+            db.executemany('INSERT INTO Node VALUES (?, ?, ?, ?)', [(i + 1, n.encode(), n.encode(), 1) for i, n in enumerate(names)])
+            db.execute('CREATE TABLE Variant(VariantID, BrushSize)')
+            db.execute('INSERT INTO Variant VALUES (1, 10.0)')
+        with tempfile.TemporaryDirectory() as root:
+            todb = os.path.join(root, 'EditImageTool.todb')
+            for names, running, note in [(['G-pen', 'Mine'], True, True), (['G-pen', 'Mine'], False, False)]:
+                with open(todb, 'wb') as f:
+                    f.write(sqlite_bytes(lambda db: build(db, names), 4096))
+                with mock.patch.object(bi, 'csp_install_paths', return_value=(todb, {b'G-pen'}, root)):
+                    res = bi.clip_studio_brushes(running)
+                self.assertEqual([b['name'] for b in res['brushes']], ['Mine'])
+                self.assertEqual('openNote' in res, note)
+            with open(todb, 'wb') as f:
+                f.write(sqlite_bytes(lambda db: build(db, ['G-pen']), 4096))
+            with mock.patch.object(bi, 'csp_install_paths', return_value=(todb, {b'G-pen'}, root)):
+                with self.assertRaisesRegex(ValueError, 'close it first'):
+                    bi.clip_studio_brushes(True)
+                with self.assertRaisesRegex(ValueError, 'no brushes of your own'):
+                    bi.clip_studio_brushes(False)
+        self.assertIsInstance(bi.csp_running(), bool)
+
     def test_settings(self):
         res = bi.import_brushes('graphite.sut', make_sut({
             'BrushSize': 30.0, 'Opacity': 80, 'BrushFlow': 50, 'BrushHardness': 40, 'BrushInterval': 12.0, 'FlickerReduction': 25,

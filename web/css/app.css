@@ -601,6 +601,7 @@ svg.curve polyline { fill: none; stroke: var(--accent); stroke-width: 1.2; vecto
 .imp-card.on .imp-tick { display: grid; }
 .imp-note { position: absolute; bottom: 4px; right: 5px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; font: 700 10px/1 sans-serif; font-style: normal; background: color-mix(in srgb, #e0a030, var(--panel) 30%); color: #000; cursor: help; }
 .imp-card:has(.imp-note) .imp-name { padding: 0 18px; }
+.imp-open { margin: 8px 0 0; padding: 6px 10px; border-radius: 6px; border-left: 3px solid #e0a030; background: color-mix(in srgb, #e0a030 12%, transparent); }
 .imp-grid { overflow-x: hidden; }
 .imp-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .imp-group { display: flex; align-items: center; gap: 8px; font-size: 13px; }

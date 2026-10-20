@@ -175,6 +175,7 @@ export const GUIDE = [
       there. Clip Studio's own brushes are left out.</li>
       <li>Pick the ones you want and click <b>Import</b>. They go in a group called Clip Studio Paint.</li>
     </ol>
+    <p class="tip">Close Clip Studio Paint first: it saves the brushes you added only when it closes, so new ones are missing while it is open.</p>
     <p class="tip">There is nothing to export first, and Clip Studio Paint can stay open. Install a new brush in Clip
     Studio Paint, then import again to bring it over.</p>
     <p>Procreate brushes keep the size they have in Procreate. A pack's title cards (a logo or a "free sample" banner

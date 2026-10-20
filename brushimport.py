@@ -47,6 +47,7 @@ import posixpath
 import re
 import sqlite3
 import struct
+import subprocess
 import tarfile
 import xml.etree.ElementTree as ET
 import zipfile
@@ -1563,18 +1564,39 @@ def csp_install_paths():
     return user, builtin, os.path.join(celsys, 'CLIPStudioCommon', 'Material')
 
 
-def clip_studio_brushes():
-    """The brushes added to CLIP STUDIO PAINT on this PC (read_csp_tools), ready for the import dialog."""
+def csp_running():
+    """Whether CLIP STUDIO PAINT is open now. It writes its tool list only when it closes, so brushes added while it
+    is open are not in EditImageTool.todb yet (the downloaded ones' material_0.tool files are scrambled)."""
+    if os.name != 'nt':
+        return False
+    try:
+        out = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq CLIPStudioPaint.exe', '/FO', 'CSV', '/NH'], capture_output=True,
+                             text=True, timeout=10, creationflags=subprocess.CREATE_NO_WINDOW).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return 'clipstudiopaint.exe' in out.lower()
+
+
+def clip_studio_brushes(running=None):
+    """The brushes added to CLIP STUDIO PAINT on this PC (read_csp_tools), ready for the import dialog. While it is
+    open (`running`, found by csp_running when None) 'openNote' says that brushes added since it opened are missing."""
     found = csp_install_paths()
     if not found:
         raise ValueError('Clip Studio Paint was not found on this PC.')
+    if running is None:
+        running = csp_running()
     user, builtin, materials = found
     with open(user, 'rb') as f:  # a copy in memory: Clip Studio may have the file open
         data = f.read()
     res = read_csp_tools(data, builtin, materials)
     _number_repeats(res['brushes'], res['name'])
     if not res['brushes']:
+        if running:
+            raise ValueError('Clip Studio Paint is open: close it first, then try again. It saves the brushes you added only when it closes.')
         raise ValueError('Clip Studio Paint has no brushes of your own yet: only its own, which KoeStudio has its versions of.')
+    if running:
+        res['openNote'] = ('Clip Studio Paint is open, so brushes added to it since it was opened are not here yet: '
+                           'it saves them only when it closes. Close it and import again to get them.')
     return res
 
 

@@ -4,6 +4,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 
 ## 2026-10-20
 
+### Fixed
+- Importing brushes from Clip Studio Paint while it is open now says to close it first, since it saves newly added brushes only when it closes.
+
 ### New
 - Import brushes from Clip Studio Paint on this PC (Brush ⋯ menu, or Import… in the Brushes window): every brush you downloaded or made in Clip Studio shows up, with its tip and texture, with nothing to export first.
 - Grain angle (Brush settings → Texture) turns a brush's texture; Clip Studio Paint brushes bring their texture rotation.
