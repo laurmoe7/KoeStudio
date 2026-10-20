@@ -1416,7 +1416,7 @@ export class Editor {
       type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
       color, dabColors: varies && !s.colorJitterStroke, dyn,
       painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
-        tip: s.tip, tips: s.tips, tipOrder: s.tipOrder, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel, flipX: s.flipX, flipY: s.flipY, roundJitter: s.roundJitter,
+        tip: s.tip, tips: s.tips, tipOrder: s.tipOrder, darken: s.darkenDabs, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel, flipX: s.flipX, flipY: s.flipY, roundJitter: s.roundJitter,
         grain: grainFor(s), height: imp && heightFor(imp.canvas, this.doc.width, this.doc.height), strength: strengthFor(texture, this.doc.width, this.doc.height), copy: copyFor(texture, this.doc.width, this.doc.height), texDab: textureDabFor(s), dryOut: s.dryOut, dryAt: s.size, dryGrain: dryGrainFor(s) }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),

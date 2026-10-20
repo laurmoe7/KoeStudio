@@ -257,6 +257,34 @@ export function dynamicsAt(s, t = 0, v = 0) {
 export const dynamicsReach = s => Math.max(1, 1 + 2 * Math.max(0, s.tiltSize || 0)) * (1 + Math.max(0, -(s.speedSize || 0)));
 
 /**
+ * No build-up (CLIP STUDIO's Blend brush tips with Darken): overlapping dabs of one stroke keep the strongest one at
+ * each pixel instead of adding up. `data` is one dab's RGBA (n px wide, its top left at x0, y0 on a W x H stroke);
+ * `tiles` (a Map the caller keeps for the stroke) holds the strongest alpha laid at each pixel so far, in 64 px tiles.
+ * Each alpha a over the strongest so far s is turned into what laid with source-over brings the pixel to a:
+ * (a - s) / (255 - s) of the way, 0 where the dab is no stronger; the tiles then hold a.
+ */
+export function maxDabAlpha(data, n, x0, y0, W, H, tiles) {
+  let key = -1, tile = null;
+  for (let i = 0, len = data.length / 4; i < len; i++) {
+    const a = data[i * 4 + 3];
+    if (!a) continue;
+    const X = x0 + i % n, Y = y0 + (i / n | 0);
+    if (X < 0 || Y < 0 || X >= W || Y >= H) { data[i * 4 + 3] = 0; continue; }
+    const k = (Y >> 6) * 65536 + (X >> 6);
+    if (k !== key) {
+      key = k;
+      tile = tiles.get(k);
+      if (!tile) tiles.set(k, tile = new Uint8Array(4096));
+    }
+    const j = (Y & 63) * 64 + (X & 63), s = tile[j];
+    if (a <= s) { data[i * 4 + 3] = 0; continue; }
+    tile[j] = a;
+    data[i * 4 + 3] = Math.round(255 * (a - s) / (255 - s));
+  }
+  return data;
+}
+
+/**
  * Which of `count` tip pictures dab n (0 first, counted per stroke) uses, in the brush's tip order (CLIP STUDIO's
  * Repeat method): 'repeat' goes round them in turn, 'reverse' back and forth, 'last' through them once and then
  * keeps the last, 'random' picks any (rnd: numbers 0-1).

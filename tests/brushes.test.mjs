@@ -515,3 +515,31 @@ test('several tip pictures: kept by tools, saved brushes and vector lines', asyn
   const kept = [{ settings: { tip: 'round', tips: ['img:cccccccc'] } }];
   assert.deepEqual(orphanImages(removed, kept).sort(), ['aaaaaaaa', 'bbbbbbbb']);
 });
+
+test('No build-up: each pixel keeps the strongest dab, laid with source-over', async () => {
+  const { maxDabAlpha } = await import('../web/js/brush.js');
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  const tiles = new Map(), dab = (...alphas) => Uint8ClampedArray.from(alphas.flatMap(a => [10, 20, 30, a]));
+  const alphas = d => [...d].filter((_, i) => i % 4 === 3);
+  // a 2 x 1 dab at (5, 5): nothing laid yet, so the alphas go down as they are
+  assert.deepEqual(alphas(maxDabAlpha(dab(100, 0), 2, 5, 5, 100, 100, tiles)), [100, 0]);
+  // the same again: no stronger, nothing to lay; the colour stays
+  const again = maxDabAlpha(dab(100, 60), 2, 5, 5, 100, 100, tiles);
+  assert.deepEqual(alphas(again), [0, 60]);
+  assert.deepEqual([...again.slice(0, 3)], [10, 20, 30]);
+  // stronger: 200 over 100 lays (200 - 100) / (255 - 100) x 255 = 164.5 → 165, and source-over then gives
+  // 100 + 165 x (255 - 100) / 255 = 200.3, the 200 asked for
+  assert.deepEqual(alphas(maxDabAlpha(dab(200), 1, 5, 5, 100, 100, tiles)), [165]);
+  assert.deepEqual(alphas(maxDabAlpha(dab(150), 1, 5, 5, 100, 100, tiles)), [0], 'weaker than the 200 now kept');
+  // full: 255 over 200 lays all of it
+  assert.deepEqual(alphas(maxDabAlpha(dab(255), 1, 5, 5, 100, 100, tiles)), [255]);
+  // outside the stroke canvas: nothing laid, nothing kept; another 64 px tile keeps its own
+  assert.deepEqual(alphas(maxDabAlpha(dab(90, 90, 90), 3, -1, 99, 100, 100, tiles)), [0, 90, 90], 'x -1 is off the canvas, x 0 and 1 on it');
+  assert.deepEqual(alphas(maxDabAlpha(dab(90), 1, 3, 100, 100, 100, tiles)), [0], 'row 100 is below it');
+  assert.deepEqual(alphas(maxDabAlpha(dab(90), 1, 70, 5, 100, 100, tiles)), [90]);
+  assert.equal(tiles.size, 3);
+  // kept by tools and vector lines, off by default
+  assert.equal(sanitizeSettings(null).brush.darkenDabs, false);
+  assert.equal(sanitizeSettings({ brush: { darkenDabs: 1 } }).brush.darkenDabs, true);
+  assert.deepEqual([sanitizeBrush({}).darkenDabs, sanitizeBrush({ darkenDabs: true }).darkenDabs], [false, true]);
+});

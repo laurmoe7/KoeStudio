@@ -7,7 +7,7 @@
 
 import { textureTile, grooveAlpha, TILE } from './textures.js';
 import { imageRef, bristleDots, flatDots } from './brushtip.js';
-import { pixelSpans, dryness, dryDab, DRY_LEVELS, tipIndex } from './brush.js';
+import { pixelSpans, dryness, dryDab, DRY_LEVELS, tipIndex, maxDabAlpha } from './brush.js';
 import { applyTextureMode, textureValueAt } from './texmodes.js';
 
 const TIP = 128;
@@ -116,8 +116,9 @@ export class Painter {
    * every dab is drawn there too, in memory, for liveSource to work the mode out from), texDab (textureDabFor:
    * Texture each dab, every dab worked out with its texture mode on its own). grainK (grainAt) is set before each
    * dab and scales any texture it carries. tips (more 'img:<id>' tip pictures) are taken in turns with the tip, in
-   * tipOrder (brush.js tipIndex), counted per symmetric copy. */
-  constructor(ctx, { color, hardness, tip = 'round', tips = null, tipOrder = 'repeat', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, strength = null, copy = null, texDab = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
+   * tipOrder (brush.js tipIndex), counted per symmetric copy. darken (No build-up): overlapping dabs keep the
+   * strongest one instead of adding up (maxDabAlpha, worked out in memory per dab, as Texture each dab is). */
+  constructor(ctx, { color, hardness, tip = 'round', tips = null, tipOrder = 'repeat', darken = false, thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, strength = null, copy = null, texDab = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
     this.ctx = ctx;
     this.height = pixel ? null : height;
     this.strength = strength;
@@ -136,6 +137,7 @@ export class Painter {
     this.tipOrder = tipOrder;
     this.tipAt = 0;
     this.tipN = [];  // per symmetric copy: dabs so far
+    this.darken = darken && !pixel ? new Map() : null;  // No build-up: the strongest alpha laid so far, in tiles
     this.dryOut = this.mask && !pixel ? Math.max(0, Math.min(1, dryOut || 0)) : 0;  // Runs dry: tip images only
     this.dryAt = dryAt;  // the brush size dryness is measured in
     this.dryLevel = 0;
@@ -274,9 +276,10 @@ export class Painter {
     // The grain comes in only once the hairs have started to drop out, and never fully, so the dry end is streaks
     // broken by the grain rather than an even speckle
     else if (this.dryGrain && this.dryT > DRY_GRAIN_FROM) this.grainDab(x, y, size, alpha, rot, this.dryGrain, 1 - 0.3 * this.dryT, 0.75 * this.grainK * (this.dryT - DRY_GRAIN_FROM) / (1 - DRY_GRAIN_FROM));
+    else if (this.darken) this.modeDab(x, y, size, alpha, rot);  // lays the copy's dab too
     else this.draw(this.ctx, x, y, size, alpha, rot);
     if (this.height) this.draw(this.height.ctx, x, y, size, alpha * this.height.k, rot);
-    if (this.copy) this.draw(this.copy.ctx, x, y, size, alpha, rot);
+    if (this.copy && !this.darken) this.draw(this.copy.ctx, x, y, size, alpha, rot);
     if (this.strength) {  // the newest dab's strength replaces what lies under it (round, wide enough for a turned tip)
       // cut out, then added: at an anti-aliased edge of coverage e that is s (1 - e) + k e, an even blend; source-over
       // there gives less than both, and the edges of the overlapping circles showed as a fine mesh in the grain
@@ -338,9 +341,10 @@ export class Painter {
   }
 
   /**
-   * Texture each dab (CLIP STUDIO's Apply by each plot): the dab is drawn into a small canvas in memory, its density
-   * worked out pixel by pixel with the texture mode (texmodes.js) against the doc-anchored texture, and laid down.
-   * Pen → grain scales the texture density per dab (grainK).
+   * A dab worked out pixel by pixel in a small canvas in memory, then laid down. With Texture each dab (CLIP STUDIO's
+   * Apply by each plot) its density goes through the texture mode (texmodes.js) against the doc-anchored texture,
+   * Pen → grain scaling the texture density per dab (grainK); with No build-up only what it adds over the strongest
+   * dab so far is laid (maxDabAlpha), on the stroke and on its copy for a whole-stroke texture mode.
    */
   modeDab(x, y, size, alpha, rot) {
     const reach = size * 0.75 + 2;
@@ -352,11 +356,17 @@ export class Painter {
     g.globalAlpha = 1;
     g.clearRect(0, 0, n, n);
     this.draw(g, x - x0, y - y0, size, alpha, rot);
-    const img = g.getImageData(0, 0, n, n), { mode, D, values: v } = this.texDab;
-    applyTextureMode(img.data, mode, D * Math.max(0, Math.min(1, this.grainK)), i => textureValueAt(v, x0 + i % n, y0 + (i / n | 0)));
+    const img = g.getImageData(0, 0, n, n);
+    if (this.texDab) {
+      const { mode, D, values: v } = this.texDab;
+      applyTextureMode(img.data, mode, D * Math.max(0, Math.min(1, this.grainK)), i => textureValueAt(v, x0 + i % n, y0 + (i / n | 0)));
+    }
+    if (this.darken) maxDabAlpha(img.data, n, x0, y0, this.ctx.canvas.width, this.ctx.canvas.height, this.darken);
     g.putImageData(img, 0, 0);
-    this.ctx.globalAlpha = 1;
-    this.ctx.drawImage(c, 0, 0, n, n, x0, y0, n, n);
+    for (const ctx of this.darken && this.copy ? [this.ctx, this.copy.ctx] : [this.ctx]) {
+      ctx.globalAlpha = 1;
+      ctx.drawImage(c, 0, 0, n, n, x0, y0, n, n);
+    }
   }
 
   /** Draws one dab onto ctx at density alpha, turned rot radians. */

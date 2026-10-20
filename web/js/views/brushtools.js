@@ -270,7 +270,7 @@ export const brushMethods = {
     let imp = impastoFor(b);
     if (imp) imp = { ...imp, canvas: this.previewHeight ||= document.createElement('canvas') };
     const texture = textureFor(b, this.previewTex ||= {});
-    const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, tips: b.tips, tipOrder: b.tipOrder, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
+    const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, tips: b.tips, tipOrder: b.tipOrder, darken: b.darkenDabs, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
       random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, w, h), strength: strengthFor(texture, w, h), copy: copyFor(texture, w, h), texDab: textureDabFor(b), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(line, b)) {
       const { size, flow } = stampAt(b, st.p);

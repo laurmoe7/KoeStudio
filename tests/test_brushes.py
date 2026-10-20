@@ -987,11 +987,12 @@ class ClipStudioReader(unittest.TestCase):
         b = res['brushes'][0]
         self.assertEqual((b['name'], b['tip'], b['tips'], b['settings']['tipOrder']), ('Graphite', 0, [1], 'last'))
         self.assertEqual([im['name'] for im in res['images']], ['C', 'HB'])
-        self.assertEqual(b['notes'], ['Overlapping dabs blended with Darken (they build up instead)'])
+        self.assertEqual((b['settings']['darkenDabs'], b['notes']), (True, []), 'Darken: No build-up')
         # a picture listed twice comes round twice but is saved once; Random
         res = bi.import_brushes('a.sut', sut([(self.TIP, 'C'), (TIP2, 'HB'), (self.TIP, 'C')], BrushPatternOrderType=3))
         b = res['brushes'][0]
         self.assertEqual((b['tip'], b['tips'], b['settings']['tipOrder'], len(res['images'])), (0, [1, 0], 'random', 2))
+        self.assertNotIn('darkenDabs', b['settings'])
         # Reverse; One time only stops painting after a round, which KoeStudio does not
         s = bi._sut_settings({'BrushSize': 9.0, 'BrushUsePatternImage': 1, 'BrushPatternImageArray': two, 'BrushPatternOrderType': 1})[0]
         self.assertEqual(s['tipOrder'], 'reverse')

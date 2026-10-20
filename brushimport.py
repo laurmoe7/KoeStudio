@@ -1731,8 +1731,8 @@ def _sut_settings(v):
         s['tipOrder'] = CSP_TIP_ORDERS.get(order, 'repeat')
         if order in (4, 5):
             notes.append('It stops painting after one round of its tip pictures')
-    if tips and g('BrushBlendPatternByDarken'):
-        notes.append('Overlapping dabs blended with Darken (they build up instead)')
+    if tips and g('BrushBlendPatternByDarken'):  # Blend brush tips with Darken: overlapping dabs keep the strongest
+        s['darkenDabs'] = True
     s['thickness'] = round(_clamp(g('BrushThickness', 100) / 100, 0.05, 1), 2)
     angle = g('BrushRotation', 0.0) + (90 if s['thickness'] < 1 and not g('BrushVerticalThicknes', 1) else 0)
     s['tipAngle'] = round(angle) % 360

@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- No build-up (Brush settings → Stroke): overlapping dabs of a stroke keep the strongest one instead of piling up to solid, and Clip Studio Paint brushes that blend their tips with Darken bring it, so the Artemus pencils stay pencil-grey.
 - Brushes can take turns with several tip pictures (Brush settings → Tip: More tips and Tip order), and Clip Studio Paint brushes bring all of theirs.
 - Upright size and Tilt size curve (Brush settings → Tilt and speed): a brush can be thin with the pen held up and widen as you lean it, and Tilt → size now goes up to ten times; Clip Studio Paint brushes bring their size changing with pen tilt.
 - Clip Studio Paint brushes whose opacity follows pen pressure keep that, through their density.

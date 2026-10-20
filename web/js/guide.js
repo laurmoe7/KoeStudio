@@ -99,7 +99,8 @@ export const GUIDE = [
       <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).
       A brush imported with several tip pictures shows them under <b>More tips</b> and takes turns with them, as <b>Tip order</b> says.</li>
       <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
-      <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>
+      <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below). <b>No build-up</b> stops overlapping
+      dabs from adding up, so a stroke stays as light as one dab.</li>
       <li><b>Tilt and speed</b>: tilt the pen to make the brush bigger or lighter (like shading with the side of a
       pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. <b>Upright size</b> below 100% makes
       the brush thinner with the pen held upright, so it only grows as you lean it. Tilt needs a pen that reports it.
@@ -303,6 +304,17 @@ export const GUIDE = [
       <li><b>In turn</b> goes round them; <b>Back and forth</b> goes to the last and back; <b>Once, then the last</b>
       uses each once at the start of the stroke and the last one for the rest; <b>At random</b> picks any.</li>
       <li>Click ✕ to keep only the Tip. The pictures stay in your library.</li>
+    </ul>
+
+    <h4>No build-up (Stroke page)</h4>
+    <ul>
+      <li>Usually the dabs of a stroke pile up: with tight spacing even a low Density soon paints solid. With No
+      build-up each spot keeps only the strongest dab that touched it, so Density and pen pressure decide how dark
+      the stroke gets, as with a real pencil.</li>
+      <li>Good for pencils and other textured brushes with very tight spacing (1-5%). Clip Studio Paint brushes with
+      Blend brush tips with Darken come with it on.</li>
+      <li>Crossing your own stroke does not darken it either; lift the pen to build up a darker tone. It does not
+      apply with Grain by pressure.</li>
     </ul>
 
     <h4>Upright size and Tilt size curve (Tilt and speed page)</h4>
