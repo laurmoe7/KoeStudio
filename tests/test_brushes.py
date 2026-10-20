@@ -762,6 +762,13 @@ class ClipStudioReader(unittest.TestCase):
         # contrast 50: twice as steep round 127.5; -50: half as steep
         self.assertEqual(list(bi.csp_texture_tone(gray, alpha, 0, 50)[0]), [0, 73, 255, 255, 127])
         self.assertEqual(list(bi.csp_texture_tone(gray, alpha, 0, -50)[0]), [64, 114, 164, 191, 127])
+        # brightness first, then contrast: -28 then 50 takes 100 to (100 - 35.7 - 127.5) * 2 + 128 = 1.6 (contrast
+        # first would give 73 - 35.7 = 37), 200 to 201.6, the flattened 127 to 55.6
+        self.assertEqual(list(bi.csp_texture_tone(gray, alpha, -28, 50)[0]), [0, 1, 201, 255, 55])
+        # the ends, as CLIP STUDIO paints them: 100 splits between 127 and 128, -100 is flat 128 (paint 127/255)
+        steps = bytes([0, 127, 128, 200, 255])
+        self.assertEqual(list(bi.csp_texture_tone(steps, bytes([255]) * 5, 0, 100)[0]), [0, 0, 255, 255, 255])
+        self.assertEqual(list(bi.csp_texture_tone(steps, bytes([255]) * 5, 0, -100)[0]), [128] * 5)
         # in an import: Greasil's -28 darkens the saved picture (the test material has ink only: half see-through
         # flattens to 127, -28 makes it 91; solid ink stays 0)
         tex = csp_layer(2, 1, {(0, 0): (128, 0), (1, 0): (255, 0)})

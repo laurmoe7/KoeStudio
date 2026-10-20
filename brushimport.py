@@ -1474,8 +1474,10 @@ def csp_texture_tone(gray, alpha, brightness, contrast):
     """A texture picture with CLIP STUDIO's texture Brightness and Contrast (-100 to 100) applied, as (gray, alpha):
     flattened onto white first (see-through is paper, as textureGray in brushtip.js reads it), then brightness moves
     every level by half its value in % of the range (measured in CLIP STUDIO: -28 made the texture 0.14 darker, before
-    Invert texture), and contrast stretches round the middle: slope 1 + c/100 below 0 (flat gray at -100),
-    1 / (1 - c/100) above (a hard threshold at 100), as a Brightness/Contrast filter does (not measured)."""
+    Invert texture), then contrast stretches round the middle: slope 1 + c/100 below 0 (flat gray at -100),
+    1 / (1 - c/100) above (a hard threshold between 127 and 128 at 100). Measured in CLIP STUDIO with G-pen taps at
+    contrast -100 to 100 and with brightness: every level within 1/255 (above 0 CLIP STUDIO is a hair steeper,
+    0.4-0.7%, with no single rule that fits all values)."""
     b, c = _clamp(brightness, -100, 100) / 200 * 255, _clamp(contrast, -100, 100) / 100
     slope = 1 + c if c <= 0 else 1 / max(1e-3, 1 - c)
     lut = bytes(int(_clamp(math.floor((x + b - 127.5) * slope + 128), 0, 255)) for x in range(256))  # rounded half up
