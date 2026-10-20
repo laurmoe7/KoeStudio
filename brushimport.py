@@ -1086,8 +1086,18 @@ def read_krita_bundle(z, filename):
 
 # ---------- Clip Studio Paint ----------
 
+# an effector's inputs, as ticked in CLIP STUDIO's Dynamics popup (G-pen size 0x30: pen pressure and tilt; Pencil
+# density 0xb0: pressure, tilt and random). 0x100 is offered on size and density (not opacity or closed shapes) but
+# never ticked in any tool seen, and the popup shows no fifth input
 CSP_PRESSURE, CSP_TILT, CSP_VELOCITY, CSP_RANDOM = 0x10, 0x20, 0x40, 0x80
 CSP_BLOCK = 256
+# Starting and ending targets (BrushInOutTarget ids), read off CLIP STUDIO's list: Round watercolor brush ticks only
+# 1001 and shows Brush Size, Firework ticks 1001 and 1021 and shows Brush Size, Brush density
+CSP_TAPER_SIZE, CSP_TAPER_DENSITY = 1001, 1021
+# Gap (BrushAutoIntervalType): 0 Fixed (the slider, BrushInterval), 1 Wide, 2 Normal, 3 Narrow (seen on the G-pen,
+# Pencil and Mechanical pencil). The automatic ones grey the slider out and leave its last value behind, so they get
+# a spacing of their own; these are estimates, not measured
+CSP_AUTO_SPACING = {1: 0.2, 2: 0.1, 3: 0.05}
 # a tip's direction (BrushRotationEffector, BrushRotationEffectorInSpray: plain ints, not blobs): 0x40 turns it with the
 # line, 0x80 at random; the two lowest bits are always set. Found by comparing the Rake pack's .sut and .abr brushes
 # (the Flat rakes, which do not turn in Photoshop, have 3; the turning ones 67)
@@ -1096,7 +1106,8 @@ CSP_LINE_DIRECTION = 0x40
 
 def csp_effector(blob):
     """An effector blob (big-endian): 11 int32 (header size 44, available inputs, enabled inputs, then each input's
-    minimum in percent: pressure, tilt, velocity, random), then curves: int32 header size 12, point count, point size
+    minimum in percent: pressure, tilt, velocity, random; the last is tilt's maximum, 150 on the G-pen and 400 on the
+    Pencil, as CLIP STUDIO shows them), then curves: int32 header size 12, point count, point size
     16, then (x, y) float64 pairs; the first is the pen pressure curve. {'pressure', 'tilt', 'velocity', 'random':
     bools, 'pressureMin', 'velocityMin', 'randomMin': 0-1, 'curve': [[x, y], ...] or None}, or None when missing or not
     understood."""
@@ -1119,6 +1130,23 @@ def csp_effector(blob):
                 if math.isfinite(x) and math.isfinite(y):
                     pts.append([round(_clamp(x, 0, 1), 4), round(_clamp(y, 0, 1), 4)])
             out['curve'] = pts if len(pts) >= 2 else None
+    return out
+
+
+def csp_taper_targets(blob):
+    """The settings a Starting and ending taper acts on, from BrushInOutTarget (big-endian int32: header size 12,
+    count, entry size 12, then per entry the setting id, ticked, and its minimum in percent): {id: minimum 0-1} of the
+    ticked ones, {} when missing or not understood."""
+    if not isinstance(blob, bytes) or len(blob) < 12:
+        return {}
+    head, n, size = struct.unpack('>3i', blob[:12])
+    if head < 12 or size < 12 or not 0 <= n <= 256 or head + n * size > len(blob):
+        return {}
+    out = {}
+    for i in range(n):
+        sid, on, low = struct.unpack('>3i', blob[head + i * size:head + i * size + 12])
+        if on:
+            out[sid] = _clamp(low / 100, 0, 1)
     return out
 
 
@@ -1452,7 +1480,8 @@ def _sut_settings(v):
     s['opacity'] = round(_clamp(g('Opacity', 100) / 100, 0.01, 1), 2)
     s['flow'] = round(_clamp(g('BrushFlow', 100) / 100, 0.01, 1), 2)
     s['hardness'] = round(_clamp(g('BrushHardness', 100) / 100, 0, 1), 2)
-    s['spacing'] = round(_clamp(g('BrushInterval', 10) / 100, MIN_SPACING, 1), 3)
+    gap = CSP_AUTO_SPACING.get(g('BrushAutoIntervalType'))
+    s['spacing'] = gap if gap else round(_clamp(g('BrushInterval', 10) / 100, MIN_SPACING, 1), 3)
     if g('FlickerReduction'):  # stabilization 0-100
         s['smoothing'] = round(_clamp(g('FlickerReduction') / 5, 0, 20))
 
@@ -1550,14 +1579,33 @@ def _sut_settings(v):
         if te and te['pressure']:
             notes.append('Texture strength changing with pen pressure')
 
-    # start and end tapers, when given in pixels (a share of the stroke has no match)
-    for use, length, unit, setting, label in (('BrushUseIn', 'BrushInLength', 'BrushInLengthUnit', 'taperIn', 'Start taper'),
-                                              ('BrushUseOut', 'BrushOutLength', 'BrushOutLengthUnit', 'taperOut', 'End taper')):
-        if g(use):
-            if g(unit) == 0 and g(length) > 0:
-                s[setting] = round(_clamp(g(length), 1, 500))
-            else:
-                notes.append(f'{label} as a share of the stroke')
+    # Starting and ending: CLIP STUDIO tapers only the settings ticked in its list, down to each one's minimum, and
+    # only at the ends ticked. Starting and Ending are on in nearly every tool (the G-pen, the rakes) with nothing in
+    # the list ticked, and then nothing tapers. How to specify (BrushInOutType): 0 by length, 1 by percentage, 2 fade
+    targets = csp_taper_targets(v.get('BrushInOutTarget'))
+    size_min, dens_min = targets.get(CSP_TAPER_SIZE), targets.get(CSP_TAPER_DENSITY)
+    ends = [(setting, length, unit, label) for use, length, unit, setting, label in (
+        ('BrushUseIn', 'BrushInLength', 'BrushInLengthUnit', 'taperIn', 'Start taper'),
+        ('BrushUseOut', 'BrushOutLength', 'BrushOutLengthUnit', 'taperOut', 'End taper')) if g(use)]
+    if ends and targets:
+        if set(targets) - {CSP_TAPER_SIZE, CSP_TAPER_DENSITY}:
+            notes.append('Starting and ending on other settings than size and density')
+        if size_min is not None or dens_min is not None:
+            kind, tapered = g('BrushInOutType'), False
+            for setting, length, unit, label in ends:
+                if kind == 1:
+                    notes.append(f'{label} as a share of the stroke')
+                elif kind == 2:
+                    notes.append(f'{label} as a fade')
+                elif g(unit):
+                    notes.append(f'{label} in mm or points (check the length)')
+                elif g(length) > 0:
+                    s[setting], tapered = round(_clamp(g(length), 1, 500)), True
+            if tapered:
+                # KoeStudio's taper goes down to 10% of the size at full Taper size, and fades by Taper opacity
+                s['taperSize'] = round(_clamp((1 - size_min) / 0.9, 0, 1), 2) if size_min is not None else 0
+                if dens_min is not None and dens_min < 1:
+                    s['taperOpacity'] = round(1 - dens_min, 2)
 
     # colour jitter per dab (hue in degrees either way, saturation and value in percent) or once per stroke
     for use, keys, stroke in (('BrushChangePatternColor', ('BrushHueChange', 'BrushSaturationChange', 'BrushValueChange'), False),

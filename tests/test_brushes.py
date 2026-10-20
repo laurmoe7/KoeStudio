@@ -557,6 +557,12 @@ def csp_effector(on, pressure_min=0, random_min=0, curve=None, velocity_min=0):
     return head
 
 
+def csp_taper_list(*ticked, ids=(112, 1001, 1021, 1041, 1051, 1082, 1084, 1093, 1100, 1104, 1106, 1108, 1132, 1134)):
+    """A BrushInOutTarget blob: every id in `ids`, those in `ticked` ((id, minimum %) pairs) ticked."""
+    on = dict(ticked)
+    return struct.pack('>3i', 12, len(ids), 12) + b''.join(struct.pack('>3i', i, i in on, on.get(i, 0)) for i in ids)
+
+
 def make_sut(variant, materials=()):
     """A .sut file: one brush 'Graphite' with the given Variant columns, and MaterialFile rows (path, FileData)."""
     def build(db):
@@ -594,9 +600,10 @@ class ClipStudioReader(unittest.TestCase):
             'gamma': 1, 'size': 30.0, 'opacity': 0.8, 'flow': 0.5, 'hardness': 0.4, 'spacing': 0.12, 'smoothing': 5,
             'thickness': 0.5, 'tipAngle': 120, 'tipRandom': 0.2, 'tipFollow': True, 'flipX': True,
             'pressureSize': True, 'minSize': 0.3, 'sizeCurve': [[0, 0], [0.5, 0.25], [1, 1]], 'sizeJitter': 0.4,
-            'pressureOpacity': True, 'minFlow': 0.1, 'taperIn': 40, 'hueJitter': 0.2, 'valJitter': 0.25, 'colorJitterStroke': True,
+            'pressureOpacity': True, 'minFlow': 0.1, 'hueJitter': 0.2, 'valJitter': 0.25, 'colorJitterStroke': True,
             'mix': 0.3, 'paintLoad': 0.45, 'mixStretch': 0.15})
-        self.assertEqual(b['notes'], ['End taper as a share of the stroke', 'Dual brush'])
+        # Starting and Ending ticked with nothing in the list to taper (no BrushInOutTarget): no taper
+        self.assertEqual(b['notes'], ['Dual brush'])
         self.assertIsNone(b['tip'])
         self.assertEqual(res['images'], [])
 
@@ -641,6 +648,55 @@ class ClipStudioReader(unittest.TestCase):
                                          'BrushIntervalEffector': csp_effector(0x80, random_min=50)})
         self.assertEqual((s['speedSize'], s['speedFlow']), (0.6, 0.3))
         self.assertEqual(notes, ['Spacing changing at random'])
+
+    def test_tapers(self):
+        ends = {'BrushUseIn': 1, 'BrushInLength': 20.0, 'BrushInLengthUnit': 0, 'BrushUseOut': 1, 'BrushOutLength': 20.0,
+                'BrushOutLengthUnit': 0, 'BrushInOutType': 0}
+        keys = ('taperIn', 'taperOut', 'taperSize', 'taperOpacity')
+        # G-pen and every rake in the Rake pack: Starting and Ending ticked at 20, but 'Starting and ending: None'
+        s, notes, *_ = bi._sut_settings({'BrushSize': 10.0, **ends, 'BrushInOutTarget': csp_taper_list()})
+        self.assertEqual([k for k in keys if k in s], [])
+        self.assertEqual(notes, [])
+        # Round watercolor brush: Brush Size ticked (minimum 0) but Starting and Ending not: no taper either
+        s = bi._sut_settings({'BrushSize': 80.0, **ends, 'BrushUseIn': 0, 'BrushUseOut': 0,
+                              'BrushInOutTarget': csp_taper_list((1001, 0))})[0]
+        self.assertEqual([k for k in keys if k in s], [])
+        # size down to 80% (Real G-Pen's minimum) and density to 40%, 30 px in and 50 px out: KoeStudio's full Taper
+        # size goes to 10%, so 20% less is 0.2 / 0.9 = 0.22 of it; density to 40% is Taper opacity 0.6
+        s, notes, *_ = bi._sut_settings({'BrushSize': 10.0, **ends, 'BrushInLength': 30.0, 'BrushOutLength': 50.0,
+                                         'BrushInOutTarget': csp_taper_list((1001, 80), (1021, 40))})
+        self.assertEqual([s.get(k) for k in keys], [30, 50, 0.22, 0.6])
+        self.assertEqual(notes, [])
+        # size to 0 (Round watercolor brush's minimum) is KoeStudio's smallest, 10%; only the start ticked
+        s = bi._sut_settings({'BrushSize': 80.0, **ends, 'BrushUseOut': 0, 'BrushInOutTarget': csp_taper_list((1001, 0))})[0]
+        self.assertEqual([s.get(k) for k in keys], [20, None, 1, None])
+        # density only, down to 25%, and the gap too (no match): the size stays
+        s, notes, *_ = bi._sut_settings({'BrushSize': 10.0, **ends, 'BrushInOutTarget': csp_taper_list((1021, 25), (1041, 0))})
+        self.assertEqual([s.get(k) for k in keys], [20, 20, 0, 0.75])
+        self.assertEqual(notes, ['Starting and ending on other settings than size and density'])
+        # Scattered focus lines: by percentage; Greasil: a fade, its length in another unit
+        notes = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushUseOut': 0, 'BrushInOutType': 1,
+                                  'BrushInOutTarget': csp_taper_list((1001, 0))})[1]
+        self.assertEqual(notes, ['Start taper as a share of the stroke'])
+        s, notes, *_ = bi._sut_settings({'BrushSize': 3.0, **ends, 'BrushOutLengthUnit': 2, 'BrushInOutType': 0,
+                                         'BrushInOutTarget': csp_taper_list((1001, 50))})
+        self.assertEqual([s.get(k) for k in keys], [20, None, 0.56, None])
+        self.assertEqual(notes, ['End taper in mm or points (check the length)'])
+        self.assertEqual(bi.csp_taper_targets(b'junk'), {})
+
+    def test_spacing_modes(self):
+        sp = lambda kind, gap: bi._sut_settings({'BrushSize': 10.0, 'BrushAutoIntervalType': kind, 'BrushInterval': gap})[0]['spacing']
+        # Fixed uses the slider (A Grainy Textured Rake: 6.36%); the automatic ones ignore the greyed-out value left
+        # behind: Waved line keeps 100 on Normal, Pencil 10 on Wide, Oil paint 1 on Narrow
+        self.assertEqual(sp(0, 6.357615894039736), 0.064)
+        self.assertEqual((sp(2, 100.0), sp(1, 10.0), sp(3, 1.0)), (0.1, 0.2, 0.05))
+        self.assertEqual(bi._sut_settings({'BrushSize': 10.0, 'BrushInterval': 12.0})[0]['spacing'], 0.12, 'no mode: fixed')
+
+    def test_tilt(self):
+        # G-pen size: 0x30 is Pen pressure and Tilt ticked in CLIP STUDIO's Brush Size Dynamics
+        s, notes, *_ = bi._sut_settings({'BrushSize': 10.0, 'BrushSizeEffector': csp_effector(0x30)})
+        self.assertIs(s['pressureSize'], True)
+        self.assertEqual(notes, ['Size changing with pen tilt'])
 
     def test_tip_and_texture_pictures(self):
         # a 3 x 2 ink mark (with a half-strength pixel) inside a 6 x 5 material; a 4 x 4 grain
