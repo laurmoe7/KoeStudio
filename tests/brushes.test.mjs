@@ -387,15 +387,19 @@ test('a tip turning with the stroke: smoothed direction and dabs added on turns'
   near(smoothDir(0, 0, 1, 10), Math.PI / 2, 'a small tip averages over half a pixel only');
   near(smoothDir(1, 0, 0, 500), 1, 'no move keeps the direction');
   // turning 0.1 rad over a 2 px step with a tip reaching 100 px: its end swings 10 px -> 5 parts, 4 dabs in between
-  const f = turnFill({ x: 0, y: 0, dir: 0 }, { x: 2, y: 0, dir: 0.1 }, 100);
+  const f = turnFill({ x: 0, y: 0, dir: 0, half: 100 }, { x: 2, y: 0, dir: 0.1, half: 100 });
   assert.equal(f.length, 4);
   near(f[0].x, 0.4, 'evenly spaced'); near(f[0].dir, 0.02, 'turned a fifth');
   near(f[3].dir, 0.08, 'last one');
-  assert.equal(turnFill({ x: 0, y: 0, dir: 0 }, { x: 4, y: 0, dir: 0.01 }, 100).length, 0, 'the end moves 1 px: none needed');
+  assert.equal(turnFill({ x: 0, y: 0, dir: 0, half: 100 }, { x: 4, y: 0, dir: 0.01, half: 100 }).length, 0, 'the end moves 1 px: none needed');
   // from just under a half turn to just over: the short way round (2 pi - 6.08 = 0.2032 rad, end swings 2.03 px over
   // a 1 px step -> 3 parts), going on past pi
-  const w = turnFill({ x: 0, y: 0, dir: 3.04 }, { x: 1, y: 0, dir: -3.04 }, 10);
+  const w = turnFill({ x: 0, y: 0, dir: 3.04, half: 10 }, { x: 1, y: 0, dir: -3.04, half: 10 });
   assert.equal(w.length, 2);
   near(w[1].dir, 3.04 + 2 * (2 * Math.PI - 6.08) / 3, 'two thirds of the short turn');
-  assert.equal(turnFill({ x: 0, y: 0, dir: 0 }, { x: 1, y: 0, dir: 3 }, 1000).length, 47, 'at most 48 parts');
+  // tapering: the tip shrinks from reaching 100 px to 90 over a 2 px step, its ends slide 10 px in -> 5 parts
+  const s = turnFill({ x: 0, y: 0, dir: 0, half: 100 }, { x: 2, y: 0, dir: 0, half: 90 });
+  assert.equal(s.length, 4);
+  near(s[1].half, 96, 'shrinks evenly'); near(s[1].x, 0.8, 'and moves on');
+  assert.equal(turnFill({ x: 0, y: 0, dir: 0, half: 1000 }, { x: 1, y: 0, dir: 3, half: 1000 }).length, 47, 'at most 48 parts');
 });

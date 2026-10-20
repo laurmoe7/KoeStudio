@@ -192,11 +192,12 @@ export class Painter {
       this.drawPending(l.pending, k);
     }
     const l = this.follow && dir === null && !this.pixel && !this.random ? this.last[k] : null;
-    const from = l?.known ? { x: l.x, y: l.y, dir: l.dir } : null;
+    const from = l?.known ? { x: l.x, y: l.y, dir: l.dir, half: (l.size ?? size) / 2 } : null;
     const rot = this.pixel ? 0 : this.rotation(x, y, k, dir, size);
-    // a long tip turning with the stroke: its ends swing further than the dabs are apart, so dabs are added in
-    // between where it turns (a rake's outer hairs would otherwise break into dots on a curve)
-    if (from) for (const q of turnFill(from, { x, y, dir: l.dir }, size / 2)) this.put(q.x, q.y, size, alpha, this.angle + q.dir);
+    // a long tip turning with the stroke: its ends swing (or, as it tapers, slide in) further than the dabs are
+    // apart, so dabs are added in between (a rake's outer hairs would otherwise break into dots)
+    if (from) for (const q of turnFill(from, { x, y, dir: l.dir, half: size / 2 })) this.put(q.x, q.y, q.half * 2, alpha, this.angle + q.dir);
+    if (l) l.size = size;
     this.put(x, y, size, alpha, rot);
   }
 
@@ -342,20 +343,21 @@ export function smoothDir(dir, dx, dy, size) {
 }
 
 /**
- * Dabs to add between dab `a` and dab `b` ({x, y, dir}) of a tip reaching `half` px from its middle, so that its
- * ends never move further between two dabs than its middle does (and at least 1 px): positions and directions in
- * between, evenly spaced, the turn taken the short way round. At most 48, so a sharp turn of a huge tip stays quick.
+ * Dabs to add between dab `a` and dab `b` ({x, y, dir, half: how far the tip reaches from its middle}) so that the
+ * tip's ends never move further between two dabs, by turning or growing / shrinking, than its middle does (and at
+ * least 1 px): positions, directions and reaches in between, evenly spaced, the turn taken the short way round. At
+ * most 48, so a sharp turn of a huge tip stays quick.
  */
-export function turnFill(a, b, half) {
+export function turnFill(a, b) {
   let turn = (b.dir - a.dir) % (2 * Math.PI);
   if (turn > Math.PI) turn -= 2 * Math.PI;
   else if (turn < -Math.PI) turn += 2 * Math.PI;
   const step = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
-  const n = Math.min(48, Math.ceil(Math.abs(turn) * half / step));
+  const n = Math.min(48, Math.ceil((Math.abs(turn) * Math.max(a.half, b.half) + Math.abs(b.half - a.half)) / step));
   const out = [];
   for (let i = 1; i < n; i++) {
     const t = i / n;
-    out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, dir: a.dir + turn * t });
+    out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, dir: a.dir + turn * t, half: a.half + (b.half - a.half) * t });
   }
   return out;
 }

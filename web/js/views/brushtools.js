@@ -681,7 +681,8 @@ export const brushMethods = {
         temp.set(k, id);
       } catch { /* drawn with a round tip */ } finally { if (made) URL.revokeObjectURL(url); }
     }));
-    const base = this.brushSettingsOf(TOOL_BY_ID.brush.defaults), ref = k => (temp.has(k) ? `img:${temp.get(k)}` : null);
+    // without the Brush tool's end taper: a brush file brings its own tapers or has none
+    const base = { ...this.brushSettingsOf(TOOL_BY_ID.brush.defaults), taperIn: 0, taperOut: 0 }, ref = k => (temp.has(k) ? `img:${temp.get(k)}` : null);
     const looks = res.brushes.map(b => applySettings({ ...base }, { ...b.settings,
       tip: ref(b.tip) || 'round', texture: ref(b.texture) || 'none', ...(ref(b.dual) ? { dualTip: ref(b.dual) } : {}),
       ...combined(b, ref(b.combo?.tip) || 'round') }));

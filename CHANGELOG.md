@@ -14,7 +14,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
-- Rake brushes and other long tips that turn with the stroke draw unbroken lines on curves instead of dotted ones.
+- Rake brushes and other long tips that turn with the stroke draw unbroken lines on curves and where they taper, instead of dotted ones.
+- Imported brushes no longer get the Brush tool's end taper when the brush file has none.
 - Imported Photoshop brushes with long, thin tips (rakes) paint solid lines instead of rows of dots: their spacing is now measured as Photoshop does, from the tip's short side.
 - Imported Procreate brushes get the size they have in Procreate, using the brush's own minimum and maximum size; most used to come in a few pixels wide.
 - A Procreate pack's title cards (a logo or a "free sample" banner shown as a brush) are no longer imported as brushes.
