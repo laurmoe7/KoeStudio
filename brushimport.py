@@ -1150,6 +1150,8 @@ CSP_LINE_DIRECTION = 0x40
 CSP_TIP_ORDERS = {0: 'repeat', 1: 'reverse', 2: 'last', 3: 'random', 4: 'repeat', 5: 'random'}
 # the most tip pictures a KoeStudio brush takes turns with (tools.js MAX_TIPS)
 MAX_TIPS = 16
+# the most points a KoeStudio curve keeps (brush.js sanitizeCurve)
+MAX_CURVE = 16
 
 
 def csp_effector(blob):
@@ -1184,6 +1186,10 @@ def csp_effector(blob):
             x, y = struct.unpack('>2d', blob[pos + head + i * size:pos + head + i * size + 16])
             if math.isfinite(x) and math.isfinite(y):
                 pts.append([round(_clamp(x, 0, 1), 4), round(_clamp(y, 0, 1), 4)])
+        pts.sort()
+        pts = [q for i, q in enumerate(pts) if i == 0 or q[0] > pts[i - 1][0]]  # in order, one point per x
+        if len(pts) > MAX_CURVE:  # KoeStudio keeps 16 points (brush.js sanitizeCurve): the same line through fewer
+            pts = [[round(i / (MAX_CURVE - 1), 4), round(curve_at(pts, i / (MAX_CURVE - 1)), 4)] for i in range(MAX_CURVE)]
         return pts if len(pts) >= 2 else None
 
     pressure_len, tilt_len = max(0, ints[8]), max(0, ints[9])

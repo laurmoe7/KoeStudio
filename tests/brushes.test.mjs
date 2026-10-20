@@ -256,6 +256,15 @@ test('a brush counts as changed once a setting it keeps differs', async () => {
   assert.equal(brushChanged(s, undefined), false, 'no brush loaded: Custom');
 });
 
+test('a brush saved before newer settings existed loads them at their defaults', async () => {
+  const { fullBrush } = await import('../web/js/builtinbrushes.js');
+  // after an imported Artemus pencil (two tips, No build-up, thin upright), an older brush keeping only a size
+  const s = applySettings({ ...sanitizeSettings({}).brush }, { tips: ['img:aaaaaaaa'], tipOrder: 'last', darkenDabs: true, tiltSizeMin: 0, tiltSize: 3 });
+  applySettings(s, fullBrush({ size: 12 }));
+  assert.deepEqual([s.size, s.tips, s.tipOrder, s.darkenDabs, s.tiltSizeMin, s.tiltSize], [12, [], 'repeat', false, 1, 0]);
+  assert.deepEqual(fullBrush(null).tips, [], 'no settings at all: the defaults');
+});
+
 test('wet edges', async () => {
   const { wetFor } = await import('../web/js/painter.js');
   const { sanitizeBrush } = await import('../web/js/vector.js');

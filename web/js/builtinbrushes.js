@@ -11,6 +11,12 @@ const BASE = { ...Object.fromEntries(BRUSH_KEYS.map(k => [k, TOOL_BY_ID.brush.de
 
 const B = (id, group, name, settings) => ({ id: `b-${id}`, group, name, builtin: true, settings: { ...BASE, ...settings } });
 
+/**
+ * A saved brush's settings with every paint setting it lacks (added to KoeStudio after it was saved) at the default
+ * (BASE): loading it then turns such a setting off rather than keeping what the brush before it had.
+ */
+export const fullBrush = settings => ({ ...BASE, ...(settings && typeof settings === 'object' ? settings : {}) });
+
 export const BUILTIN_BRUSHES = [
   // ink: hard edges, size from pressure, tapered ends
   B('gpen', 'Ink', 'G-pen', { size: 8, flow: 1, hardness: 1, spacing: 0.05, minSize: 0.05, gamma: 1.2, smoothing: 5, taperIn: 12, taperOut: 24, speedSize: -0.15 }),

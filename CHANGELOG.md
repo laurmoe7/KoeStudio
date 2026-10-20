@@ -36,6 +36,10 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Switching to a brush saved before a setting existed now turns that setting off, instead of keeping it from the brush used before (for example the Artemus pencils' second tip and No build-up).
+- Choosing another Tip for a brush with several tip pictures now uses just that tip, instead of still taking turns with the old ones.
+- Clip Studio Paint pressure and tilt curves with more than 16 points keep their whole shape instead of being cut short.
+- With No build-up and Grain by pressure both on, a texture mode other than Multiply no longer loses the stroke.
 - Clip Studio Paint brushes with opacity set to change with pen pressure from 100% are no longer marked as losing it, since it does nothing there either.
 - Clip Studio Paint brushes with tilt but no pressure curve no longer read the tilt curve as their pressure curve.
 - Importing brushes from Clip Studio Paint while it is open now says to close it first, since it saves newly added brushes only when it closes.

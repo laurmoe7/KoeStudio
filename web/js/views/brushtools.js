@@ -16,7 +16,7 @@ import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, st
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
-import { BUILTIN_BY_ID, brushListGroups, brushChanged } from '../builtinbrushes.js';
+import { BUILTIN_BY_ID, brushListGroups, brushChanged, fullBrush } from '../builtinbrushes.js';
 import { esc, toast, menu, modal, promptBox, confirmBox, store } from '../ui.js';
 import { icon } from '../icons.js';
 import { comboSettings, comboOp, comboFrom } from '../combo.js';
@@ -92,6 +92,7 @@ export const brushMethods = {
   async loadBrushLibrary() {
     try {
       this.brushLib = await api.brushes();
+      for (const p of this.brushLib.presets) p.settings = fullBrush(p.settings);  // saved before newer settings existed
     } catch {
       this.brushLib = { images: [], presets: [] };
     }
@@ -612,7 +613,7 @@ export const brushMethods = {
     const entry = await this.uploadBrushImage(kind);
     if (!entry) return;
     const s = this.settings[this.tool];
-    if (kind === 'tip' && 'tip' in s) s.tip = `img:${entry.id}`;
+    if (kind === 'tip' && 'tip' in s) { s.tip = `img:${entry.id}`; s.tips = []; }  // the new picture alone
     if (kind === 'texture' && 'texture' in s) { s.texture = `img:${entry.id}`; if (!(s.textureAmount > 0)) s.textureAmount = 0.5; }
     store('tools', this.settings);
     this.renderToolProps();

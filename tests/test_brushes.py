@@ -929,6 +929,18 @@ class ClipStudioReader(unittest.TestCase):
         old = bi.csp_effector(csp_effector(0x10, curve=[(0, 0), (1, 0.5)], sizes=False))
         self.assertEqual((old['curve'], old['tiltCurve']), ([[0, 0], [1, 0.5]], None), 'no sizes: the curve there is pressure')
 
+    def test_effector_curve_points(self):
+        """Curves come in order with one point per x, and one of more than 16 points (KoeStudio keeps 16) is redrawn
+        through 16 evenly spaced points instead of losing its end."""
+        e = bi.csp_effector(csp_effector(0x10, curve=[(1, 1), (0, 0), (0.5, 0.3), (0.5, 0.4)]))
+        self.assertEqual(e['curve'], [[0, 0], [0.5, 0.3], [1, 1]])
+        # y = x on 31 points: the same straight line at x 0, 1/15, ... 1
+        e = bi.csp_effector(csp_effector(0x10, curve=[(i / 30, i / 30) for i in range(31)]))
+        self.assertEqual(len(e['curve']), 16)
+        self.assertEqual(e['curve'][-1], [1, 1])
+        for x, y in e['curve']:
+            self.assertAlmostEqual(x, y, places=3)
+
     def test_size_with_tilt(self):
         keys = ('tiltSizeMin', 'tiltSize', 'tiltSizeCurve')
         size = lambda **k: bi._sut_settings({'BrushSize': 10.0, 'BrushSizeEffector': csp_effector(0x30, **k)})

@@ -1078,12 +1078,15 @@ export class Editor {
       inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
         const k = inp.dataset.k;
         s[k] = inp.type === 'checkbox' ? inp.checked : inp.tagName === 'SELECT' ? inp.value : k === 'size' ? sliderToSize(+inp.value) : +inp.value;
+        // another Tip replaces the imported brush's tip pictures too (it would otherwise show only now and then)
+        const dropTips = k === 'tip' && s.tips?.length;
+        if (dropTips) s.tips = [];
         const out = inp.parentElement.querySelector('output');
         if (out) out.textContent = fmt(k, s[k]);
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged(k);
         if (k === 'sample' && (t.id === 'fill' || t.id === 'wand')) this.prepareSample(t.id);  // the other pixels, ready too
-        if (k === 'texture' || k === 'figure' || k === 'comboTip') this.renderToolProps();  // which settings show depends on these
+        if (k === 'texture' || k === 'figure' || k === 'comboTip' || dropTips) this.renderToolProps();  // which settings show depends on these
         else this.showSetting(k, inp);
         this.drawBrushPreview();
         this.drawGradientStrip();

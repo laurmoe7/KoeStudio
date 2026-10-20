@@ -270,16 +270,17 @@ export class Painter {
       const sx = this.flipX && this.rnd() < 0.5 ? -1 : 1, sy = this.flipY && this.rnd() < 0.5 ? -1 : 1;
       this.mirror = [sx, sy * (this.roundJitter ? 1 - this.roundJitter * this.rnd() : 1)];
     } else this.mirror = null;
+    let copied = false;  // modeDab with No build-up lays the copy's dab itself
     if (this.grain) this.grainDab(x, y, size, alpha, rot, this.grain, null, this.grainK);
-    else if (this.texDab) this.modeDab(x, y, size, alpha, rot);
+    else if (this.texDab) copied = this.modeDab(x, y, size, alpha, rot);
     // running dry on a texture: a loaded brush covers it, a drying one reaches less deep and the grooves show more.
     // The grain comes in only once the hairs have started to drop out, and never fully, so the dry end is streaks
     // broken by the grain rather than an even speckle
     else if (this.dryGrain && this.dryT > DRY_GRAIN_FROM) this.grainDab(x, y, size, alpha, rot, this.dryGrain, 1 - 0.3 * this.dryT, 0.75 * this.grainK * (this.dryT - DRY_GRAIN_FROM) / (1 - DRY_GRAIN_FROM));
-    else if (this.darken) this.modeDab(x, y, size, alpha, rot);  // lays the copy's dab too
+    else if (this.darken) copied = this.modeDab(x, y, size, alpha, rot);
     else this.draw(this.ctx, x, y, size, alpha, rot);
     if (this.height) this.draw(this.height.ctx, x, y, size, alpha * this.height.k, rot);
-    if (this.copy && !this.darken) this.draw(this.copy.ctx, x, y, size, alpha, rot);
+    if (this.copy && !copied) this.draw(this.copy.ctx, x, y, size, alpha, rot);
     if (this.strength) {  // the newest dab's strength replaces what lies under it (round, wide enough for a turned tip)
       // cut out, then added: at an anti-aliased edge of coverage e that is s (1 - e) + k e, an even blend; source-over
       // there gives less than both, and the edges of the overlapping circles showed as a fine mesh in the grain
@@ -367,6 +368,7 @@ export class Painter {
       ctx.globalAlpha = 1;
       ctx.drawImage(c, 0, 0, n, n, x0, y0, n, n);
     }
+    return !!(this.darken && this.copy);  // whether the copy got the dab
   }
 
   /** Draws one dab onto ctx at density alpha, turned rot radians. */
