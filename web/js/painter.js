@@ -191,7 +191,13 @@ export class Painter {
       this.last[k] = { x, y, dir: Math.atan2(y - p0.y, x - p0.x), known: true };
       this.drawPending(l.pending, k);
     }
-    this.put(x, y, size, alpha, this.pixel ? 0 : this.rotation(x, y, k, dir));
+    const l = this.follow && dir === null && !this.pixel && !this.random ? this.last[k] : null;
+    const from = l?.known ? { x: l.x, y: l.y, dir: l.dir } : null;
+    const rot = this.pixel ? 0 : this.rotation(x, y, k, dir, size);
+    // a long tip turning with the stroke: its ends swing further than the dabs are apart, so dabs are added in
+    // between where it turns (a rake's outer hairs would otherwise break into dots on a curve)
+    if (from) for (const q of turnFill(from, { x, y, dir: l.dir }, size / 2)) this.put(q.x, q.y, size, alpha, this.angle + q.dir);
+    this.put(x, y, size, alpha, rot);
   }
 
   /** Draws the dabs held back until the stroke's direction was known (copy k's direction, or 0 for a tap). */
@@ -200,7 +206,7 @@ export class Painter {
     for (const p of pending) {
       this.setColor(p.color);
       this.dryT = p.dryT;
-      this.put(p.x, p.y, p.size, p.alpha, this.rotation(p.x, p.y, k, this.last[k]?.known ? null : 0));
+      this.put(p.x, p.y, p.size, p.alpha, this.rotation(p.x, p.y, k, this.last[k]?.known ? this.last[k].dir : 0));
     }
     this.setColor(color);
     this.dryT = dryT;
@@ -305,20 +311,53 @@ export class Painter {
     ctx.restore();
   }
 
-  rotation(x, y, k, dir = null) {
+  rotation(x, y, k, dir = null, size = 0) {
     let a = this.angle;
     if (dir !== null) a += dir;
     else if (this.follow) {
       const l = this.last[k];
       if (l?.known) {
         const dx = x - l.x, dy = y - l.y;
-        if (dx * dx + dy * dy > 0.25) { l.dir = Math.atan2(dy, dx); l.x = x; l.y = y; }
+        if (dx * dx + dy * dy > 0.25) { l.dir = smoothDir(l.dir, dx, dy, size); l.x = x; l.y = y; }
         a += l.dir;
       }
     }
     if (this.random) a += (this.rnd() * 2 - 1) * Math.PI * this.random;
     return a;
   }
+}
+
+/**
+ * The stroke's direction after a move of (dx, dy) from a dab, turned from the last direction `dir` (radians): the
+ * move counts fully once it is as long as the stretch the direction is averaged over (a 50th of the tip's size,
+ * 0.5-20 px). Taken from each move alone, a pen's pixel steps made a big tip swing a few degrees from dab to dab,
+ * and a rake's outer hairs jumped about into dashes.
+ */
+export function smoothDir(dir, dx, dy, size) {
+  const d = Math.hypot(dx, dy);
+  if (!d) return dir;
+  const w = Math.min(1, d / Math.max(0.5, Math.min(20, size / 50)));
+  const vx = Math.cos(dir) * (1 - w) + dx / d * w, vy = Math.sin(dir) * (1 - w) + dy / d * w;
+  return vx * vx + vy * vy < 1e-12 ? Math.atan2(dy, dx) : Math.atan2(vy, vx);
+}
+
+/**
+ * Dabs to add between dab `a` and dab `b` ({x, y, dir}) of a tip reaching `half` px from its middle, so that its
+ * ends never move further between two dabs than its middle does (and at least 1 px): positions and directions in
+ * between, evenly spaced, the turn taken the short way round. At most 48, so a sharp turn of a huge tip stays quick.
+ */
+export function turnFill(a, b, half) {
+  let turn = (b.dir - a.dir) % (2 * Math.PI);
+  if (turn > Math.PI) turn -= 2 * Math.PI;
+  else if (turn < -Math.PI) turn += 2 * Math.PI;
+  const step = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+  const n = Math.min(48, Math.ceil(Math.abs(turn) * half / step));
+  const out = [];
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, dir: a.dir + turn * t });
+  }
+  return out;
 }
 
 const dryMasks = new WeakMap();  // tip mask -> its dry levels (dryMask)

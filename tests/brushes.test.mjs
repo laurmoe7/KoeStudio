@@ -378,3 +378,24 @@ test('runs dry', async () => {
   assert.equal(oil.dryOut, 0.3);
   assert.equal(oil.texture, 'paper');
 });
+
+test('a tip turning with the stroke: smoothed direction and dabs added on turns', async () => {
+  const { smoothDir, turnFill } = await import('../web/js/painter.js');
+  // a 500 px tip averages over 10 px: a 5 px move straight down from heading right goes halfway, (0.5, 0.5) -> 45°
+  near(smoothDir(0, 0, 5, 500), Math.PI / 4, 'half a turn toward the move');
+  near(smoothDir(0, 0, 10, 500), Math.PI / 2, 'a full stretch: the move itself');
+  near(smoothDir(0, 0, 1, 10), Math.PI / 2, 'a small tip averages over half a pixel only');
+  near(smoothDir(1, 0, 0, 500), 1, 'no move keeps the direction');
+  // turning 0.1 rad over a 2 px step with a tip reaching 100 px: its end swings 10 px -> 5 parts, 4 dabs in between
+  const f = turnFill({ x: 0, y: 0, dir: 0 }, { x: 2, y: 0, dir: 0.1 }, 100);
+  assert.equal(f.length, 4);
+  near(f[0].x, 0.4, 'evenly spaced'); near(f[0].dir, 0.02, 'turned a fifth');
+  near(f[3].dir, 0.08, 'last one');
+  assert.equal(turnFill({ x: 0, y: 0, dir: 0 }, { x: 4, y: 0, dir: 0.01 }, 100).length, 0, 'the end moves 1 px: none needed');
+  // from just under a half turn to just over: the short way round (2 pi - 6.08 = 0.2032 rad, end swings 2.03 px over
+  // a 1 px step -> 3 parts), going on past pi
+  const w = turnFill({ x: 0, y: 0, dir: 3.04 }, { x: 1, y: 0, dir: -3.04 }, 10);
+  assert.equal(w.length, 2);
+  near(w[1].dir, 3.04 + 2 * (2 * Math.PI - 6.08) / 3, 'two thirds of the short turn');
+  assert.equal(turnFill({ x: 0, y: 0, dir: 0 }, { x: 1, y: 0, dir: 3 }, 1000).length, 47, 'at most 48 parts');
+});
