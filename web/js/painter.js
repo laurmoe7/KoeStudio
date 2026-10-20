@@ -286,7 +286,7 @@ export class Painter {
     g.globalCompositeOperation = 'xor';
     g.fillRect(0, 0, n, n);
     if (!tile.pattern) tile.pattern = g.createPattern(tile, 'repeat');
-    tile.pattern.setTransform(new DOMMatrix().translateSelf(-x0, -y0).scaleSelf(scale));
+    tile.pattern.setTransform(new DOMMatrix().translateSelf(-x0, -y0).rotateSelf(grain.angle || 0).scaleSelf(scale));
     g.globalCompositeOperation = 'lighter';
     g.globalAlpha = grooveK;
     g.fillStyle = tile.pattern;
@@ -518,7 +518,14 @@ function grainValues(s) {
     if (!gray) return null;
     values[key] = { gray: s.textureInvert ? Uint8Array.from(gray, g => 255 - g) : gray, w: img ? img.w : TILE, h: img ? img.h : TILE };
   }
-  return { ...values[key], scale: s.textureScale || 1 };
+  return { ...values[key], scale: s.textureScale || 1, ...turnOf(s.textureAngle) };
+}
+
+/** {cos, sin} of a texture angle in degrees for textureValueAt ({} for none), rounded so that right angles are exact
+ * (cos 90° is 6e-17, and a texel coordinate of 1 - 1e-16 floors to the texel before). */
+export function turnOf(deg) {
+  const a = (deg || 0) % 360 * Math.PI / 180, r = v => Math.round(v * 1e12) / 1e12;
+  return a ? { cos: r(Math.cos(a)), sin: r(Math.sin(a)) } : {};
 }
 
 /** Painter's `strength` for a live.texture that has one (textureFor), cleared in r (all of it when r is left out). */
@@ -582,5 +589,5 @@ function grainTile(s) {
     c.getContext('2d').putImageData(data, 0, 0);
     tiles[key] = c;
   }
-  return { tile: tiles[key], scale: s.textureScale || 1, full: s.flow > 0 ? s.flow : 1 };
+  return { tile: tiles[key], scale: s.textureScale || 1, angle: s.textureAngle || 0, full: s.flow > 0 ? s.flow : 1 };
 }

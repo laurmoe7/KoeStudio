@@ -58,9 +58,11 @@ export function applyTextureMode(data, mode, D, value, strength = null) {
   return data;
 }
 
-/** The texture value (0-255) at doc pixel (x, y) of values {gray, w, h, scale}: the nearest texel of the tile laid
- * from the canvas origin at `scale`, as the GPU texture is drawn (liveSource) and CLIP STUDIO anchors it. */
+/** The texture value (0-255) at doc pixel (x, y) of values {gray, w, h, scale, cos?, sin?}: the nearest texel of the
+ * tile laid from the canvas origin at `scale`, turned round the origin by the angle whose cos and sin are given
+ * (clockwise on screen, textureAngle), as the GPU texture is drawn (liveSource) and CLIP STUDIO anchors it. */
 export function textureValueAt(v, x, y) {
+  if (v.cos !== undefined) [x, y] = [x * v.cos + y * v.sin, y * v.cos - x * v.sin];
   const tx = Math.floor(x / v.scale) % v.w, ty = Math.floor(y / v.scale) % v.h;
   return v.gray[(ty < 0 ? ty + v.h : ty) * v.w + (tx < 0 ? tx + v.w : tx)];
 }

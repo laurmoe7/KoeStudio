@@ -2,7 +2,7 @@
 // its Rough textured paper; the measured value is the average over texture values within 0.05 of s).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { textureMode, applyTextureMode, TEXTURE_MODES, CSP_TEXTURE_MODES } from '../web/js/texmodes.js';
+import { textureMode, applyTextureMode, textureValueAt, TEXTURE_MODES, CSP_TEXTURE_MODES } from '../web/js/texmodes.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} is not ${b}`);
 
@@ -61,4 +61,21 @@ test('applyTextureMode works on RGBA pixels and keeps the colour', () => {
   const d2 = new Uint8ClampedArray([0, 0, 0, 200]);
   applyTextureMode(d2, 'multiply', 1, () => 0, () => 0);
   assert.equal(d2[3], 200);
+});
+
+test('the texture turned by Grain angle, round the canvas origin', async () => {
+  const { turnOf } = await import('../web/js/painter.js');
+  // a 4 x 4 tile whose texel (x, y) holds 4y + x
+  const v = { gray: Uint8Array.from({ length: 16 }, (_, i) => i), w: 4, h: 4, scale: 1 };
+  assert.equal(textureValueAt(v, 1, 2), 9, 'not turned: texel (1, 2)');
+  assert.deepEqual(turnOf(0), {}, 'no angle: nothing to turn');
+  assert.deepEqual(turnOf(90), { cos: 0, sin: 1 }, 'right angles exact');
+  // turned 90 degrees clockwise (y down): texel (1, 2) moves to (-2, 1), and (2, 1) is the tile one width on
+  assert.equal(textureValueAt({ ...v, ...turnOf(90) }, -2, 1), 9);
+  assert.equal(textureValueAt({ ...v, ...turnOf(90) }, 2, 1), 9, 'the tile repeats');
+  // 180: texel (1, 2) at (-1, -2), which is (3, 2) a tile on
+  assert.equal(textureValueAt({ ...v, ...turnOf(180) }, 3, 2), 9);
+  assert.equal(textureValueAt({ ...v, ...turnOf(360) }, 1, 2), 9, '360 is not turned');
+  // with scale 2 the texel covers 2 x 2 doc pixels: turned 90, texel (1, 2) covers x -6..-4, y 2..4
+  assert.equal(textureValueAt({ ...v, scale: 2, ...turnOf(90) }, -4.5, 2.5), 9);
 });

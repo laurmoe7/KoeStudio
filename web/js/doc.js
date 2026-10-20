@@ -884,9 +884,9 @@ export function liveSource(live, r) {
   if (live.wet) wetEdges(ctx, live, r);
   if (live.impasto) impasto(ctx, live, r);
   if (live.texture && !cpu) {
-    const { tile, scale, strength } = live.texture;
+    const { tile, scale, angle, strength } = live.texture;
     if (!tile.pattern) tile.pattern = ctx.createPattern(tile, 'repeat');
-    tile.pattern.setTransform(new DOMMatrix().translateSelf(-r.x, -r.y).scaleSelf(scale));
+    tile.pattern.setTransform(new DOMMatrix().translateSelf(-r.x, -r.y).rotateSelf(angle || 0).scaleSelf(scale));
     ctx.globalCompositeOperation = 'destination-out';
     if (strength) {  // Pressure → grain: the grain weighed by how strongly each dab showed it
       const [g, gctx] = scratchCanvas('grain', r);

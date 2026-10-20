@@ -19,7 +19,7 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
-  return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, texturePressure: 0, textureMode: 'multiply', textureEachDab: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, flipX: false, flipY: false, roundJitter: 0, pixel: false,
+  return { texture, textureAmount, textureScale: 1, textureAngle: 0, textureInvert: false, grainPressure: false, texturePressure: 0, textureMode: 'multiply', textureEachDab: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, flipX: false, flipY: false, roundJitter: 0, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, scatterBoth: true, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0, taperSize: 1, taperOpacity: 0,
     tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, countJitter: 0, quickShape: false, refStop: false,
     dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, impasto: 0, dryOut: 0, mix: 0, mixStretch: 0.5, paintLoad: 1,
@@ -167,6 +167,7 @@ export const SETTING_FIELDS = [
   ['preset', 'Brush', 'id'],
   ['textureAmount', 'Grain', 'range', 0, 1, 0.01],
   ['textureScale', 'Grain size', 'range', 0.25, 4, 0.05],
+  ['textureAngle', 'Grain angle', 'range', 0, 360, 1],
   ['wetEdges', 'Wet edges', 'range', 0, 1, 0.01],
   ['impasto', 'Impasto', 'range', 0, 1, 0.01],
   ['dryOut', 'Runs dry', 'range', 0, 1, 0.01],
@@ -207,7 +208,7 @@ export const SETTING_GROUPS = [
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'taperSize', 'taperOpacity', 'quickShape']],
   ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
   ['Variation', ['scatter', 'scatterBoth', 'count', 'countJitter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
-  ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert', 'textureMode', 'textureEachDab', 'texturePressure', 'grainPressure']],
+  ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureAngle', 'textureInvert', 'textureMode', 'textureEachDab', 'texturePressure', 'grainPressure']],
   ['Dual brush', ['dualTip', 'dualSize', 'dualSpacing', 'dualScatter']],
   ['Combined', ['comboTip', 'comboMode', 'comboSize', 'comboFlow', 'comboHardness', 'comboSpacing', 'comboThickness', 'comboAngle', 'comboRandom', 'comboFollow',
     'comboScatter', 'comboSizeJitter', 'comboPressureSize', 'comboMinSize', 'comboPressureFlow', 'comboMinFlow']],
@@ -244,6 +245,7 @@ export const SETTING_HINTS = {
   textureAmount: 'How much paint the grooves of the texture leave out',
   wetEdges: 'Like watercolour drying: the paint gathers at the edge of the stroke and the middle stays lighter',
   textureScale: 'Size of the texture (100% = as made)',
+  textureAngle: 'Turns the texture, clockwise; it stays put on the canvas (imported Clip Studio Paint brushes bring theirs)',
   impasto: 'Thick paint: light catches the top-left edges of the stroke and its bristle ridges, and the other side is shaded',
   dryOut: 'The brush gives out its paint along the stroke: the weak hairs drop out first and the end breaks into streaks (with a tip image or the Bristles / Flat tips). Higher runs dry sooner; each stroke starts loaded',
   paintLoad: 'How much paint of its own the brush carries (with Color mixing on): lower, it mostly moves the colours already there and leaves little on bare paper, as a blender does',

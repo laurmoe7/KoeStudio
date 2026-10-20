@@ -1050,7 +1050,7 @@ export class Editor {
     const shapeOnly = { corner: ['rect'], sides: ['regpoly', 'star'], depth: ['star'] };
     return SETTING_FIELDS.filter(f => f[0] in s && f[2] !== 'id' && !(f[2] === 'curve' && !s[f[0]])
       && !(shapeOnly[f[0]] && 'figure' in s && !shapeOnly[f[0]].includes(s.figure))
-      && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureInvert'].includes(f[0]))
+      && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureAngle', 'textureInvert'].includes(f[0]))
       && !(s.comboTip === 'none' && f[0].startsWith('combo') && f[0] !== 'comboTip'));  // the second brush's settings once it is on
   }
 
@@ -2238,7 +2238,7 @@ function fmt(key, v) {
   if (key === 'depth') return Math.round(v * 100) + '%';
   if (key === 'spacing' && v < 0.1) return (Math.round(v * 1000) / 10) + '%';  // fine spacing: 0.5%, 2.5%
   if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'texturePressure', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'taperSize', 'taperOpacity', 'roundJitter', 'countJitter'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
-  if (key === 'tipAngle' || key === 'comboAngle') return Math.round(v) + '°';
+  if (key === 'tipAngle' || key === 'comboAngle' || key === 'textureAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);
   return String(v);
