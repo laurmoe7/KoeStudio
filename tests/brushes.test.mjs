@@ -380,12 +380,20 @@ test('runs dry', async () => {
 });
 
 test('a tip turning with the stroke: smoothed direction and dabs added on turns', async () => {
-  const { smoothDir, turnFill } = await import('../web/js/painter.js');
-  // a 500 px tip averages over 10 px: a 5 px move straight down from heading right goes halfway, (0.5, 0.5) -> 45°
-  near(smoothDir(0, 0, 5, 500), Math.PI / 4, 'half a turn toward the move');
-  near(smoothDir(0, 0, 10, 500), Math.PI / 2, 'a full stretch: the move itself');
-  near(smoothDir(0, 0, 1, 10), Math.PI / 2, 'a small tip averages over half a pixel only');
+  const { smoothDir, turnFill, startReach } = await import('../web/js/painter.js');
+  // a 50 px tip averages over 1 px: a 1 px move straight down from heading right counts fully (pi/2), but it may
+  // turn only 4 * 1 / 50 = 0.08 rad
+  near(smoothDir(0, 0, 1, 50), 0.08, 'turns slowly');
+  // a 10 px tip averages over half a pixel and may turn 4 * 2 / 10 = 0.8 rad on a 2 px move: 45° is let through
+  near(smoothDir(0, 2, 2, 10), Math.PI / 4, 'a small tip turns freely');
+  // a 500 px tip averages over 10 px: 5 px up and back to the left -> half-way between 0 and that move, (0.5 - 0.3,
+  // -0.4); asked to turn -1.107 rad, it turns only 4 * 5 / 500 = 0.04
+  near(smoothDir(0, -3, -4, 500), -0.04, 'a big tip turns slowly');
+  // from 3.1 rad to a move whose direction is -3.04 (= 3.24): 0.14 the short way round, past pi, not -6.14 back
+  near(smoothDir(3.1, -1, -0.1, 10), 2 * Math.PI + Math.atan2(-0.1, -1), 'short way round past pi');
   near(smoothDir(1, 0, 0, 500), 1, 'no move keeps the direction');
+  near(smoothDir(0, 0, 1, 0), Math.PI / 2, 'no size: no limit');
+  assert.equal(startReach(10), 0.5); assert.equal(startReach(100), 4); assert.equal(startReach(700), 12);
   // turning 0.1 rad over a 2 px step with a tip reaching 100 px: its end swings 10 px -> 5 parts, 4 dabs in between
   const f = turnFill({ x: 0, y: 0, dir: 0, half: 100 }, { x: 2, y: 0, dir: 0.1, half: 100 });
   assert.equal(f.length, 4);
