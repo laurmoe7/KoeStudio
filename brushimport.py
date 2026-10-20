@@ -38,8 +38,10 @@ bytes per pixel: 1 alpha, 2 alpha + gray, 5 alpha + BGRx) and BlockData: per blo
 followed by its colour planes.
 """
 import base64
+import glob
 import io
 import math
+import os
 import plistlib
 import posixpath
 import re
@@ -1367,15 +1369,29 @@ def _offscreen(attr, data):
         if data[pos + 8:q] != BEGIN or size < 8 or pos + size > len(data):
             break  # BlockStatus and BlockCheckSum follow the blocks
         idx, unpacked, bw, bh, has = struct.unpack('>5I', data[q:q + 20])
-        if has and idx < cols * rows and (bw, bh) == (CSP_BLOCK, CSP_BLOCK) and unpacked == tile * bpp:
+        # a monochrome layer (bpp 1, a quarter of the bytes): a 1-bit alpha plane and a 1-bit colour plane
+        mono = bpp == 1 and unpacked == tile // 4
+        if has and idx < cols * rows and (bw, bh) == (CSP_BLOCK, CSP_BLOCK) and (unpacked == tile * bpp or mono):
             n = struct.unpack('<I', data[q + 24:q + 28])[0]
             z = zlib.decompressobj()
             raw = z.decompress(data[q + 28:q + 28 + n], unpacked)
             if len(raw) == unpacked:
                 filled += 1
-                _put_block(raw, idx % cols * CSP_BLOCK, idx // cols * CSP_BLOCK, w, h, bpp, gray, alpha)
+                if mono:
+                    raw, bits = _mono_block(raw), 2
+                else:
+                    bits = bpp
+                _put_block(raw, idx % cols * CSP_BLOCK, idx // cols * CSP_BLOCK, w, h, bits, gray, alpha)
         pos += size
     return w, h, gray, alpha, filled
+
+
+def _mono_block(raw):
+    """A monochrome block (two planes of 1 bit a pixel, high bit first: alpha (1 = ink), then colour (1 = white)) as
+    the 8-bit alpha and gray planes of a bpp 2 block. Found in a tip made in CLIP STUDIO 1.9 (SU-Cream Pencil)."""
+    plane = CSP_BLOCK * CSP_BLOCK // 8
+    spread = lambda bits: bytes(255 if b >> (7 - k) & 1 else 0 for b in bits for k in range(8))
+    return spread(raw[:plane]) + spread(raw[plane:2 * plane])
 
 
 def _put_block(raw, bx, by, w, h, bpp, gray, alpha):
@@ -1463,10 +1479,121 @@ def read_sut(data, filename):
         raise ValueError('That Clip Studio Paint brush file could not be read.')
     finally:
         db.close()
+    name = _csp_name(node) or _stem(filename)
+    res = csp_brush(name, v, files.get, 'is not in the file')
+    return {'name': name, 'brushes': res['brushes'], 'images': res['images']}
+
+
+def read_csp_tools(todb, builtin, material_root):
+    """The brushes added to CLIP STUDIO PAINT (downloaded or made there), straight from its tool database `todb` (the
+    bytes of EditImageTool.todb: Node/Variant tables as in a .sut, without MaterialFile): every brush whose NodeUuid is
+    not in `builtin` (the uuids of CLIP STUDIO's own tools). Their pictures are read from `material_root`
+    (CLIPStudioCommon/Material), where a reference '.:32:87:<uuid>:data:material_0.layer' is a file. Same shape as
+    import_brushes, the pack named 'Clip Studio Paint'."""
+    try:
+        db = sqlite3.connect(':memory:')
+        db.deserialize(todb)
+        nodes = [dict(zip([c[0] for c in cur.description], r)) for cur in [db.execute(
+            'SELECT * FROM Node WHERE NodeVariantID IS NOT NULL AND NodeVariantID > 0 ORDER BY _PW_ID')] for r in cur.fetchall()]
+        brushes, images = [], []
+        for node in nodes:
+            if node.get('NodeUuid') in builtin or len(brushes) >= MAX_BRUSHES:
+                continue
+            v = _sql_row(db, 'SELECT * FROM Variant WHERE VariantID = ?', (node['NodeVariantID'],))
+            if not v or v.get('BrushSize') is None:
+                continue  # not a brush (a fill, a gradient, a ruler ...)
+            res = csp_brush(_csp_name(node) or f'Brush {len(brushes) + 1}', v, lambda path: csp_material_file(material_root, path),
+                            "is missing from Clip Studio Paint's materials")
+            for b in res['brushes']:
+                for k in ('tip', 'texture'):
+                    if b[k] is not None:
+                        b[k] += len(images)
+                brushes.append(b)
+            images += res['images']
+    except sqlite3.DatabaseError:
+        raise ValueError("Clip Studio Paint's tool list could not be read.")
+    finally:
+        db.close()
+    return {'name': 'Clip Studio Paint', 'brushes': brushes, 'images': images}
+
+
+def csp_material_file(root, path):
+    """A material's package for csp_material, from the file `path` ('.:a:b:<uuid>:data:material_0.layer') names under
+    CLIPStudioCommon/Material, or None. Only plain names below the folder are followed."""
+    parts = str(path).split(':')
+    if len(parts) < 3 or parts[0] != '.' or any(not re.fullmatch(r'[\w.\- ]+', q) or q in ('.', '..') for q in parts[1:]):
+        return None
+    file = os.path.join(root, *parts[1:])
+    try:
+        if os.path.getsize(file) > MAX_UNZIPPED:
+            return None
+        with open(file, 'rb') as f:
+            layer = f.read()
+    except OSError:
+        return None
+    out = io.BytesIO()
+    with tarfile.open(fileobj=out, mode='w', format=tarfile.USTAR_FORMAT) as t:
+        info = tarfile.TarInfo('/'.join(parts[-2:]))
+        info.size = len(layer)
+        t.addfile(info, io.BytesIO(layer))
+    return out.getvalue()
+
+
+def csp_install_paths():
+    """Where CLIP STUDIO PAINT keeps its tools on this PC: (the user's EditImageTool.todb, the uuids of its own tools,
+    the material folder), or None when it is not installed. The newest CLIPStudioPaintVer* folder is used; the
+    built-in tools are read from every language folder of every install under Program Files/CELSYS."""
+    appdata = os.environ.get('APPDATA', '')
+    celsys = os.path.join(appdata, 'CELSYSUserData', 'CELSYS')
+    tools = [p for p in glob.glob(os.path.join(celsys, 'CLIPStudioPaintVer*', 'Tool', 'EditImageTool.todb'))]
+    if not tools:
+        return None
+    user = max(tools, key=os.path.getmtime)
+    builtin = set()
+    for base in {os.environ.get('ProgramFiles', r'C:\Program Files'), os.environ.get('ProgramW6432', r'C:\Program Files')}:
+        for f in glob.glob(os.path.join(base, 'CELSYS', '*', 'CLIP STUDIO PAINT', 'Settings', 'PAINT', 'Tool', '*', 'EditImageTool.todb')):
+            try:
+                db = sqlite3.connect(f'file:{f}?mode=ro', uri=True)
+                try:
+                    builtin |= {r[0] for r in db.execute('SELECT NodeUuid FROM Node')}
+                finally:
+                    db.close()
+            except sqlite3.DatabaseError:
+                pass
+    return user, builtin, os.path.join(celsys, 'CLIPStudioCommon', 'Material')
+
+
+def clip_studio_brushes():
+    """The brushes added to CLIP STUDIO PAINT on this PC (read_csp_tools), ready for the import dialog."""
+    found = csp_install_paths()
+    if not found:
+        raise ValueError('Clip Studio Paint was not found on this PC.')
+    user, builtin, materials = found
+    with open(user, 'rb') as f:  # a copy in memory: Clip Studio may have the file open
+        data = f.read()
+    res = read_csp_tools(data, builtin, materials)
+    _number_repeats(res['brushes'], res['name'])
+    if not res['brushes']:
+        raise ValueError('Clip Studio Paint has no brushes of your own yet: only its own, which KoeStudio has its versions of.')
+    return res
+
+
+def _csp_name(node):
     name = node.get('NodeName')
-    name = (name.decode('utf-8', 'replace') if isinstance(name, bytes) else str(name or '')).strip()[:120] or _stem(filename)
+    return (name.decode('utf-8', 'replace') if isinstance(name, bytes) else str(name or '')).strip()[:120]
+
+
+def csp_brush(name, v, load, missing):
+    """One CLIP STUDIO brush from its Variant row v: {'brushes': [one], 'images'}. load(path) gives a material's
+    package (a tar holding its .layer, as MaterialFile.FileData) or None; `missing` ends the note when it gives None."""
     settings, notes, tip_ref, tex_ref = _sut_settings(v)
     images, tip, texture = [], None, None
+    files = {}
+    for ref in (tip_ref, tex_ref):
+        if ref and ref[0] not in files:
+            data = load(ref[0])
+            if data is not None:
+                files[ref[0]] = data
     if tip_ref:
         pic = csp_material(files[tip_ref[0]]) if tip_ref[0] in files else None
         if pic:
@@ -1478,7 +1605,7 @@ def read_sut(data, filename):
             tip = 0
         else:
             settings['tip'] = 'round'
-            notes.append(f'Its tip picture ({tip_ref[1]}) ' + ('could not be read' if tip_ref[0] in files else 'is not in the file'))
+            notes.append(f'Its tip picture ({tip_ref[1]}) ' + ('could not be read' if tip_ref[0] in files else missing))
     if tex_ref:
         pic = csp_material(files[tex_ref[0]]) if tex_ref[0] in files else None
         if pic:
@@ -1498,8 +1625,8 @@ def read_sut(data, filename):
         else:
             for k in ('textureAmount', 'textureScale', 'textureInvert'):
                 settings.pop(k, None)
-            notes.append(f'Its texture ({tex_ref[1]}) ' + ('could not be read' if tex_ref[0] in files else 'is not in the file'))
-    return {'name': name, 'brushes': [{'name': name, 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes}], 'images': images}
+            notes.append(f'Its texture ({tex_ref[1]}) ' + ('could not be read' if tex_ref[0] in files else missing))
+    return {'brushes': [{'name': name, 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes}], 'images': images}
 
 
 def csp_texture_tone(gray, alpha, brightness, contrast):
@@ -1631,8 +1758,8 @@ def _sut_settings(v):
             s['textureMode'] = CSP_TEXTURE_MODES[mode]
         if g('TextureForPlot'):  # Apply by each plot: every dab gets the texture on its own, so overlaps build up on it
             s['textureEachDab'] = True
-        if g('TextureRotate'):
-            notes.append('Texture turned')
+        if g('TextureRotate') % 360:  # Rotation angle: clockwise, as Grain angle (checked in CLIP STUDIO)
+            s['textureAngle'] = round(g('TextureRotate') % 360, 1)
         te = csp_effector(v.get('TextureDensityEffector'))
         if te and te['pressure']:  # stronger as the pen presses harder, from its minimum at the lightest touch
             s['texturePressure'] = round(1 - te['pressureMin'], 2)

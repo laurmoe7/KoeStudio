@@ -5,6 +5,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Import brushes from Clip Studio Paint on this PC (Brush ⋯ menu, or Import… in the Brushes window): every brush you downloaded or made in Clip Studio shows up, with its tip and texture, with nothing to export first.
+- Grain angle (Brush settings → Texture) turns a brush's texture; Clip Studio Paint brushes bring their texture rotation.
 - Imported Photoshop brushes bring their texture mode and Texture Each Tip, with the texture depth following pen pressure when they set it.
 - Texture mode and Texture each dab (Brush settings → Texture): the ten ways Clip Studio Paint mixes a texture with the paint, matched to Clip Studio's own output, and imported Clip Studio brushes bring theirs.
 - Clip Studio Paint brushes now bring their texture brightness and contrast and their taper lengths in every unit Clip Studio uses for them; a Fade with only Starting ticked no longer counts as missing, since Clip Studio ignores it.
@@ -30,6 +32,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Clip Studio Paint brush tips drawn on a black-and-white (monochrome) layer import instead of turning into a round tip.
 - Imported brushes that all share one name are numbered (Brush 1, Brush 2, ... when the name is just the pack's), and a Photoshop brush bigger than 1000 px says so.
 - Imported brushes with very big tip pictures take far less space and load faster: a pack of 16 big Photoshop paint stamps went from 55 MB to 7 MB.
 - A combined brush's second brush now shows when the texture uses a Texture mode other than Multiply.

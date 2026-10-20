@@ -537,9 +537,9 @@ def csp_name(s):
     return u32(len(s)) + b
 
 
-def csp_block(index, raw=None):
+def csp_block(index, raw=None, unpacked=2 * 65536):
     """One BlockData entry: a 256 x 256 block of 2 bytes a pixel, empty or holding raw (alpha plane, gray plane)."""
-    body = csp_name('BlockDataBeginChunk') + u32(index) + u32(2 * 65536) + u32(256) + u32(256) + u32(raw is not None)
+    body = csp_name('BlockDataBeginChunk') + u32(index) + u32(unpacked) + u32(256) + u32(256) + u32(raw is not None)
     if raw is not None:
         z = zlib.compress(raw)
         body += u32(len(z) + 4) + struct.pack('<I', len(z)) + z
@@ -547,16 +547,22 @@ def csp_block(index, raw=None):
     return u32(len(body) + 4) + body
 
 
-def csp_layer(w, h, pixels, page_size=1024):
+def csp_layer(w, h, pixels, page_size=1024, mono=False):
     """A material's .layer file holding a w x h (at most 256 x 256) picture given as {(x, y): (alpha, gray)}: a C2F
-    file whose database has its first 5 KB scrambled (as CLIP STUDIO's are) and the rest plain."""
+    file whose database has its first 5 KB scrambled (as CLIP STUDIO's are) and the rest plain. `mono`: a monochrome
+    layer (1 bit of alpha and 1 of colour a pixel: alpha > 0 is ink, gray >= 128 white)."""
     alpha, gray = bytearray(65536), bytearray(b'\xff' * 65536)
     for (x, y), (a, g) in pixels.items():
         alpha[y * 256 + x], gray[y * 256 + x] = a, g
+    if mono:
+        bits = lambda on: bytes(sum(on(i + k) << (7 - k) for k in range(8)) for i in range(0, 65536, 8))
+        first = csp_block(0, bits(lambda i: alpha[i] > 0) + bits(lambda i: alpha[i] > 0 and gray[i] >= 128), 65536 // 4)
+    else:
+        first = csp_block(0, bytes(alpha) + bytes(gray))
     attr = (u32(16) + u32(0x66) + u32(0x2a) + u32(0x100) + csp_name('Parameter') + u32(w) + u32(h) + u32(2) + u32(1)
-            + u32(17) + u32(1) + u32(1) + u32(2) + bytes(40))
+            + u32(17) + u32(1) + u32(1) + u32(1 if mono else 2) + bytes(40))
     # the picture is in the first of two blocks; the checksums after the blocks make the row spill over 4+ pages
-    blocks = csp_block(0, bytes(alpha) + bytes(gray)) + csp_block(1) + u32(3008) + csp_name('BlockStatus') + bytes(range(256)) * 11
+    blocks = first + csp_block(1) + u32(3008) + csp_name('BlockStatus') + bytes(range(256)) * 11
 
     def build(db):
         db.execute('CREATE TABLE Filler(x BLOB)')  # the first pages, scrambled in the file
@@ -620,6 +626,42 @@ def make_sut(variant, materials=()):
 
 class ClipStudioReader(unittest.TestCase):
     TIP, TEX = '.:01:02:aa:data:material_0.layer', '.:03:04:bb:data:material_0.layer'
+
+    def test_monochrome_tip(self):
+        # a tip drawn on a monochrome layer (SU-Cream Pencil's, made in CLIP STUDIO 1.9): two 1-bit planes a block
+        layer = csp_layer(3, 2, {(0, 0): (255, 0), (1, 0): (255, 255), (2, 1): (255, 0)}, mono=True)
+        w, h, gray, alpha = bi.csp_material(csp_package(layer))
+        self.assertEqual((w, h, list(alpha), list(gray)), (3, 2, [255, 255, 0, 0, 0, 255], [0, 255, 0, 0, 0, 0]))
+
+    def test_clip_studio_tools(self):
+        """The brushes added to CLIP STUDIO, read from its tool database with pictures from its material folder."""
+        tip = csp_layer(2, 1, {(0, 0): (255, 0), (1, 0): (128, 0)})
+
+        def build(db):
+            db.execute('CREATE TABLE Node(_PW_ID INTEGER PRIMARY KEY, NodeUuid BLOB, NodeName BLOB, NodeVariantID INTEGER)')
+            db.executemany('INSERT INTO Node VALUES (?, ?, ?, ?)', [
+                (1, b'g', 'G-pen'.encode(), 1), (2, b'grp', b'Pen', 0), (3, b'u1', 'かすれ油彩'.encode(), 2),
+                (4, b'u2', b'My gradient', 3), (5, b'u3', b'Lost', 4)])
+            db.execute('CREATE TABLE Variant(VariantID, BrushSize, BrushUsePatternImage, BrushPatternImageArray)')
+            db.executemany('INSERT INTO Variant VALUES (?, ?, ?, ?)', [
+                (1, 10.0, 0, None), (2, 40.0, 1, csp_refs((self.TIP, 'Nib'))), (3, None, 0, None),
+                (4, 20.0, 1, csp_refs(('.:05:06:cc:data:material_0.layer', 'Gone')))])
+        todb = sqlite_bytes(build, 4096)
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, '01', '02', 'aa', 'data'))
+            with open(os.path.join(root, '01', '02', 'aa', 'data', 'material_0.layer'), 'wb') as f:
+                f.write(tip)
+            res = bi.read_csp_tools(todb, {b'g', b'grp'}, root)
+            self.assertIsNone(bi.csp_material_file(root, '.:..:01:02:aa:data:material_0.layer'), 'nothing outside the folder')
+            self.assertIsNone(bi.csp_material_file(root, 'C:/x.layer'))
+        self.assertEqual(res['name'], 'Clip Studio Paint')
+        # the G-pen is CLIP STUDIO's own and the gradient no brush: the user's two brushes, in palette order
+        self.assertEqual([b['name'] for b in res['brushes']], ['かすれ油彩', 'Lost'])
+        mine, lost = res['brushes']
+        self.assertEqual((mine['tip'], mine['settings']['size']), (0, 40.0))
+        self.assertEqual(res['images'][0]['kind'], 'tip')
+        self.assertIsNone(lost['tip'])
+        self.assertEqual(lost['notes'], ["Its tip picture (Gone) is missing from Clip Studio Paint's materials"])
 
     def test_settings(self):
         res = bi.import_brushes('graphite.sut', make_sut({
@@ -790,7 +832,10 @@ class ClipStudioReader(unittest.TestCase):
         self.assertNotIn('textureMode', got, 'Multiply is the default')
         self.assertEqual(s['settings']['texturePressure'], 0.75, 'texture density by pressure, 25% at the lightest touch')
         self.assertNotIn('texturePressure', b['settings'])
-        self.assertEqual(s['notes'], ['Texture turned'])
+        self.assertEqual((s['settings']['textureAngle'], s['notes']), (45.0, []), 'Rotation angle: Grain angle')
+        self.assertNotIn('textureAngle', b['settings'])
+        got = bi._sut_settings({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40, 'TextureRotate': 360.0})[0]
+        self.assertNotIn('textureAngle', got, '360 is not turned')
         self.assertIs(b['settings']['textureInvert'], True, 'CLIP STUDIO paints where the texture is dark')
 
     def test_texture_tone(self):

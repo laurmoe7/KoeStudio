@@ -790,6 +790,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(make_dir(p.get('path', ''), p.get('name', '')))
             elif route == ('GET', 'brushes'):
                 self._json(load_brushes())
+            elif route == ('GET', 'brushes/clipstudio'):
+                self._json(clip_studio_brushes())
             elif route == ('GET', 'brushes/image'):
                 self._send(brush_image(p.get('id', '')), 'image/png')
             elif route == ('POST', 'brushes/image'):
@@ -967,6 +969,12 @@ def import_brushes(name, data):
     """The brushes in a brush file from another program (brushimport.py)."""
     import brushimport
     return brushimport.import_brushes(name, data)
+
+
+def clip_studio_brushes():
+    """The brushes added to Clip Studio Paint on this PC, read from its own tool list (brushimport.py)."""
+    import brushimport
+    return brushimport.clip_studio_brushes()
 
 
 # ---------- reference pictures ----------

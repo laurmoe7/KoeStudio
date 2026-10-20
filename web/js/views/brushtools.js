@@ -360,7 +360,7 @@ export const brushMethods = {
         <span class="bl-sizes">${Object.entries(BRUSH_LIST_SIZES).map(([k, [label]]) => `<button data-bl-size="${k}" title="${label} strokes"><i class="bl-size-${k}"></i></button>`).join('')}</span></div>
       <div class="bl-list"></div>
       <div class="bl-foot"><button data-bl-act="save" title="Keep the current settings as a brush of your own">${icon('plus', 14)} Save as new…</button>
-        <button data-bl-act="import" title="Procreate, Photoshop, Clip Studio Paint, GIMP and Krita brushes">Import…</button>
+        <button data-bl-act="import" title="From a Procreate, Photoshop, Clip Studio Paint, GIMP or Krita brush file, or straight from Clip Studio Paint on this PC">Import…</button>
         <button data-bl-act="manage" title="Put your brushes in groups and in order, hide groups, delete brushes">Manage…</button></div>`;
     if (st.w) w.style.width = st.w + 'px';
     if (st.h) w.style.height = st.h + 'px';
@@ -369,7 +369,10 @@ export const brushMethods = {
     this.bindFloatingHead(w, (x, y) => store('brushList', { ...this.brushListState(), x, y }));
     w.querySelector('[data-bl-close]').onclick = () => this.toggleBrushList(false);
     w.querySelector('[data-bl-act="save"]').onclick = () => this.saveBrushAs();
-    w.querySelector('[data-bl-act="import"]').onclick = () => this.importBrushFile();
+    w.querySelector('[data-bl-act="import"]').onclick = e => menu(e.currentTarget, [
+      { label: 'From a brush file (Procreate, Photoshop, Clip Studio, GIMP, Krita)…', run: () => this.importBrushFile() },
+      { label: 'From Clip Studio Paint on this PC…', run: () => this.importClipStudioBrushes() },
+    ]);
     w.querySelector('[data-bl-act="manage"]').onclick = () => this.manageBrushes();
     w.querySelectorAll('[data-bl-size]').forEach(b => {
       b.onclick = () => { store('brushList', { ...this.brushListState(), size: b.dataset.blSize }); this.renderBrushList(); };
@@ -513,6 +516,7 @@ export const brushMethods = {
       '-',
       { label: 'Manage brushes (groups, order, delete)…', run: () => this.manageBrushes() },
       { label: 'Import brushes (Procreate, Photoshop, Clip Studio, GIMP, Krita)…', run: () => this.importBrushFile() },
+      { label: 'Import brushes from Clip Studio Paint on this PC…', run: () => this.importClipStudioBrushes() },
       '-',
       { label: 'Add tip image…', run: () => this.addBrushImageFile('tip') },
       { label: 'Add texture image…', run: () => this.addBrushImageFile('texture') },
@@ -682,6 +686,26 @@ export const brushMethods = {
       toast(e.message, { error: true });
       return;
     }
+    return this.chooseImportedBrushes(res, file.name);
+  },
+
+  /**
+   * Brush menu → Brushes from Clip Studio Paint: the brushes added to Clip Studio Paint on this PC (downloaded from
+   * its ASSETS or made there), read from its own tool list, so there is no file to export or find first.
+   */
+  async importClipStudioBrushes() {
+    let res;
+    try {
+      res = await api.clipStudioBrushes();
+    } catch (e) {
+      toast(e.message, { error: true });
+      return;
+    }
+    return this.chooseImportedBrushes(res, 'Clip Studio Paint');
+  },
+
+  /** The import dialog for brushes read from `from` (a file name, or Clip Studio Paint): pick which to keep. */
+  async chooseImportedBrushes(res, from) {
     const temp = new Map();  // image index -> temporary id
     await Promise.all(res.images.map(async (im, k) => {
       const made = im.white || im.side, url = made ? URL.createObjectURL(await this.importedImagePng(im)) : im.png;
@@ -701,7 +725,7 @@ export const brushMethods = {
     const n = res.brushes.length, picked = new Set(n <= PICK_ALL_UP_TO ? shownBrushes(res.brushes, '', complete) : []);
     let observer = null, raf = 0, group = res.name;
     const chosen = await modal({
-      title: `Import brushes from ${file.name}`,
+      title: `Import brushes from ${from}`,
       wide: true,
       body: `<div class="imp">
         <div class="imp-bar"><input type="search" class="imp-search" placeholder="Search ${n} brush${n === 1 ? '' : 'es'}" aria-label="Search the brushes" spellcheck="false" data-own-enter>

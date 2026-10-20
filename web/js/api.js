@@ -42,6 +42,8 @@ export const api = {
   savePresets: presets => call('POST', 'brushes/presets', presets),
   /** The brushes in a Procreate (.brush, .brushset) or Photoshop (.abr) file: {name, brushes, images}. */
   importBrushes: (name, blob) => call('POST', `brushes/import?name=${q(name)}`, blob, 'application/octet-stream'),
+  /** The brushes added to Clip Studio Paint on this PC (downloaded or made there), in the shape importBrushes gives. */
+  clipStudioBrushes: () => call('GET', 'brushes/clipstudio'),
   /** Reference pictures (Reference window): [{id, name}], oldest first. */
   refs: () => call('GET', 'refs'),
   refImageUrl: id => `/api/refs/image?id=${q(id)}`,

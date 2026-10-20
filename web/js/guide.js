@@ -167,6 +167,16 @@ export const GUIDE = [
       <li>Click <b>Import</b>.</li>
     </ol>
     <p>A Clip Studio Paint <code>.sut</code> file holds one brush; it comes with its own tip and texture pictures.</p>
+    <h4>Brushes you have in Clip Studio Paint</h4>
+    <ol>
+      <li>Click <b>⋯</b> next to the Brush row and choose <b>Import brushes from Clip Studio Paint on this PC</b> (or
+      <b>Import…</b> → <b>From Clip Studio Paint on this PC</b> in the Brushes window).</li>
+      <li>Every brush you added to Clip Studio Paint shows up: ones downloaded from Clip Studio ASSETS and ones you made
+      there. Clip Studio's own brushes are left out.</li>
+      <li>Pick the ones you want and click <b>Import</b>. They go in a group called Clip Studio Paint.</li>
+    </ol>
+    <p class="tip">There is nothing to export first, and Clip Studio Paint can stay open. Install a new brush in Clip
+    Studio Paint, then import again to bring it over.</p>
     <p>Procreate brushes keep the size they have in Procreate. A pack's title cards (a logo or a "free sample" banner
     shown as a brush) are left out.</p>
     <p class="tip">A brush marked <b>!</b> has a setting KoeStudio does not have: point at the ! to see which. Tick <b>Only
@@ -240,7 +250,9 @@ export const GUIDE = [
 
     <h4>Texture, Texture mode, Pen → grain and Grain by pressure (Texture page)</h4>
     <ul>
-      <li>The grain is fixed to the canvas, so strokes share it, like real paper.</li>
+      <li>The grain is fixed to the canvas, so strokes share it, like real paper. <b>Grain angle</b> turns it
+      (clockwise), for a grain with a direction such as canvas weave or streaks; Clip Studio Paint brushes bring their
+      Rotation angle into it.</li>
       <li><b>Grain by pressure</b>: a light touch catches only the tops of the grain and a firm one fills it in. Use
       it for pencils and chalk with the Round tip, and keep <b>Density</b> low (Pencil: 45%).</li>
       <li>Don't use Grain by pressure with the <b>Bristles</b> or <b>Flat brush</b> tip: each thin dab is cut on its
