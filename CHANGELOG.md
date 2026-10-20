@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Color mixing panel, as in Clip Studio Paint: dab and blend paint on a little scrap of paper under the Color panel, then click to take the mixed colour; it is kept between sessions.
 - Expression color, as in Clip Studio Paint: show a layer in Gray or Monochrome (black and white, with a threshold and optional see-through white) without changing its pixels, from the Layers panel or Layer → Expression color….
 - Edit → Pick screen color takes the main colour from anywhere on the screen, other programs included.
 - Fill gaps (G, after Lasso fill), like Clip Studio Paint's Paint unfilled area: brush over the specks a fill left empty and every spot wholly inside your stroke is filled.

@@ -47,6 +47,9 @@ export const api = {
   refImageUrl: id => `/api/refs/image?id=${q(id)}`,
   addRef: (name, blob) => call('POST', `refs/add?name=${q(name)}`, blob, 'application/octet-stream'),
   deleteRef: id => call('POST', `refs/delete?id=${q(id)}`, {}),
+  /** The Color mixing panel's scratch area (a PNG kept per computer; the GET fails with 404 before the first save). */
+  mixPadUrl: () => '/api/mixpad',
+  saveMixPad: blob => call('POST', 'mixpad', blob, 'application/octet-stream'),
   /** Timelapse frames of an artwork (JPEGs kept by the server): {frames}. */
   timelapse: id => call('GET', `timelapse?id=${q(id)}`),
   timelapseFrameUrl: (id, n) => `/api/timelapse/frame?id=${q(id)}&n=${n}`,

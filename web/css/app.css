@@ -694,4 +694,10 @@ body:has(.modal-back) > .menu { z-index: 110; }  /* a menu opened from a dialog 
 .cp-mix { display: flex; gap: 2px; margin-top: 6px; }
 .cp-mix button { flex: 1; height: 14px; padding: 0; border-radius: 2px; border: 1px solid #111; min-width: 0; }
 .cp-mix button.on { outline: 2px solid var(--accent); outline-offset: 0; }
+/* Color mixing panel (mixpanel.js): the pad is clear paint over white paper */
+.mx-bar { display: flex; align-items: center; gap: 2px; margin-bottom: 4px; }
+.mx-bar .mx-size { flex: 1; min-width: 0; margin: 0 4px; }
+.mx-pad { display: block; width: 100%; aspect-ratio: 248 / 112; background: #fff; border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }
+.mx-paints { display: flex; gap: 2px; margin-top: 4px; }
+.mx-paints button { flex: 1; height: 16px; padding: 0; min-width: 0; border-radius: 2px; border: 1px solid #111; }
 .bw-combo { display: flex; gap: 6px; padding: 8px 2px 2px; }

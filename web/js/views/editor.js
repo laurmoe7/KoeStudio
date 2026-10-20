@@ -23,6 +23,7 @@ import { esc, toast, menu, openMenuOwner, modal, promptBox, fileToDataUrl, store
 import { exportMethods } from './exporttools.js';
 import { newView, matrix, toDoc, zoomAt, rotateAt, flipAt, fitView, fitRectView, actualSize, pinchView, resizedView } from '../view.js';
 import { ColorPanel } from './colorpanel.js';
+import { MixPanel } from './mixpanel.js';
 import { LayerPanel } from './layerpanel.js';
 import { selectionMethods } from './selecttools.js';
 import { selectionBarMethods } from './selectionbar.js';
@@ -191,6 +192,7 @@ export class Editor {
     cancelAnimationFrame(this.overlayRaf);
     cancelIdleCallback(this.snapIdle);
     this.releaseStripHolds();
+    this.mixPanel?.flush();
     this.root.innerHTML = '';
     this.freeCanvases();
   }
@@ -256,6 +258,7 @@ export class Editor {
           </div>
           <aside class="ed-side">
             <section class="panel" data-panel="color"><h3><button class="panel-head">${icon('chevron', 12)}<span>Color</span></button></h3><div class="color-panel"></div></section>
+            <section class="panel" data-panel="mixing"><h3><button class="panel-head" title="Color mixing: dab and blend paint, then click to take a colour">${icon('chevron', 12)}<span>Color mixing</span></button></h3><div class="mix-panel"></div></section>
             <section class="panel grow" data-panel="layers"><h3><button class="panel-head">${icon('chevron', 12)}<span>Layers</span></button></h3><div class="layer-panel"></div></section>
           </aside>
         </div>
@@ -292,6 +295,7 @@ export class Editor {
     this.rotLabel = $('.rot-label');
     this.colors = new ColorPanel($('.color-panel'));
     this.layerPanel = new LayerPanel($('.layer-panel'), this);
+    this.mixPanel = new MixPanel($('.mix-panel'), this.colors);
     this.colors.onChange = () => { this.textColorChanged(); this.drawBrushPreview(); this.drawBrushList(); this.drawGradientStrip(); };
     this.root.querySelectorAll('[data-tool]').forEach(b => { b.onclick = () => this.selectTool(b.dataset.tool); });
     const acts = {
@@ -318,7 +322,7 @@ export class Editor {
         if (e.target.closest('[data-act="undo"]')) return;
         this.finishTransform();
         // the tool panel and colour panel change the text being edited, so they leave the edit open
-        if (!e.target.closest('.tool-props, .color-panel, [data-panel="tool"], [data-panel="color"]')) this.finishText();
+        if (!e.target.closest('.tool-props, .color-panel, .mix-panel, [data-panel="tool"], [data-panel="color"], [data-panel="mixing"]')) this.finishText();
       }, true);
     }
     $('.ed-title').onclick = () => this.rename();
@@ -2079,6 +2083,7 @@ export class Editor {
     this.finishText();
     if (this.saving) await this.saving.catch(() => {});
     if (this.doc && this.doc.version !== this.savedVersion) await this.save();
+    await this.mixPanel?.flush();
   }
 
   async goHome() {

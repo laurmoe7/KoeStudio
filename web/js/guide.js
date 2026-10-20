@@ -344,6 +344,19 @@ export const GUIDE = [
       <li>The palette's <b>⋯</b> button imports palette files (GIMP and Krita <code>.gpl</code>, Photoshop
       <code>.aco</code>, Adobe <code>.ase</code>, Lospec <code>.hex</code>), saves yours as a <code>.gpl</code>, or clears it.</li>
     </ul>
+    <h4>Color mixing</h4>
+    <p>The <b>Color mixing</b> panel under the Color panel is a little scrap of paper for mixing paint, as in Clip
+    Studio Paint. It never touches your artwork.</p>
+    <ol>
+      <li>Click a paint along its bottom (or choose any main colour) and dab it on with the <b>brush</b>. The brush mixes
+      with the paint already there, like wet paint.</li>
+      <li>Switch to the <b>blender</b> to push the colours into each other.</li>
+      <li>With the <b>eyedropper</b>, click the mix to make that colour your main colour. <kbd>Alt</kbd>+click does the
+      same with the brush or blender.</li>
+    </ol>
+    <p>The slider sets the brush size; the bin clears the paper (the message that follows can undo it).</p>
+    <p class="tip">Your mixes stay on the paper between artworks and after closing KoeStudio, so it doubles as a
+    scratch palette.</p>
     <h4>Reference window</h4>
     <p>View → Reference window shows pictures beside your canvas while you draw. Press <b>+</b> (or drop pictures on it)
     to add some. Scroll to zoom, drag to move, click to pick a colour, double-click to fit. They stay there for every

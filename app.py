@@ -806,6 +806,10 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(add_ref(p.get('name', ''), self._raw()))
             elif route == ('POST', 'refs/delete'):
                 self._json(delete_ref(p.get('id', '')))
+            elif route == ('GET', 'mixpad'):
+                self._send(mix_pad(), 'image/png')
+            elif route == ('POST', 'mixpad'):
+                self._json(save_mix_pad(self._raw()))
             elif route == ('POST', 'brushes/import'):
                 self._json(import_brushes(p.get('name', ''), self._raw()))
             else:
@@ -1050,6 +1054,30 @@ def ref_image(ref_id):
 
 def delete_ref(ref_id):
     os.remove(os.path.join(refs_dir(), _ref_file(ref_id)))
+    return {'ok': True}
+
+
+# ---------- color mixing pad ----------
+# The Color mixing panel's scratch area, one PNG per computer in <app dir>/mixing.png (it survives restarts).
+
+MAX_MIX_PAD = 8 * 1024 * 1024
+
+
+def mix_pad_path():
+    return os.path.join(app_dir(), 'mixing.png')
+
+
+def mix_pad():
+    with open(mix_pad_path(), 'rb') as f:
+        return f.read()
+
+
+def save_mix_pad(data):
+    if _ref_kind(data or b'') != 'png':
+        raise ValueError('The mixing area has to be a PNG picture.')
+    if len(data) > MAX_MIX_PAD:
+        raise ValueError('That picture is too big.')
+    _write_atomic(mix_pad_path(), data)
     return {'ok': True}
 
 

@@ -432,3 +432,14 @@ class ReferencePictureTests(unittest.TestCase):
         self.assertEqual([r['id'] for r in app.list_refs()], [b['id']])
         with self.assertRaises(FileNotFoundError):
             app.ref_image('../../etc')
+
+    def test_mixing_pad_is_kept_per_computer(self):
+        with self.assertRaises(FileNotFoundError):
+            app.mix_pad()
+        png = b'\x89PNG\r\n\x1a\n' + b'pad'
+        app.save_mix_pad(png)
+        self.assertEqual(app.mix_pad(), png)
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp.name, 'mixing.png')))
+        with self.assertRaises(ValueError):
+            app.save_mix_pad(b'\xff\xd8\xff\xe0jpeg')
+        self.assertEqual(app.mix_pad(), png, 'a refused picture leaves the old one')
