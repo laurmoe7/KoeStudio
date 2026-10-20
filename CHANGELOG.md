@@ -5,6 +5,10 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Count jitter (Brush settings → Variation): each step lays a random number of dabs; imported Photoshop brushes bring it.
+- Imported Clip Studio Paint spray brushes keep their spray: particle size, how many land at once, how far they spread and which way they point.
+- Imported Clip Studio Paint brushes bring random tip thickness, size and density changing with speed, and Apply texture to each dab.
+- Imported Photoshop brushes whose angle follows pen tilt turn with the pen's lean, and settings KoeStudio can't match (Fade, stylus wheel and the like) are listed on the brush.
 - Both ways (Brush settings → Variation): turn it off to scatter dabs only sideways across the stroke; imported Photoshop brushes bring it.
 - Clip Studio Paint brushes (.sut files) can be imported again, now with their own tip and texture pictures, pen pressure curves, jitter, tapers, colour jitter and colour mixing.
 - Spacing can go as low as 0.5%, for brushes whose dabs must sit very close together.
@@ -15,6 +19,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Imported Clip Studio Paint brushes no longer all turn with the stroke; only those set to follow the line's direction do.
 - Scattered brushes that turn with the stroke (fur, grass) keep their tips along the stroke instead of pointing every which way.
 - The first dab of a brush that turns with the stroke is no longer drawn back to front.
 - Imported brushes no longer get the Brush tool's end taper when the brush file has none.

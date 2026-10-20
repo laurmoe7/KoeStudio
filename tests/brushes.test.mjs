@@ -414,3 +414,14 @@ test('a tip turning with the stroke follows the stroke, not its scattered dabs',
   assert.equal(turns.length, 5);
   for (const r of turns) near(r, 0, 'every dab turned along the stroke, the first one too');
 });
+
+test('count jitter', async () => {
+  const { dabCount } = await import('../web/js/brush.js');
+  assert.equal(dabCount({ count: 9 }, () => { throw new Error('no random number without jitter'); }), 9);
+  // 76% of 9 is 6.84: random 0.99 takes floor(6.77) = 6 off (3 dabs), random 0 none (9)
+  assert.equal(dabCount({ count: 9, countJitter: 0.76 }, () => 0.99), 3);
+  assert.equal(dabCount({ count: 9, countJitter: 0.76 }, () => 0), 9);
+  assert.equal(dabCount({ count: 1, countJitter: 1 }, () => 0.99), 1, 'never fewer than 1');
+  assert.equal(dabCount({ count: 4, countJitter: 1 }, () => 0.99), 1, 'at 100%: down to 1');
+  assert.equal(sanitizeSettings(null).brush.countJitter, 0);
+});

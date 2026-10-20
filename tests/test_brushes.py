@@ -222,6 +222,17 @@ class AbrReader(unittest.TestCase):
         on = {'useScatter': True, 'scatterDynamics': jit(34)}
         self.assertEqual(bi._abr_settings({**b, **on, 'bothAxes': False})[0]['scatterBoth'], False, 'Fur Rake: only across the stroke')
         self.assertNotIn('scatterBoth', bi._abr_settings({**b, **on, 'bothAxes': True})[0], 'both axes: the default')
+        # count 9 with count jitter 76% (A Grainy Textured Rake), and 20 (16 kept)
+        s, notes, *_ = bi._abr_settings({**b, **on, 'Cnt ': 9.0, 'countDynamics': jit(76)})
+        self.assertEqual((s['count'], s['countJitter']), (9, 0.76))
+        self.assertEqual(notes, [])
+        self.assertEqual(bi._abr_settings({**b, **on, 'Cnt ': 20.0})[1], ['20 dabs at a time (16 are used)'])
+        # controls with no match are noted; an angle by pen tilt turns with the pen's lean
+        s, notes, *_ = bi._abr_settings({**b, 'szVr': jit(0, 1), 'angleDynamics': jit(0, 3), 'roundnessDynamics': jit(0, 2),
+                                         'usePaintDynamics': True, 'prVr': jit(0, 4), 'opVr': jit(0, 2)})
+        self.assertIs(s['tiltAngle'], True)
+        self.assertEqual(notes, ['Size changing with a fade over the first dabs', 'Roundness changing with pen pressure',
+                                 'Flow changing with the stylus wheel'])
         s, notes, *_ = bi._abr_settings({**b, 'colorDynamicsPerTip': False, 'clVr': jit(50), 'purity': prc(-20)})
         self.assertTrue(s['colorJitterStroke'])
         self.assertEqual(notes, ['Foreground/background jitter', 'Purity'])
@@ -539,8 +550,8 @@ def csp_refs(*items):
     return u32(8) + u32(len(items)) + body
 
 
-def csp_effector(on, pressure_min=0, random_min=0, curve=None):
-    head = struct.pack('>11i', 44, 0x1f0, on, pressure_min, 0, 0, random_min, 0, 0, 0, 0)
+def csp_effector(on, pressure_min=0, random_min=0, curve=None, velocity_min=0):
+    head = struct.pack('>11i', 44, 0x1f0, on, pressure_min, 0, velocity_min, random_min, 0, 0, 0, 0)
     if curve:
         head += struct.pack('>3i', 12, len(curve), 16) + b''.join(struct.pack('>2d', x, y) for x, y in curve)
     return head
@@ -566,7 +577,7 @@ class ClipStudioReader(unittest.TestCase):
     def test_settings(self):
         res = bi.import_brushes('graphite.sut', make_sut({
             'BrushSize': 30.0, 'Opacity': 80, 'BrushFlow': 50, 'BrushHardness': 40, 'BrushInterval': 12.0, 'FlickerReduction': 25,
-            'BrushThickness': 50, 'BrushVerticalThicknes': 0, 'BrushRotation': 30.0, 'BrushRotationEffector': 0x81,
+            'BrushThickness': 50, 'BrushVerticalThicknes': 0, 'BrushRotation': 30.0, 'BrushRotationEffector': 0xC3,
             'BrushRotationRandomScale': 20, 'BrushPatternReverseHorizontal': 2,
             'BrushSizeEffector': csp_effector(0x90, 30, 60, [(0, 0), (0.5, 0.25), (1, 1)]),
             'BrushFlowEffector': csp_effector(0x10, 10, 0, [(0, 0), (1, 1)]),
@@ -587,6 +598,35 @@ class ClipStudioReader(unittest.TestCase):
         self.assertEqual(b['notes'], ['End taper as a share of the stroke', 'Dual brush'])
         self.assertIsNone(b['tip'])
         self.assertEqual(res['images'], [])
+
+    def test_direction_spray_thickness_and_speed(self):
+        # the Rake pack's Flat rakes (3: no turning) and turning rakes (67 = 0x40 + 3)
+        flat = bi._sut_settings({'BrushSize': 150.0, 'BrushRotationEffector': 3})[0]
+        self.assertIs(flat['tipFollow'], False)
+        self.assertIs(bi._sut_settings({'BrushSize': 150.0, 'BrushRotationEffector': 67})[0]['tipFollow'], True)
+        # Fur Rake: a 120 px spray area of particles 352.94% of it (423.5 px), 1 per step, turning with the line at 270°;
+        # the area's radius 60 px is 0.14 of a particle
+        s, notes, *_ = bi._sut_settings({'BrushSize': 120.0, 'BrushRotationEffector': 67, 'BrushRotation': 0.0, 'BrushUseSpray': 1,
+                                         'BrushSpraySize': 352.94, 'BrushSpraySizeSyncBrushSize': 1, 'BrushSprayDensity': 1,
+                                         'BrushRotationInSpray': 270.0, 'BrushRotationEffectorInSpray': 65, 'BrushRotationRandomInSpray': 0})
+        self.assertEqual((s['size'], s['scatter'], s['count'], s['tipAngle'], s['tipFollow'], s['tipRandom']), (423.5, 0.14, 1, 270, True, 0))
+        self.assertEqual(notes, [])
+        # a 400 px particle not linked to the size, 20 per step (16 kept), random turns of 2%, gathered in the middle
+        s, notes, *_ = bi._sut_settings({'BrushSize': 100.0, 'BrushUseSpray': 1, 'BrushSpraySize': 400.0, 'BrushSprayDensity': 20,
+                                         'BrushSprayBias': 50, 'BrushRotationEffectorInSpray': 0x80 | 1, 'BrushRotationRandomInSpray': 2})
+        self.assertEqual((s['size'], s['scatter'], s['count'], s['tipFollow'], s['tipRandom']), (400, 0.12, 16, False, 0.02))
+        self.assertEqual(notes, ['20 spray particles at a time (16 are used)', 'Spray gathered towards the middle'])
+        # thickness at random down to 33% (squashed up to 67%) and with pen pressure (noted); texture on each dab
+        s, notes, *_ = bi._sut_settings({'BrushSize': 50.0, 'BrushThicknessEffector': csp_effector(0x90, 61, 33),
+                                         'TextureImage': b'', 'TextureDensity': 0, 'TextureForPlot': 1})
+        self.assertEqual(s['roundJitter'], 0.67)
+        self.assertEqual(notes, ['Tip thickness changing with pen pressure'])
+        # speed: size down to 40% and density down to 70% when fast; random spacing has no match
+        s, notes, *_ = bi._sut_settings({'BrushSize': 50.0, 'BrushSizeEffector': csp_effector(0x40, velocity_min=40),
+                                         'BrushFlowEffector': csp_effector(0x40, velocity_min=70),
+                                         'BrushIntervalEffector': csp_effector(0x80, random_min=50)})
+        self.assertEqual((s['speedSize'], s['speedFlow']), (0.6, 0.3))
+        self.assertEqual(notes, ['Spacing changing at random'])
 
     def test_tip_and_texture_pictures(self):
         # a 3 x 2 ink mark (with a half-strength pixel) inside a 6 x 5 material; a 4 x 4 grain
@@ -610,6 +650,11 @@ class ClipStudioReader(unittest.TestCase):
         self.assertNotIn('side', grain)
         self.assertEqual(b['settings']['textureScale'], 0.25)
         self.assertEqual(b['settings']['textureAmount'], 0.4)
+        self.assertNotIn('grainPressure', b['settings'])
+        s = bi.import_brushes('g.sut', make_sut({'BrushSize': 20.0, 'TextureImage': csp_refs((self.TEX, 'Grain')), 'TextureDensity': 40,
+                                                 'TextureForPlot': 1, 'TextureRotate': 45.0}, [(self.TEX, csp_package(tex))]))['brushes'][0]
+        self.assertIs(s['settings']['grainPressure'], True, 'Apply texture to each dab')
+        self.assertEqual(s['notes'], ['Texture turned'])
         self.assertIs(b['settings']['textureInvert'], True, 'CLIP STUDIO paints where the texture is dark')
 
     def test_texture_size(self):

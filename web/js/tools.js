@@ -20,7 +20,7 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 function tex(texture = 'none', textureAmount = 0.5) {
   return { texture, textureAmount, textureScale: 1, textureInvert: false, grainPressure: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, flipX: false, flipY: false, roundJitter: 0, pixel: false,
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, scatterBoth: true, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0, taperSize: 1, taperOpacity: 0,
-    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, quickShape: false, refStop: false,
+    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, countJitter: 0, quickShape: false, refStop: false,
     dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, impasto: 0, dryOut: 0, mix: 0, mixStretch: 0.5, paintLoad: 1,
     ...COMBO_DEFAULTS, preset: '' };
 }
@@ -136,6 +136,7 @@ export const SETTING_FIELDS = [
   ['scatter', 'Scatter', 'range', 0, 2, 0.01],
   ['scatterBoth', 'Both ways', 'check'],
   ['count', 'Count', 'range', 1, 16, 1],
+  ['countJitter', 'Count jitter', 'range', 0, 1, 0.01],
   ['sizeJitter', 'Size jitter', 'range', 0, 1, 0.01],
   ['flowJitter', 'Density jitter', 'range', 0, 1, 0.01],
   ['hueJitter', 'Hue jitter', 'range', 0, 1, 0.01],
@@ -200,7 +201,7 @@ export const SETTING_GROUPS = [
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'taperSize', 'taperOpacity', 'quickShape']],
   ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
-  ['Variation', ['scatter', 'scatterBoth', 'count', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
+  ['Variation', ['scatter', 'scatterBoth', 'count', 'countJitter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureInvert', 'grainPressure']],
   ['Dual brush', ['dualTip', 'dualSize', 'dualSpacing', 'dualScatter']],
   ['Combined', ['comboTip', 'comboMode', 'comboSize', 'comboFlow', 'comboHardness', 'comboSpacing', 'comboThickness', 'comboAngle', 'comboRandom', 'comboFollow',
@@ -278,6 +279,7 @@ export const SETTING_HINTS = {
   textureInvert: 'Swaps the texture: paint goes into the dark parts instead of the light ones',
   count: 'Dabs at each step: more than 1 lays several at once, each with its own scatter and jitter (spray, foliage, sparkles; turn Scatter up to spread them)',
   scatter: 'Moves each dab a random distance from the stroke, up to this many times the brush size',
+  countJitter: 'Lays a random number of dabs at each step instead of always Count: at 100% anywhere from 1 to Count',
   scatterBoth: 'Scatters dabs in every direction; off, only sideways across the stroke, so they stay evenly spaced along it (Both Axes in Photoshop)',
   sizeJitter: 'Makes each dab smaller by a random amount, up to this share of its size',
   flowJitter: 'Makes each dab lighter by a random amount, up to this share of its density',

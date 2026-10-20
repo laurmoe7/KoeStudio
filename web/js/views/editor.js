@@ -1,7 +1,7 @@
 // The drawing screen: canvas viewport, tools, tool settings, colour and layer panels, menus and autosave.
 
 import { api } from '../api.js';
-import { Smoother, StampPath, stampAt, stampBounds, dabJitter, colorJitter, taperIn, taperOut, taperDab, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL } from '../brush.js';
+import { Smoother, StampPath, stampAt, stampBounds, dabCount, dabJitter, colorJitter, taperIn, taperOut, taperDab, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor, averageColor } from '../color.js';
 import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach, withoutDrafts } from '../doc.js';
@@ -1487,10 +1487,10 @@ export class Editor {
     if (g.dual) this.addDualStamps(sp);
     const steps = g.path.add(sp);
     if (!steps.length) { if (g.combo) this.addComboStamps(sp); return; }
-    const count = Math.max(1, Math.round(g.s.count || 1));
-    const stamps = count === 1 ? steps : steps.flatMap(st => Array.from({ length: count }, () => ({ ...st })));
-    stamps.forEach((st, n) => {  // distance along the stroke (for the taper) and random variation; symmetric copies share it
-      if (n % count === 0) {
+    // Count (and Count jitter): several dabs at each step; the first of them moves the stroke on
+    const stamps = steps.flatMap(st => Array.from({ length: dabCount(g.s) }, (_, n) => (n ? { ...st, first: false } : Object.assign(st, { first: true }))));
+    stamps.forEach(st => {  // distance along the stroke (for the taper) and random variation; symmetric copies share it
+      if (st.first) {
         if (g.prevStamp) {
           const dx = st.x - g.prevStamp.x, dy = st.y - g.prevStamp.y;
           g.dist += Math.hypot(dx, dy);

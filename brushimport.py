@@ -215,6 +215,13 @@ def _num(v, default=None):
 
 MIN_SPACING = 0.005  # KoeStudio's smallest Spacing (a share of the brush size)
 DIRECTION, INITIAL_DIRECTION, PEN_PRESSURE = 6, 5, 2  # 'bVTy' controls: off, fade, pressure, tilt, wheel, ...
+# the controls KoeStudio has no match for, as notes say them ('the dabs' size changing with ...)
+ABR_CONTROLS = {1: 'a fade over the first dabs', 3: 'pen tilt', 4: 'the stylus wheel', 5: 'pen rotation'}
+
+
+def _control_note(notes, control, what):
+    if control in ABR_CONTROLS:
+        notes.append(f'{what} changing with {ABR_CONTROLS[control]}')
 
 
 def read_abr(data, filename):
@@ -423,12 +430,19 @@ def _abr_settings(b):
             s['minSize'] = round(_clamp(_num(b.get('minimumDiameter'), 0) / 100, 0, 1), 2)
         else:
             s['pressureSize'] = False
+            _control_note(notes, control, 'Size')
         s['sizeJitter'] = round(_clamp(jitter, 0, 1), 2)
         control, jitter, _ = _dyn(b, 'angleDynamics')
         s['tipRandom'] = round(_clamp(jitter, 0, 1), 2)
         s['tipFollow'] = control in (DIRECTION, INITIAL_DIRECTION)
+        if control == 3:  # pen tilt: the tip turns with the way the pen leans
+            s['tiltAngle'] = True
+        elif control in (1, 2, 4):
+            notes.append('Angle changing with ' + ('pen pressure' if control == PEN_PRESSURE else ABR_CONTROLS[control]))
         # Roundness jitter: each dab squashed at random, never below the minimum roundness
-        rj = _dyn(b, 'roundnessDynamics')[1]
+        rc, rj, _ = _dyn(b, 'roundnessDynamics')
+        if rc:
+            notes.append('Roundness changing with ' + ('pen pressure' if rc == PEN_PRESSURE else ABR_CONTROLS.get(rc, 'the pen')))
         if rj:
             low = _clamp(_num(b.get('minimumRoundness'), 0) / 100, 0, 1)
             s['roundJitter'] = round(_clamp(min(rj, 1 - low), 0, 1), 2)
@@ -445,15 +459,24 @@ def _abr_settings(b):
         s['pressureOpacity'] = PEN_PRESSURE in (fc, oc)
         s['minFlow'] = round(fmin if fc == PEN_PRESSURE else omin, 2)
         s['flowJitter'] = round(_clamp(max(fj, oj), 0, 1), 2)
+        _control_note(notes, fc, 'Flow')
+        _control_note(notes, oc, 'Opacity')
     else:
         s['pressureOpacity'] = False
     if b.get('useScatter'):
         s['scatter'] = round(_clamp(_dyn(b, 'scatterDynamics')[1], 0, 2), 2)  # Photoshop: a share of the diameter
         if b.get('bothAxes') is False:  # only across the stroke
             s['scatterBoth'] = False
+        _control_note(notes, _dyn(b, 'scatterDynamics')[0], 'Scatter')
         cnt = _num(b.get('Cnt '), 1) or 1
         if cnt > 1:
             s['count'] = int(_clamp(round(cnt), 1, 16))
+            if cnt > 16:
+                notes.append(f'{round(cnt)} dabs at a time (16 are used)')
+        cc, cj, _ = _dyn(b, 'countDynamics')
+        if cj:  # each step lays a random number of dabs, down to (1 - jitter) of the count
+            s['countJitter'] = round(_clamp(cj, 0, 1), 2)
+        _control_note(notes, cc, 'Count')
     tex = None
     t = b.get('Txtr')
     if b.get('useTexture') and isinstance(t, dict):
@@ -1065,13 +1088,18 @@ def read_krita_bundle(z, filename):
 
 CSP_PRESSURE, CSP_TILT, CSP_VELOCITY, CSP_RANDOM = 0x10, 0x20, 0x40, 0x80
 CSP_BLOCK = 256
+# a tip's direction (BrushRotationEffector, BrushRotationEffectorInSpray: plain ints, not blobs): 0x40 turns it with the
+# line, 0x80 at random; the two lowest bits are always set. Found by comparing the Rake pack's .sut and .abr brushes
+# (the Flat rakes, which do not turn in Photoshop, have 3; the turning ones 67)
+CSP_LINE_DIRECTION = 0x40
 
 
 def csp_effector(blob):
     """An effector blob (big-endian): 11 int32 (header size 44, available inputs, enabled inputs, then each input's
     minimum in percent: pressure, tilt, velocity, random), then curves: int32 header size 12, point count, point size
     16, then (x, y) float64 pairs; the first is the pen pressure curve. {'pressure', 'tilt', 'velocity', 'random':
-    bools, 'pressureMin', 'randomMin': 0-1, 'curve': [[x, y], ...] or None}, or None when missing or not understood."""
+    bools, 'pressureMin', 'velocityMin', 'randomMin': 0-1, 'curve': [[x, y], ...] or None}, or None when missing or not
+    understood."""
     if not isinstance(blob, bytes) or len(blob) < 44:
         return None
     ints = struct.unpack('>11i', blob[:44])
@@ -1079,7 +1107,8 @@ def csp_effector(blob):
         return None
     on = ints[2]
     out = {'pressure': bool(on & CSP_PRESSURE), 'tilt': bool(on & CSP_TILT), 'velocity': bool(on & CSP_VELOCITY),
-           'random': bool(on & CSP_RANDOM), 'pressureMin': _clamp(ints[3] / 100, 0, 1), 'randomMin': _clamp(ints[6] / 100, 0, 1), 'curve': None}
+           'random': bool(on & CSP_RANDOM), 'pressureMin': _clamp(ints[3] / 100, 0, 1), 'velocityMin': _clamp(ints[5] / 100, 0, 1),
+           'randomMin': _clamp(ints[6] / 100, 0, 1), 'curve': None}
     pos = ints[0]
     if pos + 12 <= len(blob):
         head, n, size = struct.unpack('>3i', blob[pos:pos + 12])
@@ -1436,7 +1465,38 @@ def _sut_settings(v):
     s['tipAngle'] = round(angle) % 360
     rot = g('BrushRotationEffector')
     s['tipRandom'] = round(_clamp(g('BrushRotationRandomScale') / 100, 0, 1), 2) if rot & CSP_RANDOM else 0
-    s['tipFollow'] = bool(rot & 1)
+    s['tipFollow'] = bool(rot & CSP_LINE_DIRECTION)
+    th = csp_effector(v.get('BrushThicknessEffector'))
+    if th and th['random']:  # each dab squashed at random, down to the minimum
+        s['roundJitter'] = round(_clamp(1 - th['randomMin'], 0, 1), 2)
+    if th:
+        for key, label in (('pressure', 'pen pressure'), ('tilt', 'pen tilt'), ('velocity', 'speed')):
+            if th[key]:
+                notes.append(f'Tip thickness changing with {label}')
+
+    # Spray: the brush size is the area the particles land in, Particle size their size (a percentage of the brush
+    # size when linked to it), Particle density how many per step, and the particles have their own direction.
+    # Spacing is a share of the particle. Checked against the Rake pack, whose .sut and .abr Fur Rake and Feathers
+    # agree once read this way
+    if g('BrushUseSpray'):
+        area = s['size']
+        part = g('BrushSpraySize', 100) * (area / 100 if g('BrushSpraySizeSyncBrushSize') else 1)
+        s['size'] = round(_clamp(part, 1, 1000), 1)
+        s['scatter'] = round(_clamp(area / 2 / max(part, 1), 0, 2), 2)
+        n = round(g('BrushSprayDensity', 1))
+        s['count'] = int(_clamp(n, 1, 16))
+        if n > 16:
+            notes.append(f'{n} spray particles at a time (16 are used)')
+        if g('BrushSprayBias'):
+            notes.append('Spray gathered towards the middle')
+        rot = g('BrushRotationEffectorInSpray')
+        angle = g('BrushRotationInSpray', 0.0) + (90 if s['thickness'] < 1 and not g('BrushVerticalThicknes', 1) else 0)
+        s['tipAngle'] = round(angle) % 360
+        s['tipFollow'] = bool(rot & CSP_LINE_DIRECTION)
+        s['tipRandom'] = round(_clamp(g('BrushRotationRandomInSpray') / 100, 0, 1), 2) if rot & CSP_RANDOM else 0
+    ie = csp_effector(v.get('BrushIntervalEffector'))
+    if ie and (ie['random'] or ie['pressure']):
+        notes.append('Spacing changing ' + ('at random' if ie['random'] else 'with pen pressure'))
     if g('BrushPatternReverseHorizontal') == 2:  # 1 mirrors the picture itself, 2 mirrors dabs at random
         s['flipX'] = True
     if g('BrushPatternReverseVertical') == 2:
@@ -1452,6 +1512,8 @@ def _sut_settings(v):
                 s['sizeCurve'] = size['curve']
         if size['random']:
             s['sizeJitter'] = round(1 - size['randomMin'], 2)
+        if size['velocity']:  # fast strokes thinner, down to the minimum
+            s['speedSize'] = round(1 - size['velocityMin'], 2)
         _sut_inputs(size, 'Size', notes)
     flow, op = csp_effector(v.get('BrushFlowEffector')), csp_effector(v.get('BrushOpacityEffector'))
     dens = flow if flow and (flow['pressure'] or not (op and op['pressure'])) else op
@@ -1464,8 +1526,10 @@ def _sut_settings(v):
     for e, label in ((flow, 'Density'), (op, 'Opacity')):
         if e and e['random']:
             s['flowJitter'] = max(s.get('flowJitter', 0), round(1 - e['randomMin'], 2))
+        if e and e['velocity'] and e is dens:  # fast strokes lighter
+            s['speedFlow'] = round(1 - e['velocityMin'], 2)
         if e:
-            _sut_inputs(e, label, notes)
+            _sut_inputs(e, label, notes, e is dens)
     if flow and op and flow['pressure'] and op['pressure']:
         notes.append('Opacity changing with pen pressure (density does)')
 
@@ -1476,6 +1540,10 @@ def _sut_settings(v):
         tex = t[0]
         s['textureAmount'] = round(_clamp(g('TextureDensity') / 100, 0, 1), 2)
         s['textureInvert'] = not g('TextureReverseDensity')
+        if g('TextureForPlot'):  # Apply texture to each dab: the grain is cut out of every dab, so overlaps build up on it
+            s['grainPressure'] = True
+        if g('TextureRotate'):
+            notes.append('Texture turned')
         if g('TextureBrightness') or g('TextureContrast'):
             notes.append('Texture brightness and contrast')
         te = csp_effector(v.get('TextureDensityEffector'))
@@ -1506,16 +1574,17 @@ def _sut_settings(v):
         s['mix'] = round(_clamp(g('BrushMixColor', 50) / 100, 0.05, 1), 2)
     if g('BrushUseWaterEdge'):
         s['wetEdges'] = round(_clamp(g('BrushWaterEdgeAlphaPower', 50) / 100, 0.05, 1), 2)
-    for col, label in (('BrushUseSpray', 'Spray'), ('UseDualBrush', 'Dual brush'), ('BrushRibbon', 'Ribbon'),
+    for col, label in (('UseDualBrush', 'Dual brush'), ('BrushRibbon', 'Ribbon'),
                        ('BrushUseVectorEraser', 'Vector eraser'), ('CompositeMode', 'Blending mode')):
         if g(col):
             notes.append(label)
     return s, notes, tips[0] if tips else None, tex
 
 
-def _sut_inputs(e, what, notes):
+def _sut_inputs(e, what, notes, speed=True):
+    """Notes for an effector's inputs KoeStudio has no match for (speed is matched where `speed`)."""
     for key, label in (('tilt', 'pen tilt'), ('velocity', 'speed')):
-        if e[key]:
+        if e[key] and not (key == 'velocity' and speed):
             notes.append(f'{what} changing with {label}')
 
 

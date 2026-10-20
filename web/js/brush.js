@@ -60,6 +60,13 @@ export function stampAt(s, p) {
  * Random variation of one dab: an offset of up to scatter x its size in any direction, and size and density
  * lowered by up to sizeJitter / flowJitter. rnd() gives numbers in [0, 1) (Math.random, or a fixed list in tests).
  */
+/** How many dabs to lay at one step: Count, or with Count jitter a random number from Count down to (1 - jitter) x Count
+ * (at least 1). Draws a random number only when there is jitter, so lines saved without it replay the same. */
+export function dabCount(s, rnd = Math.random) {
+  const c = Math.max(1, Math.round(s.count || 1));
+  return s.countJitter > 0 ? Math.max(1, c - Math.floor(Math.min(1, s.countJitter) * c * rnd())) : c;
+}
+
 export function dabJitter(s, size, rnd = Math.random, dir = null) {
   const out = { dx: 0, dy: 0, sizeK: 1, flowK: 1 };
   if (s.scatter > 0 && s.scatterBoth === false) {  // only sideways across the stroke (heading dir), as Photoshop without Both Axes

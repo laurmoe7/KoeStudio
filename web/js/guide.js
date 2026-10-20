@@ -103,8 +103,8 @@ export const GUIDE = [
       pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. Tilt needs a pen that reports it.
       Lines on a vector layer remember the tilt and speed, so they keep their look when you erase or bend them.</li>
       <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.
-      <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles). Turn off <b>Both ways</b>
-      to scatter dabs only sideways across the stroke.</li>
+      <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles), and <b>Count jitter</b> makes
+      that number random. Turn off <b>Both ways</b> to scatter dabs only sideways across the stroke.</li>
       <li><b>Texture</b>: a paper grain. It stays fixed to the canvas, so strokes share the same grain like real paper.
       With <b>Grain by pressure</b> (on for the Pencil) a light touch only catches the tops of the grain and a firm one
       fills it in, as with graphite. Keep <b>Density</b> low (the Pencil uses 45%) so light lines stay grey: pressure
@@ -271,6 +271,13 @@ export const GUIDE = [
       tips spaced far apart, where every tuft should keep its place. Photoshop calls this Both Axes, and imported
       brushes bring it.</li>
       <li>It does nothing while <b>Scatter</b> is 0.</li>
+    </ul>
+
+    <h4>Count jitter (Variation page)</h4>
+    <ul>
+      <li>Each step lays a random number of dabs, from <b>Count</b> down to fewer. At 100% it can be anywhere from 1 to Count.</li>
+      <li>Good for spray, grass and fur: clumps come out thicker in some places and thinner in others.</li>
+      <li>It does nothing while Count is 1.</li>
     </ul>
 
     <h4>Dual brush and Combined (their own pages)</h4>
