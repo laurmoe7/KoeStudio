@@ -237,6 +237,33 @@ class AbrReader(unittest.TestCase):
         self.assertTrue(s['colorJitterStroke'])
         self.assertEqual(notes, ['Foreground/background jitter', 'Purity'])
 
+    def test_texture_mode_and_each_tip(self):
+        prc = lambda v: {'unit': '#Prc', 'value': v}
+        mode = lambda m: {'textureBlendMode': {'type': 'BlnM', 'enum': m}}
+        b = {'Brsh': {'_class': 'computedBrush', 'Dmtr': {'unit': '#Pxl', 'value': 30}}, 'useTexture': True,
+             'Txtr': {'_class': 'Ptrn', 'Nm  ': 'Paper', 'Idnt': '$p'}, 'textureDepth': prc(60)}
+        s, notes, *_ = bi._abr_settings({**b, **mode('Mltp')})
+        self.assertNotIn('textureMode', s, 'Multiply: the default')
+        self.assertNotIn('textureEachDab', s)
+        self.assertEqual(notes, [])
+        # Darken is min(paint, texture): Clip Studio's Compare; Linear Burn adds the two less 1: its Subtract
+        for code, want in [('Drkn', 'compare'), ('Ovrl', 'overlay'), ('CDdg', 'dodge'), ('CBrn', 'burn'), ('Cbrn', 'burn'),
+                           ('linearBurn', 'subtract'), ('hardMix', 'hardmix'), ('height', 'height')]:
+            self.assertEqual(bi._abr_settings({**b, **mode(code)})[0]['textureMode'], want, code)
+        s, notes, *_ = bi._abr_settings({**b, **mode('linearHeight')})
+        self.assertEqual((s['textureMode'], notes), ('height', ['Its Linear Height texture is drawn as Height']))
+        s, notes, *_ = bi._abr_settings({**b, **mode('Xyzz')})
+        self.assertNotIn('textureMode', s)
+        self.assertEqual(notes, ['Its texture mode (Xyzz) is drawn as Multiply'])
+        # Texture Each Tip, its depth by pen pressure down to a minimum of 20%: a light touch shows 20% of the grain
+        dyn = lambda ty: {'_class': 'brVr', 'bVTy': ty, 'jitter': prc(0), 'Mnm ': prc(0)}
+        s, notes, *_ = bi._abr_settings({**b, 'TxtC': True, 'minimumDepth': prc(20), 'textureDepthDynamics': dyn(2)})
+        self.assertEqual((s['textureEachDab'], s['texturePressure'], notes), (True, 0.8, []))
+        s, notes, *_ = bi._abr_settings({**b, 'TxtC': True, 'minimumDepth': prc(20), 'textureDepthDynamics': dyn(3)})
+        self.assertNotIn('texturePressure', s)
+        self.assertEqual(notes, ['Texture depth changing with pen tilt'])
+        self.assertNotIn('textureEachDab', bi._abr_settings({**b, 'TxtC': False})[0])
+
     def test_old_version(self):
         computed = u32(0) + u16(25) + u16(12) + u16(80) + struct.pack('>h', 45) + u16(50)
         sampled = u32(0) + u16(30) + ustr('Old') + b'\0' + bytes(8) + i32(0) + i32(0) + i32(1) + i32(2) + u16(8) + b'\0' + b'\x10\x20'

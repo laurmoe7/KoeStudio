@@ -254,8 +254,10 @@ export const GUIDE = [
       keeps the paint below the texture. <b>Height</b> fills the low parts first and goes solid quickly as the paint
       gets denser: keep Grain and Density low with it (Clip Studio pencils use about 25-40%).
       <b>Normal</b>, <b>Overlay</b>, <b>Color dodge</b>, <b>Color burn</b>, <b>Hard mix</b> and <b>Outline</b>
-      push the grain lighter or darker in other ways.</li>
-      <li><b>Texture each dab</b> (Clip Studio Paint: Apply by each plot) puts the texture on every dab on its own,
+      push the grain lighter or darker in other ways. Imported Photoshop brushes bring their mode too: Darken comes
+      in as Compare and Linear burn as Subtract (the same sums); Linear height becomes Height. Photoshop draws its
+      modes a little differently, so check an imported brush's grain against how it looked there.</li>
+      <li><b>Texture each dab</b> (Clip Studio Paint: Apply by each plot, Photoshop: Texture Each Tip) puts the texture on every dab on its own,
       so overlapping dabs build up on the grain. Off, the texture goes over the stroke as a whole, and a stroke never
       gets darker than one pass. Grain by pressure goes first when both are on.</li>
       <li>The <b>Canvas</b> grain is a weave, so over a whole stroke it reads as cloth. For broken, painterly edges,

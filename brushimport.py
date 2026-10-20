@@ -217,6 +217,17 @@ MIN_SPACING = 0.005  # KoeStudio's smallest Spacing (a share of the brush size)
 DIRECTION, INITIAL_DIRECTION, PEN_PRESSURE = 6, 5, 2  # 'bVTy' controls: off, fade, pressure, tilt, wheel, ...
 # the controls KoeStudio has no match for, as notes say them ('the dabs' size changing with ...)
 ABR_CONTROLS = {1: 'a fade over the first dabs', 3: 'pen tilt', 4: 'the stylus wheel', 5: 'pen rotation'}
+# Photoshop's texture modes ('textureBlendMode', a BlnM enum, keyed lowercased with only letters) as KoeStudio's
+# textureMode (texmodes.js, measured in CLIP STUDIO). Mltp, Drkn, Ovrl and CBrn are documented codes; the others are
+# Photoshop's usual blend mode ids and names, unverified in a brush file. Darken min(a, t) is Compare and Linear Burn
+# a + t - 1 is Subtract; Linear Height has no match and becomes Height.
+ABR_TEXTURE_MODES = {
+    'mltp': 'multiply', 'multiply': 'multiply', 'sbtr': 'subtract', 'subtract': 'subtract', 'blendsubtraction': 'subtract',
+    'drkn': 'compare', 'darken': 'compare', 'ovrl': 'overlay', 'overlay': 'overlay',
+    'cddg': 'dodge', 'colordodge': 'dodge', 'cbrn': 'burn', 'colorburn': 'burn',
+    'linearburn': 'subtract', 'lbrn': 'subtract', 'hardmix': 'hardmix', 'hrdm': 'hardmix',
+    'height': 'height', 'hght': 'height', 'linearheight': 'height',
+}
 
 
 def _control_note(notes, control, what):
@@ -377,6 +388,8 @@ def _abr_brushes(samples, patterns, desc, filename):
                 if tex in patterns:
                     texture = texture_image(tex)
                 else:
+                    for k in ('textureMode', 'textureEachDab', 'texturePressure'):
+                        settings.pop(k, None)
                     notes.append('Its texture is not in the file')
             if tip is None:
                 settings['tip'] = 'round'
@@ -484,6 +497,23 @@ def _abr_settings(b):
         s['textureAmount'] = round(_clamp(_num(b.get('textureDepth'), 100) / 100, 0, 1), 2)
         s['textureScale'] = round(_clamp(_num(b.get('textureScale'), 100) / 100, 0.25, 4), 2)
         s['textureInvert'] = bool(b.get('InvT'))
+        mode = b.get('textureBlendMode')
+        code = mode.get('enum') if isinstance(mode, dict) else mode
+        if isinstance(code, str) and code.strip():
+            key = re.sub(r'[^a-z]', '', code.lower())
+            if key in ABR_TEXTURE_MODES:
+                if ABR_TEXTURE_MODES[key] != 'multiply':
+                    s['textureMode'] = ABR_TEXTURE_MODES[key]
+                if key == 'linearheight':
+                    notes.append('Its Linear Height texture is drawn as Height')
+            else:
+                notes.append(f'Its texture mode ({code.strip()}) is drawn as Multiply')
+        if b.get('TxtC') is True:  # Texture Each Tip: depth by pen pressure from the minimum depth up
+            s['textureEachDab'] = True
+            dc = _dyn(b, 'textureDepthDynamics')[0]
+            if dc == PEN_PRESSURE:
+                s['texturePressure'] = round(_clamp(1 - _num(b.get('minimumDepth'), 0) / 100, 0, 1), 2)
+            _control_note(notes, dc, 'Texture depth')
     dual_sid = None
     dual = b.get('dualBrush') if isinstance(b.get('dualBrush'), dict) else None
     dshape = dual.get('Brsh') if dual and isinstance(dual.get('Brsh'), dict) else None

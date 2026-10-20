@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-20
 
 ### New
+- Imported Photoshop brushes bring their texture mode and Texture Each Tip, with the texture depth following pen pressure when they set it.
 - Texture mode and Texture each dab (Brush settings → Texture): the ten ways Clip Studio Paint mixes a texture with the paint, matched to Clip Studio's own output, and imported Clip Studio brushes bring theirs.
 - Clip Studio Paint brushes now bring their texture brightness and contrast and their taper lengths in every unit Clip Studio uses for them; a Fade with only Starting ticked no longer counts as missing, since Clip Studio ignores it.
 - Pen → grain (Brush settings → Texture): pen pressure changes how strongly the texture shows, either way round; Clip Studio Paint brushes that do this bring it along.
