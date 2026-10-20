@@ -532,7 +532,17 @@ export const GUIDE = [
     <h4>Layer color</h4>
     <p>Layer → <b>Layer color…</b> shows everything on a layer in one colour, to try a new hair or shirt colour in a
     second. The paint itself stays as it was: untick it to get the old colours back, or Layer → Rasterize →
-    <b>Layer color</b> to keep the new one.</p>`],
+    <b>Layer color</b> to keep the new one.</p>
+    <h4>Expression color</h4>
+    <p>Show a layer in <b>Gray</b> or <b>Monochrome</b> (black and white only), as in Clip Studio Paint. The paint
+    itself stays as it was, so you can go back to <b>Color</b> at any time.</p>
+    <ol>
+      <li>Select the layer and pick Color, Gray or Monochrome in the box next to <b>Draft</b> in the Layers panel.</li>
+      <li>For Monochrome, Layer → <b>Expression color…</b> sets the <b>Threshold</b> (darker than it is black,
+      the rest white) and whether the white shows or is see-through.</li>
+    </ol>
+    <p class="tip">Monochrome with the white see-through turns grey or coloured line art into clean black lines for
+    print. Layer → Rasterize → <b>Expression color</b> makes it for good.</p>`],
 
   ['adjust', 'Correction layers', `
     <p class="lead">Change the colours of everything below, and keep changing your mind: a correction layer never
@@ -733,7 +743,7 @@ export const GUIDE = [
       <li>Open View → <b>Auto actions</b>.</li>
       <li>Press <b>New</b>, give the action a name, and recording starts.</li>
       <li>Do the steps: menu items (with the values you type in their dialogs), shortcut commands, and the Layers
-      panel (new layer, blending, opacity, clip, labels, Layer color).</li>
+      panel (new layer, blending, opacity, clip, labels, Layer color, Expression color).</li>
       <li>Press <b>Stop</b>.</li>
       <li>Press <b>▶</b> next to the action, or double-click its name, to do it all again.</li>
     </ol>

@@ -10,6 +10,7 @@
 
 import { COMMANDS } from './shortcuts.js';
 import { BLEND_MODES, PASS_THROUGH } from './doc.js';
+import { sanitizeExpression, expressionLabel } from './expression.js';
 
 /** The menus whose items are recorded; the others (File, View, Help) only look or save. */
 export const RECORD_MENUS = ['edit', 'image', 'select', 'layer', 'filter'];
@@ -29,6 +30,7 @@ const PROPS = {
   draft: v => typeof v === 'boolean',
   label: v => v === null || (typeof v === 'string' && /^[a-z]{1,10}$/.test(v)),
   layerColor: v => v === null || (typeof v === 'string' && /^#[0-9a-f]{6}$/.test(v)),
+  expression: v => JSON.stringify(sanitizeExpression(v)) === JSON.stringify(v),
 };
 export const PROP_KEYS = Object.keys(PROPS);
 const CMD_LABEL = new Map(COMMANDS.map(c => [c[0], c[2]]));
@@ -101,7 +103,7 @@ export function stepLabel(s) {
   if (s.kind === 'menu') return [MENU_NAMES[s.menu], ...s.path].join(' › ');
   if (s.kind === 'cmd') return CMD_LABEL.get(s.id) || s.id;
   if (s.kind === 'call') return RECORD_CALLS[s.name] + (s.name === 'layerMove' ? (s.args[0] > 0 ? ' up' : ' down') : '');
-  const v = s.key === 'opacity' ? Math.round(s.value * 100) + '%' : s.key === 'blend' ? BLEND_LABEL.get(s.value) : typeof s.value === 'boolean' ? (s.value ? 'on' : 'off') : s.value ?? 'off';
+  const v = s.key === 'expression' ? expressionLabel(s.value) : s.key === 'opacity' ? Math.round(s.value * 100) + '%' : s.key === 'blend' ? BLEND_LABEL.get(s.value) : typeof s.value === 'boolean' ? (s.value ? 'on' : 'off') : s.value ?? 'off';
   return `${s.label}: ${v}`;
 }
 

@@ -345,6 +345,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .layer-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 6px; }
 .lp-props { display: flex; align-items: center; gap: 8px; }
 .lp-blend { flex: 1; }
+.lp-expr { min-width: 0; }
 .lp-opacity { display: flex; align-items: center; gap: 4px; flex: 1; }
 .lp-opacity input { width: 70px; }
 .lp-opacity span { font-size: 12px; min-width: 34px; text-align: right; }

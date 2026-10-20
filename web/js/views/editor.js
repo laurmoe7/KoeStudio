@@ -469,11 +469,13 @@ export class Editor {
         { label: 'Correction layer settings…', run: () => this.adjustSettings(), disabled: !d.active.adjust },
         { label: 'Rasterize', sub: [
           { label: 'Layer effects', run: () => this.rasterizeEffects(d.active), disabled: !d.active.effects },
+        { label: 'Expression color…', checked: !!d.active.expression, run: () => this.expressionDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
           { label: 'Layer color', run: () => this.rasterizeLayerColor(d.active), disabled: !d.active.layerColor },
           { label: 'Screentone', run: () => this.rasterizeTone(d.active), disabled: !d.active.tone },
           { label: 'Text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
           { label: 'Vector layer', run: () => this.rasterizeVector(d.active), disabled: !d.active.vector },
         ] },
+          { label: 'Expression color', run: () => this.rasterizeExpression(d.active), disabled: !d.active.expression },
         '-',
         { label: 'Flip layer horizontally', run: () => this.flipPixels(this.layerRasters(), 'h', 'Flip layer') },
         { label: 'Flip layer vertically', run: () => this.flipPixels(this.layerRasters(), 'v', 'Flip layer') },

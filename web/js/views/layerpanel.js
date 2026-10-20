@@ -5,6 +5,7 @@ import { BLEND_MODES, PASS_THROUGH, LABELS } from '../doc.js';
 import { icon } from '../icons.js';
 import { isDoubleTap } from '../taps.js';
 import { adjustLabel } from '../adjust.js';
+import { EXPRESSIONS, defaultExpression, expressionLabel } from '../expression.js';
 import { isFolder, findRows } from '../tree.js';
 import { esc, promptBox } from '../ui.js';
 
@@ -62,6 +63,7 @@ export class LayerPanel {
         <label class="check" title="Lock the layer (or everything in the folder): no painting, filters, moving or transforming"><input type="checkbox" class="lp-locked">${icon('lock', 15)} Lock</label>
         <label class="check" title="Reference layer: Fill and the Magic wand set to 'Reference layers' find areas from these (e.g. your line art)"><input type="checkbox" class="lp-ref">${icon('ref', 15)} Reference</label>
         <label class="check" title="Draft layer: for sketches. You see it while drawing, but it is left out of exports, and Fill and the Magic wand looking at all layers ignore it"><input type="checkbox" class="lp-draft">${icon('pencil', 15)} Draft</label>
+        <select class="lp-expr" title="Expression color: show the layer in colour, gray or black and white, without changing its pixels (Layer → Expression color… sets the black and white threshold)">${EXPRESSIONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
       </div>
       <div class="lp-props">
         <span class="lp-labels" role="radiogroup" aria-label="Color label" title="Color label: marks the layer in this list"><span>Label</span>
@@ -126,6 +128,11 @@ export class LayerPanel {
     root.querySelector('.lp-locked').onchange = e => editor.setPickedProp('locked', e.target.checked, e.target.checked ? 'Lock layer' : 'Unlock layer');
     root.querySelector('.lp-ref').onchange = e => editor.setPickedProp('reference', e.target.checked, 'Reference layer');
     root.querySelector('.lp-draft').onchange = e => editor.setPickedProp('draft', e.target.checked, 'Draft layer');
+    const expr = root.querySelector('.lp-expr');
+    expr.onchange = () => {
+      const n = editor.doc.active;
+      editor.setPickedProp('expression', expr.value === n.expression?.mode ? n.expression : defaultExpression(expr.value), 'Expression color');
+    };
     root.querySelectorAll('.lp-label-btn').forEach(b => { b.onclick = () => editor.setPickedProp('label', b.dataset.label || null, 'Color label'); });
     this.bindDrag();
   }
@@ -147,6 +154,9 @@ export class LayerPanel {
     this.root.querySelector('.lp-locked').checked = !!n.locked;
     this.root.querySelector('.lp-ref').checked = !!n.reference;
     this.root.querySelector('.lp-draft').checked = !!n.draft;
+    const expr = this.root.querySelector('.lp-expr');
+    expr.value = n.expression?.mode || 'color';
+    expr.disabled = multi ? multi.every(m => isFolder(m) || m.adjust) : folder || !!n.adjust;
     this.root.querySelectorAll('.lp-label-btn').forEach(b => { b.classList.toggle('on', (n.label || '') === b.dataset.label); b.setAttribute('aria-checked', (n.label || '') === b.dataset.label); });
     this.root.querySelector('[data-op="mask"]').title = n.mask ? 'Paint on the mask' : 'Add a mask (hides outside the selection, if there is one)';
     const chip = ed.root.querySelector('.mask-chip:not(.qmask-chip)');
@@ -168,6 +178,7 @@ export class LayerPanel {
       if (node.text) sub.unshift('Text');
       if (node.vector) sub.unshift('Vector');
       if (node.tone) sub.unshift('Tone');
+      if (node.expression) sub.unshift(expressionLabel(node.expression));
       if (node.adjust) sub.unshift(adjustLabel(node.adjust.type));
       if (node.locked) sub.push('locked');
       else if (node.alphaLock) sub.push('alpha locked');

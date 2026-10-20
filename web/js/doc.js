@@ -5,6 +5,7 @@ import { isFolder, allNodes, allLayers, pathOf, nodeAt, insertNode } from './tre
 import { defaultRulers, sanitizeRulers } from './rulers.js';
 import { sanitizeText } from './textlayer.js';
 import { sanitizeTone, applyTone } from './tone.js';
+import { sanitizeExpression, applyExpression } from './expression.js';
 import { sanitizeVector } from './vector.js';
 import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
@@ -69,6 +70,7 @@ export function sanitizeDoc(raw) {
       out.tone = adjust ? null : sanitizeTone(l?.tone);
       out.effects = adjust ? null : sanitizeEffects(l?.effects);  // border and drop shadow (effects.js); null when none
       out.layerColor = !adjust && /^#[0-9a-f]{6}$/i.test(l?.layerColor) ? l.layerColor.toLowerCase() : null;  // all paint shown in this colour
+      out.expression = adjust ? null : sanitizeExpression(l?.expression);  // shown as gray or monochrome (expression.js)
     }
     return out;
   };
@@ -180,6 +182,7 @@ export class Layer extends Raster {
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
     this.effects = props.effects || null;  // border and drop shadow, drawn under the pixels (effects.js)
     this.layerColor = props.layerColor || null;  // '#rrggbb': all paint shown in this colour (Layer → Layer color)
+    this.expression = props.expression || null;  // Expression color: null (Color), {mode: 'gray'} or {mode: 'mono', ...} (expression.js)
     this.adjust = props.adjust || null;  // set on correction layers: the colour change applied to what is below (adjust.js)
   }
 }
@@ -212,7 +215,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null, effects: n.effects, layerColor: n.layerColor, adjust: n.adjust });
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null, effects: n.effects, layerColor: n.layerColor, expression: n.expression, adjust: n.adjust });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -369,6 +372,7 @@ export class Doc {
         if (n.tone) out.tone = n.tone;
         if (n.effects) out.effects = n.effects;
         if (n.layerColor) out.layerColor = n.layerColor;
+        if (n.expression) out.expression = n.expression;
         if (n.adjust) out.adjust = n.adjust;
       }
       if (n.mask) { out.mask = { enabled: n.mask.enabled }; await pic(n.mask, out.mask); }
@@ -428,9 +432,9 @@ const blendOf = n => (n.blend === PASS_THROUGH[0] ? 'source-over' : n.blend);
 /**
  * Draws the doc's region r (doc pixels) into ctx at the same coordinates (ctx's transform applies on top).
  * live = { layer, canvas, alpha, mode, texture } is a stroke in progress on a layer or mask, drawn as if already
- * applied (see liveSource). Layers with a tone are drawn as screentone dots.
+ * applied (see liveSource). Layers with a tone are drawn as screentone dots, ones with an expression in gray or monochrome.
  * Nodes with clip=true are clipped to the nearest non-clipping sibling below them.
- * keep = {except: raster} (the editor, while a stroke is going on) lets screentone and effect layers other than
+ * keep = {except: raster} (the editor, while a stroke is going on) lets screentone, expression and effect layers other than
  * `except` (or the layer whose mask it is) be drawn from kept tiles (keptLook) instead of being worked out again,
  * with a GPU readback, on every redraw.
  */
@@ -519,7 +523,7 @@ function drawChildren(ctx, nodes, r, live, depth) {
 function drawNode(ctx, node, r, live, alpha, blend, depth) {
   if (node.adjust) return drawAdjust(ctx, node, r, live, alpha, blend, depth);
   let src = node.canvas, sx = r.x, sy = r.y;
-  const looked = (node.tone || node.effects) && !isFolder(node);
+  const looked = (node.tone || node.effects || node.expression) && !isFolder(node);
   if (looked && keepLooks && !changing(node, keepLooks.except) && !changing(node, live?.layer)) {
     src = keptLook(node, r, depth); sx = 0; sy = 0;
   } else if (node.effects && !isFolder(node)) {
@@ -530,8 +534,8 @@ function drawNode(ctx, node, r, live, alpha, blend, depth) {
     drawChildren(cctx, node.children, r, live, depth + 1);
     if (maskOn(node)) applyMask(cctx, node, r, live, depth);
     src = c; sx = 0; sy = 0;
-  } else if ((live && live.layer === node) || maskOn(node) || node.tone || node.layerColor) {
-    [src] = layerImage(node, r, live, depth, node.tone ? `tone${depth}` : `node${depth}`);
+  } else if ((live && live.layer === node) || maskOn(node) || node.tone || node.layerColor || node.expression) {
+    [src] = layerImage(node, r, live, depth, node.tone || node.expression ? `tone${depth}` : `node${depth}`);
     sx = 0; sy = 0;
   }
   ctx.globalAlpha = alpha;
@@ -575,9 +579,9 @@ function effectsLook(node, r, live, depth) {
   return [e, r.x - R.x, r.y - R.y, empty];
 }
 
-// While a stroke is going on (composite's keep), screentone and effect layers are drawn from tiles of how they look,
+// While a stroke is going on (composite's keep), screentone, expression color and effect layers are drawn from tiles of how they look,
 // worked out once per tile instead of on every redraw. A layer's tiles are dropped when its pixels (version), canvas,
-// tone, effects or mask change; the layer being painted on is never drawn from them.
+// tone, effects, expression, layer colour or mask change; the layer being painted on is never drawn from them.
 let keepLooks = null;
 const looks = new WeakMap();
 const LOOK_TILE = 256;
@@ -585,14 +589,14 @@ const LOOK_TILE = 256;
 /** Whether raster is node itself or the mask of it (so node is changing while raster is painted). */
 const changing = (node, raster) => !!raster && (raster === node || raster === node.mask);
 
-/** Region r of a screentone or effects layer from its kept tiles, in a scratch canvas whose (0, 0) is r's corner. */
+/** Region r of a screentone, expression or effects layer from its kept tiles, in a scratch canvas whose (0, 0) is r's corner. */
 function keptLook(node, r, depth) {
   const m = maskOn(node) ? node.mask : null;
   let k = looks.get(node);
   if (!k || k.canvas !== node.canvas || k.version !== node.version || k.tone !== node.tone || k.effects !== node.effects
-    || k.layerColor !== node.layerColor || k.mask !== (m && m.canvas) || k.maskVersion !== (m ? m.version : -1)) {
+    || k.layerColor !== node.layerColor || k.expression !== node.expression || k.mask !== (m && m.canvas) || k.maskVersion !== (m ? m.version : -1)) {
     k = { canvas: node.canvas, version: node.version, tone: node.tone, effects: node.effects, layerColor: node.layerColor,
-      mask: m && m.canvas, maskVersion: m ? m.version : -1, tiles: new Map() };
+      expression: node.expression, mask: m && m.canvas, maskVersion: m ? m.version : -1, tiles: new Map() };
     looks.set(node, k);
   }
   // put together in a scratch canvas first: drawing tiles one by one would not do for blends like destination-in
@@ -613,7 +617,7 @@ function keptLook(node, r, depth) {
   return c;
 }
 
-/** One kept tile t of a screentone or effects layer: a canvas, or null when nothing shows there. */
+/** One kept tile t of a screentone, expression or effects layer: a canvas, or null when nothing shows there. */
 function lookTile(node, t, depth) {
   let src, sx = 0, sy = 0;
   if (node.effects) {
@@ -627,9 +631,9 @@ function lookTile(node, t, depth) {
   return c;
 }
 
-/** A layer's region r as shown (live stroke, screentone, mask), in a scratch canvas whose (0, 0) is r's corner. */
+/** A layer's region r as shown (live stroke, screentone, expression color, layer colour, mask), in a scratch canvas whose (0, 0) is r's corner. */
 function layerImage(node, r, live, depth, key) {
-  const [c, cctx] = scratchCanvas(key, r, node.tone || node.effects ? { willReadFrequently: true } : undefined);
+  const [c, cctx] = scratchCanvas(key, r, node.tone || node.effects || node.expression ? { willReadFrequently: true } : undefined);
   cctx.drawImage(node.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   if (live && live.layer === node) {
     cctx.globalAlpha = live.alpha;
@@ -639,6 +643,7 @@ function layerImage(node, r, live, depth, key) {
     cctx.globalCompositeOperation = 'source-over';
   }
   if (node.tone) toneRegion(cctx, node.tone, r);
+  if (node.expression) expressRegion(cctx, node.expression, r.w, r.h);
   if (node.layerColor) colorPaint(cctx, node.layerColor, r.w, r.h);
   if (maskOn(node)) applyMask(cctx, node, r, live, depth);
   return [c, cctx];
@@ -707,6 +712,16 @@ function toneRegion(cctx, tone, r) {
   cctx.restore();
 }
 
+/** Shows ctx's (0, 0, w, h) in gray or monochrome (Expression color; read back like screentone). */
+function expressRegion(ctx, e, w, h) {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const img = ctx.getImageData(0, 0, w, h);
+  applyExpression(img.data, e);
+  ctx.putImageData(img, 0, 0);
+  ctx.restore();
+}
+
 /** Turns everything painted in ctx's (0, 0, w, h) into one colour, keeping how see-through it is (Layer color). */
 export function colorPaint(ctx, color, w, h) {
   ctx.save();
@@ -718,13 +733,14 @@ export function colorPaint(ctx, color, w, h) {
   ctx.restore();
 }
 
-/** A layer's pixels as screentone dots (for merging and rasterizing), as a new canvas. */
+/** A layer's pixels as they show (screentone dots, expression color, layer colour; for merging and rasterizing), as a new canvas. */
 export function tonedCanvas(layer) {
   const c = document.createElement('canvas');
   c.width = layer.canvas.width; c.height = layer.canvas.height;
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(layer.canvas, 0, 0);
   if (layer.tone) toneRegion(ctx, layer.tone, { x: 0, y: 0, w: c.width, h: c.height });
+  if (layer.expression) expressRegion(ctx, layer.expression, c.width, c.height);
   if (layer.layerColor) colorPaint(ctx, layer.layerColor, c.width, c.height);
   return c;
 }

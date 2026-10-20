@@ -4,6 +4,7 @@
 
 import { effectsCanvas, tonedCanvas } from '../doc.js';
 import { sanitizeEffects, BORDER_SIZE, SHADOW_OFFSET, SHADOW_BLUR } from '../effects.js';
+import { EXPRESSIONS, MONO_THRESHOLD, sanitizeExpression } from '../expression.js';
 import { isFolder } from '../tree.js';
 import { modal, toast } from '../ui.js';
 import { snapBytes } from '../snapshot.js';
@@ -92,6 +93,69 @@ export const effectMethods = {
     this.structural('Rasterize layer color',
       () => { put(after); n.layerColor = null; tx.drop(); },
       () => { put(before); n.layerColor = color; tx.restore(); },
+      () => snapBytes(before) + snapBytes(after));
+  },
+
+  /**
+   * Layer → Expression color…: shows the layer as Color, Gray or Monochrome (Clip Studio Paint's Expression color),
+   * without changing its pixels; Monochrome has a threshold and can leave the white see-through. The canvas follows
+   * the dialog; OK makes it one undo step.
+   */
+  async expressionDialog() {
+    const n = this.doc.active;
+    if (isFolder(n) || n.adjust) return toast('Expression color works on layers with pixels. Select one.');
+    this.finishTransform();
+    this.finishText();
+    const old = n.expression, mono = old?.mode === 'mono' ? old : { threshold: MONO_THRESHOLD, white: true };
+    const show = e => { n.expression = e; this.updateComp(null); this.requestRender(); };
+    const read = root => {
+      const mode = root.querySelector('[name="mode"]:checked').value;
+      return sanitizeExpression({ mode, threshold: +root.querySelector('[name="threshold"]').value, white: root.querySelector('[name="white"]').checked });
+    };
+    const res = await modal({
+      title: `Expression color: ${n.name}`,
+      live: true,
+      body: `
+        <div class="field-row">${EXPRESSIONS.map(([v, l]) => `<label class="check"><input type="radio" name="mode" value="${v}" ${(old?.mode || 'color') === v ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+        <div data-mono>
+          <label class="slider"><span>Threshold</span><input type="range" name="threshold" min="1" max="255" value="${mono.threshold}"><output>${mono.threshold}</output></label>
+          <label class="check"><input type="checkbox" name="white" ${mono.white ? 'checked' : ''}> Show white (untick: white is see-through)</label>
+        </div>
+        <p class="muted small">Gray shows the colours as grays, Monochrome as black and white only (darker than the threshold is black). The pixels stay as they are: choose Color to get them back. Layer → Rasterize → Expression color makes it for good.</p>`,
+      buttons: [{ label: 'Cancel', value: null }, { label: 'OK', primary: true }],
+      onOpen: root => {
+        const box = root.querySelector('[data-mono]'), out = root.querySelector('output');
+        const update = () => {
+          const e = read(root);
+          box.hidden = e?.mode !== 'mono';
+          out.textContent = root.querySelector('[name="threshold"]').value;
+          show(e);
+        };
+        root.querySelectorAll('input').forEach(i => i.addEventListener('input', update));
+        box.hidden = old?.mode !== 'mono';
+      },
+      collect: root => ({ expression: read(root) }),
+    });
+    n.expression = old;
+    if (!res) { this.updateComp(null); this.requestRender(); return; }
+    // an unchanged setting keeps its object, so nothing becomes an undo step
+    const same = JSON.stringify(res.expression) === JSON.stringify(old);
+    this.setLayerProp(n, 'expression', same ? old : res.expression, 'Expression color');
+  },
+
+  /** Turns the layer's pixels gray or black and white for good, as its expression color shows them, and sets it to Color. */
+  rasterizeExpression(n) {
+    if (!n?.expression) return;
+    const d = this.doc, W = d.width, H = d.height, expression = n.expression, tone = n.tone, color = n.layerColor;
+    // tonedCanvas would also bake the tone and layer colour: those stay settings of their own
+    n.tone = null; n.layerColor = null;
+    const full = { x: 0, y: 0, w: W, h: H }, before = this.snapshot(n, full), after = this.snapshot({ canvas: tonedCanvas(n) }, full);
+    n.tone = tone; n.layerColor = color;
+    const put = img => { this.putSnapshot(n, full, img); n.touch(); };
+    const tx = this.textsIn([n]);
+    this.structural('Rasterize expression color',
+      () => { put(after); n.expression = null; tx.drop(); },
+      () => { put(before); n.expression = expression; tx.restore(); },
       () => snapBytes(before) + snapBytes(after));
   },
 

@@ -376,7 +376,7 @@ export const layerMethods = {
       c.filter = adjustFilter(n.adjust);
       c.drawImage(lower.canvas, 0, 0);
       c.filter = 'none';
-    } else c.drawImage(n.tone || n.layerColor ? tonedCanvas(n) : n.canvas, 0, 0);  // as it shows: tone dots, layer colour
+    } else c.drawImage(n.tone || n.layerColor || n.expression ? tonedCanvas(n) : n.canvas, 0, 0);  // as it shows: tone dots, expression, layer colour
     if (n.mask?.enabled) { c.globalCompositeOperation = 'destination-out'; c.drawImage(n.mask.canvas, 0, 0); }
     if (n.effects) {  // its border and shadow become pixels too
       const fx = effectsCanvas(n, src);
@@ -506,7 +506,8 @@ export const layerMethods = {
   setPickedProp(key, value, label) {
     const multi = this.multiPicked();
     if (!multi) return this.setLayerProp(this.doc.active, key, value, label);
-    const nodes = multi.filter(n => key !== 'alphaLock' || !isFolder(n));  // folders have no alpha lock
+    // folders have no alpha lock; folders and correction layers have no expression color
+    const nodes = multi.filter(n => (key !== 'alphaLock' || !isFolder(n)) && (key !== 'expression' || !(isFolder(n) || n.adjust)));
     const blendOk = n => key !== 'blend' || value !== PASS_THROUGH[0] || isFolder(n);  // "Through" is for folders
     const olds = nodes.map(n => n[key]);
     const set = vals => { nodes.forEach((n, k) => { if (blendOk(n)) n[key] = vals[k]; }); this.picked = new Set(multi); };
