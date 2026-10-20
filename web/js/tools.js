@@ -19,12 +19,15 @@ export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5
 
 /** Brush texture settings (textures.js): which grain, how strongly it shows, and its scale. */
 function tex(texture = 'none', textureAmount = 0.5) {
-  return { texture, textureAmount, textureScale: 1, textureAngle: 0, textureInvert: false, grainPressure: false, texturePressure: 0, textureMode: 'multiply', textureEachDab: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, flipX: false, flipY: false, roundJitter: 0, pixel: false,
+  return { texture, textureAmount, textureScale: 1, textureAngle: 0, textureInvert: false, grainPressure: false, texturePressure: 0, textureMode: 'multiply', textureEachDab: false, tip: 'round', thickness: 1, tipAngle: 0, tipRandom: 0, tipFollow: false, flipX: false, flipY: false, roundJitter: 0, pixel: false, tips: [], tipOrder: 'repeat',
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, scatterBoth: true, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0, taperSize: 1, taperOpacity: 0,
-    tiltSize: 0, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, countJitter: 0, quickShape: false, refStop: false,
+    tiltSize: 0, tiltSizeMin: 1, tiltSizeCurve: null, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, countJitter: 0, quickShape: false, refStop: false,
     dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, impasto: 0, dryOut: 0, mix: 0, mixStretch: 0.5, paintLoad: 1,
     ...COMBO_DEFAULTS, preset: '' };
 }
+
+/** How a brush with several tip pictures goes through them (CLIP STUDIO's Repeat method; brush.js tipIndex). */
+export const TIP_ORDERS = [['repeat', 'In turn'], ['reverse', 'Back and forth'], ['last', 'Once, then the last'], ['random', 'At random']];
 
 /** Tip shapes besides the tip images in the brush library ('img:<id>'). */
 export const TIPS = [['round', 'Round'], ['bristle', 'Bristles'], ['flat', 'Flat brush']];
@@ -151,13 +154,17 @@ export const SETTING_FIELDS = [
   ['taperOpacity', 'Taper opacity', 'range', 0, 1, 0.01],
   ['quickShape', 'Hold to straighten', 'check'],
   ['refStop', 'Stay inside lines', 'check'],
-  ['tiltSize', 'Tilt → size', 'range', 0, 1, 0.01],
+  ['tiltSize', 'Tilt → size', 'range', 0, 4.5, 0.01],
+  ['tiltSizeMin', 'Upright size', 'range', 0, 1, 0.01],
+  ['tiltSizeCurve', 'Tilt size curve', 'curve'],
   ['tiltFlow', 'Tilt → lighter', 'range', 0, 1, 0.01],
   ['tiltAngle', 'Turn with pen tilt', 'check'],
   ['speedSize', 'Speed → size', 'range', -1, 1, 0.01],
   ['speedFlow', 'Speed → paint', 'range', -1, 1, 0.01],
   ['sizeCurve', 'Size curve', 'curve'],
   ['flowCurve', 'Density curve', 'curve'],
+  ['tips', 'More tips', 'tips'],
+  ['tipOrder', 'Tip order', 'choice', TIP_ORDERS],
   ['texture', 'Texture', 'choice', TEXTURES],
   ['textureInvert', 'Invert texture', 'check'],
   ['grainPressure', 'Grain by pressure', 'check'],
@@ -203,10 +210,10 @@ export const BASIC_PAINT = ['vectorErase', 'size', 'opacity', 'flow', 'hardness'
 /** The pages of the Brush settings window, and which settings each holds (paint tools only; other tools show one flat list). */
 export const SETTING_GROUPS = [
   ['Paint', ['vectorErase', 'size', 'opacity', 'flow', 'hardness', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'refStop']],
-  ['Tip', ['tip', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow', 'roundJitter', 'flipX', 'flipY', 'pixel']],
+  ['Tip', ['tip', 'tips', 'tipOrder', 'thickness', 'tipAngle', 'tipRandom', 'tipFollow', 'roundJitter', 'flipX', 'flipY', 'pixel']],
   ['Pen pressure', ['pressureSize', 'pressureOpacity', 'minSize', 'minFlow', 'gamma', 'sizeCurve', 'flowCurve']],
   ['Stroke', ['spacing', 'smoothing', 'taperIn', 'taperOut', 'taperSize', 'taperOpacity', 'quickShape']],
-  ['Tilt and speed', ['tiltSize', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
+  ['Tilt and speed', ['tiltSize', 'tiltSizeMin', 'tiltSizeCurve', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
   ['Variation', ['scatter', 'scatterBoth', 'count', 'countJitter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureAngle', 'textureInvert', 'textureMode', 'textureEachDab', 'texturePressure', 'grainPressure']],
   ['Dual brush', ['dualTip', 'dualSize', 'dualSpacing', 'dualScatter']],
@@ -303,12 +310,19 @@ export const SETTING_HINTS = {
   taperOpacity: 'How see-through the tapered ends get: 0% keeps them solid, 100% fades them out (with Start or End taper)',
   refStop: 'Paint only inside the shape you start in: the lines of the layers ticked Reference in the Layers panel (your line art) stop the brush, so colour never goes over them (anti-overflow)',
   quickShape: 'Keep the pen still for a moment at the end of a stroke: a line becomes straight, a loop a clean ellipse. Move the pen before lifting it to stretch the shape (QuickShape)',
-  tiltSize: 'Makes the brush bigger the more you tilt the pen, up to three times its size when the pen lies flat (pens that report tilt)',
+  tiltSize: 'Makes the brush bigger the more you tilt the pen: at 100% up to three times its size when the pen lies flat, at 450% ten times (pens that report tilt)',
+  tiltSizeMin: 'Brush size with the pen held upright, as a share of Size: below 100% the brush is thinner upright and grows as you tilt the pen (a mouse counts as upright)',
+  tiltSizeCurve: 'How the size follows pen tilt, from upright (left) to flat (right), between Upright size and the Tilt → size size (from an imported brush)',
+  tips: 'Tip pictures the brush takes turns with after the first (from an imported brush); ✕ keeps only the Tip',
+  tipOrder: 'How the brush goes through its tip pictures: in turn, back and forth, once and then the last one for the rest of the stroke, or at random',
   tiltFlow: 'Makes the paint lighter the more you tilt the pen, as when shading with the side of a pencil',
   tiltAngle: 'Turns the tip the way the pen leans (best with a squashed or image tip)',
   speedSize: 'Above 0, fast strokes get thinner (like an ink pen); below 0 they get thicker',
   speedFlow: 'Above 0, fast strokes get lighter; below 0 they get stronger',
 };
+
+/** The most tip pictures one brush takes turns with. */
+export const MAX_TIPS = 16;
 
 /** Every tool's settings, starting from its defaults and keeping only valid stored values. */
 export function sanitizeSettings(stored) {
@@ -335,6 +349,7 @@ export function applySettings(s, from) {
     if (type === 'check') s[key] = !!v;
     else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture' || key === 'dualTip' || key === 'comboTip') && imageRef(v)) || (key === 'colors' && isUserGradient(v))) s[key] = v; }
     else if (type === 'curve') s[key] = sanitizeCurve(v);
+    else if (type === 'tips') s[key] = Array.isArray(v) ? v.filter(x => typeof x === 'string' && imageRef(x)).slice(0, MAX_TIPS - 1) : [];
     else if (type === 'id') s[key] = typeof v === 'string' && /^(?:[0-9a-f]{0,32}|b-[a-z0-9-]{1,30})$/.test(v) ? v : '';  // saved, or built-in (builtinbrushes.js)
     else if (Number.isFinite(+v) && v !== null && v !== '') s[key] = Math.max(min, Math.min(max, +v));
   }

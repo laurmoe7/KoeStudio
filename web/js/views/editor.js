@@ -1049,6 +1049,7 @@ export class Editor {
     // the Figure tool shows only the settings of the shape it draws
     const shapeOnly = { corner: ['rect'], sides: ['regpoly', 'star'], depth: ['star'] };
     return SETTING_FIELDS.filter(f => f[0] in s && f[2] !== 'id' && !(f[2] === 'curve' && !s[f[0]])
+      && !((f[2] === 'tips' || f[0] === 'tipOrder') && !s.tips?.length)
       && !(shapeOnly[f[0]] && 'figure' in s && !shapeOnly[f[0]].includes(s.figure))
       && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureAngle', 'textureInvert'].includes(f[0]))
       && !(s.comboTip === 'none' && f[0].startsWith('combo') && f[0] !== 'comboTip'));  // the second brush's settings once it is on
@@ -1059,7 +1060,9 @@ export class Editor {
     const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
     const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'dualTip' || key === 'comboTip' ? [['none', 'Off'], ...this.tipChoices()] : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : list;
     const row = ([key, label, type, min, max, step]) => type === 'curve'
-      ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="Remove the curve (use the Pressure setting instead)">✕</button></div>`
+      ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="${key === 'tiltSizeCurve' ? 'Remove the curve (the size then follows tilt in a straight line)' : 'Remove the curve (use the Pressure setting instead)'}">✕</button></div>`
+      : type === 'tips'
+      ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span><span class="tips-list">${s[key].map(t => this.tipThumb(t)).join('')}</span><button class="icon-btn" data-clear-curve="${key}" title="Remove these tips (keep only the Tip)">✕</button></div>`
       : type === 'choice'
       ? `<label class="slider"${tip(key)}><span>${esc(label)}</span><select data-k="${key}">${options(key, min).map(([v, l]) => `<option value="${esc(v)}" ${s[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
       : `<label class="slider"${tip(key)}><span>${esc(label)}</span><input type="range" data-k="${key}" min="${key === 'size' ? 0 : min}" max="${key === 'size' ? 1000 : max}" step="${key === 'size' ? 1 : step}" value="${key === 'size' ? sizeToSlider(s.size) : s[key]}"><output>${fmt(key, s[key])}</output></label>`;
@@ -1090,7 +1093,7 @@ export class Editor {
     box.querySelectorAll('[data-clear-curve]').forEach(b => {
       b.onclick = e => {
         e.preventDefault();
-        s[b.dataset.clearCurve] = null;
+        s[b.dataset.clearCurve] = b.dataset.clearCurve === 'tips' ? [] : null;
         store('tools', this.settings);
         this.renderToolProps();
       };
@@ -1398,7 +1401,7 @@ export class Editor {
     this.resetStroke();
     const sizeAt = p => stampAt(s, p).size;
     // pen tilt and speed (vector lines keep them per point, so the kept line looks as drawn)
-    const dyn = !!(s.tiltSize || s.tiltFlow || s.tiltAngle || s.speedSize || s.speedFlow);
+    const dyn = !!(s.tiltSize || s.tiltFlow || s.tiltAngle || s.speedSize || s.speedFlow || (s.tiltSizeMin ?? 1) < 1 || s.tiltSizeCurve);
     const reach = tipReach(hasTipImage(s.tip)) * 2 * (dyn ? dynamicsReach(s) : 1);
     const line = shift && this.lastStroke && this.lastStroke.layer === layer ? this.lastStroke.pt : null;
     // colour jitter: erasers and masks keep their black; per stroke the varied colour is picked once here
@@ -1413,7 +1416,7 @@ export class Editor {
       type: 'paint', tool: toolId, id, s, sizeAt, reachAt: p => sizeAt(p) * reach, layer, dist: 0, prevStamp: null, held: [], bounds: null, last: pt, erase: !!tool.erase,
       color, dabColors: varies && !s.colorJitterStroke, dyn,
       painter: new Painter(this.strokeCtx, { color, hardness: s.hardness,
-        tip: s.tip, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel, flipX: s.flipX, flipY: s.flipY, roundJitter: s.roundJitter,
+        tip: s.tip, tips: s.tips, tipOrder: s.tipOrder, thickness: s.thickness, angle: s.tipAngle, random: s.tipRandom, follow: s.tipFollow, pixel: s.pixel, flipX: s.flipX, flipY: s.flipY, roundJitter: s.roundJitter,
         grain: grainFor(s), height: imp && heightFor(imp.canvas, this.doc.width, this.doc.height), strength: strengthFor(texture, this.doc.width, this.doc.height), copy: copyFor(texture, this.doc.width, this.doc.height), texDab: textureDabFor(s), dryOut: s.dryOut, dryAt: s.size, dryGrain: dryGrainFor(s) }),
       smoother: new Smoother(s.smoothing),
       path: new StampPath(sizeAt, s.spacing),
@@ -2237,7 +2240,7 @@ function fmt(key, v) {
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'depth') return Math.round(v * 100) + '%';
   if (key === 'spacing' && v < 0.1) return (Math.round(v * 1000) / 10) + '%';  // fine spacing: 0.5%, 2.5%
-  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltFlow', 'speedSize', 'speedFlow', 'texturePressure', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'taperSize', 'taperOpacity', 'roundJitter', 'countJitter'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
+  if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltSizeMin', 'tiltFlow', 'speedSize', 'speedFlow', 'texturePressure', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'taperSize', 'taperOpacity', 'roundJitter', 'countJitter'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
   if (key === 'tipAngle' || key === 'comboAngle' || key === 'textureAngle') return Math.round(v) + '°';
   if (key === 'taperIn' || key === 'taperOut') return Math.round(v) + ' px';
   if (key === 'gamma' || key === 'leading') return v.toFixed(2);

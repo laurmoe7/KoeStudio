@@ -114,7 +114,7 @@ test('pen tilt, speed and the points between', async () => {
     { x: 2.5, y: 0, p: 0.25, t: 0.25, v: 0.75, az: 2 });
   assert.deepEqual(mixPoint({ x: 0, y: 0, p: 0 }, { x: 4, y: 2, p: 1 }, 0.5), { x: 2, y: 1, p: 0.5 }, 'plain points stay plain');
   const s = sanitizeSettings({ pen: { tiltSize: 5, speedSize: -3, tiltAngle: 1 } }).pen;
-  assert.deepEqual([s.tiltSize, s.speedSize, s.tiltAngle], [1, -1, true]);
+  assert.deepEqual([s.tiltSize, s.speedSize, s.tiltAngle], [4.5, -1, true]);
 });
 
 test('eyedropper average colour', async () => {

@@ -31,12 +31,14 @@ const NUM = {
   minFlow: [0, 0, 1], gamma: [1, 0.3, 3], thickness: [1, 0.05, 1], tipAngle: [0, 0, 360], tipRandom: [0, 0, 1], roundJitter: [0, 0, 1],
   scatter: [0, 0, 2], count: [1, 1, 16], countJitter: [0, 0, 1], sizeJitter: [0, 0, 1], flowJitter: [0, 0, 1], hueJitter: [0, 0, 1], satJitter: [0, 0, 1], valJitter: [0, 0, 1], taperIn: [0, 0, 500], taperOut: [0, 0, 500], taperSize: [1, 0, 1], taperOpacity: [0, 0, 1],
   textureAmount: [0.5, 0, 1], textureScale: [1, 0.25, 4], textureAngle: [0, 0, 360], texturePressure: [0, -1, 1], wetEdges: [0, 0, 1], impasto: [0, 0, 1], dryOut: [0, 0, 1],
-  tiltSize: [0, 0, 1], tiltFlow: [0, 0, 1], speedSize: [0, -1, 1], speedFlow: [0, -1, 1],
+  tiltSize: [0, 0, 4.5], tiltSizeMin: [1, 0, 1], tiltFlow: [0, 0, 1], speedSize: [0, -1, 1], speedFlow: [0, -1, 1],
   dualSize: [0.6, 0.05, 3], dualSpacing: [0.25, 0.02, 2], dualScatter: [0.5, 0, 3],
 };
 const BOOL = { scatterBoth: true, pressureSize: true, pressureOpacity: false, tipFollow: false, flipX: false, flipY: false, textureInvert: false, grainPressure: false, textureEachDab: false, colorJitterStroke: false, pixel: false, tiltAngle: false };
-const CURVES = ['sizeCurve', 'flowCurve'];
-export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'texture', 'textureMode', 'dualTip'];
+const CURVES = ['sizeCurve', 'flowCurve', 'tiltSizeCurve'];
+export const VECTOR_BRUSH = [...Object.keys(NUM), ...Object.keys(BOOL), ...CURVES, 'tip', 'tips', 'tipOrder', 'texture', 'textureMode', 'dualTip'];
+const TIP_ORDER = ['repeat', 'reverse', 'last', 'random'];
+const MAX_TIPS = 16;
 
 const NAME = /^(?:[a-z]{1,20}|img:[0-9a-f]{8,32})$/;
 
@@ -51,6 +53,9 @@ export function sanitizeBrush(raw) {
   for (const [k, def] of Object.entries(BOOL)) out[k] = k in s ? !!s[k] : def;
   for (const k of CURVES) out[k] = sanitizeCurve(s[k]);
   out.tip = typeof s.tip === 'string' && NAME.test(s.tip) ? s.tip : 'round';
+  // more tip pictures the brush takes turns with, in tipOrder
+  out.tips = Array.isArray(s.tips) ? s.tips.filter(t => typeof t === 'string' && t.startsWith('img:') && NAME.test(t)).slice(0, MAX_TIPS - 1) : [];
+  out.tipOrder = TIP_ORDER.includes(s.tipOrder) ? s.tipOrder : 'repeat';
   out.texture = typeof s.texture === 'string' && NAME.test(s.texture) ? s.texture : 'none';
   out.dualTip = typeof s.dualTip === 'string' && NAME.test(s.dualTip) ? s.dualTip : 'none';
   out.textureMode = TEXTURE_MODES.some(m => m[0] === s.textureMode) ? s.textureMode : 'multiply';
@@ -60,7 +65,7 @@ export function sanitizeBrush(raw) {
 export const emptyVector = () => ({ brushes: [], strokes: [] });
 
 /** True when a brush changes its dabs with pen tilt or speed (its lines then keep them per point). */
-export const usesDynamics = b => !!(b.tiltSize || b.tiltFlow || b.tiltAngle || b.speedSize || b.speedFlow);
+export const usesDynamics = b => !!(b.tiltSize || b.tiltFlow || b.tiltAngle || b.speedSize || b.speedFlow || (b.tiltSizeMin ?? 1) < 1 || b.tiltSizeCurve);
 
 /** A path point's tilt, speed and lean direction ([] when it has none), cleaned up. */
 function extras(q) {

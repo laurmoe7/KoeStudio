@@ -4,10 +4,10 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 
 ## 2026-10-20
 
-### Fixed
-- Importing brushes from Clip Studio Paint while it is open now says to close it first, since it saves newly added brushes only when it closes.
-
 ### New
+- Brushes can take turns with several tip pictures (Brush settings → Tip: More tips and Tip order), and Clip Studio Paint brushes bring all of theirs.
+- Upright size and Tilt size curve (Brush settings → Tilt and speed): a brush can be thin with the pen held up and widen as you lean it, and Tilt → size now goes up to ten times; Clip Studio Paint brushes bring their size changing with pen tilt.
+- Clip Studio Paint brushes whose opacity follows pen pressure keep that, through their density.
 - Import brushes from Clip Studio Paint on this PC (Brush ⋯ menu, or Import… in the Brushes window): every brush you downloaded or made in Clip Studio shows up, with its tip and texture, with nothing to export first.
 - Grain angle (Brush settings → Texture) turns a brush's texture; Clip Studio Paint brushes bring their texture rotation.
 - Imported Photoshop brushes bring their texture mode and Texture Each Tip, with the texture depth following pen pressure when they set it.
@@ -35,6 +35,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Imported Procreate brushes bring their colour jitter (hue, saturation, lightness and darkness) and their Apple Pencil tilt settings.
 
 ### Fixed
+- Clip Studio Paint brushes with opacity set to change with pen pressure from 100% are no longer marked as losing it, since it does nothing there either.
+- Clip Studio Paint brushes with tilt but no pressure curve no longer read the tilt curve as their pressure curve.
+- Importing brushes from Clip Studio Paint while it is open now says to close it first, since it saves newly added brushes only when it closes.
 - Clip Studio Paint brush tips drawn on a black-and-white (monochrome) layer import instead of turning into a round tip.
 - Imported brushes that all share one name are numbered (Brush 1, Brush 2, ... when the name is just the pack's), and a Photoshop brush bigger than 1000 px says so.
 - Imported brushes with very big tip pictures take far less space and load faster: a pack of 16 big Photoshop paint stamps went from 55 MB to 7 MB.

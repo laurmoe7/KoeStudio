@@ -1144,15 +1144,24 @@ CSP_AUTO_SPACING = {1: 0.12, 2: 0.08, 3: 0.04}
 # line, 0x80 at random; the two lowest bits are always set. Found by comparing the Rake pack's .sut and .abr brushes
 # (the Flat rakes, which do not turn in Photoshop, have 3; the turning ones 67)
 CSP_LINE_DIRECTION = 0x40
+# Repeat method of a brush with several tip pictures (BrushPatternOrderType), in CLIP STUDIO's list: Repeat, Reverse,
+# Do not repeat (through them once, then the last), Random, One time only, One random cycle (these two stop painting
+# after one round). Its own tools use 0 (Building), 1 (Bead chain) and 3 (Fallen leaves, Droplet)
+CSP_TIP_ORDERS = {0: 'repeat', 1: 'reverse', 2: 'last', 3: 'random', 4: 'repeat', 5: 'random'}
+# the most tip pictures a KoeStudio brush takes turns with (tools.js MAX_TIPS)
+MAX_TIPS = 16
 
 
 def csp_effector(blob):
     """An effector blob (big-endian): 11 int32 (header size 44, available inputs, enabled inputs, then each input's
-    minimum in percent: pressure, tilt, velocity, random; the last is tilt's maximum, 150 on the G-pen and 400 on the
-    Pencil, as CLIP STUDIO shows them), then curves: int32 header size 12, point count, point size
-    16, then (x, y) float64 pairs; the first is the pen pressure curve. {'pressure', 'tilt', 'velocity', 'random':
-    bools, 'pressureMin', 'velocityMin', 'randomMin': 0-1, 'curve': [[x, y], ...] or None}, or None when missing or not
-    understood."""
+    minimum in percent: pressure, tilt, velocity, random; then one unknown, the byte sizes of the pen pressure curve
+    and of the tilt curve (0: none), and tilt's maximum in percent: 150 on the G-pen and 400 on the Pencil), then the
+    curves: int32 header size 12, point count, point size 16, then (x, y) float64 pairs. The tilt curve's x runs from
+    the pen lying flat (0) to upright (1), its y from tilt's minimum (0) to its maximum (1): the Pencil's is 1 up to
+    x 0.18 and 0 from 0.25 (400% only when the pen nearly lies flat, 85% held normally), the G-pen grows to 150% as it
+    leans. {'pressure', 'tilt', 'velocity', 'random': bools, 'pressureMin', 'velocityMin', 'randomMin': 0-1,
+    'tiltMin', 'tiltMax': factors (1 = 100%), 'curve' (pen pressure), 'tiltCurve': [[x, y], ...] or None}, or None
+    when missing or not understood."""
     if not isinstance(blob, bytes) or len(blob) < 44:
         return None
     ints = struct.unpack('>11i', blob[:44])
@@ -1161,17 +1170,27 @@ def csp_effector(blob):
     on = ints[2]
     out = {'pressure': bool(on & CSP_PRESSURE), 'tilt': bool(on & CSP_TILT), 'velocity': bool(on & CSP_VELOCITY),
            'random': bool(on & CSP_RANDOM), 'pressureMin': _clamp(ints[3] / 100, 0, 1), 'velocityMin': _clamp(ints[5] / 100, 0, 1),
-           'randomMin': _clamp(ints[6] / 100, 0, 1), 'curve': None}
-    pos = ints[0]
-    if pos + 12 <= len(blob):
+           'randomMin': _clamp(ints[6] / 100, 0, 1), 'tiltMin': _clamp(ints[4] / 100, 0, 100), 'tiltMax': _clamp(ints[10] / 100, 0, 100),
+           'curve': None, 'tiltCurve': None}
+
+    def curve(pos):
+        if pos + 12 > len(blob):
+            return None
         head, n, size = struct.unpack('>3i', blob[pos:pos + 12])
-        if head >= 12 and size >= 16 and 2 <= n <= 64 and pos + head + n * size <= len(blob):
-            pts = []
-            for i in range(n):
-                x, y = struct.unpack('>2d', blob[pos + head + i * size:pos + head + i * size + 16])
-                if math.isfinite(x) and math.isfinite(y):
-                    pts.append([round(_clamp(x, 0, 1), 4), round(_clamp(y, 0, 1), 4)])
-            out['curve'] = pts if len(pts) >= 2 else None
+        if not (head >= 12 and size >= 16 and 2 <= n <= 64 and pos + head + n * size <= len(blob)):
+            return None
+        pts = []
+        for i in range(n):
+            x, y = struct.unpack('>2d', blob[pos + head + i * size:pos + head + i * size + 16])
+            if math.isfinite(x) and math.isfinite(y):
+                pts.append([round(_clamp(x, 0, 1), 4), round(_clamp(y, 0, 1), 4)])
+        return pts if len(pts) >= 2 else None
+
+    pressure_len, tilt_len = max(0, ints[8]), max(0, ints[9])
+    if pressure_len or not tilt_len:  # with neither size given, a curve there is the pressure curve
+        out['curve'] = curve(ints[0])
+    if tilt_len:
+        out['tiltCurve'] = curve(ints[0] + pressure_len)
     return out
 
 
@@ -1509,6 +1528,7 @@ def read_csp_tools(todb, builtin, material_root):
                 for k in ('tip', 'texture'):
                     if b[k] is not None:
                         b[k] += len(images)
+                b['tips'] = [k + len(images) for k in b['tips']]
                 brushes.append(b)
             images += res['images']
     except sqlite3.DatabaseError:
@@ -1608,26 +1628,36 @@ def _csp_name(node):
 def csp_brush(name, v, load, missing):
     """One CLIP STUDIO brush from its Variant row v: {'brushes': [one], 'images'}. load(path) gives a material's
     package (a tar holding its .layer, as MaterialFile.FileData) or None; `missing` ends the note when it gives None."""
-    settings, notes, tip_ref, tex_ref = _sut_settings(v)
-    images, tip, texture = [], None, None
+    settings, notes, tip_refs, tex_ref = _sut_settings(v)
+    images, texture = [], None
     files = {}
-    for ref in (tip_ref, tex_ref):
+    for ref in [*tip_refs, tex_ref]:
         if ref and ref[0] not in files:
             data = load(ref[0])
             if data is not None:
                 files[ref[0]] = data
-    if tip_ref:
-        pic = csp_material(files[tip_ref[0]]) if tip_ref[0] in files else None
-        if pic:
-            pic = _trim(*pic)
-            if v.get('BrushPatternReverseHorizontal') == 1 or v.get('BrushPatternReverseVertical') == 1:
-                pic = _mirror(*pic, v.get('BrushPatternReverseHorizontal') == 1, v.get('BrushPatternReverseVertical') == 1)
-            w, h, gray, alpha = pic
-            images.append({'kind': 'tip', 'name': tip_ref[1], 'png': data_url(png_bytes(w, h, gray, alpha)), 'white': True, 'invert': True})
-            tip = 0
-        else:
-            settings['tip'] = 'round'
-            notes.append(f'Its tip picture ({tip_ref[1]}) ' + ('could not be read' if tip_ref[0] in files else missing))
+    # the tip pictures in their order: a picture listed twice (to come round more often) is saved once
+    seq, made = [], {}
+    for path, label in tip_refs:
+        if path not in made:
+            pic = csp_material(files[path]) if path in files else None
+            if pic:
+                pic = _trim(*pic)
+                if v.get('BrushPatternReverseHorizontal') == 1 or v.get('BrushPatternReverseVertical') == 1:
+                    pic = _mirror(*pic, v.get('BrushPatternReverseHorizontal') == 1, v.get('BrushPatternReverseVertical') == 1)
+                w, h, gray, alpha = pic
+                images.append({'kind': 'tip', 'name': label, 'png': data_url(png_bytes(w, h, gray, alpha)), 'white': True, 'invert': True})
+                made[path] = len(images) - 1
+            else:
+                made[path] = None
+                notes.append(f'Its tip picture ({label}) ' + ('could not be read' if path in files else missing))
+        if made[path] is not None:
+            seq.append(made[path])
+    tip = seq[0] if seq else None
+    if tip_refs and not seq:
+        settings['tip'] = 'round'
+    if len(seq) < 2:
+        settings.pop('tipOrder', None)
     if tex_ref:
         pic = csp_material(files[tex_ref[0]]) if tex_ref[0] in files else None
         if pic:
@@ -1648,7 +1678,7 @@ def csp_brush(name, v, load, missing):
             for k in ('textureAmount', 'textureScale', 'textureInvert'):
                 settings.pop(k, None)
             notes.append(f'Its texture ({tex_ref[1]}) ' + ('could not be read' if tex_ref[0] in files else missing))
-    return {'brushes': [{'name': name, 'settings': settings, 'tip': tip, 'texture': texture, 'notes': notes}], 'images': images}
+    return {'brushes': [{'name': name, 'settings': settings, 'tip': tip, 'tips': seq[1:], 'texture': texture, 'notes': notes}], 'images': images}
 
 
 def csp_texture_tone(gray, alpha, brightness, contrast):
@@ -1676,7 +1706,8 @@ def _sql_row(db, sql, args=()):
 
 
 def _sut_settings(v):
-    """KoeStudio settings, notes, and the (path, name) of the tip and texture pictures, from a Variant row."""
+    """KoeStudio settings, notes, the [(path, name)] of the tip pictures and the (path, name) of the texture, from a
+    Variant row."""
     g = lambda k, d=0: d if not isinstance(v.get(k), (int, float)) or isinstance(v.get(k), bool) else v[k]
     s, notes = {'gamma': 1}, []
     s['size'] = round(_clamp(g('BrushSize', 10), 1, 1000), 1)
@@ -1690,10 +1721,18 @@ def _sut_settings(v):
     if g('FlickerReduction'):  # stabilization 0-100
         s['smoothing'] = round(_clamp(g('FlickerReduction') / 5, 0, 20))
 
-    # tip: its picture (the first, when it has several), squash, angle and turning
+    # tip: its pictures, taken in turns in the order Repeat method says, squash, angle and turning
     tips = csp_materials(v.get('BrushPatternImageArray')) if g('BrushUsePatternImage') else []
+    if len(tips) > MAX_TIPS:
+        notes.append(f'It takes turns with {len(tips)} tip pictures (the first {MAX_TIPS} are used)')
+        tips = tips[:MAX_TIPS]
     if len(tips) > 1:
-        notes.append(f'It switches between {len(tips)} tip pictures (the first is used)')
+        order = g('BrushPatternOrderType')
+        s['tipOrder'] = CSP_TIP_ORDERS.get(order, 'repeat')
+        if order in (4, 5):
+            notes.append('It stops painting after one round of its tip pictures')
+    if tips and g('BrushBlendPatternByDarken'):
+        notes.append('Overlapping dabs blended with Darken (they build up instead)')
     s['thickness'] = round(_clamp(g('BrushThickness', 100) / 100, 0.05, 1), 2)
     angle = g('BrushRotation', 0.0) + (90 if s['thickness'] < 1 and not g('BrushVerticalThicknes', 1) else 0)
     s['tipAngle'] = round(angle) % 360
@@ -1748,7 +1787,9 @@ def _sut_settings(v):
             s['sizeJitter'] = round(1 - size['randomMin'], 2)
         if size['velocity']:  # fast strokes thinner, down to the minimum
             s['speedSize'] = round(1 - size['velocityMin'], 2)
-        _sut_inputs(size, 'Size', notes)
+        if size['tilt']:
+            _csp_tilt_size(size, s, notes)
+        _sut_inputs(size, 'Size', notes, tilt=True)
     flow, op = csp_effector(v.get('BrushFlowEffector')), csp_effector(v.get('BrushOpacityEffector'))
     dens = flow if flow and (flow['pressure'] or not (op and op['pressure'])) else op
     if dens:
@@ -1764,8 +1805,8 @@ def _sut_settings(v):
             s['speedFlow'] = round(1 - e['velocityMin'], 2)
         if e:
             _sut_inputs(e, label, notes, e is dens)
-    if flow and op and flow['pressure'] and op['pressure']:
-        notes.append('Opacity changing with pen pressure (density does)')
+    if flow and op and flow['pressure'] and op['pressure'] and op['pressureMin'] < 1:
+        _csp_fold_opacity(s, op)  # (at a minimum of 100% the opacity does not change at all)
 
     # texture: CLIP STUDIO paints where the texture is dark, KoeStudio where its grain is light (so invert)
     tex = None
@@ -1843,13 +1884,72 @@ def _sut_settings(v):
                        ('BrushUseVectorEraser', 'Vector eraser'), ('CompositeMode', 'Blending mode')):
         if g(col):
             notes.append(label)
-    return s, notes, tips[0] if tips else None, tex
+    return s, notes, tips, tex
 
 
-def _sut_inputs(e, what, notes, speed=True):
-    """Notes for an effector's inputs KoeStudio has no match for (speed is matched where `speed`)."""
+def _csp_tilt_size(e, s, notes):
+    """Size changing with pen tilt (CLIP STUDIO's tilt minimum, maximum and curve) as KoeStudio's Upright size,
+    Tilt → size and Tilt size curve: CLIP STUDIO's curve runs from the pen lying flat to upright, KoeStudio's from
+    upright (t 0) to flat, so it is turned round. KoeStudio grows the size from upright towards flat between 0 and 10
+    times: a tilt that shrinks the brush below its size as it leans, or grows it further, is carried roughly."""
+    lo, hi = e['tiltMin'], e['tiltMax']
+    curve = sorted([[round(1 - x, 4), y] for x, y in e['tiltCurve']]) if e['tiltCurve'] else [[0, 0], [1, 1]]
+    if hi < lo:  # shrinking as the pen leans: the same line, read from the other end
+        lo, hi, curve = hi, lo, [[x, round(1 - y, 4)] for x, y in curve]
+    if lo > 1 or hi < 1 or hi > 10:
+        notes.append('Size changing with pen tilt (only roughly)')
+    s['tiltSizeMin'] = round(_clamp(lo, 0, 1), 2)
+    s['tiltSize'] = round(_clamp((hi - 1) / 2, 0, 4.5), 3)
+    if not _straight(curve):
+        s['tiltSizeCurve'] = curve
+
+
+def _csp_fold_opacity(s, op):
+    """Opacity changing with pen pressure, on a brush whose density follows pressure too: KoeStudio's opacity caps
+    the whole stroke, so the opacity's response is multiplied into the density's (Min. density and Density curve,
+    16 points). A light touch is as see-through as in CLIP STUDIO; only dabs overlapping at a light touch can build
+    up past the opacity there."""
+    fm, fc = s.get('minFlow', 0), s.get('flowCurve')
+    om, oc = op['pressureMin'], op['curve'] if not _straight(op['curve']) else None
+    at = lambda p: (fm + (1 - fm) * (curve_at(fc, p) if fc else p)) * (om + (1 - om) * (curve_at(oc, p) if oc else p))
+    d0 = at(0)
+    s['minFlow'] = round(d0, 3)
+    if d0 < 0.999:
+        s['flowCurve'] = [[round(i / 15, 4), round(_clamp((at(i / 15) - d0) / (1 - d0), 0, 1), 4)] for i in range(16)]
+
+
+def curve_at(pts, p):
+    """A curve's value at p as KoeStudio draws it (brush.js curveAt): a monotone cubic through the points, flat
+    before the first and after the last."""
+    n = len(pts)
+    if p <= pts[0][0]:
+        return pts[0][1]
+    if p >= pts[-1][0]:
+        return pts[-1][1]
+    i = 0
+    while pts[i + 1][0] < p:
+        i += 1
+    slope = lambda k: (pts[k + 1][1] - pts[k][1]) / (pts[k + 1][0] - pts[k][0])
+
+    def tangent(k):
+        if k == 0:
+            return slope(0)
+        if k == n - 1:
+            return slope(n - 2)
+        a, b = slope(k - 1), slope(k)
+        return 0 if a * b <= 0 else 2 / (1 / a + 1 / b)
+    (x0, y0), (x1, y1) = pts[i], pts[i + 1]
+    h = x1 - x0
+    t = (p - x0) / h
+    t2, t3 = t * t, t * t * t
+    v = (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * h * tangent(i) + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * h * tangent(i + 1)
+    return _clamp(v, 0, 1)
+
+
+def _sut_inputs(e, what, notes, speed=True, tilt=False):
+    """Notes for an effector's inputs KoeStudio has no match for (speed is matched where `speed`, tilt where `tilt`)."""
     for key, label in (('tilt', 'pen tilt'), ('velocity', 'speed')):
-        if e[key] and not (key == 'velocity' and speed):
+        if e[key] and not (key == 'velocity' and speed) and not (key == 'tilt' and tilt):
             notes.append(f'{what} changing with {label}')
 
 

@@ -72,7 +72,7 @@ export function moveGroup(presets, g, before = null) {
  * the current settings of any tool (settings, a list of tool settings). These can be deleted with the brushes.
  */
 export function orphanImages(removed, kept, settings = []) {
-  const refs = s => [s?.tip, s?.texture, s?.dualTip, s?.comboTip].map(imageRef).filter(Boolean);
+  const refs = s => [s?.tip, ...(Array.isArray(s?.tips) ? s.tips : []), s?.texture, s?.dualTip, s?.comboTip].map(imageRef).filter(Boolean);
   const used = new Set([...kept.flatMap(p => refs(p.settings)), ...settings.flatMap(refs)]);
   return [...new Set(removed.flatMap(p => refs(p.settings)))].filter(id => !used.has(id));
 }

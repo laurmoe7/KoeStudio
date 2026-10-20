@@ -458,3 +458,60 @@ test('combined brush: its second brush gets a copy only with a texture worked ou
   assert.equal(comboCopyFor(null, 'source-over', 10, 10), null, 'no texture');
   assert.equal(comboCopyFor({ scale: 1 }, 'multiply', 10, 10), null, 'Multiply texture: cut on the GPU from the blended stroke');
 });
+
+test('size with pen tilt: from the upright size to the flat one, straight or along a curve', async () => {
+  const { tiltSizeAt, dynamicsAt, dynamicsReach } = await import('../web/js/brush.js');
+  const { usesDynamics, sanitizeBrush } = await import('../web/js/vector.js');
+  near(tiltSizeAt({}, 0.7), 1, 'off');
+  near(tiltSizeAt({ tiltSize: 1 }, 0.5), 2, 'as before: 1 upright, 3 flat, 2 half way');
+  // Upright size 0 and Tilt → size 1: 0 upright, 3 flat
+  near(tiltSizeAt({ tiltSizeMin: 0, tiltSize: 1 }, 0), 0, 'upright');
+  near(tiltSizeAt({ tiltSizeMin: 0, tiltSize: 1 }, 0.5), 1.5, 'half way: 0 + 3 x 0.5');
+  // a straight two-point curve from 0.1 to 1: at t 0.5 it is 0.55; between 0 and 1 + 2 x 2 = 5 that is 2.75
+  near(tiltSizeAt({ tiltSizeMin: 0, tiltSize: 2, tiltSizeCurve: [[0, 0.1], [1, 1]] }, 0.5), 2.75, 'along the curve');
+  near(tiltSizeAt({ tiltSizeMin: 0, tiltSize: 2, tiltSizeCurve: [[0, 0.1], [1, 1]] }, 0), 0.5, 'a mouse counts as upright: 5 x 0.1');
+  near(dynamicsAt({ tiltSizeMin: 0.5, speedSize: 0.5 }, 0, 1).sizeK, 0.25, 'tilt and speed multiply: 0.5 x 0.5');
+  near(dynamicsReach({ tiltSizeMin: 0, tiltSize: 4.5 }), 10, 'the biggest a dab gets: 1 + 2 x 4.5');
+  near(dynamicsReach({ tiltSizeMin: 0.3 }), 1, 'shrinking never reaches further than the size');
+  assert.ok(usesDynamics({ tiltSizeMin: 0.5 }), 'an upright size below 100% needs the tilt of each point');
+  assert.ok(!usesDynamics({ tiltSizeMin: 1 }));
+  // kept in range by tools and vector lines
+  const s = sanitizeSettings({ brush: { tiltSize: 9, tiltSizeMin: -1, tiltSizeCurve: [[1, 1], [0, 0.2]] } }).brush;
+  assert.deepEqual([s.tiltSize, s.tiltSizeMin, s.tiltSizeCurve], [4.5, 0, [[0, 0.2], [1, 1]]]);
+  assert.equal(sanitizeSettings(null).brush.tiltSizeMin, 1, 'default: the same size upright');
+  const b = sanitizeBrush({ tiltSize: 3, tiltSizeMin: 0.2, tiltSizeCurve: [[0, 0], [0.5, 1]] });
+  assert.deepEqual([b.tiltSize, b.tiltSizeMin, b.tiltSizeCurve], [3, 0.2, [[0, 0], [0.5, 1]]]);
+  assert.equal(sanitizeBrush({}).tiltSizeMin, 1);
+});
+
+test('several tip pictures: which one each dab takes', async () => {
+  const { tipIndex } = await import('../web/js/brush.js');
+  const run = (count, order, n = 7, rnd) => Array.from({ length: n }, (_, i) => tipIndex(i, count, order, rnd));
+  assert.deepEqual(run(3, 'repeat'), [0, 1, 2, 0, 1, 2, 0], 'in turn');
+  assert.deepEqual(run(3, 'reverse'), [0, 1, 2, 1, 0, 1, 2], 'back and forth, the ends once each');
+  assert.deepEqual(run(2, 'reverse', 4), [0, 1, 0, 1]);
+  assert.deepEqual(run(3, 'last'), [0, 1, 2, 2, 2, 2, 2], 'once through, then the last');
+  assert.deepEqual(run(4, 'random', 3, () => 0.6), [2, 2, 2], 'random: floor(0.6 x 4)');
+  assert.equal(tipIndex(0, 3, 'random', () => 0.999999), 2);
+  assert.deepEqual(run(1, 'reverse', 3), [0, 0, 0], 'one picture: always it');
+  assert.equal(tipIndex(5, 2, 'nonsense'), 1, 'an unknown order goes in turn');
+});
+
+test('several tip pictures: kept by tools, saved brushes and vector lines', async () => {
+  const { sanitizeBrush } = await import('../web/js/vector.js');
+  const { orphanImages } = await import('../web/js/brushorg.js');
+  const s = sanitizeSettings({ brush: { tips: ['img:aaaaaaaa', 'round', 5, 'img:bbbbbbbb'], tipOrder: 'last' } }).brush;
+  assert.deepEqual(s.tips, ['img:aaaaaaaa', 'img:bbbbbbbb'], 'tip images only');
+  assert.equal(s.tipOrder, 'last');
+  assert.equal(sanitizeSettings({ brush: { tipOrder: 'sideways' } }).brush.tipOrder, 'repeat');
+  assert.deepEqual(sanitizeSettings({ brush: { tips: 'img:aaaaaaaa' } }).brush.tips, [], 'not a list');
+  assert.equal(sanitizeSettings({ brush: { tips: Array(40).fill('img:aaaaaaaa') } }).brush.tips.length, 15, 'up to 16 pictures with the tip');
+  assert.ok(BRUSH_KEYS.includes('tips') && BRUSH_KEYS.includes('tipOrder'));
+  const b = sanitizeBrush({ tips: ['img:cccccccc', 'bristle', 'img:x'], tipOrder: 'reverse' });
+  assert.deepEqual([b.tips, b.tipOrder], [['img:cccccccc'], 'reverse']);
+  assert.deepEqual([sanitizeBrush({}).tips, sanitizeBrush({}).tipOrder], [[], 'repeat']);
+  // deleting a brush frees its extra tip pictures too, unless a kept brush uses them
+  const removed = [{ settings: { tip: 'img:aaaaaaaa', tips: ['img:bbbbbbbb', 'img:cccccccc'] } }];
+  const kept = [{ settings: { tip: 'round', tips: ['img:cccccccc'] } }];
+  assert.deepEqual(orphanImages(removed, kept).sort(), ['aaaaaaaa', 'bbbbbbbb']);
+});

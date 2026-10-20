@@ -234,17 +234,40 @@ export function tiltFrom(tiltX = 0, tiltY = 0) {
 }
 
 /**
- * Size and density factors of a dab from pen tilt t (0-1) and speed v (0-1): tilting grows the brush up to
- * 1 + 2 x tiltSize times and lightens it by tiltFlow; speed scales by 1 - speedSize x v (negative: thicker).
+ * The size factor pen tilt t (0 upright - 1 flat) gives: from tiltSizeMin (default 1) with the pen upright to
+ * 1 + 2 x tiltSize lying flat, straight in between or along tiltSizeCurve (its y: 0 the upright size, 1 the flat
+ * one), as CLIP STUDIO's tilt minimum, maximum and curve.
+ */
+export function tiltSizeAt(s, t = 0) {
+  const lo = s.tiltSizeMin ?? 1, hi = 1 + 2 * (s.tiltSize || 0), c = Math.max(0, Math.min(1, t || 0));
+  return lo + (hi - lo) * (s.tiltSizeCurve ? curveAt(s.tiltSizeCurve, c) : c);
+}
+
+/**
+ * Size and density factors of a dab from pen tilt t (0-1) and speed v (0-1): tilting changes the size as
+ * tiltSizeAt says and lightens the paint by tiltFlow; speed scales by 1 - speedSize x v (negative: thicker).
  */
 export function dynamicsAt(s, t = 0, v = 0) {
-  const sizeK = (1 + 2 * (s.tiltSize || 0) * (t || 0)) * Math.max(0.1, 1 - (s.speedSize || 0) * (v || 0));
+  const sizeK = tiltSizeAt(s, t) * Math.max(0.1, 1 - (s.speedSize || 0) * (v || 0));
   const flowK = (1 - (s.tiltFlow || 0) * (t || 0)) * Math.max(0.05, 1 - (s.speedFlow || 0) * (v || 0));
   return { sizeK, flowK: Math.max(0, flowK) };
 }
 
 /** The most tilt and speed can grow a dab (for redraw bounds). */
-export const dynamicsReach = s => (1 + 2 * Math.max(0, s.tiltSize || 0)) * (1 + Math.max(0, -(s.speedSize || 0)));
+export const dynamicsReach = s => Math.max(1, 1 + 2 * Math.max(0, s.tiltSize || 0)) * (1 + Math.max(0, -(s.speedSize || 0)));
+
+/**
+ * Which of `count` tip pictures dab n (0 first, counted per stroke) uses, in the brush's tip order (CLIP STUDIO's
+ * Repeat method): 'repeat' goes round them in turn, 'reverse' back and forth, 'last' through them once and then
+ * keeps the last, 'random' picks any (rnd: numbers 0-1).
+ */
+export function tipIndex(n, count, order, rnd = Math.random) {
+  if (count < 2) return 0;
+  if (order === 'random') return Math.min(count - 1, Math.floor(rnd() * count));
+  if (order === 'last') return Math.min(n, count - 1);
+  if (order === 'reverse') { const m = n % (2 * count - 2); return m < count ? m : 2 * count - 2 - m; }
+  return n % count;
+}
 
 /**
  * A point part way (k, 0-1) from a to b: position and pressure, and when the points have them, tilt t and speed v;

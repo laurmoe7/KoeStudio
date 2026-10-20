@@ -113,6 +113,11 @@ export const brushMethods = {
   /** Options for the Tip and Texture choices: the built-in ones plus the library's images. */
   tipChoices() { return [...TIPS, ...this.brushImages('tip').map(i => [`img:${i.id}`, i.name])]; },
   textureChoices() { return [...TEXTURES, ...this.brushImages('texture').map(i => [`img:${i.id}`, i.name])]; },
+  /** A small picture of a tip image ('img:<id>') for the More tips row, named in its tooltip. */
+  tipThumb(t) {
+    const id = imageRef(t), im = this.brushImages('tip').find(i => i.id === id);
+    return `<img class="tip-thumb" src="${esc(api.brushImageUrl(id))}" alt="" title="${esc(im ? im.name : 'Missing tip picture')}">`;
+  },
 
   /**
    * The Brush row at the top of a paint tool's panel: the built-in or saved brush it came from (with * once its
@@ -265,7 +270,7 @@ export const brushMethods = {
     let imp = impastoFor(b);
     if (imp) imp = { ...imp, canvas: this.previewHeight ||= document.createElement('canvas') };
     const texture = textureFor(b, this.previewTex ||= {});
-    const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
+    const painter = new Painter(sctx, { color: line.color, hardness: b.hardness, tip: b.tip, tips: b.tips, tipOrder: b.tipOrder, thickness: b.thickness, angle: b.tipAngle, pixel: b.pixel,
       random: b.tipRandom, follow: b.tipFollow, flipX: b.flipX, flipY: b.flipY, roundJitter: b.roundJitter, rnd: seeded(PREVIEW_SEED + 7), grain: grainFor(b), height: imp && heightFor(imp.canvas, w, h), strength: strengthFor(texture, w, h), copy: copyFor(texture, w, h), texDab: textureDabFor(b), dryOut: b.dryOut, dryAt: b.size, dryGrain: dryGrainFor(b) });
     for (const st of strokeStamps(line, b)) {
       const { size, flow } = stampAt(b, st.p);
@@ -631,6 +636,7 @@ export const brushMethods = {
             forgetBrushImage(id);
             for (const s of Object.values(this.settings)) {
               if (imageRef(s.tip) === id) s.tip = 'round';
+              if (s.tips?.some(t => imageRef(t) === id)) s.tips = s.tips.filter(t => imageRef(t) !== id);
               if (imageRef(s.texture) === id) s.texture = 'none';
               if (imageRef(s.dualTip) === id) s.dualTip = 'none';
               if (imageRef(s.comboTip) === id) s.comboTip = 'none';
@@ -718,7 +724,7 @@ export const brushMethods = {
     // without the Brush tool's end taper: a brush file brings its own tapers or has none
     const base = { ...this.brushSettingsOf(TOOL_BY_ID.brush.defaults), taperIn: 0, taperOut: 0 }, ref = k => (temp.has(k) ? `img:${temp.get(k)}` : null);
     const looks = res.brushes.map(b => applySettings({ ...base }, { ...b.settings,
-      tip: ref(b.tip) || 'round', texture: ref(b.texture) || 'none', ...(ref(b.dual) ? { dualTip: ref(b.dual) } : {}),
+      tip: ref(b.tip) || 'round', tips: (b.tips || []).map(ref).filter(Boolean), texture: ref(b.texture) || 'none', ...(ref(b.dual) ? { dualTip: ref(b.dual) } : {}),
       ...combined(b, ref(b.combo?.tip) || 'round') }));
     const lost = noteSummary(res.brushes), flawed = res.brushes.filter(b => b.notes.length).length;
     let complete = !!store('importComplete') && flawed > 0;  // Only complete brushes: hide those marked !
@@ -811,7 +817,7 @@ export const brushMethods = {
     const saved = new Map();
     try {
       for (const b of chosen) {
-        for (const k of [b.tip, b.texture, b.dual, b.combo?.tip]) {
+        for (const k of [b.tip, ...(b.tips || []), b.texture, b.dual, b.combo?.tip]) {
           if (k == null || saved.has(k)) continue;
           const im = res.images[k];
           const entry = await api.addBrushImage(im.kind, im.name, await this.importedImagePng(im));
@@ -827,7 +833,7 @@ export const brushMethods = {
     const presets = chosen.map(b => ({
       id: newId(), name: b.name, ...(group ? { source: group } : {}),
       settings: applySettings({ ...base }, { ...b.settings,
-        tip: b.tip != null ? `img:${saved.get(b.tip)}` : 'round', texture: b.texture != null ? `img:${saved.get(b.texture)}` : 'none',
+        tip: b.tip != null ? `img:${saved.get(b.tip)}` : 'round', tips: (b.tips || []).filter(k => saved.has(k)).map(k => `img:${saved.get(k)}`), texture: b.texture != null ? `img:${saved.get(b.texture)}` : 'none',
         ...(b.dual != null ? { dualTip: `img:${saved.get(b.dual)}` } : {}),
         ...combined(b, b.combo?.tip != null ? `img:${saved.get(b.combo.tip)}` : 'round') }),
     }));

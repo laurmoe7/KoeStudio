@@ -7,7 +7,7 @@
 
 import { textureTile, grooveAlpha, TILE } from './textures.js';
 import { imageRef, bristleDots, flatDots } from './brushtip.js';
-import { pixelSpans, dryness, dryDab, DRY_LEVELS } from './brush.js';
+import { pixelSpans, dryness, dryDab, DRY_LEVELS, tipIndex } from './brush.js';
 import { applyTextureMode, textureValueAt } from './texmodes.js';
 
 const TIP = 128;
@@ -115,8 +115,9 @@ export class Painter {
    * liveSource weighs the texture by), copy ({ctx}: copyFor, a texture mode other than Multiply on the whole stroke:
    * every dab is drawn there too, in memory, for liveSource to work the mode out from), texDab (textureDabFor:
    * Texture each dab, every dab worked out with its texture mode on its own). grainK (grainAt) is set before each
-   * dab and scales any texture it carries. */
-  constructor(ctx, { color, hardness, tip = 'round', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, strength = null, copy = null, texDab = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
+   * dab and scales any texture it carries. tips (more 'img:<id>' tip pictures) are taken in turns with the tip, in
+   * tipOrder (brush.js tipIndex), counted per symmetric copy. */
+  constructor(ctx, { color, hardness, tip = 'round', tips = null, tipOrder = 'repeat', thickness = 1, angle = 0, random = 0, follow = false, rnd = Math.random, pixel = false, grain = null, height = null, strength = null, copy = null, texDab = null, dryOut = 0, dryAt = 1, dryGrain = null, flipX = false, flipY = false, roundJitter = 0 }) {
     this.ctx = ctx;
     this.height = pixel ? null : height;
     this.strength = strength;
@@ -129,6 +130,12 @@ export class Painter {
     this.hardness = hardness;
     this.mask = this.fullMask = tipImages.get(imageRef(tip)) || builtinTip(tip);
     this.image = this.mask ? tinted(this.mask, color) : null;
+    // the other tip pictures, each with its own tinted copy, so changing tips between dabs does not tint again
+    const more = this.image && !pixel && Array.isArray(tips) ? tips.map(t => tipImages.get(imageRef(t))).filter(Boolean) : [];
+    this.tipSet = more.length ? [this.mask, ...more].map((full, i) => ({ full, mask: full, image: i ? null : this.image, small: null, level: 0, color })) : null;
+    this.tipOrder = tipOrder;
+    this.tipAt = 0;
+    this.tipN = [];  // per symmetric copy: dabs so far
     this.dryOut = this.mask && !pixel ? Math.max(0, Math.min(1, dryOut || 0)) : 0;  // Runs dry: tip images only
     this.dryAt = dryAt;  // the brush size dryness is measured in
     this.dryLevel = 0;
@@ -175,6 +182,28 @@ export class Painter {
     return flowK;
   }
 
+  /** Draws the next dabs with tip picture i of tipSet, in the current colour and dry level. */
+  useTip(i) {
+    if (i === this.tipAt) return;
+    Object.assign(this.tipSet[this.tipAt], { mask: this.mask, image: this.image, small: this.small, level: this.dryLevel, color: this.color });
+    const e = this.tipSet[this.tipAt = i];
+    if (e.level !== this.dryLevel || !e.image) {
+      e.mask = dryMask(e.full, this.dryLevel);
+      e.level = this.dryLevel;
+      e.image = tinted(e.mask, this.color, e.image || undefined);
+      e.color = this.color;
+      e.small = null;
+    } else if (e.color !== this.color) {
+      e.image = tinted(e.mask, this.color, e.image);
+      e.color = this.color;
+      e.small = null;
+    }
+    this.fullMask = e.full;
+    this.mask = e.mask;
+    this.image = e.image;
+    this.small = e.small;
+  }
+
   /**
    * The tinted tip image to draw a dab of `size` px from: the tip itself, or for a small dab the smallest halved copy
    * still at least that size (mipsOf). Drawn straight down from 128 px or more to a few px, the browser samples a
@@ -205,7 +234,7 @@ export class Painter {
       this.last[k] = { x: hx, y: hy, dir: Math.atan2(hy - p0.hy, hx - p0.hx), known: true };
       this.drawPending(l.pending, k);
     }
-    this.put(x, y, size, alpha, this.pixel ? 0 : this.rotation(hx, hy, k, dir));
+    this.put(x, y, size, alpha, this.pixel ? 0 : this.rotation(hx, hy, k, dir), k);
   }
 
   /** Draws the dabs held back until the stroke's direction was known (copy k's direction, or 0 for a tap). */
@@ -216,7 +245,7 @@ export class Painter {
       this.dryT = p.dryT;
       this.grainK = p.grainK;
       // in the direction found (worked out from these dabs, it pointed back from the next one: the first dab drawn back to front)
-      this.put(p.x, p.y, p.size, p.alpha, this.rotation(p.hx, p.hy, k, this.last[k]?.known ? this.last[k].dir : 0));
+      this.put(p.x, p.y, p.size, p.alpha, this.rotation(p.hx, p.hy, k, this.last[k]?.known ? this.last[k].dir : 0), k);
     }
     this.setColor(color);
     this.dryT = dryT;
@@ -228,8 +257,13 @@ export class Painter {
     this.last.forEach((l, k) => { if (l?.pending?.length) { this.drawPending(l.pending, k); l.pending = []; } });
   }
 
-  /** One dab at turn rot (radians), with the paper grain and the impasto height when they are on. */
-  put(x, y, size, alpha, rot) {
+  /** One dab at turn rot (radians) of symmetric copy k, with the paper grain and the impasto height when they are on. */
+  put(x, y, size, alpha, rot, k = 0) {
+    if (this.tipSet) {
+      const n = this.tipN[k] ?? 0;
+      this.tipN[k] = n + 1;
+      this.useTip(tipIndex(n, this.tipSet.length, this.tipOrder, this.rnd));
+    }
     if (this.flipX || this.flipY || this.roundJitter) {  // once, so the height canvas gets the same dab
       const sx = this.flipX && this.rnd() < 0.5 ? -1 : 1, sy = this.flipY && this.rnd() < 0.5 ? -1 : 1;
       this.mirror = [sx, sy * (this.roundJitter ? 1 - this.roundJitter * this.rnd() : 1)];

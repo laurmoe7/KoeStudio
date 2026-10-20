@@ -96,11 +96,13 @@ export const GUIDE = [
       <li><b>Tip</b>: round, or any picture as the tip. Squash it, turn it, or let it turn with the stroke. The
       outline under the pointer takes the tip's shape, so you see what a dab will look like.
       <b>Squash jitter</b> and <b>Random flip</b> vary each dab, so a tip picture does not repeat the same way.
-      <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).</li>
+      <b>Hard pixels</b> makes every dab whole pixels with no soft edge, for pixel art (size 1 draws single pixels).
+      A brush imported with several tip pictures shows them under <b>More tips</b> and takes turns with them, as <b>Tip order</b> says.</li>
       <li><b>Pen pressure</b>: whether pressing harder makes the line thicker, darker, or both.</li>
       <li><b>Stroke</b>: the gap between dabs, stabilization, and tapers (below).</li>
       <li><b>Tilt and speed</b>: tilt the pen to make the brush bigger or lighter (like shading with the side of a
-      pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. Tilt needs a pen that reports it.
+      pencil) or to turn its tip, and make fast strokes thinner, as with an ink pen. <b>Upright size</b> below 100% makes
+      the brush thinner with the pen held upright, so it only grows as you lean it. Tilt needs a pen that reports it.
       Lines on a vector layer remember the tilt and speed, so they keep their look when you erase or bend them.</li>
       <li><b>Variation</b>: scatter dabs around the line, or vary their size, lightness and colour at random.
       <b>Count</b> lays several dabs at each step (with Scatter: spray, leaves, sparkles), and <b>Count jitter</b> makes
@@ -292,6 +294,25 @@ export const GUIDE = [
       stroke does not show the same picture over and over.</li>
       <li>Squash jitter 0.2-0.4 is subtle. Higher values make some dabs thin slivers.</li>
       <li>Random flip does nothing on a plain round tip, which looks the same mirrored. Neither works with Hard pixels.</li>
+    </ul>
+
+    <h4>More tips and Tip order (Tip page)</h4>
+    <ul>
+      <li>Brushes imported from Clip Studio Paint can have several tip pictures. Each dab takes the next one, so a pencil
+      or a leaf brush does not stamp the same shape over and over.</li>
+      <li><b>In turn</b> goes round them; <b>Back and forth</b> goes to the last and back; <b>Once, then the last</b>
+      uses each once at the start of the stroke and the last one for the rest; <b>At random</b> picks any.</li>
+      <li>Click ✕ to keep only the Tip. The pictures stay in your library.</li>
+    </ul>
+
+    <h4>Upright size and Tilt size curve (Tilt and speed page)</h4>
+    <ul>
+      <li>For pencils you shade with the side of the lead: the size goes from Upright size (pen held up) to the
+      Tilt → size size (pen lying flat). An Upright size of 0-50% with Tilt → size 200-450% gives a thin line held
+      normally and a wide, soft band when you lean the pen.</li>
+      <li>A Tilt size curve (from an imported brush) decides where between the two the size is at each lean.</li>
+      <li>A mouse, and pens that do not report tilt, count as upright: with a low Upright size, such a brush paints
+      thin. Set Upright size to 100% to paint with it at its full size.</li>
     </ul>
 
     <h4>Scatter: Both ways (Variation page)</h4>

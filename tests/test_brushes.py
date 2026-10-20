@@ -597,11 +597,14 @@ def csp_refs(*items):
     return u32(8) + u32(len(items)) + body
 
 
-def csp_effector(on, pressure_min=0, random_min=0, curve=None, velocity_min=0):
-    head = struct.pack('>11i', 44, 0x1f0, on, pressure_min, 0, velocity_min, random_min, 0, 0, 0, 0)
-    if curve:
-        head += struct.pack('>3i', 12, len(curve), 16) + b''.join(struct.pack('>2d', x, y) for x, y in curve)
-    return head
+def csp_effector(on, pressure_min=0, random_min=0, curve=None, velocity_min=0, tilt_min=0, tilt_max=100, tilt_curve=None, sizes=True):
+    """An effector blob as CLIP STUDIO writes it: the curves' byte sizes in the header (sizes=False leaves them 0, as
+    the first files read had them)."""
+    pack = lambda c: struct.pack('>3i', 12, len(c), 16) + b''.join(struct.pack('>2d', x, y) for x, y in c) if c else b''
+    pc, tc = pack(curve), pack(tilt_curve)
+    head = struct.pack('>11i', 44, 0x1f0, on, pressure_min, tilt_min, velocity_min, random_min, 0,
+                       len(pc) if sizes else 0, len(tc) if sizes else 0, tilt_max)
+    return head + pc + tc
 
 
 def csp_taper_list(*ticked, ids=(112, 1001, 1021, 1041, 1051, 1082, 1084, 1093, 1100, 1104, 1106, 1108, 1132, 1134)):
@@ -816,9 +819,10 @@ class ClipStudioReader(unittest.TestCase):
 
     def test_tilt(self):
         # G-pen size: 0x30 is Pen pressure and Tilt ticked in CLIP STUDIO's Brush Size Dynamics
+        # (tilt from 0% upright to 100% flat, carried as Upright size and Tilt → size: test_size_with_tilt)
         s, notes, *_ = bi._sut_settings({'BrushSize': 10.0, 'BrushSizeEffector': csp_effector(0x30)})
         self.assertIs(s['pressureSize'], True)
-        self.assertEqual(notes, ['Size changing with pen tilt'])
+        self.assertEqual((s['tiltSizeMin'], s['tiltSize'], notes), (0, 0, []))
 
     def test_tip_and_texture_pictures(self):
         # a 3 x 2 ink mark (with a half-strength pixel) inside a 6 x 5 material; a 4 x 4 grain
@@ -910,8 +914,95 @@ class ClipStudioReader(unittest.TestCase):
         b = res['brushes'][0]
         self.assertEqual(b['settings']['tip'], 'round')
         self.assertNotIn('textureAmount', b['settings'])
-        self.assertEqual(b['notes'], ['It switches between 2 tip pictures (the first is used)', 'Its tip picture (nib) is not in the file',
+        self.assertEqual(b['notes'], ['Its tip picture (nib) is not in the file', 'Its tip picture (other) is not in the file',
                                       'Its texture (Paper) could not be read'])
+        self.assertEqual(b['tips'], [])
+
+    def test_effector_curves(self):
+        """The pressure and tilt curves are found by the byte sizes in the header."""
+        both = bi.csp_effector(csp_effector(0x30, 8, curve=[(0, 0.2), (1, 1)], tilt_min=0, tilt_max=697, tilt_curve=[(0, 1), (0.5, 0.2), (1, 0)]))
+        self.assertEqual((both['curve'], both['tiltCurve']), ([[0, 0.2], [1, 1]], [[0, 1], [0.5, 0.2], [1, 0]]))
+        self.assertEqual((both['tilt'], both['tiltMin'], both['tiltMax']), (True, 0, 6.97))
+        # a tilt curve alone (CLIP STUDIO's Droplet: pressure off) is not the pressure curve
+        tilt = bi.csp_effector(csp_effector(0x20, tilt_min=100, tilt_max=200, tilt_curve=[(0, 1), (1, 0)]))
+        self.assertEqual((tilt['curve'], tilt['tiltCurve'], tilt['tiltMin']), (None, [[0, 1], [1, 0]], 1))
+        old = bi.csp_effector(csp_effector(0x10, curve=[(0, 0), (1, 0.5)], sizes=False))
+        self.assertEqual((old['curve'], old['tiltCurve']), ([[0, 0], [1, 0.5]], None), 'no sizes: the curve there is pressure')
+
+    def test_size_with_tilt(self):
+        keys = ('tiltSizeMin', 'tiltSize', 'tiltSizeCurve')
+        size = lambda **k: bi._sut_settings({'BrushSize': 10.0, 'BrushSizeEffector': csp_effector(0x30, **k)})
+        # Artemus: 0% upright, 697% flat. CLIP STUDIO's curve runs from flat (x 0) to upright, KoeStudio's from upright
+        # to flat, so x becomes 1 - x: (0, 1) is (1, 1) and (1, 0.067) is (0, 0.067). 697% is 1 + 2 x 2.985
+        s, notes, *_ = size(tilt_min=0, tilt_max=697, tilt_curve=[(0, 1), (0.5, 0.2), (1, 0.067)])
+        self.assertEqual([s.get(k) for k in keys], [0, 2.985, [[0, 0.067], [0.5, 0.2], [1, 1]]])
+        self.assertEqual(notes, [])
+        # the G-pen: 100% upright to 150% flat in a straight line: Tilt → size 25%, no curve
+        s, notes, *_ = size(tilt_min=100, tilt_max=150, tilt_curve=[(0, 1), (1, 0)])
+        self.assertEqual([s.get(k) for k in keys], [1, 0.25, None])
+        # thinner as it leans (100% upright, 50% flat): 0.5 is KoeStudio's low end and the curve is turned upside
+        # down, 1 upright and 0 flat, so 0.5 + 0.5 x 1 = 1 upright and 0.5 flat
+        s, notes, *_ = size(tilt_min=100, tilt_max=50, tilt_curve=[(0, 1), (1, 0)])
+        self.assertEqual([s.get(k) for k in keys], [0.5, 0, [[0, 1], [1, 0]]])
+        self.assertEqual(notes, [])
+        # beyond ten times: as much as KoeStudio has, and a note
+        s, notes, *_ = size(tilt_min=100, tilt_max=1500)
+        self.assertEqual(s['tiltSize'], 4.5)
+        self.assertEqual(notes, ['Size changing with pen tilt (only roughly)'])
+        # tilt on density is still noted
+        notes = bi._sut_settings({'BrushSize': 10.0, 'BrushFlowEffector': csp_effector(0x30)})[1]
+        self.assertEqual(notes, ['Density changing with pen tilt'])
+
+    def test_opacity_with_pressure(self):
+        """Opacity and density both following pen pressure: the opacity's response is multiplied into the density's."""
+        # density 0-100% in a straight line, opacity from 50%: D(p) = p (0.5 + 0.5 p); at 0.6: 0.6 x 0.8 = 0.48
+        s, notes, *_ = bi._sut_settings({'BrushSize': 10.0, 'BrushFlowEffector': csp_effector(0x10, 0),
+                                         'BrushOpacityEffector': csp_effector(0x10, 50)})
+        self.assertEqual(notes, [])
+        self.assertEqual(s['minFlow'], 0)
+        self.assertEqual(len(s['flowCurve']), 16)
+        self.assertEqual(s['flowCurve'][9], [0.6, 0.48])
+        self.assertEqual(s['flowCurve'][-1], [1, 1])
+        # density from 40%: D(0) = 0.4 x 0.5 = 0.2 is the new minimum; at 0.6 D = 0.76 x 0.8 = 0.608, (0.608 - 0.2) / 0.8 = 0.51
+        s = bi._sut_settings({'BrushSize': 10.0, 'BrushFlowEffector': csp_effector(0x10, 40),
+                              'BrushOpacityEffector': csp_effector(0x10, 50)})[0]
+        self.assertEqual((s['minFlow'], s['flowCurve'][9]), (0.2, [0.6, 0.51]))
+        # the Salmons: opacity from 100% does not change at all
+        s, notes, *_ = bi._sut_settings({'BrushSize': 10.0, 'BrushFlowEffector': csp_effector(0x10, 40),
+                                         'BrushOpacityEffector': csp_effector(0x10, 100, curve=[(0, 1), (1, 0.9)])})
+        self.assertEqual((s['minFlow'], 'flowCurve' in s, notes), (0.4, False, []))
+        # curve_at is brush.js curveAt: through the points, flat before the first
+        self.assertAlmostEqual(bi.curve_at([[0, 0], [0.5, 0.25], [1, 1]], 0.5), 0.25)
+        self.assertEqual(bi.curve_at([[0.2, 0.3], [1, 1]], 0.1), 0.3)
+
+    def test_several_tips(self):
+        tip = csp_layer(2, 1, {(0, 0): (255, 0), (1, 0): (128, 0)})
+        tip2 = csp_layer(1, 1, {(0, 0): (255, 0)})
+        TIP2 = '.:05:06:cc:data:material_0.layer'
+        files = [(self.TIP, csp_package(tip)), (TIP2, csp_package(tip2))]
+        sut = lambda refs, **v: make_sut({'BrushSize': 20.0, 'BrushUsePatternImage': 1, 'BrushPatternImageArray': csp_refs(*refs), **v}, files)
+        two = csp_refs((self.TIP, 'a'), (TIP2, 'b'))
+        # Artemus: two pictures, Do not repeat, blended with Darken
+        res = bi.import_brushes('a.sut', sut([(self.TIP, 'C'), (TIP2, 'HB')], BrushPatternOrderType=2, BrushBlendPatternByDarken=1))
+        b = res['brushes'][0]
+        self.assertEqual((b['name'], b['tip'], b['tips'], b['settings']['tipOrder']), ('Graphite', 0, [1], 'last'))
+        self.assertEqual([im['name'] for im in res['images']], ['C', 'HB'])
+        self.assertEqual(b['notes'], ['Overlapping dabs blended with Darken (they build up instead)'])
+        # a picture listed twice comes round twice but is saved once; Random
+        res = bi.import_brushes('a.sut', sut([(self.TIP, 'C'), (TIP2, 'HB'), (self.TIP, 'C')], BrushPatternOrderType=3))
+        b = res['brushes'][0]
+        self.assertEqual((b['tip'], b['tips'], b['settings']['tipOrder'], len(res['images'])), (0, [1, 0], 'random', 2))
+        # Reverse; One time only stops painting after a round, which KoeStudio does not
+        s = bi._sut_settings({'BrushSize': 9.0, 'BrushUsePatternImage': 1, 'BrushPatternImageArray': two, 'BrushPatternOrderType': 1})[0]
+        self.assertEqual(s['tipOrder'], 'reverse')
+        s, notes, *_ = bi._sut_settings({'BrushSize': 9.0, 'BrushUsePatternImage': 1, 'BrushPatternImageArray': two, 'BrushPatternOrderType': 4})
+        self.assertEqual((s['tipOrder'], notes), ('repeat', ['It stops painting after one round of its tip pictures']))
+        # one picture: no order; one of two missing: the other alone
+        b = bi.import_brushes('a.sut', sut([(self.TIP, 'C')], BrushPatternOrderType=3))['brushes'][0]
+        self.assertEqual((b['tips'], 'tipOrder' in b['settings']), ([], False))
+        b = bi.import_brushes('a.sut', sut([('.:07:07:dd:data:material_0.layer', 'gone'), (TIP2, 'HB')]))['brushes'][0]
+        self.assertEqual((b['tip'], b['tips'], 'tipOrder' in b['settings']), (0, [], False))
+        self.assertEqual(b['notes'], ['Its tip picture (gone) is not in the file'])
 
     def test_not_a_brush(self):
         def tools_only(db):
