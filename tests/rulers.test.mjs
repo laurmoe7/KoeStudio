@@ -1,4 +1,4 @@
-// Guides, perspective rulers and stroke snapping. Expected values are worked out by hand.
+// Guides, perspective, straight, curve and parallel rulers and stroke snapping. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeRulers, sanitizeGrid, gridStep, newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, MAX_GUIDES } from '../web/js/rulers.js';
@@ -245,4 +245,76 @@ test('curve rulers', async () => {
   // canvas changes carry the points along (here: everything moves 10 right)
   const m = mapRulers({ ...defaultRulers(), shapes: [bend] }, [1, 0, 0, 1, 10, 0], 200, 200);
   assert.deepEqual(m.shapes[0].pts[2], [110, 100]);
+});
+
+test('parallel line ruler', async () => {
+  const { sanitizeShape, shapeHandles, dragShapeHandle, shapeFromDrag, mapRulers, rulerDegrees, fromDegrees, parallelEnd } = await import('../web/js/rulers.js');
+  const flat = { type: 'parallel', x: 100, y: 50, angle: 0, len: 40 };
+  assert.deepEqual(sanitizeShape({ type: 'parallel', x: 100, y: 50 }), { type: 'parallel', x: 100, y: 50, angle: 0, len: 100 }, 'level, 100 px either way by default');
+  assert.equal(sanitizeShape({ type: 'parallel', x: 'no', y: 1 }), null);
+  near(sanitizeShape({ ...flat, angle: 3 * Math.PI }).angle, Math.round(Math.PI * 1e6) / 1e6, 'kept within -pi..pi');
+  assert.equal(sanitizeShape({ ...flat, len: 1 }).len, 4, 'a bar too short to grab is made 4 px');
+
+  // every stroke follows the ruler's direction from where it starts, wherever that is
+  const r = { visible: true, guides: [], shapes: [{ ...flat, angle: Math.PI / 2 }] };  // straight down
+  const cands = snapCandidates(r, { x: 500, y: 400 }, 5);
+  assert.equal(cands.length, 1);
+  assert.equal(cands[0].kind, 'parallel');
+  const line = pickLine(cands, { x: 500, y: 400 }, { x: 530, y: 410 });  // even a stroke heading right goes down
+  const p = project(line, { x: 530, y: 410 });
+  near(p.x, 500); near(p.y, 410);
+  // at 45° (down-right on the doc): (10, 0) from the start projects to half of it along the diagonal, (5, 5)
+  const diag = { visible: true, guides: [], shapes: [{ ...flat, angle: Math.PI / 4 }] };
+  const q = project(pickLine(snapCandidates(diag, { x: 0, y: 0 }, 5), { x: 0, y: 0 }, { x: 10, y: 0 }), { x: 10, y: 0 });
+  near(q.x, 5); near(q.y, 5);
+  // a guide the stroke starts on still wins when the stroke goes along it
+  const both = { visible: true, guides: [{ axis: 'h', pos: 400 }], shapes: [{ ...flat, angle: Math.PI / 2 }] };
+  assert.equal(pickLine(snapCandidates(both, { x: 500, y: 401 }, 5), { x: 500, y: 401 }, { x: 540, y: 403 }).kind, 'guide');
+  assert.equal(pickLine(snapCandidates(both, { x: 500, y: 401 }, 5), { x: 500, y: 401 }, { x: 503, y: 440 }).kind, 'parallel');
+  assert.equal(snapCandidates({ ...r, visible: false }, { x: 0, y: 0 }, 5).length, 0, 'hidden rulers do not snap');
+
+  // handles: the middle moves it, the ends turn it about the middle
+  assert.deepEqual(shapeHandles(flat), [{ h: 'c', x: 100, y: 50 }, { h: 'a', x: 60, y: 50 }, { h: 'b', x: 140, y: 50 }]);
+  assert.deepEqual(dragShapeHandle(flat, 'c', { x: 3, y: 4 }), { ...flat, x: 3, y: 4 });
+  const down = dragShapeHandle(flat, 'b', { x: 100, y: 80 });  // b straight below the middle, 30 px: 90°
+  near(down.angle, Math.PI / 2); near(down.len, 30);
+  const up = dragShapeHandle(flat, 'a', { x: 100, y: 80 });  // a below means b above: -90°
+  near(up.angle, -Math.PI / 2); near(up.len, 30);
+  const snapped = dragShapeHandle(flat, 'b', { x: 140, y: 52 }, true);  // 2.9° off level: Shift makes it level
+  near(snapped.angle, 0); near(snapped.len, Math.hypot(40, 2));
+  assert.equal(dragShapeHandle(flat, 'b', { x: 100, y: 50 }), flat, 'an end dropped on the middle changes nothing');
+  const made = shapeFromDrag('parallel', { x: 0, y: 0 }, { x: 30, y: 40 });
+  near(made.x, 15); near(made.y, 20); near(made.len, 25); near(made.angle, Math.atan2(40, 30));
+
+  // typed angles: degrees anticlockwise on screen (doc y points down)
+  assert.equal(rulerDegrees(0), 0);
+  assert.equal(rulerDegrees(-Math.PI / 4), 45, 'up and to the right');
+  assert.equal(rulerDegrees(Math.PI / 4), 135, 'down and to the right is the same line as up and to the left');
+  assert.equal(rulerDegrees(Math.PI), 0, 'a ruler has no front: 180° is level');
+  assert.equal(rulerDegrees(Math.PI / 2), 90);
+  near(fromDegrees(30), -Math.PI / 6);
+  assert.equal(rulerDegrees(fromDegrees(30)), 30);
+  assert.equal(rulerDegrees(fromDegrees(359.99)), 0, '179.99 rounds to 180, which is 0');
+
+  // the canvas changing shape: a crop moves it, a quarter turn turns it, a flip mirrors it
+  const base = { guides: [], perspective: null, shapes: [{ ...flat, angle: Math.PI / 6 }], symmetry: { kind: 'off', lines: 6, x: null, y: null } };
+  const moved = mapRulers(base, [1, 0, 0, 1, -10, -20], 200, 100, 190, 80).shapes[0];
+  assert.equal(moved.x, 90); assert.equal(moved.y, 30); near(moved.angle, Math.round(Math.PI / 6 * 1e6) / 1e6);
+  const turned = mapRulers(base, [0, 1, -1, 0, 100, 0], 200, 100, 100, 200).shapes[0];  // a quarter turn clockwise: (x, y) → (100 - y, x)
+  assert.equal(turned.x, 50); assert.equal(turned.y, 100);
+  near(turned.angle, Math.round((Math.PI / 6 + Math.PI / 2) * 1e6) / 1e6, 'turned a quarter too'); near(turned.len, 40);
+  const flipped = mapRulers(base, [-1, 0, 0, 1, 200, 0], 200, 100, 200, 100).shapes[0];  // Flip horizontally: (x, y) → (200 - x, y)
+  assert.equal(flipped.x, 100);
+  near(flipped.angle, Math.round(5 * Math.PI / 6 * 1e6) / 1e6, '30° mirrored is 150°');
+  const doubled = mapRulers(base, [2, 0, 0, 2, 0, 0], 200, 100, 400, 200).shapes[0];
+  assert.equal(doubled.len, 80, 'Image size scales the bar');
+
+  // the Figure tool's straight shapes
+  const rs = { visible: true, snap: true, guides: [], shapes: [{ ...flat, angle: 0 }, { ...flat, angle: Math.PI / 2 }] };
+  assert.deepEqual(parallelEnd(rs, { x: 10, y: 10 }, { x: 50, y: 30 }), { x: 50, y: 10 }, 'mostly across: level');
+  const up2 = parallelEnd(rs, { x: 10, y: 10 }, { x: 12, y: 40 });  // mostly down: upright
+  near(up2.x, 10); near(up2.y, 40);
+  assert.deepEqual(parallelEnd({ ...rs, snap: false }, { x: 10, y: 10 }, { x: 50, y: 30 }), { x: 50, y: 30 }, 'Ctrl+2 off: free');
+  assert.deepEqual(parallelEnd({ ...rs, shapes: [] }, { x: 10, y: 10 }, { x: 50, y: 30 }), { x: 50, y: 30 }, 'no parallel ruler: free');
+  assert.deepEqual(sanitizeRulers({ shapes: [flat, { type: 'parallel' }] }).shapes, [flat], 'saved with the artwork; broken ones dropped');
 });

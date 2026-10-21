@@ -6,7 +6,7 @@
 
 import { icon } from '../icons.js';
 import { newPerspective, niceStep, ticks, snapCandidates, pickLine, project, guideAt, gridStep, snapToGrid, snapToGuides, sanitizeGrid, MAX_GUIDES,
-  MAX_SHAPES, sanitizeShape, shapeHandles, shapeHandleAt, dragShapeHandle, shapeFromDrag, curveFromStroke, curvePath } from '../rulers.js';
+  MAX_SHAPES, sanitizeShape, shapeHandles, shapeHandleAt, dragShapeHandle, shapeFromDrag, curveFromStroke, curvePath, rulerDegrees, fromDegrees } from '../rulers.js';
 import { modal, store, toast } from '../ui.js';
 import { matrix, toScreen, toDoc } from '../view.js';
 
@@ -20,13 +20,22 @@ const HANDLE_PX = 8;          // grab distance of straight-line, concentric and 
 const MAKE_PX = 6;            // a drag on empty canvas shorter than this makes no new ruler
 const SHAPE_COLOR = 'rgba(70, 220, 160, 0.9)';
 const SHAPE_FAINT = 'rgba(70, 220, 160, 0.3)';
-const SHAPE_LABELS = { line: 'Straight-line ruler', ellipse: 'Concentric ruler', curve: 'Curve ruler' };  // undo step names, by kind
+const HATCH_COLOR = 'rgba(70, 220, 160, 0.16)';
+const HATCH_PX = 48;          // spacing (on screen) of the faint lines a parallel line ruler draws across the canvas
+const SHAPE_LABELS = { line: 'Straight-line ruler', parallel: 'Parallel line ruler', ellipse: 'Concentric ruler', curve: 'Curve ruler' };  // undo step names, by kind
 const LINE_COLOR = 'rgba(64, 200, 255, 0.85)';
 const PERSPECTIVE_COLOR = 'rgba(190, 120, 255, 0.35)';
 const HORIZON_COLOR = 'rgba(190, 120, 255, 0.9)';
 const GRID_COLOR = 'rgba(80, 140, 255, 0.55)';
 const GRID_SUB_COLOR = 'rgba(80, 140, 255, 0.22)';
 const GRID_MIN_PX = 5;        // grid lines closer than this on screen are left out
+
+const MAKE_HINTS = {
+  line: 'Strokes started near the line follow it',
+  parallel: 'Every stroke is a straight line in the ruler’s direction, wherever it starts. Drag an end to turn it',
+  ellipse: 'Every stroke follows a circle (or ellipse) around the same centre',
+  curve: 'Draw the curve freehand; strokes started near it follow it. Drag its points to reshape it',
+};
 
 const clone = r => JSON.parse(JSON.stringify(r));
 
@@ -89,13 +98,21 @@ export const rulerMethods = {
     if (r.shapes.length >= MAX_SHAPES) return toast(`There can be at most ${MAX_SHAPES} rulers.`);
     const box = this.viewport.getBoundingClientRect();
     const c = toDoc(this.view, box.width / 2, box.height / 2), reach = Math.min(box.width, box.height) / 4 / this.view.zoom;
-    const shape = kind === 'curve'  // a gentle S across the middle of the view
+    const shape = kind === 'parallel' ? sanitizeShape({ type: 'parallel', x: c.x, y: c.y, angle: 0, len: reach })
+      : kind === 'curve'  // a gentle S across the middle of the view
       ? sanitizeShape({ type: 'curve', pts: [[c.x - reach, c.y], [c.x - reach / 3, c.y - reach / 3], [c.x + reach / 3, c.y + reach / 3], [c.x + reach, c.y]] })
       : sanitizeShape(shapeFromDrag(kind, c, { x: c.x + reach, y: c.y }));
     if (kind === 'line') { shape.x1 = c.x - reach; shape.x2 = c.x + reach; }
     this.editRulers(SHAPE_LABELS[kind], () => { r.shapes.push(shape); r.visible = true; });
     this.rulerPick = r.shapes.length - 1;
     this.renderToolProps();
+  },
+
+  /** Turns the picked parallel line ruler to a typed angle (degrees anticlockwise from level). */
+  setShapeAngle(deg) {
+    const i = this.pickedShape(), s = this.doc.rulers.shapes[i];
+    if (s?.type !== 'parallel' || !Number.isFinite(+deg)) return;
+    this.editRulers('Ruler angle', () => { this.doc.rulers.shapes[i] = sanitizeShape({ ...s, angle: fromDegrees(deg) }); });
   },
 
   /** Showing/hiding and snapping are settings, not undo steps, but they are saved with the artwork. */
@@ -373,15 +390,25 @@ export const rulerMethods = {
     ctx.restore();
   },
 
-  /** Straight-line rulers (solid between the ends, faint beyond) and concentric rulers (with their handles while the
-   *  Ruler tool is in use; the picked one filled). */
+  /** Straight-line rulers (solid between the ends, faint beyond), parallel line rulers (their bar, the line through
+   *  it and faint lines across the canvas in their direction), concentric and curve rulers (with their handles while
+   *  the Ruler tool is in use; the picked one filled). */
   drawShapes(ctx, sp, dpr, shapes) {
     if (!shapes.length) return;
     const tool = this.effectiveTool() === 'ruler', pick = this.pickedShape(), FAR = 1e5;
     shapes.forEach((s, i) => {
       ctx.lineWidth = (i === pick ? 2 : 1.5) * dpr;
       ctx.beginPath();
-      if (s.type === 'curve') {
+      if (s.type === 'parallel') {
+        const ux = Math.cos(s.angle), uy = Math.sin(s.angle);
+        this.drawHatch(ctx, sp, dpr, s, ux, uy);
+        ctx.beginPath();  // restore() keeps the hatch's path
+        ctx.strokeStyle = SHAPE_FAINT;
+        ctx.moveTo(...sp(s.x - ux * FAR, s.y - uy * FAR)); ctx.lineTo(...sp(s.x + ux * FAR, s.y + uy * FAR));
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(...sp(s.x - ux * s.len, s.y - uy * s.len)); ctx.lineTo(...sp(s.x + ux * s.len, s.y + uy * s.len));
+      } else if (s.type === 'curve') {
         curvePath(s).forEach((q, k) => (k ? ctx.lineTo(...sp(q.x, q.y)) : ctx.moveTo(...sp(q.x, q.y))));
       } else if (s.type === 'line') {
         const l = Math.hypot(s.x2 - s.x1, s.y2 - s.y1) || 1, ux = (s.x2 - s.x1) / l, uy = (s.y2 - s.y1) / l;
@@ -412,6 +439,29 @@ export const rulerMethods = {
         ctx.fill(); ctx.stroke();
       }
     });
+  },
+
+  /** Faint lines across the canvas in a parallel ruler's direction (ux, uy), HATCH_PX apart on screen. */
+  drawHatch(ctx, sp, dpr, s, ux, uy) {
+    const d = this.doc, step = HATCH_PX / this.view.zoom, nx = -uy, ny = ux;  // nx, ny: across the lines
+    const offs = [[0, 0], [d.width, 0], [d.width, d.height], [0, d.height]].map(([x, y]) => (x - s.x) * nx + (y - s.y) * ny);
+    const lo = Math.ceil(Math.min(...offs) / step), hi = Math.floor(Math.max(...offs) / step), reach = d.width + d.height;
+    if (hi - lo > 400) return;
+    ctx.save();
+    ctx.beginPath();
+    [[0, 0], [d.width, 0], [d.width, d.height], [0, d.height]].forEach(([x, y], k) => (k ? ctx.lineTo(...sp(x, y)) : ctx.moveTo(...sp(x, y))));
+    ctx.closePath();
+    ctx.clip();
+    ctx.strokeStyle = HATCH_COLOR;
+    ctx.lineWidth = dpr;
+    ctx.beginPath();
+    for (let k = lo; k <= hi; k++) {
+      if (!k) continue;  // the ruler's own line is drawn stronger
+      const ox = s.x + nx * k * step, oy = s.y + ny * k * step;
+      ctx.moveTo(...sp(ox - ux * reach, oy - uy * reach)); ctx.lineTo(...sp(ox + ux * reach, oy + uy * reach));
+    }
+    ctx.stroke();
+    ctx.restore();
   },
 
   /** The grid over the canvas: main lines every grid.size, thinner ones between; too dense lines are left out. */
@@ -499,18 +549,21 @@ export const rulerMethods = {
 
   renderRulerProps(box) {
     const r = this.doc.rulers, n = r.perspective?.points.length || 0, pick = this.pickedShape();
-    const make = SHAPE_LABELS[this.rulerMake] ? this.rulerMake : 'line';
+    const make = SHAPE_LABELS[this.rulerMake] ? this.rulerMake : 'line', picked = r.shapes[pick];
     box.innerHTML = `
       <div class="field"><span>Perspective ruler</span>
         <div class="seg">${[1, 2, 3].map(k => `<button data-r="p${k}" class="${n === k ? 'on' : ''}">${k}-point</button>`).join('')}
         <button data-r="p0" ${n ? '' : 'disabled'} title="Remove the perspective ruler">${icon('trash', 14)}</button></div>
       </div>
       <div class="field"><span>Drag on the canvas for</span>
-        <div class="seg">${[['line', 'Straight line'], ['ellipse', 'Concentric'], ['curve', 'Curve']].map(([k, label]) =>
-          `<button data-make="${k}" class="${make === k ? 'on' : ''}" title="${k === 'line' ? 'Strokes started near the line follow it' : k === 'curve' ? 'Draw the curve freehand; strokes started near it follow it. Drag its points to reshape it' : 'Every stroke follows a circle (or ellipse) around the same centre'}">${label}</button>`).join('')}</div>
+        <div class="seg">${[['line', 'Line'], ['parallel', 'Parallel'], ['ellipse', 'Concentric'], ['curve', 'Curve']].map(([k, label]) =>
+          `<button data-make="${k}" class="${make === k ? 'on' : ''}" title="${MAKE_HINTS[k]}">${label}</button>`).join('')}</div>
       </div>
+      ${picked?.type === 'parallel' ? `<label class="field"><span>Parallel ruler angle (°)</span>
+        <input type="number" data-r="angle" min="0" max="180" step="1" value="${rulerDegrees(picked.angle)}" title="Degrees anticlockwise from level. Or drag an end of the ruler (Shift: 15° steps)"></label>` : ''}
       <div class="btn-row">
         <button data-r="addline" title="Add a straight-line ruler in the middle of the view">+ Line</button>
+        <button data-r="addparallel" title="Add a parallel line ruler in the middle of the view">+ Parallel</button>
         <button data-r="addellipse" title="Add a concentric ruler in the middle of the view">+ Concentric</button>
         <button data-r="addcurve" title="Add a curve ruler in the middle of the view">+ Curve</button>
         <button data-r="delshape" ${pick >= 0 ? '' : 'disabled'} title="Remove the picked ruler (Del)">${icon('trash', 14)}</button>
@@ -526,12 +579,14 @@ export const rulerMethods = {
     const acts = {
       p1: () => this.setPerspective(1), p2: () => this.setPerspective(2), p3: () => this.setPerspective(3), p0: () => this.setPerspective(0),
       clear: () => this.clearGuides(), clearshapes: () => this.clearShapes(),
-      addline: () => this.addShape('line'), addellipse: () => this.addShape('ellipse'), addcurve: () => this.addShape('curve'), delshape: () => this.deleteShape(),
+      addline: () => this.addShape('line'), addparallel: () => this.addShape('parallel'), addellipse: () => this.addShape('ellipse'), addcurve: () => this.addShape('curve'), delshape: () => this.deleteShape(),
     };
     box.querySelectorAll('button[data-r]').forEach(bt => { bt.onclick = () => acts[bt.dataset.r](); });
     box.querySelectorAll('button[data-make]').forEach(bt => {
       bt.onclick = () => { this.rulerMake = bt.dataset.make; store('rulerMake', this.rulerMake); this.renderToolProps(); };
     });
+    const angle = box.querySelector('[data-r="angle"]');
+    if (angle) angle.onchange = () => this.setShapeAngle(angle.value);
     box.querySelector('[data-r="visible"]').onchange = () => this.toggleRulerVisibility();
     box.querySelector('[data-r="snap"]').onchange = () => this.toggleSnap();
     box.querySelector('[data-r="edge"]').onchange = () => this.toggleEdgeRulers();

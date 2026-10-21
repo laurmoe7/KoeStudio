@@ -13,7 +13,9 @@
 //   {type: 'ellipse', x, y, rx, ry, angle}: every stroke follows the ellipse with the same centre, shape and turn
 //   that passes through where it started (concentric circles when rx = ry);
 //   {type: 'curve', pts: [[x, y], ...]}: a smooth curve through its points (figure.js splinePoints); a stroke
-//   started near it follows it.
+//   started near it follows it;
+//   {type: 'parallel', x, y, angle, len}: the parallel line ruler. Every stroke is a straight line at `angle` through
+//   wherever it started; (x, y) is the middle of the ruler's bar, which reaches len either way (for its handles).
 
 import { defaultSymmetry, sanitizeSymmetry } from './symmetry.js';
 import { splinePoints } from './figure.js';
@@ -54,7 +56,32 @@ export function sanitizeShape(s) {
     }
     return pts.length >= 2 ? { type: 'curve', pts } : null;
   }
+  if (s.type === 'parallel') {
+    const [x, y] = [s.x, s.y].map(fin);
+    if (x === null || y === null) return null;
+    const a = fin(s.angle) ?? 0, turn = Math.atan2(Math.sin(a), Math.cos(a)), len = Math.max(4, Math.min(FAR, fin(s.len) ?? 100));
+    return { type: 'parallel', x: r2(x), y: r2(y), angle: Math.round(turn * 1e6) / 1e6 || 0, len: r2(len) };
+  }
   return null;
+}
+
+/** A ruler's angle as people read it: degrees anticlockwise from level on screen, 0 up to (not including) 180, to a
+ *  tenth (doc y points down, so a positive doc angle turns clockwise). */
+export function rulerDegrees(angle) {
+  const d = ((-angle * 180 / Math.PI) % 180 + 180) % 180;
+  return Math.round(d * 10) / 10 % 180;
+}
+
+/** The doc angle (radians) for a typed number of degrees (anticlockwise from level). */
+export const fromDegrees = deg => (-(+deg || 0) * Math.PI) / 180;
+
+/** Where a straight figure from a to b ends while parallel line rulers snap: on the line through a in the ruler
+ *  direction closest to a → b (b itself without parallel rulers, or with snapping or the rulers off). */
+export function parallelEnd(rulers, a, b) {
+  if (!rulers?.snap || !rulers.visible) return b;
+  const cands = (rulers.shapes || []).filter(s => s.type === 'parallel').map(s => ({ p: a, d: { x: Math.cos(s.angle), y: Math.sin(s.angle) }, kind: 'parallel' }));
+  const line = pickLine(cands, a, b);
+  return line ? { ...b, ...project(line, b) } : b;
 }
 
 const paths = new WeakMap();
@@ -223,7 +250,7 @@ export function snapCandidates(rulers, start, guideTol, lineTol = guideTol) {
     } else if (s.type === 'curve') {
       const path = curvePath(s), q = nearestOnPath(path, start);
       if (q.dist <= lineTol) out.push({ p: q.p, d: q.d, kind: 'curve', path, i: q.i });
-    }
+    } else if (s.type === 'parallel') out.push({ p: start, d: { x: Math.cos(s.angle), y: Math.sin(s.angle) }, kind: 'parallel' });
   }
   return out;
 }
@@ -280,8 +307,13 @@ const snapAngle = (dx, dy) => {
   return { x: Math.cos(a) * len, y: Math.sin(a) * len };
 };
 
-/** The drag handles of a straight-line or concentric ruler: [{h, x, y}]. 'mid' / 'c' move the whole ruler. */
+/** The drag handles of a straight-line, concentric, curve or parallel ruler: [{h, x, y}]. 'mid' / 'c' move the whole
+ *  ruler. */
 export function shapeHandles(s) {
+  if (s.type === 'parallel') {
+    const ux = Math.cos(s.angle) * s.len, uy = Math.sin(s.angle) * s.len;
+    return [{ h: 'c', x: s.x, y: s.y }, { h: 'a', x: s.x - ux, y: s.y - uy }, { h: 'b', x: s.x + ux, y: s.y + uy }];
+  }
   if (s.type === 'curve') {
     const path = curvePath(s), mid = path[Math.floor(path.length / 2)];
     return [...s.pts.map(([x, y], i) => ({ h: `p${i}`, x, y })), { h: 'mid', x: mid.x, y: mid.y }];
@@ -291,8 +323,15 @@ export function shapeHandles(s) {
   return [{ h: 'c', x: s.x, y: s.y }, { h: 'rx', x: s.x + s.rx * cos, y: s.y + s.rx * sin }, { h: 'ry', x: s.x - s.ry * sin, y: s.y + s.ry * cos }];
 }
 
-/** The ruler with handle h dragged to pt. Shift keeps a straight ruler at 15° steps and makes an ellipse a circle. */
+/** The ruler with handle h dragged to pt. Shift keeps a straight or parallel ruler at 15° steps and makes an ellipse a
+ *  circle. A parallel ruler turns about its middle when an end is dragged. */
 export function dragShapeHandle(s, h, pt, shift = false) {
+  if (s.type === 'parallel') {
+    if (h === 'c') return { ...s, x: pt.x, y: pt.y };
+    const sign = h === 'a' ? -1 : 1, dx = (pt.x - s.x) * sign, dy = (pt.y - s.y) * sign;
+    const v = shift ? snapAngle(dx, dy) : { x: dx, y: dy };
+    return Math.hypot(v.x, v.y) < 1e-9 ? s : { ...s, angle: Math.atan2(v.y, v.x), len: Math.max(4, Math.hypot(v.x, v.y)) };
+  }
   if (s.type === 'curve') {
     if (h === 'mid') {
       const m = shapeHandles(s).find(x => x.h === 'mid'), dx = pt.x - m.x, dy = pt.y - m.y;
@@ -321,8 +360,13 @@ export function dragShapeHandle(s, h, pt, shift = false) {
   return { ...s, ry, rx: shift ? ry : s.rx };
 }
 
-/** A new ruler dragged out from a to b: a straight line from a to b, or a circle centred on a through b. */
+/** A new ruler dragged out from a to b: a straight line from a to b, a parallel ruler along a → b, or a circle
+ *  centred on a through b. */
 export function shapeFromDrag(kind, a, b, shift = false) {
+  if (kind === 'parallel') {
+    const v = shift ? snapAngle(b.x - a.x, b.y - a.y) : { x: b.x - a.x, y: b.y - a.y };
+    return { type: 'parallel', x: a.x + v.x / 2, y: a.y + v.y / 2, angle: Math.atan2(v.y, v.x), len: Math.hypot(v.x, v.y) / 2 };
+  }
   if (kind === 'ellipse') {
     const r = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
     return { type: 'ellipse', x: a.x, y: a.y, rx: r, ry: r, angle: 0 };
@@ -347,8 +391,8 @@ export function shapeHandleAt(shapes, pt, tol) {
  * The rulers after the canvas changed shape: m = [a, b, c, d, e, f] takes an old doc point to its new place
  * (x' = a x + c y + e, y' = b x + d y + f; a crop or canvas size moves, Image size scales, Rotate canvas turns by
  * quarter turns, Flip canvas mirrors). Guides stay guides (a quarter turn makes horizontal ones vertical);
- * vanishing points, line ends and ellipse centres move; a symmetry centre coordinate left at the canvas middle
- * (null) stays at the middle.
+ * vanishing points, line ends and ellipse centres move; parallel rulers move and turn with the canvas; a symmetry
+ * centre coordinate left at the canvas middle (null) stays at the middle.
  */
 export function mapRulers(r, m, oldW, oldH, newW, newH) {
   const [a, b, c, d, e, f] = m;
@@ -367,6 +411,10 @@ export function mapRulers(r, m, oldW, oldH, newW, newH) {
     if (s.type === 'line') {
       const p = pt(s.x1, s.y1), q = pt(s.x2, s.y2);
       return sanitizeShape({ type: 'line', x1: p.x, y1: p.y, x2: q.x, y2: q.y });
+    }
+    if (s.type === 'parallel') {
+      const o = pt(s.x, s.y), u = vec(s.len * Math.cos(s.angle), s.len * Math.sin(s.angle));
+      return sanitizeShape({ type: 'parallel', x: o.x, y: o.y, angle: Math.atan2(u.y, u.x), len: Math.hypot(u.x, u.y) });
     }
     const cos = Math.cos(s.angle), sin = Math.sin(s.angle), o = pt(s.x, s.y);
     const u = vec(s.rx * cos, s.rx * sin), v = vec(-s.ry * sin, s.ry * cos);

@@ -885,6 +885,9 @@ export const GUIDE = [
       circles or ellipses) and <b>curve</b> rulers: pick Curve in its settings and draw the curve freehand; it is
       smoothed, and strokes started on it follow it. Drag their handles (for a curve: its points, or the round one to
       move it all) to change them; <kbd>Del</kbd> removes one.</li>
+      <li>A <b>parallel line</b> ruler makes every stroke a straight line in one direction, wherever you start it,
+      like hatching with a set square. Add one with <b>+ Parallel</b>, then drag one of its square ends to turn it
+      (<kbd>Shift</kbd>: 15° steps) or type the <b>angle</b> in the tool settings. Straight figures follow it too.</li>
       <li><b>Grid</b> <kbd>Ctrl+'</kbd>. In View → Grid settings… tick Snap so lines, shapes and selections follow it.</li>
     </ul>`],
 
