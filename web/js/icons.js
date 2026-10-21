@@ -73,6 +73,7 @@ const P = {
   fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   deselect: '<path d="M4 7V4h3M10 4h4M17 4h3v3M20 10v1M4 14v-4M4 17v3h3M10 20h1"/><path d="M14 14l6 6M20 14l-6 6"/>',
   invert: '<path d="M4 7V4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4"/><path d="M8 8h8v8z" fill="currentColor" stroke="none"/>',
+  comps: `<path d="M12 3.5l8 4-8 4-8-4z"${F}/><path d="M4 12l8 4 8-4"/><path d="M4 16.5l8 4 8-4"/>`,
   search: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',
   grip: '<circle cx="9" cy="6" r=".9"/><circle cx="15" cy="6" r=".9"/><circle cx="9" cy="12" r=".9"/><circle cx="15" cy="12" r=".9"/><circle cx="9" cy="18" r=".9"/><circle cx="15" cy="18" r=".9"/>',
   sizeDown: `<circle cx="10" cy="14" r="4"${F}/><path d="M15 5h6"/>`,
