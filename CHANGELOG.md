@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-22
 
 ### New
+- The Layers panel is more compact: the layer switches are small icon buttons, sharing a row with the expression colour box and the colour labels.
 - Layer comps: keep which layers show (and if you like their opacity, blending and position) under a name, switch between them in one undo step, and export each one as a picture.
 - The Find layers bar can show only the layers with one colour label, on its own or with the name search.
 - Panels can be moved: drag a panel's heading to the other side, to another place in a side, or out over the canvas as a floating window you can size.

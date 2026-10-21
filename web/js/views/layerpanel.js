@@ -58,15 +58,13 @@ export class LayerPanel {
         <label class="lp-opacity" title="Opacity"><input type="range" min="0" max="100" step="1"><span></span></label>
       </div>
       <div class="lp-toggles">
-        <label class="check" title="Lock transparent pixels: paint only where the layer already has paint"><input type="checkbox" class="lp-lock">${icon('lockAlpha', 15)} Lock alpha</label>
-        <label class="check" title="Clip to the layer below: show only where it has paint"><input type="checkbox" class="lp-clip">${icon('clip', 15)} Clip below</label>
-        <label class="check" title="Lock the layer (or everything in the folder): no painting, filters, moving or transforming"><input type="checkbox" class="lp-locked">${icon('lock', 15)} Lock</label>
-        <label class="check" title="Reference layer: Fill and the Magic wand set to 'Reference layers' find areas from these (e.g. your line art)"><input type="checkbox" class="lp-ref">${icon('ref', 15)} Reference</label>
-        <label class="check" title="Draft layer: for sketches. You see it while drawing, but it is left out of exports, and Fill and the Magic wand looking at all layers ignore it"><input type="checkbox" class="lp-draft">${icon('pencil', 15)} Draft</label>
+        <label class="check" title="Lock alpha: paint only where the layer already has paint"><input type="checkbox" class="lp-lock" aria-label="Lock alpha">${icon('lockAlpha', 15)}</label>
+        <label class="check" title="Clip below: show only where the layer below has paint"><input type="checkbox" class="lp-clip" aria-label="Clip below">${icon('clip', 15)}</label>
+        <label class="check" title="Lock the layer (or everything in the folder): no painting, filters, moving or transforming"><input type="checkbox" class="lp-locked" aria-label="Lock">${icon('lock', 15)}</label>
+        <label class="check" title="Reference layer: Fill and the Magic wand set to 'Reference layers' find areas from these (e.g. your line art)"><input type="checkbox" class="lp-ref" aria-label="Reference">${icon('ref', 15)}</label>
+        <label class="check" title="Draft layer: for sketches. You see it while drawing, but it is left out of exports, and Fill and the Magic wand looking at all layers ignore it"><input type="checkbox" class="lp-draft" aria-label="Draft">${icon('pencil', 15)}</label>
         <select class="lp-expr" title="Expression color: show the layer in colour, gray or black and white, without changing its pixels (Layer → Expression color… sets the black and white threshold)">${EXPRESSIONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
-      </div>
-      <div class="lp-props">
-        <span class="lp-labels" role="radiogroup" aria-label="Color label" title="Color label: marks the layer in this list"><span>Label</span>
+        <span class="lp-labels" role="radiogroup" aria-label="Color label" title="Color label: marks the layer in this list">
           <button class="lp-label-btn none" data-label="" title="No label"></button>
           ${LABELS.map(([id, color]) => `<button class="lp-label-btn" data-label="${id}" style="background:${color}" title="${id[0].toUpperCase() + id.slice(1)} label"></button>`).join('')}
         </span>

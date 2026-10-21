@@ -387,11 +387,11 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 
 /* layer panel */
 .layer-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 6px; }
-.lp-props { display: flex; align-items: center; gap: 8px; }
-.lp-blend { flex: 1; }
-.lp-expr { min-width: 0; }
-.lp-opacity { display: flex; align-items: center; gap: 4px; flex: 1; }
-.lp-opacity input { width: 70px; }
+.lp-props { display: flex; align-items: center; gap: 6px; }
+.lp-blend, .lp-expr { padding: 2px 4px; font-size: 12px; }
+.lp-blend { flex: 1 1 0; min-width: 96px; }
+.lp-opacity { display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; }
+.lp-opacity input { flex: 1; min-width: 40px; width: 0; }
 .lp-opacity span { font-size: 12px; min-width: 34px; text-align: right; }
 .lp-list { flex: 1; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); }
 .lp-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--row-line); cursor: pointer; }
@@ -568,14 +568,16 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .adjust-list button { text-align: left; }
 
 /* layer colour labels */
-.lp-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.lp-toggles .check { position: relative; border: 1px solid var(--line); border-radius: var(--radius); padding: 3px 8px; color: var(--muted); }
+.lp-toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+.lp-toggles .check { position: relative; border: 1px solid transparent; border-radius: var(--radius); width: 26px; height: 24px; justify-content: center; color: var(--muted); }
 .lp-toggles .check:hover { background: var(--panel-2); color: var(--text); }
 .lp-toggles .check:has(input:checked) { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
 .lp-toggles .check:has(input:disabled) { opacity: .45; cursor: default; background: transparent; }
 .lp-toggles .check:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
 .lp-toggles input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
 .lp-labels { display: flex; gap: 4px; align-items: center; }
+.lp-toggles .lp-expr { margin-left: 3px; flex: 1 1 72px; }
+.lp-toggles .lp-labels { margin-left: 8px; }
 .lp-labels > span { font-size: 11px; color: var(--muted); margin-right: 4px; }
 .lp-label-btn { width: 13px; height: 13px; min-width: 0; padding: 0; border-radius: 50%; border: 1px solid rgba(0,0,0,.4); }
 .lp-label-btn.none { background: transparent; border: 1px solid var(--muted); }

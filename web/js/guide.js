@@ -38,9 +38,9 @@ export const GUIDE = [
       <li><b>Sketch</b> with the Pencil <kbd>N</kbd>. Rough is fine. Then turn the layer's <b>opacity</b> down to about 30%.</li>
       <li><b>Lines:</b> press <kbd>Ctrl+Shift+N</kbd> for a new layer and draw clean lines over the sketch with the Pen
       <kbd>P</kbd>. Hide the sketch with its eye when you are done.</li>
-      <li><b>Colours:</b> add another layer and drag it <b>under</b> the lines. Tick <b>Reference</b> on the line layer,
+      <li><b>Colours:</b> add another layer and drag it <b>under</b> the lines. Turn on <b>Reference</b> on the line layer,
       take Fill <kbd>G</kbd>, set <b>Look at</b> to <b>Reference layers</b>, and click inside each area.</li>
-      <li><b>Shading:</b> add a layer above the colours, tick <b>Clip below</b> and set it to <b>Multiply</b>. Paint
+      <li><b>Shading:</b> add a layer above the colours, turn on <b>Clip below</b> and set it to <b>Multiply</b>. Paint
       shadows with the Brush <kbd>B</kbd>; they stay inside the colours.</li>
       <li><b>Export:</b> File → Export… saves a PNG or JPEG to share.</li>
     </ol>
@@ -667,6 +667,8 @@ export const GUIDE = [
     </ul>
     <h4>Handy switches</h4>
     <figure data-pic="clip"></figure>
+    <p>They are the small icon buttons under the blending mode, from left to right: Lock alpha, Clip below, Lock,
+    Reference and Draft. Hover over one to see its name; a lit button is on.</p>
     <ul>
       <li><b>Clip below</b> shows a layer only where the layer under it has paint: shade without going over the edges.</li>
       <li><b>Lock alpha</b> paints only where this layer already has paint.</li>
@@ -744,7 +746,7 @@ export const GUIDE = [
     <p>Show a layer in <b>Gray</b> or <b>Monochrome</b> (black and white only), as in Clip Studio Paint. The paint
     itself stays as it was, so you can go back to <b>Color</b> at any time.</p>
     <ol>
-      <li>Select the layer and pick Color, Gray or Monochrome in the box next to <b>Draft</b> in the Layers panel.</li>
+      <li>Select the layer and pick Color, Gray or Monochrome in the small box right of the switch buttons in the Layers panel.</li>
       <li>For Monochrome, Layer → <b>Expression color…</b> sets the <b>Threshold</b> (darker than it is black,
       the rest white) and whether the white shows or is see-through.</li>
     </ol>
