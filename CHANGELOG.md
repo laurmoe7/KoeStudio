@@ -20,6 +20,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 
 ### Fixed
 - A floating panel no longer shrinks to its smallest size after hiding the panels (Tab) or switching between open artworks.
+- Applying the mask of a fill, text or vector layer now keeps what the mask hid, instead of the whole layer coming back after the next move or canvas change.
 
 ## 2026-10-21
 

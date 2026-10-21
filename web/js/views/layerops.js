@@ -553,7 +553,8 @@ export const layerMethods = {
     n.ctx.restore();
     const after = this.snapshot(n, full);
     const put = img => this.putSnapshot(n, full, img);
-    this.structural('Apply mask', () => { put(after); n.mask = null; this.maskEdit = false; }, () => { put(before); n.mask = m; }, () => snapBytes(before) + snapBytes(after));
+    const tx = this.textsIn([n]);  // a text, vector or fill layer becomes ordinary pixels, or a redraw would bring back what the mask hid
+    this.structural('Apply mask', () => { put(after); n.mask = null; this.maskEdit = false; tx.drop(); }, () => { put(before); n.mask = m; tx.restore(); }, () => snapBytes(before) + snapBytes(after));
   },
 
   toggleMask() {
