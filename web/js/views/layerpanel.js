@@ -181,7 +181,7 @@ export class LayerPanel {
     for (const { node, depth, match } of rows) {
       const row = document.createElement('div');
       const active = node === n, picked = ed.picked.has(node);
-      row.className = 'lp-row' + (active ? ' active' : picked ? ' picked' : '') + (node.clip ? ' clipped' : '') + (isFolder(node) ? ' folder' : '') + (filtered ? (match ? ' found' : ' around') : '');
+      row.className = 'lp-row' + (active ? ' active' : picked ? ' picked' : '') + (node.clip ? ' clipped' : '') + (isFolder(node) ? ' folder' : '') + (node.visible ? '' : ' unseen') + (filtered ? (match ? ' found' : ' around') : '');
       row.setAttribute('role', 'treeitem');
       row.setAttribute('aria-selected', active || picked);
       if (isFolder(node)) row.setAttribute('aria-expanded', node.open);
