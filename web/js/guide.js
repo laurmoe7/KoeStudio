@@ -408,6 +408,17 @@ export const GUIDE = [
     </ol>
     <p><b>Aligned</b> keeps the same distance for every stroke; turn it off to start from the crosshair each time.
     <b>Look at</b> copies from this layer only, or from everything you see.</p>
+    <h4>Healing brush <kbd>S</kbd> again</h4>
+    <figure data-pic="heal"></figure>
+    <p>Like the clone stamp, but the copy blends in: only the texture comes from the source, while the colour and
+    light stay those of where you paint. Good for spots, dust, scratches and stray marks.</p>
+    <ol>
+      <li>Press <kbd>S</kbd> until the Healing brush shows.</li>
+      <li>Hold <kbd>Ctrl</kbd> and click a clean patch with the right texture. It may be lighter or darker.</li>
+      <li>Paint over the mark. It disappears into its surroundings.</li>
+    </ol>
+    <p>Set <b>Heal from</b> to <b>Spot</b> to skip the Ctrl+click: each dab then takes texture from the area just
+    around it. This works best on small marks; for big ones, a source you pick yourself gives a cleaner result.</p>
     <p class="tip">All of these stay inside the selection, if there is one. Smudge, Liquify, Blur, Dodge and Burn
     follow the symmetry ruler.</p>`],
 

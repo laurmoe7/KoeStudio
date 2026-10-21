@@ -1084,6 +1084,7 @@ export class Editor {
     if (t.kind === 'lineedit') this.renderLineEditProps(box);
     if (t.kind === 'ctrlpoint') this.renderCtrlPointProps(box);
     if (t.kind === 'retouch') box.insertAdjacentHTML('beforeend', `<p class="hint">${t.id === 'clone' ? 'Ctrl+click where to copy from, then paint to copy it here.'
+      : t.id === 'heal' ? (s.heal === 'spot' ? 'Paint over spots and marks: each dab takes texture from around it and blends it in.' : 'Ctrl+click a clean patch, then paint: its texture goes on with the colour and light of where you paint.')
       : t.id === 'blur' ? 'Paint over the picture to soften it.' : `Paint over the picture to ${t.id === 'burn' ? 'darken' : 'lighten'} it; low strength builds up gently.`}</p>`);
     if (t.kind === 'select') {
       box.insertAdjacentHTML('beforeend', `<div class="btn-row">
@@ -1110,6 +1111,7 @@ export class Editor {
       && !((f[2] === 'tips' || f[0] === 'tipOrder') && !s.tips?.length)
       && !(shapeOnly[f[0]] && 'figure' in s && !shapeOnly[f[0]].includes(s.figure))
       && !(f[0] === 'bend' && s.warp === 'none')
+      && !(f[0] === 'aligned' && s.heal === 'spot')  // Spot healing has no source to keep in line
       && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureAngle', 'textureInvert'].includes(f[0]))
       && !(s.comboTip === 'none' && f[0].startsWith('combo') && f[0] !== 'comboTip'));  // the second brush's settings once it is on
   }
@@ -1145,7 +1147,7 @@ export class Editor {
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged(k);
         if (k === 'sample' && (t.id === 'fill' || t.id === 'wand')) this.prepareSample(t.id);  // the other pixels, ready too
-        if (k === 'texture' || k === 'figure' || k === 'comboTip' || k === 'warp' || dropTips) this.renderToolProps();  // which settings show depends on these
+        if (k === 'texture' || k === 'figure' || k === 'comboTip' || k === 'warp' || k === 'heal' || dropTips) this.renderToolProps();  // which settings show depends on these
         else this.showSetting(k, inp);
         this.drawBrushPreview();
         this.drawGradientStrip();

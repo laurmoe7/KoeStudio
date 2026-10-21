@@ -13,6 +13,8 @@ import { COMBO_DEFAULTS, COMBO_MODES } from './combo.js';
 
 /** Where Fill and the Magic wand find their area. */
 export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['reference', 'Reference layers']];
+/** Where the Healing brush takes its texture from: a source you Ctrl+click, or the area round each dab. */
+export const HEAL_MODES = [['source', 'From a source'], ['spot', 'Spot (around it)']];
 /** Where the Eyedropper picks from, and how many pixels round the point it averages. */
 export const PICK_FROM = [['all', 'All layers'], ['layer', 'This layer']];
 export const PICK_AVERAGE = [['1', '1 pixel'], ['3', '3 × 3 average'], ['5', '5 × 5 average'], ['11', '11 × 11 average']];
@@ -64,6 +66,8 @@ export const TOOLS = [
     defaults: { size: 60, strength: 0.08, hardness: 0.2, spacing: 0.1, pressureSize: true, pressureOpacity: true, minSize: 0.3, smoothing: 2, gamma: 1 } },
   { id: 'clone', label: 'Clone stamp', key: 's', kind: 'retouch', icon: 'clone', group: 'draw',
     defaults: { size: 40, strength: 1, hardness: 0.6, spacing: 0.08, sample: 'layer', aligned: true, pressureSize: true, pressureOpacity: false, minSize: 0.3, smoothing: 2, gamma: 1 } },
+  { id: 'heal', label: 'Healing brush', key: 's', kind: 'retouch', icon: 'heal', group: 'draw',
+    defaults: { heal: 'source', size: 40, strength: 1, hardness: 0.5, spacing: 0.1, sample: 'layer', aligned: true, pressureSize: true, pressureOpacity: false, minSize: 0.3, smoothing: 2, gamma: 1 } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
     defaults: { opacity: 1, tolerance: 12, grow: 1, gap: 0, sample: 'all', contiguous: true } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
@@ -212,6 +216,7 @@ export const SETTING_FIELDS = [
   ['tolerance', 'Margin', 'range', 0, 255, 1],
   ['grow', 'Expand', 'range', 0, 6, 1],
   ['gap', 'Close gaps', 'range', 0, 20, 1],
+  ['heal', 'Heal from', 'choice', HEAL_MODES],
   ['sample', 'Look at', 'choice', SAMPLE_FROM],
   ['pickFrom', 'Pick from', 'choice', PICK_FROM],
   ['average', 'Sample', 'choice', PICK_AVERAGE],
@@ -253,6 +258,7 @@ export const SETTING_HINTS = {
   pickFrom: 'All layers: the colour you see. This layer: the colour of the selected layer alone (also through Alt with other tools)',
   average: 'Takes the average colour of a square round the point, so the grain of a texture or noise does not decide the colour',
   sample: 'Find the area from everything you see, the current layer only, or only layers marked as reference (Layer panel)',
+  heal: 'From a source: Ctrl+click a clean patch, then paint; its texture is laid on with the colour and brightness of where you paint. Spot: no source, each dab takes texture from the area just around it (good for dust, spots and small marks)',
   aligned: 'Keeps the same distance between where it copies from and the brush for every stroke (off: each stroke starts again at the point you Ctrl+clicked)',
   strength: 'How strongly each dab smudges, blurs, lightens, darkens or bends the picture (pen pressure makes it stronger when Pressure → density is on)',
   simplify: 'How far (in pixels) Simplify may move a line to give it fewer control points: more gives smoother lines with fewer points',
