@@ -18,6 +18,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Text warp: bend a text into an arch, arc, bulge, waving flag or slope, with a Bend amount, and keep it editable.
 - Letter gap in the Text tool spreads letters apart or pulls them closer.
 
+### Fixed
+- A floating panel no longer shrinks to its smallest size after hiding the panels (Tab) or switching between open artworks.
+
 ## 2026-10-21
 
 ### New

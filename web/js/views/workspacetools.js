@@ -92,7 +92,7 @@ export const workspaceMethods = {
     const L = this.readLayout(), f = L.float[id];
     if (!f || !wrap.isConnected) return;
     const w = Math.round(wrap.offsetWidth), h = Math.round(wrap.offsetHeight);
-    if (w === f.w && h === f.h) return;
+    if (!w || !h || (w === f.w && h === f.h)) return;  // 0 x 0: hidden (Tab, or another artwork's tab shown), not resized
     store('workspace', movePanel(L, id, { float: { ...f, w, h } }));
   },
 
@@ -101,6 +101,7 @@ export const workspaceMethods = {
     if (e.button !== 0) return;
     const start = { x: e.clientX, y: e.clientY }, head = e.currentTarget;
     const move = ev => {
+      if (ev.pointerId !== e.pointerId) return;
       if (!this.panelDrag) {
         if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_PX) return;
         try { head.setPointerCapture(e.pointerId); } catch { /* the pointer is gone */ }
@@ -109,17 +110,19 @@ export const workspaceMethods = {
       this.panelDragMove(ev);
     };
     const up = ev => {
-      head.removeEventListener('pointermove', move);
-      head.removeEventListener('pointerup', up);
-      head.removeEventListener('pointercancel', up);
+      if (ev.pointerId !== e.pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       if (!this.panelDrag) return;
       this.endPanelDrag(ev);
       this.panelDragged = true;  // the click that follows does not fold it
       setTimeout(() => { this.panelDragged = false; });
     };
-    head.addEventListener('pointermove', move);
-    head.addEventListener('pointerup', up);
-    head.addEventListener('pointercancel', up);
+    // on the window: a pointer let go off the heading must still end it, or hovering the heading later would drag
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   },
 
   /** Starts dragging panel id: a docked one becomes a floating window under the pointer first. */
