@@ -226,6 +226,18 @@ export class ColorPanel {
     ctx.fillRect(0, 0, BAR, SQ);
   }
 
+  /** Takes the colours and palette as saved (changed in another artwork's tab meanwhile) and shows them. */
+  reload() {
+    const saved = store('colors') || {};
+    if (hexToRgb(saved.main)) this.main = saved.main;
+    if (hexToRgb(saved.sub)) this.sub = saved.sub;
+    if (Array.isArray(saved.recent)) this.recent = saved.recent.filter(c => hexToRgb(c)).slice(0, 18);
+    this.palette = sanitizePalette(store('palette'));
+    this.hsv = rgbToHsv(...hexToRgb(this.main));
+    this.mixEnds = null;
+    this.refresh();
+  }
+
   refresh(updateHex = true) {
     const [h, s, v] = this.hsv;
     this.root.querySelector('.cp-square').hidden = this.useWheel;

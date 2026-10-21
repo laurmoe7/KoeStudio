@@ -45,7 +45,11 @@ function presetOptions() {
   return groups.map(g => `<optgroup label="${esc(g)}">${PRESETS.map((p, i) => p[4] === g ? `<option value="${i}">${esc(p[0])}</option>` : '').join('')}</optgroup>`).join('');
 }
 
-export async function showGallery(root, { onOpen }) {
+// From app.js: which artworks are open in tabs, and what to tell it when the gallery renames or deletes one.
+let hooks = {};
+
+export async function showGallery(root, { onOpen, isOpen = () => false, onRenamed = () => {}, onDeleting = async () => true }) {
+  hooks = { isOpen, onRenamed, onDeleting };
   root.innerHTML = `
     <div class="gallery">
       <header class="gal-top">
@@ -194,7 +198,7 @@ function showCards(root, onOpen) {
     <div class="card" data-id="${esc(a.id)}" tabindex="0" role="button" aria-label="Open ${esc(a.title)}">
       <div class="thumb"><img src="${api.thumbUrl(a.id, a.modified)}" alt="" loading="lazy" onerror="this.remove()"></div>
       <div class="card-info">
-        <div class="card-title">${esc(a.title)}</div>
+        <div class="card-title">${hooks.isOpen?.(a.id) ? '<span class="open-chip" title="Open in a tab">Open</span>' : ''}${esc(a.title)}</div>
         <div class="muted small">${esc(a.width)} × ${esc(a.height)} · ${esc(a.layers)} layer${a.layers === 1 ? '' : 's'}</div>
         <div class="muted small" title="Last changed">${esc(when(a.modified))}</div>
       </div>
@@ -208,7 +212,8 @@ function showCards(root, onOpen) {
     // only keys pressed on the card itself: Enter on its menu button must not also open it
     card.onkeydown = e => { if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } };
     const del = async () => {
-      if (!await confirmBox('Delete artwork', `Delete "${title()}"? You can put it back with Deleted at the top of the gallery.`, 'Delete')) return;
+      if (hooks.isOpen?.(id)) { if (!await hooks.onDeleting(id)) return; }  // closes its tab first
+      else if (!await confirmBox('Delete artwork', `Delete "${title()}"? You can put it back with Deleted at the top of the gallery.`, 'Delete')) return;
       try {
         await api.remove(id);
         card.remove();
@@ -229,6 +234,7 @@ function showCards(root, onOpen) {
           const t = await promptBox('Rename artwork', 'Title', title());
           if (!t || t === title()) return;
           await api.rename(id, t);
+          hooks.onRenamed?.(id, t);
           const a = root.galleryList.find(x => x.id === id);
           if (a) a.title = t;
           card.querySelector('.card-title').textContent = t;

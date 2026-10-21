@@ -5,6 +5,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-21
 
 ### New
+- Several artworks can be open at once, each in a tab at the top; switch with a click or Ctrl+Tab, and close with the × on the tab or File → Close artwork.
+- View → Second view splits the canvas in two, each half with its own zoom, turn and mirror, and you can draw in either.
 - Control point tool (Y, press again): lines on vector layers show Bezier control points you can drag, add, remove, switch between corner and smooth, and give their own pen pressure, as in Clip Studio Paint.
 - Simplify (Line edit and Control point tools) tidies a shaky line, or every line on the layer, into a few smooth curves.
 - Bezier curve and Closed Bezier curve (Figure tool): click for corners or drag out handles for smooth bends; on a vector layer they, and polylines, polygons and curves, stay editable point by point.

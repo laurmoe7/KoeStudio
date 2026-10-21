@@ -54,6 +54,7 @@ const P = {
   gapFill: `<path d="M3.5 17.5c3-4.5 6-6.5 9-5.5s5.5-1 8-5" stroke-width="5" stroke-opacity=".3"/><circle cx="9" cy="12.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="14" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="15" r=".9" fill="currentColor" stroke="none"/><path d="M3.5 6.5h5M3.5 9h3"/>`,
   lassoFill: `<path d="M8.4 15.6C5.4 14.5 3.5 12.4 3.5 10c0-3.3 3.8-6 8.5-6s8.5 2.7 8.5 6-3.8 6-8.5 6c-.9 0-1.8-.1-2.6-.3" fill="currentColor" fill-opacity=".45"/><path d="M7.5 16.5c-1.5 1.5-.8 3.8 1.5 4"/><circle cx="8.4" cy="15.6" r="1.4" fill="currentColor" stroke="none"/>`,
   ref: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
   grid: '<path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/>',
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   down: '<path d="M12 5v14M6 13l6 6 6-6"/>',

@@ -32,7 +32,7 @@ Detailed notes per area (data shapes, function names, how each feature hangs tog
 
 - **`app.py`**: stdlib `ThreadingHTTPServer` on 127.0.0.1 (port 8770, or the next free one) serving `web/` and a small JSON API (`/api/...`), shown in a pywebview (WebView2) window. Flags: `--browser` (serve only), `--hidden` (window never shown), `--muted`. Env: `KOE_ART_DIR`, `KOE_APP_DIR`, `KOE_PORT`, `KOE_MUTE`. `brushimport.py` reads Procreate, Photoshop, Clip Studio Paint, GIMP and Krita brush files.
 - **`web/`**: vanilla ES modules, no framework, no build step. Edit and reload.
-  - `js/app.js` start-up and switching screens; `js/api.js` every call to the server; `js/ui.js` shared UI helpers (`esc`, `toast`, `modal`, `menu`, `confirmBox`, `promptBox`, `store`); `js/mute.js`.
+  - `js/app.js` start-up, the gallery and the tabs of open artworks; `js/api.js` every call to the server; `js/ui.js` shared UI helpers (`esc`, `toast`, `modal`, `menu`, `confirmBox`, `promptBox`, `store`); `js/mute.js`.
   - `js/views/gallery.js` the start screen; `js/views/editor.js` the drawing screen (viewport, pointer input, painting, undo, autosave, menus, `onKey`). Editor features live in mixins assigned to `Editor.prototype`: `layerops.js`, `selecttools.js`, `canvasops.js` and the `*tools.js` / `*tool.js` files in `js/views/`. Side panels: `colorpanel.js`, `layerpanel.js`, `navpanels.js` (they change the document only through editor methods).
   - `js/doc.js`: the document (`Doc`, layer tree of `Folder`/`Layer`/`Mask`, `composite()`, save format, `sanitizeDoc`).
   - The other modules in `js/` are pure logic without the DOM (brush maths, fill, filters, transform, rulers, tree, colour, file formats, ...), tested from `tests/`.
@@ -47,6 +47,7 @@ Detailed notes per area (data shapes, function names, how each feature hangs tog
 - A new filter is an entry in `FILTERS` (`filters.js`) with a pure function and a test.
 - Gradients: always pass `this.userGrads()` to `gradientStops`.
 - Floating windows use `placeFloating` / `bindFloatingHead` (`reftools.js`); dialogs use `modal` from `ui.js`.
+- **Several editors exist at once** (one per open artwork tab, the hidden ones suspended; see app.js). Editor code finds its elements under `this.root`, never with `document.querySelector`, and anything kept in `store` that the editor caches is re-read in `resume()`. The canvas can be split in two panes (`splitview.js`): use `this.viewport` / `this.view` / `this.overlay` (always the active pane), never a fixed `.ed-viewport` lookup.
 
 ### How painting works (keep to this when adding tools)
 

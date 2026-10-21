@@ -56,6 +56,7 @@ import { gradientEditMethods } from './gradienteditor.js';
 import { pressureMethods } from './pressuretool.js';
 import { lineEditMethods } from './lineedittool.js';
 import { ctrlPointMethods } from './ctrlpointtool.js';
+import { splitViewMethods } from './splitview.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
 import { printLabel } from '../resolution.js';
@@ -148,11 +149,6 @@ export class Editor {
     this.sel = new Selection(doc.width, doc.height);
     this.xf = null;  // free transform in progress (selecttools.js)
     this.clipboard = null;
-    this.antsTimer = setInterval(() => {
-      if (!this.sel.active || this.xf || this.gesture) return;  // still while drawing: redrawing them costs frames
-      this.antsPhase = ((this.antsPhase || 0) + 1) % 8;
-      this.drawOverlay();
-    }, 120);
     this.updateComp(null);
     this.needsFit = true;  // done by resize() once the viewport has a real size
     this.resize();
@@ -160,12 +156,7 @@ export class Editor {
     this.showDocSize();
     this.selectTool(this.tool);
     this.loadBrushLibrary();
-    window.addEventListener('keydown', this.onKey);
-    window.addEventListener('keyup', this.onKeyUp);
-    window.addEventListener('paste', this.onPaste);
-    window.addEventListener('blur', this.onKeyUp);
-    window.addEventListener('koe-shortcuts', this.onShortcuts);
-    window.addEventListener('koe-theme', this.onTheme);
+    this.attach();
     if (isNew) this.save();
     else this.setStatus('Saved');
     if (doc.unreadable?.length) {
@@ -174,25 +165,75 @@ export class Editor {
     }
   }
 
-  destroy() {
-    this.destroyed = true;
+  /** Starts listening to the keyboard and the app (the shown artwork; see suspend). */
+  attach() {
+    window.addEventListener('keydown', this.onKey);
+    window.addEventListener('keyup', this.onKeyUp);
+    window.addEventListener('paste', this.onPaste);
+    window.addEventListener('blur', this.onKeyUp);
+    window.addEventListener('koe-shortcuts', this.onShortcuts);
+    window.addEventListener('koe-theme', this.onTheme);
+    clearInterval(this.antsTimer);
+    this.antsTimer = setInterval(() => {
+      if (!this.sel.active || this.xf || this.gesture) return;  // still while drawing: redrawing them costs frames
+      this.antsPhase = ((this.antsPhase || 0) + 1) % 8;
+      this.drawOverlay();
+    }, 120);
+  }
+
+  detach() {
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('paste', this.onPaste);
     window.removeEventListener('blur', this.onKeyUp);
     window.removeEventListener('koe-shortcuts', this.onShortcuts);
     window.removeEventListener('koe-theme', this.onTheme);
+    clearInterval(this.antsTimer);
+    this.releaseStripHolds();
+  }
+
+  /**
+   * Another artwork's tab was chosen (app.js): this one stays open but hidden, without keys or timers. Its
+   * transform and text edit are applied first; pending work keeps saving.
+   */
+  suspend() {
+    if (this.suspended) return;
+    this.finishTransform();
+    this.finishText();
+    this.detach();
+    this.held = { space: false, alt: false };
+    this.pointer = null;
+    this.suspended = true;
+  }
+
+  /** Back to this artwork's tab: tool settings and colours changed in another artwork are taken over. */
+  resume() {
+    if (!this.suspended) return;
+    this.suspended = false;
+    this.settings = sanitizeSettings(store('tools'));
+    if (TOOL_BY_ID[store('tool')]) this.tool = store('tool');
+    this.colors.reload();
+    this.loadBrushLibrary();  // brushes saved or imported meanwhile
+    this.attach();
+    this.selectTool(this.tool);
+    this.onShortcuts();
+    this.resize();
+    this.resizePassive();
+  }
+
+  destroy() {
+    this.destroyed = true;
+    this.detach();
     this.resizeObs?.disconnect();
     this.refObs?.disconnect();
     clearTimeout(this.saveTimer);
     clearTimeout(this.thumbTimer);
     clearTimeout(this.lapseTimer);
     cancelIdleCallback(this.sampleIdle);
-    clearInterval(this.antsTimer);
     cancelAnimationFrame(this.raf);
     cancelAnimationFrame(this.overlayRaf);
+    cancelAnimationFrame(this.passiveRaf);
     cancelIdleCallback(this.snapIdle);
-    this.releaseStripHolds();
     this.mixPanel?.flush();
     this.root.innerHTML = '';
     this.freeCanvases();
@@ -208,7 +249,7 @@ export class Editor {
     for (const r of this.doc?.rasters() || []) free(r.canvas);
     for (const c of this.mips || []) free(c);
     for (const s of this.snapQueue || []) free(s.canvas);
-    [this.stroke, this.dualCanvas, this.comboCanvas, this.heightCanvas, ...Object.values(this.texCanvases || {}), this.sel?.canvas, this.paperLayer, this.insideClip?.canvas].forEach(free);
+    [this.stroke, this.dualCanvas, this.comboCanvas, this.heightCanvas, ...Object.values(this.texCanvases || {}), this.sel?.canvas, this.paperLayer, this.pane2?.paperLayer, this.insideClip?.canvas].forEach(free);
     this.snapQueue = [];
     this.history = new History();  // its undo copies go too
     this.compRead = null;
@@ -252,9 +293,16 @@ export class Editor {
             <section class="panel" data-panel="navigator"><h3><button class="panel-head" title="The whole picture: click or drag to move the view, scroll to zoom">${icon('chevron', 12)}<span>Navigator</span></button></h3><canvas class="nav-canvas"></canvas></section>
           </aside>
           <div class="ed-center">
-            <div class="ed-viewport">
-              <canvas class="ed-view"></canvas>
-              <canvas class="ed-overlay"></canvas>
+            <div class="ed-views">
+              <div class="ed-viewport">
+                <canvas class="ed-view"></canvas>
+                <canvas class="ed-overlay"></canvas>
+              </div>
+              <div class="ed-splitter" hidden title="Drag to share the room between the two views (double-click: half and half)"></div>
+              <div class="ed-viewport ed-view2" hidden>
+                <canvas class="ed-view"></canvas>
+                <canvas class="ed-overlay"></canvas>
+              </div>
             </div>
           </div>
           <aside class="ed-side">
@@ -346,9 +394,11 @@ export class Editor {
     $('.tile-chip').onclick = () => this.toggleTileView();
     $('.lapse-chip').onclick = () => this.toggleTimelapse();
     $('.lapse-chip').hidden = !doc.timelapse;
-    this.resizeObs = new ResizeObserver(() => this.resize());
+    this.resizeObs = new ResizeObserver(() => { this.resize(); this.resizePassive(); });
     this.resizeObs.observe(this.viewport);
+    this.resizeObs.observe($('.ed-view2'));
     this.bindPointer();
+    this.initPanes();  // View → Second view (splitview.js)
     this.applyStrip();  // the shortcut strip beside the canvas (striptool.js)
     this.bindNavigator();
     this.renderHistory();
@@ -382,6 +432,7 @@ export class Editor {
         { label: 'Open artwork folder', run: () => api.openFolder() },
         '-',
         { label: 'Back to gallery', run: () => this.goHome() },
+        { label: 'Close artwork', run: () => this.onClose?.() },
       ],
       edit: [
         { label: 'Undo', key: 'Ctrl+Z', run: () => this.undo(), disabled: !this.history.canUndo },
@@ -498,6 +549,7 @@ export class Editor {
           { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         ] },
         { label: 'Hide panels', key: 'Tab', checked: !!this.panelsHidden, run: () => this.togglePanels() },
+        { label: 'Second view (side by side)', checked: !!this.split, run: () => this.toggleSplit() },
         '-',
         { label: 'Grid', key: "Ctrl+'", checked: d.rulers.grid.show, run: () => this.toggleGrid() },
         { label: 'Grid settings…', run: () => this.gridDialog() },
@@ -683,7 +735,8 @@ export class Editor {
     if (tint) { ctx.globalAlpha = 0.45; ctx.drawImage(tint, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); ctx.globalAlpha = 1; }
     ctx.restore();
     this.scheduleNav();
-    if (r) return;
+    if (!this.drawingPassive) this.schedulePassive();
+    if (r || this.drawingPassive) return;
     this.zoomLabel.textContent = Math.round(this.view.zoom * 1000) / 10 + '%';
     const deg = Math.round(((this.view.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
     this.rotLabel.textContent = deg + '°' + (this.view.flip ? ' ⇋' : '');
@@ -1131,8 +1184,8 @@ export class Editor {
 
   // ---------- pointer input ----------
 
-  bindPointer() {
-    const el = this.overlay;
+  /** Pointer input on a pane's overlay el (in viewport vp): drawing, the tools, touch gestures, wheel zoom. */
+  bindPointer(el = this.overlay, vp = this.viewport) {
     const pos = e => {
       const r = this.viewport.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -1338,8 +1391,8 @@ export class Editor {
       else this.setView(zoomAt(this.view, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), p.x, p.y));
     }, { passive: false });
     // drop image files onto the canvas to add them as layers
-    this.viewport.addEventListener('dragover', e => e.preventDefault());
-    this.viewport.addEventListener('drop', async e => {
+    vp.addEventListener('dragover', e => e.preventDefault());
+    vp.addEventListener('drop', async e => {
       e.preventDefault();
       for (const f of e.dataTransfer?.files || []) if (f.type.startsWith('image/')) await this.addImageLayer(await fileToDataUrl(f), f.name.replace(/\.[^.]+$/, ''));
     });
@@ -2118,6 +2171,7 @@ export class Editor {
     this.root.querySelector('.ed-title').textContent = t;
     this.doc.version++;
     this.scheduleSave();
+    this.onTitle?.();  // the artwork's tab (app.js)
   }
 
   // ---------- keyboard ----------
@@ -2244,7 +2298,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, symmetryMethods, adjustMethods, stripMethods);
+Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

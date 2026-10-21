@@ -847,11 +847,25 @@ export const GUIDE = [
       <li><b>Grayscale view</b> (View menu) shows the canvas in grays, to check that light and dark read well. Your
       colours stay; click the "Grayscale view" label at the top to turn it off.</li>
       <li>The <b>Navigator</b> shows the whole picture: click or drag in it to jump there.</li>
+      <li><b>Second view</b> (View → Second view): the canvas splits in two, each half with its own zoom, turn and
+      mirror, for example one zoomed in to work on and one showing the whole picture. You can draw in either: the half
+      you click or scroll in becomes the one you work in (it has the blue edge). Drag the bar between them to share the
+      room, double-click it for half and half.</li>
       <li><b>Hide panels</b> <kbd>Tab</kbd>: the tool bar and side panels go away so the canvas fills the window.
       Shortcuts still work. Press <kbd>Tab</kbd> again to bring them back.</li>
       <li><b>Theme</b> (Settings menu, also on the start screen) changes the colours of the app itself:
       Midnight, Dusty rose, Lavender dusk, Moss, Deep sea, Cocoa or Ink black. Your artwork does not change.</li>
     </ul>
+    <h4>Several artworks at once</h4>
+    <p>Each artwork you open gets a <b>tab</b> at the top, so you can keep several open and switch between them.</p>
+    <ol>
+      <li>Open one artwork, then go back to the gallery (the arrow at the top left) and open another: both stay open.</li>
+      <li>Click a tab, or press <kbd>Ctrl+Tab</kbd> / <kbd>Ctrl+Shift+Tab</kbd>, to switch. The <b>Gallery</b> tab
+      shows all your artwork; open ones are marked <b>Open</b>.</li>
+      <li>The <b>×</b> on a tab (or File → Close artwork) closes it. It is saved first.</li>
+    </ol>
+    <p class="tip">Every open artwork keeps its layers and undo steps in memory, so close the ones you are done with;
+    up to eight can be open at once.</p>
     <h4>Your own shortcuts</h4>
     <ol>
       <li>Settings → <b>Keyboard shortcuts…</b> (also on the start screen)</li>
@@ -928,7 +942,7 @@ export const SHORTCUTS = [
   ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
   ['View', [['Space (hold)', 'Move the view'], ['Shift+Space+drag', 'Turn the view'], ['Ctrl+Space+drag', 'Zoom in (right) / out (left)'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+Alt+0', 'Zoom to the selection'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
     ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'], ['Tab', 'Hide / show the panels'],
-    ['Ctrl+2 / Ctrl+;', 'Snap to rulers / show guides']]],
+    ['Ctrl+2 / Ctrl+;', 'Snap to rulers / show guides'], ['Ctrl+Tab / Ctrl+Shift+Tab', 'Next / previous open artwork']]],
   ['File and program', [['Ctrl+S', 'Save now'], ['Ctrl+Shift+S', 'Export a PNG'], ['Ctrl+Alt+Shift+S', 'Export…'],
     ['Ctrl+Alt+C / Ctrl+Alt+I', 'Canvas size / image size'], ['F1', 'This guide'], ['F5 / Ctrl+R', 'Reload the screen'],
     ['Arrow keys (in a menu)', 'Move through the menus; → opens a smaller menu, Esc closes']]],
