@@ -761,6 +761,7 @@ export const layerMethods = {
         l.ctx.restore();
         l.touch();
       }
+      tmp.width = tmp.height = 0;  // freed now, not at garbage collection
     };
     const m = axis === 'h' ? [-1, 0, 0, 1, d.width, 0] : [1, 0, 0, -1, 0, d.height];
     const tx = this.textsIn(rasters, m);  // text layers are mirrored in their matrix and stay editable

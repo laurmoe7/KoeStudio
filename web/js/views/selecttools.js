@@ -112,6 +112,7 @@ export const selectionMethods = {
       tmp.getContext('2d').putImageData(img, 0, 0);
       this.sel.restore(before);
       this.sel.combine(job.mode, ctx => ctx.drawImage(tmp, 0, 0));
+      tmp.width = tmp.height = 0;  // one per preview frame: freed now rather than piling up until garbage collection
       this.drawOverlay();
     };
     const later = () => { cancelAnimationFrame(job.raf); job.raf = requestAnimationFrame(preview); };

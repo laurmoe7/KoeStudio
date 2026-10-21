@@ -274,8 +274,11 @@ export const exportMethods = {
           ctx.globalCompositeOperation = 'destination-in';
           ctx.drawImage(b, 0, 0);
           ctx.globalCompositeOperation = 'source-over';
+          b.width = b.height = 0;  // freed now, not at garbage collection: one doc-sized canvas per layer adds up
         }
         const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        c.width = c.height = 0;
+        if (!blob) throw new Error(`The layer "${partName}" could not be made into a PNG (out of memory?)`);
         const png = new Blob([pngWithDpi(new Uint8Array(await blob.arrayBuffer()), d.dpi)], { type: 'image/png' });
         const name = `${res.name}-${String(i + 1).padStart(2, '0')}-${partName}`;
         try {

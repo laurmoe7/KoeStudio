@@ -2,6 +2,14 @@
 
 What changed in KoeStudio, newest first. Older changes are in the git history.
 
+## 2026-10-21
+
+### Fixed
+- When a layer could not be turned into a PNG (out of memory), saving now says so and keeps trying instead of quietly stopping for good.
+- Export layers says which layer could not be made into a file instead of failing with a puzzling message.
+- Export layers, Flip layer and the Color range preview free their working memory straight away, so big canvases stay smooth.
+- An artwork file with odd size details can no longer put stray markup into the gallery.
+
 ## 2026-10-20
 
 ### New

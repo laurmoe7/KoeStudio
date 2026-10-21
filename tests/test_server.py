@@ -188,6 +188,14 @@ class Storage(unittest.TestCase):
         app.save_art('', d)
         self.assertEqual(app.list_art()[0]['layers'], 3, 'one at the top, one in the folder, one in the inner folder')
 
+    def test_gallery_details_are_plain_numbers_and_text(self):
+        # a .koe file put in the folder by hand may hold anything; the gallery shows these fields
+        d = doc()
+        d.update(title=['x'], width='<img src=x onerror=alert(1)>', height=12.7)
+        app.save_art('', d)
+        a = app.list_art()[0]
+        self.assertEqual((a['title'], a['width'], a['height']), ("['x']", 0, 12))
+
     def test_rejects_bad_input(self):
         with self.assertRaises(ValueError):
             app.load_art('../../secret')

@@ -154,11 +154,19 @@ def _meta_path(art_id):
     return os.path.join(art_dir(), '.thumbs', art_id + '.json')
 
 
+def _side(v):
+    """A canvas side as a whole number (0 when the file has something else there): the gallery shows it."""
+    try:
+        return max(0, int(v))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 def _meta_of(doc):
     return {
-        'title': doc.get('title') or 'Untitled',
-        'width': doc.get('width'),
-        'height': doc.get('height'),
+        'title': str(doc.get('title') or 'Untitled')[:120],
+        'width': _side(doc.get('width')),
+        'height': _side(doc.get('height')),
         'layers': _count_layers(doc.get('layers')),
     }
 
@@ -1199,6 +1207,7 @@ def close_after_flush(window, timeout=20):
 
 def main():
     port = int(os.environ.get('KOE_PORT') or 8770)
+    srv = None
     for p in range(port, port + 20):
         try:
             srv = start_server(p)
@@ -1206,6 +1215,8 @@ def main():
             break
         except OSError:
             continue
+    if srv is None:
+        raise RuntimeError(f'No free port between {port} and {port + 19} for the KoeStudio server.')
     PENDING_OPEN.extend(project_args(sys.argv))
     url = f'http://127.0.0.1:{port}/'
     if '--browser' in sys.argv:

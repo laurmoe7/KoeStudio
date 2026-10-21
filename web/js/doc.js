@@ -277,10 +277,13 @@ function pngWorker() {
   return pngJobs.worker;
 }
 
+/** Fails (instead of never answering, which left every later save waiting) when the browser cannot encode the canvas. */
 function blobDataUrl(canvas) {
-  return new Promise(resolve => canvas.toBlob(b => {
+  return new Promise((resolve, reject) => canvas.toBlob(b => {
+    if (!b) return reject(new Error('The picture could not be encoded (out of memory?)'));
     const r = new FileReader();
     r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('The picture could not be encoded'));
     r.readAsDataURL(b);
   }, 'image/png'));
 }

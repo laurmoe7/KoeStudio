@@ -96,7 +96,7 @@ async function deletedDialog() {
           <div class="pick-row" data-name="${esc(a.name)}">
             <img src="${api.deletedThumbUrl(a.name)}" alt="" onerror="this.style.visibility='hidden'">
             <div class="grow"><div class="card-title">${esc(a.title)}</div>
-              <div class="muted small">${a.width} × ${a.height} · deleted ${esc(when(a.deleted))}</div></div>
+              <div class="muted small">${esc(a.width)} × ${esc(a.height)} · deleted ${esc(when(a.deleted))}</div></div>
             <button data-restore>Restore</button>
           </div>`).join('')}</div>`
       : '<p class="muted">Nothing has been deleted.</p>',
@@ -195,7 +195,7 @@ function showCards(root, onOpen) {
       <div class="thumb"><img src="${api.thumbUrl(a.id, a.modified)}" alt="" loading="lazy" onerror="this.remove()"></div>
       <div class="card-info">
         <div class="card-title">${esc(a.title)}</div>
-        <div class="muted small">${a.width} × ${a.height} · ${a.layers} layer${a.layers === 1 ? '' : 's'}</div>
+        <div class="muted small">${esc(a.width)} × ${esc(a.height)} · ${esc(a.layers)} layer${a.layers === 1 ? '' : 's'}</div>
         <div class="muted small" title="Last changed">${esc(when(a.modified))}</div>
       </div>
       <button class="icon-btn card-more" title="More: rename, duplicate, earlier versions, delete" aria-label="More">${icon('more', 18)}</button>
