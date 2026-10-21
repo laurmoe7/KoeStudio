@@ -5,6 +5,9 @@
 //           tip, variation, tapers, texture); lines drawn with the same settings share one entry.
 //   stroke: { pts: [[x, y, p], ...] (the smoothed pen path, p = pressure 0-1), b: brush index, color: '#rrggbb',
 //           opacity: 0-1, seed: integer (for repeatable jitter) }
+//           A line may also keep `ctrl` (Bezier control points, bezier.js) and `closed`: then pts is always
+//           curvePoints(ctrl) resampled (curveStroke), the Control point tool edits ctrl, and any edit of the points
+//           themselves (erasing, pulling, smoothing) drops ctrl again (plainStroke).
 //           A line drawn with a brush using pen tilt or speed keeps them per point: [x, y, p, t, v, az] (tilt 0-1,
 //           speed 0-1, lean direction in radians or null). Points without them count as upright and slow, which
 //           leaves the dabs as they are, so every edit that drops them still gives a sensible line.
@@ -19,6 +22,7 @@ import { TEXTURE_MODES } from './texmodes.js';
 import { shiftColor } from './color.js';
 import { stampAt, dabCount, dabJitter, colorJitter, taperIn, taperOut, taperDab, StampPath, sanitizeCurve, dynamicsAt, dynamicsReach } from './brush.js';
 import { tipReach } from './brushtip.js';
+import { sanitizeCtrl, curvePoints, mapCtrl, fitCurve } from './bezier.js';
 
 export const MAX_STROKES = 20000;
 export const MAX_POINTS = 50000;
@@ -112,6 +116,8 @@ export function sanitizeVector(raw) {
       seed: Number.isFinite(+s.seed) ? Math.abs(Math.round(+s.seed)) % 2147483647 : 1,
       ...(Number.isFinite(+s.w) && +s.w !== 1 ? { w: Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, +s.w)) } : {}),
     });
+    const ctrl = sanitizeCtrl(s.ctrl);
+    if (ctrl) Object.assign(strokes[strokes.length - 1], { ctrl, ...(s.closed === true ? { closed: true } : {}) });
   }
   return { brushes, strokes };
 }
@@ -155,7 +161,29 @@ export function addStrokes(v, brush, strokes) {
 
 /** Moves every line by dx, dy (the Move tool). */
 export function translateVector(v, dx, dy) {
-  return { brushes: v.brushes, strokes: v.strokes.map(s => ({ ...s, pts: s.pts.map(([x, y, ...rest]) => [x + dx, y + dy, ...rest]) })) };
+  return { brushes: v.brushes, strokes: v.strokes.map(s => {
+    const out = { ...s, pts: s.pts.map(([x, y, ...rest]) => [x + dx, y + dy, ...rest]) };
+    if (s.ctrl) out.ctrl = s.ctrl.map(([x, y, ...rest]) => [x + dx, y + dy, ...rest]);
+    return out;
+  }) };
+}
+
+/** Line s with control points `ctrl` (bezier.js) and its path worked out from them, resampled to `step` px. */
+export function curveStroke(s, ctrl, closed = false, step = 2) {
+  const out = { ...s, ctrl, pts: resample(curvePoints(ctrl, closed, step), step) };
+  if (closed) out.closed = true; else delete out.closed;
+  return out;
+}
+
+/** Line s with the path pts and no control points (they would no longer match). */
+export function plainStroke(s, pts) {
+  const { ctrl, closed, ...rest } = s;
+  return { ...rest, pts };
+}
+
+/** Line s tidied up (Simplify): refitted to as few control points as keep it within tol px. */
+export function simplifyStroke(s, tol) {
+  return curveStroke(s, fitCurve(s.pts, tol), false);
 }
 
 /** Half the width of a line at pressure p (tapers and jitter aside): how far from its path it still shows. */
@@ -353,7 +381,7 @@ export function eraseVector(v, mode, a, b, r) {
       if (keep.every(Boolean)) { out.push(s); continue; }
       changed = true;
       let run = [];
-      const flush = () => { if (run.length >= 2) out.push({ ...s, pts: run }); run = []; };
+      const flush = () => { if (run.length >= 2) out.push(plainStroke(s, run)); run = []; };
       s.pts.forEach((q, i) => (keep[i] ? run.push(q) : flush()));
       flush();
       continue;
@@ -365,8 +393,8 @@ export function eraseVector(v, mode, a, b, r) {
     const xs = crossings(s, v.strokes), last = s.pts.length - 1;
     const lo = xs.filter(x => x < at).pop(), hi = xs.find(x => x > at);
     const before = lo === undefined ? null : slice(s.pts, 0, lo), after = hi === undefined ? null : slice(s.pts, hi, last);
-    if (before) out.push({ ...s, pts: before });
-    if (after) out.push({ ...s, pts: after });
+    if (before) out.push(plainStroke(s, before));
+    if (after) out.push(plainStroke(s, after));
   }
   return changed ? { brushes: v.brushes, strokes: out } : v;
 }
@@ -401,12 +429,13 @@ export function pullStroke(s, grab, to, radius, step = 2) {
     const f = (1 - d2 / r2) ** 2;
     return [x + dx * f, y + dy * f, ...rest];
   });
-  return { ...s, pts: resample(pts, step) };
+  return plainStroke(s, resample(pts, step));
 }
 
-/** The vector object with line i changed (color, opacity, w, pts...); a factor w of 1 is dropped. */
+/** The vector object with line i changed (color, opacity, w, pts...); a factor w of 1 is dropped. New pts without
+ *  new ctrl drop the control points. */
 export function editStroke(v, i, props) {
-  const s = { ...v.strokes[i], ...props };
+  const s = 'pts' in props && !('ctrl' in props) ? plainStroke({ ...v.strokes[i], ...props }, props.pts) : { ...v.strokes[i], ...props };
   if (s.w === 1) delete s.w;
   return { brushes: v.brushes, strokes: v.strokes.map((o, k) => (k === i ? s : o)) };
 }
@@ -456,7 +485,8 @@ export function mapStrokes(v, idxs, map, m = null, step = 2) {
         const [x, y] = m ? [m[0] * q[0] + m[2] * q[1] + m[4], m[1] * q[0] + m[3] * q[1] + m[5]] : map(q[0], q[1]);
         return q.length > 3 ? [x, y, q[2], q[3], q[4], turn(q[5])] : [x, y, q[2]];
       });
-      const out = { ...s, pts: resample(pts, step) };
+      const f = m ? (x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]] : map;
+      const out = s.ctrl ? curveStroke(s, mapCtrl(s.ctrl, f), !!s.closed, step) : { ...s, pts: resample(pts, step) };
       const w = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, (s.w || 1) * k));
       if (Math.abs(w - 1) > 1e-6) out.w = Math.round(w * 1000) / 1000; else delete out.w;
       return out;
@@ -477,5 +507,5 @@ export function smoothPoints(pts, passes) {
 
 /** A shaky line evened out (Line edit → Smooth): `passes` rounds of smoothPoints, resampled to `step` px. */
 export function smoothStroke(s, passes, step = 2) {
-  return { ...s, pts: resample(smoothPoints(resample(s.pts, step), passes), step) };
+  return plainStroke(s, resample(smoothPoints(resample(s.pts, step), passes), step));
 }

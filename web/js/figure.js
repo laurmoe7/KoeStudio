@@ -5,10 +5,13 @@
 
 export const FIGURE_SHAPES = [['line', 'Straight line'], ['arrow', 'Arrow'], ['arrow2', 'Double arrow'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['regpoly', 'Regular polygon'], ['star', 'Star'],
   ['polyline', 'Polyline'], ['polygon', 'Polygon'],
-  ['curve', 'Curve'], ['closedcurve', 'Closed curve']];
+  ['curve', 'Curve'], ['closedcurve', 'Closed curve'], ['bezier', 'Bezier curve'], ['closedbezier', 'Closed Bezier curve']];
 
 /** Shapes made of clicked corners: whether each one closes back to its first corner. */
-export const POLY_SHAPES = { polyline: false, polygon: true, curve: false, closedcurve: true };
+export const POLY_SHAPES = { polyline: false, polygon: true, curve: false, closedcurve: true, bezier: false, closedbezier: true };
+
+/** Clicked shapes whose points are Bezier anchors: a click makes a corner, a drag pulls out the handles. */
+export const BEZIER_SHAPES = new Set(['bezier', 'closedbezier']);
 
 /** Clicked shapes drawn as a smooth curve through their points rather than straight between them. */
 export const SMOOTH_SHAPES = new Set(['curve', 'closedcurve']);

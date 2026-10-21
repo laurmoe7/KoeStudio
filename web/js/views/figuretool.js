@@ -3,10 +3,14 @@
 // stroke on pen-up, so opacity, the selection, alpha lock, masks and undo behave as for painting.
 // Polyline, polygon and the curves are clicked point by point (this.figPoly holds them between clicks, drawn as a
 // thin line on the overlay) and stamped when finished: a double click, Enter, or for a closed shape a click on the
-// first point. A curve runs smoothly through its points (splinePoints).
+// first point. A curve runs smoothly through its points (splinePoints). The Bezier curves are clicked the same way,
+// but each press can be dragged to pull out that point's handles (both ways, so the point is smooth); figPoly.ctrl
+// holds the anchors (bezier.js). On a vector layer the clicked shapes keep their control points, so the Control
+// point tool can change them afterwards.
 // Editor methods (mixed into Editor.prototype in editor.js), so `this` is the editor.
 
-import { constrain, figurePoints, figureBounds, pointsBounds, polyCorners, splinePoints, POLY_SHAPES, SMOOTH_SHAPES } from '../figure.js';
+import { constrain, figurePoints, figureBounds, pointsBounds, polyCorners, splinePoints, POLY_SHAPES, SMOOTH_SHAPES, BEZIER_SHAPES } from '../figure.js';
+import { curvePoints, cornerCtrl, fitCurve } from '../bezier.js';
 import { Painter } from '../painter.js';
 import { union } from '../rect.js';
 import { toast } from '../ui.js';
@@ -18,6 +22,7 @@ const CLOSE_PX = 8;   // clicking this close (screen px) to a polygon's first co
 export const figureMethods = {
   beginFigure(dp, id, shift, dbl = false) {
     const s = this.settings.figure;
+    if (this.figPoly?.ctrl || (!this.figPoly && BEZIER_SHAPES.has(s.figure))) return this.bezierPenDown(dp, id, shift, dbl);
     if (s.figure in POLY_SHAPES || this.figPoly) return this.figurePolyClick(dp, shift, dbl);
     const layer = this.figureTarget();
     if (!layer) return;
@@ -109,16 +114,56 @@ export const figureMethods = {
     p.points.push(q);
   },
 
+  // ---------- Bezier curves ----------
+
+  /** A press with the Bezier curve: starts the curve or adds an anchor (dragging then pulls its handles), or finishes. */
+  bezierPenDown(dp, id, shift, dbl) {
+    let p = this.figPoly;
+    if (!p) {
+      const layer = this.figureTarget();
+      if (!layer) return;
+      p = this.figPoly = { layer, closed: POLY_SHAPES[this.settings.figure.figure], ctrl: [] };
+    } else {
+      const first = toScreen(this.view, p.ctrl[0][0], p.ctrl[0][1]), here = toScreen(this.view, dp.x, dp.y);
+      const onFirst = p.closed && p.ctrl.length >= 2 && Math.hypot(first.x - here.x, first.y - here.y) <= CLOSE_PX;
+      if (dbl || onFirst) return this.finishFigurePoly();
+    }
+    const last = p.ctrl[p.ctrl.length - 1], q = shift && last ? constrain('line', { x: last[0], y: last[1] }, dp) : dp;
+    p.ctrl.push([q.x, q.y, 1, 0, 0, 0, 0]);
+    this.gesture = { type: 'bezierpen', tool: 'figure', id, i: p.ctrl.length - 1 };
+  },
+
+  /** Dragging after a press: the anchor's out handle follows the pointer, its in handle the other way. */
+  bezierPenDrag(dp) {
+    const p = this.figPoly, a = p?.ctrl[this.gesture.i];
+    if (!a) return;
+    const dx = dp.x - a[0], dy = dp.y - a[1], small = Math.hypot(dx, dy) * this.view.zoom < 3;
+    a[3] = small ? 0 : -dx; a[4] = small ? 0 : -dy; a[5] = small ? 0 : dx; a[6] = small ? 0 : dy;
+  },
+
   /** Stamps the clicked shape and commits it like a stroke (one undo step). */
   finishFigurePoly() {
     const p = this.figPoly;
     if (!p) return;
     this.figPoly = null;
-    const corners = polyCorners(p.points, p.closed);
-    if (corners.length < 2) return this.drawOverlay();
-    const s = this.settings.figure, closed = p.closed && corners.length > 2;
-    const pts = p.smooth ? splinePoints(corners, closed, Math.max(0.5, s.size * SPACING)) : corners;
-    if (p.layer.vector) { this.commitVectorFigure(p.layer, pts, closed, s); this.colors.used(); this.drawOverlay(); return; }
+    const s = this.settings.figure, step = Math.max(0.5, s.size * SPACING);
+    let pts, closed, curve;
+    if (p.ctrl) {
+      if (p.ctrl.length < 2) return this.drawOverlay();
+      closed = p.closed;
+      curve = { ctrl: p.ctrl, closed };
+      pts = curvePoints(p.ctrl, closed, step).map(([x, y]) => ({ x, y }));
+      if (closed) pts.pop();  // stampOutline closes it
+    } else {
+      const corners = polyCorners(p.points, p.closed);
+      if (corners.length < 2) return this.drawOverlay();
+      closed = p.closed && corners.length > 2;
+      pts = p.smooth ? splinePoints(corners, closed, step) : corners;
+      // kept on a vector layer as control points: corners as they are, a curve fitted closely
+      curve = p.smooth ? { ctrl: fitCurve([...pts, ...(closed ? [pts[0]] : [])].map(q => [q.x, q.y, 1]), 0.25), closed: false }
+        : { ctrl: cornerCtrl(corners), closed };
+    }
+    if (p.layer.vector) { this.commitVectorFigure(p.layer, pts, closed, s, curve); this.colors.used(); this.drawOverlay(); return; }
     this.resetStroke();
     const ctx = this.strokeCtx;
     ctx.save();
@@ -146,7 +191,7 @@ export const figureMethods = {
     if (!p) return false;
     if (c === 'enter') this.finishFigurePoly();
     else if (c === 'escape') this.cancelFigurePoly();
-    else if (c === 'backspace' || c === 'delete') { p.points.pop(); if (!p.points.length) this.figPoly = null; }
+    else if (c === 'backspace' || c === 'delete') { const list = p.ctrl || p.points; list.pop(); if (!list.length) this.figPoly = null; }
     else return false;
     this.drawOverlay();
     return true;
@@ -158,6 +203,7 @@ export const figureMethods = {
     if (!p) return;
     const dpr = this.dpr || 1, [a, b, c, d, e, f] = matrix(this.view);
     const sx = (x, y) => (a * x + c * y + e) * dpr, sy = (x, y) => (b * x + d * y + f) * dpr;
+    if (p.ctrl) return this.drawBezierPen(ctx, p, sx, sy, dpr);
     let pts = p.points.slice();
     if (this.pointer && !this.gesture) {
       const q = toDoc(this.view, this.pointer.x, this.pointer.y), last = pts[pts.length - 1];
@@ -176,6 +222,41 @@ export const figureMethods = {
     }
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = dpr;
     for (const q of p.points) { ctx.beginPath(); ctx.arc(sx(q.x, q.y), sy(q.x, q.y), 3 * dpr, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+  },
+
+  /** The Bezier curve so far on the overlay, a rubber band to the pointer, and the newest point's handles. */
+  drawBezierPen(ctx, p, sx, sy, dpr) {
+    const ctrl = p.ctrl.map(q => q.slice());
+    if (this.pointer && !this.gesture && ctrl.length) {
+      const q = toDoc(this.view, this.pointer.x, this.pointer.y), last = ctrl[ctrl.length - 1];
+      const r = this.pointerShift ? constrain('line', { x: last[0], y: last[1] }, q) : q;
+      ctrl.push([r.x, r.y, 1, 0, 0, 0, 0]);
+    }
+    const pts = curvePoints(ctrl, p.closed && ctrl.length > 2, 2 / this.view.zoom);
+    ctx.save();
+    ctx.lineJoin = 'round';
+    for (const [color, w] of [['rgba(0,0,0,.6)', 3 * dpr], ['#6ea8ff', 1.5 * dpr]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(sx(x, y), sy(x, y)) : ctx.moveTo(sx(x, y), sy(x, y))));
+      ctx.stroke();
+    }
+    const last = p.ctrl[p.ctrl.length - 1];
+    if (last) {
+      for (const [hx, hy] of [[last[3], last[4]], [last[5], last[6]]]) {
+        if (!hx && !hy) continue;
+        const x0 = sx(last[0], last[1]), y0 = sy(last[0], last[1]), x1 = sx(last[0] + hx, last[1] + hy), y1 = sy(last[0] + hx, last[1] + hy);
+        ctx.strokeStyle = '#ffb347';
+        ctx.lineWidth = dpr;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        ctx.fillStyle = '#ffb347';
+        ctx.beginPath(); ctx.arc(x1, y1, 3 * dpr, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = dpr;
+    for (const q of p.ctrl) { const x = sx(q[0], q[1]), y = sy(q[0], q[1]); ctx.beginPath(); ctx.rect(x - 3 * dpr, y - 3 * dpr, 6 * dpr, 6 * dpr); ctx.fill(); ctx.stroke(); }
     ctx.restore();
   },
 

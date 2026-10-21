@@ -55,6 +55,7 @@ import { RECORD_CMDS } from '../autoactions.js';
 import { gradientEditMethods } from './gradienteditor.js';
 import { pressureMethods } from './pressuretool.js';
 import { lineEditMethods } from './lineedittool.js';
+import { ctrlPointMethods } from './ctrlpointtool.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
 import { printLabel } from '../resolution.js';
@@ -97,7 +98,7 @@ export class Editor {
     this.loadPressureCurve();  // Settings → Pen pressure (pressuretool.js)
     this.tool = TOOL_BY_ID[store('tool')] ? store('tool') : 'pen';
     this.history = new History();
-    this.history.onChange = () => { this.updateUndoButtons(); this.scheduleHistory(); if (this.tool === 'lineedit') this.renderToolProps(); };
+    this.history.onChange = () => { this.updateUndoButtons(); this.scheduleHistory(); if (this.tool === 'lineedit' || this.tool === 'ctrlpoint') this.renderToolProps(); };
     this.view = newView();
     this.gesture = null;
     this.live = null;
@@ -858,6 +859,7 @@ export class Editor {
     this.drawGradientOverlay(ctx);
     this.drawFigurePoly(ctx);
     this.drawLineEditOverlay(ctx);
+    this.drawCtrlPointOverlay(ctx);
     this.drawCloneOverlay(ctx);
     this.placeTextEditor();
     this.placeSelectionBar();
@@ -879,7 +881,7 @@ export class Editor {
     if (this.findPick) { set('crosshair'); return null; }
     const tool = TOOL_BY_ID[this.effectiveTool()] || TOOL_BY_ID.move;
     if (tool.kind === 'crop') { if (!this.gesture) set(this.cropCursor()); return null; }
-    set({ paint: 'none', smudge: 'none', liquify: 'none', retouch: 'none', lineedit: 'crosshair', lassofill: 'crosshair', gapfill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
+    set({ paint: 'none', smudge: 'none', liquify: 'none', retouch: 'none', lineedit: 'crosshair', ctrlpoint: 'default', lassofill: 'crosshair', gapfill: 'crosshair', fill: 'crosshair', gradient: 'crosshair', figure: 'crosshair', text: 'text', picker: 'crosshair', move: 'move', select: 'crosshair', ruler: 'default',
       hand: this.gesture?.type === 'pan' ? 'grabbing' : 'grab' }[tool.kind]);
     return this.pointer && (tool.kind === 'paint' || tool.kind === 'smudge' || tool.kind === 'liquify' || tool.kind === 'retouch') ? tool : null;
   }
@@ -1025,6 +1027,7 @@ export class Editor {
     } else box.innerHTML = this.settingsHtml(fields, s);
     if (t.kind === 'picker') box.insertAdjacentHTML('beforeend', '<p class="hint">Click the canvas to pick a colour. Hold Alt with a brush to pick quickly (with these settings).</p>');
     if (t.kind === 'lineedit') this.renderLineEditProps(box);
+    if (t.kind === 'ctrlpoint') this.renderCtrlPointProps(box);
     if (t.kind === 'retouch') box.insertAdjacentHTML('beforeend', `<p class="hint">${t.id === 'clone' ? 'Ctrl+click where to copy from, then paint to copy it here.'
       : t.id === 'blur' ? 'Paint over the picture to soften it.' : `Paint over the picture to ${t.id === 'burn' ? 'darken' : 'lighten'} it; low strength builds up gently.`}</p>`);
     if (t.kind === 'select') {
@@ -1211,6 +1214,7 @@ export class Editor {
       else if (tool.kind === 'liquify') this.beginLiquify(dp, e.pointerId);
       else if (tool.kind === 'retouch') this.beginRetouch(toolId, dp, e.pointerId, e.ctrlKey);
       else if (tool.kind === 'lineedit') this.beginLineEdit(dp, e.pointerId);
+      else if (tool.kind === 'ctrlpoint') this.beginCtrlPoint(dp, e.pointerId, e);
       else if (tool.kind === 'lassofill') this.beginLassoFill(dp, e.pointerId);
       else if (tool.kind === 'gapfill') this.beginGapFill(dp, e.pointerId);
       else if (tool.kind === 'figure') this.beginFigure(this.gridPoint(dp), e.pointerId, e.shiftKey, e.detail >= 2);
@@ -1276,8 +1280,12 @@ export class Editor {
           this.gradientDrag(toDoc(this.view, p.x, p.y), e.shiftKey);
         } else if (g.type === 'lineedit') {
           this.lineEditDrag(toDoc(this.view, p.x, p.y));
+        } else if (g.type === 'ctrlpoint') {
+          this.ctrlPointDrag(toDoc(this.view, p.x, p.y), e.altKey);
         } else if (g.type === 'figure') {
           this.figureDrag(this.gridPoint(toDoc(this.view, p.x, p.y)), e.shiftKey);
+        } else if (g.type === 'bezierpen') {
+          this.bezierPenDrag(toDoc(this.view, p.x, p.y));
         }
       }
       const dp = toDoc(this.view, p.x, p.y);
@@ -1293,6 +1301,7 @@ export class Editor {
       else if (g.type === 'liquify') this.endLiquify();
       else if (g.type === 'retouch') this.endRetouch();
       else if (g.type === 'lineedit') this.endLineEdit();
+      else if (g.type === 'ctrlpoint') this.endCtrlPoint();
       else if (g.type === 'verase') this.endVectorErase();
       else if (g.type === 'lassofill') this.endLassoFill();
       else if (g.type === 'gapfill') this.endGapFill();
@@ -2176,7 +2185,7 @@ export class Editor {
       copy: () => this.copySelection(), cut: () => this.copySelection(true),
       layerCopy: () => this.layerViaCopy(), layerCut: () => this.layerViaCopy(true),
       rotateLeft: () => this.rotate(-15), rotateRight: () => this.rotate(15), rotateReset: () => this.rotate(null),
-      clear: () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
+      clear: () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ctrlpoint' && this.deleteCtrlPoint()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
       fillMain: () => this.fillLayer(), fillSub: () => this.fillLayer(true),
       undo: () => this.undo(), redo: () => this.redo(),
       save: () => this.save(), exportPng: () => this.exportAs('png'), export: () => this.exportAs(),
@@ -2235,11 +2244,12 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, symmetryMethods, adjustMethods, stripMethods);
+Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, symmetryMethods, adjustMethods, stripMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
   if (key === 'corner' || key === 'reach') return Math.round(v) + ' px';
+  if (key === 'simplify') return v + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'wetEdgeSize') return v ? (Math.round(v * 10) / 10) + ' px' : 'Auto';
   if (key === 'depth') return Math.round(v * 100) + '%';

@@ -5,6 +5,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-21
 
 ### New
+- Control point tool (Y, press again): lines on vector layers show Bezier control points you can drag, add, remove, switch between corner and smooth, and give their own pen pressure, as in Clip Studio Paint.
+- Simplify (Line edit and Control point tools) tidies a shaky line, or every line on the layer, into a few smooth curves.
+- Bezier curve and Closed Bezier curve (Figure tool): click for corners or drag out handles for smooth bends; on a vector layer they, and polylines, polygons and curves, stay editable point by point.
 - Ten more layer blending modes, as in Clip Studio Paint and Photoshop: Add, Subtract, Linear burn, Vivid light, Linear light, Pin light, Hard mix, Divide, Darker color and Lighter color; the blending list is now grouped the same way.
 
 ### Fixed

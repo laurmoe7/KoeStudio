@@ -83,7 +83,8 @@ export const lineEditMethods = {
   renderLineEditProps(box) {
     const p = this.pickedLine();
     if (!p) {
-      box.insertAdjacentHTML('beforeend', '<p class="hint">On a vector layer: click a line to pick it, then drag along it to bend it. The pull range sets how much of the line follows.</p>');
+      box.insertAdjacentHTML('beforeend', '<p class="hint">On a vector layer: click a line to pick it, then drag along it to bend it. The pull range sets how much of the line follows.</p><div class="btn-row"><button data-l="simplify" title="Tidy every line on the layer: refit them to fewer control points, within Simplify by">Simplify all lines</button></div>');
+      box.querySelector('[data-l="simplify"]').onclick = () => this.simplifyLines();
       return;
     }
     const w = p.s.w || 1, op = p.s.opacity;
@@ -93,7 +94,7 @@ export const lineEditMethods = {
         <input type="range" data-l="w" min="${MIN_WIDTH}" max="${MAX_WIDTH}" step="0.05" value="${w}"><output>${Math.round(w * 100)}%</output></label>
       <label class="slider"><span>Opacity</span>
         <input type="range" data-l="opacity" min="0.01" max="1" step="0.01" value="${op}"><output>${Math.round(op * 100)}%</output></label>
-      <div class="btn-row"><button data-l="smooth" title="Even out wobbles in the line (click again for smoother)">Smooth</button><button data-l="color" title="Give the line the main colour">Main colour</button><button data-l="delete" title="Delete the line (Del)">Delete</button></div>`);
+      <div class="btn-row"><button data-l="smooth" title="Even out wobbles in the line (click again for smoother)">Smooth</button><button data-l="simplify" title="Refit the line to fewer control points, within Simplify by (the Control point tool shows them)">Simplify</button><button data-l="color" title="Give the line the main colour">Main colour</button><button data-l="delete" title="Delete the line (Del)">Delete</button></div>`);
     box.querySelectorAll('input[data-l]').forEach(inp => {
       const k = inp.dataset.l, label = k === 'w' ? 'Line width' : 'Line opacity';
       inp.addEventListener('input', () => {
@@ -104,6 +105,7 @@ export const lineEditMethods = {
     });
     box.querySelector('[data-l="color"]').onclick = () => { this.setLineProps({ color: this.colors.main }, 'Line colour'); this.renderToolProps(); };
     box.querySelector('[data-l="delete"]').onclick = () => this.deleteLine();
+    box.querySelector('[data-l="simplify"]').onclick = () => this.simplifyLines();
     box.querySelector('[data-l="smooth"]').onclick = () => this.setLineProps({ pts: smoothStroke(this.pickedLine().s, SMOOTH_PASSES).pts }, 'Smooth line');
   },
 

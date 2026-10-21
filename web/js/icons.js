@@ -45,6 +45,7 @@ const P = {
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
   liquify: `<path d="M3 7c3-3 6 3 9 0s6-3 9 0"/><path d="M3 12c3-4 6 4 9 0s6-4 9 0"/><path d="M3 17c3-3 6 3 9 0s6-3 9 0"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>`,
   lineEdit: `<path d="M3.5 18.5C7 9 10.5 16.5 13.5 12S18 5 20.5 5"/><rect x="11.8" y="10.3" width="3.4" height="3.4" rx=".6" fill="currentColor"/><path d="M9 7.5l9 9" stroke-dasharray="1.5 2" opacity=".7"/>`,
+  ctrlPoint: `<path d="M4 18C6 9 16 6 20 6"/><path d="M8 8.5l7 7" opacity=".75"/><rect x="2.4" y="16.4" width="3.2" height="3.2" rx=".4" fill="currentColor"/><rect x="18.4" y="4.4" width="3.2" height="3.2" rx=".4" fill="currentColor"/><rect x="9.9" y="10.4" width="3.2" height="3.2" rx=".4"${F}/><circle cx="8" cy="8.5" r="1.3" fill="currentColor"/><circle cx="15" cy="15.5" r="1.3" fill="currentColor"/>`,
   blurTool: `<path d="M12 3.5c3.6 4.4 6 7.6 6 10.7a6 6 0 01-12 0c0-3.1 2.4-6.3 6-10.7z"${F}/><path d="M9 14.5a3 3 0 002.5 3"/>`,
   dodge: `<circle cx="12" cy="12" r="4"${F}/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>`,
   burn: `<path d="M19.5 14.5A8 8 0 119.5 4.5a6.5 6.5 0 0010 10z" fill="currentColor" fill-opacity=".55"/>`,

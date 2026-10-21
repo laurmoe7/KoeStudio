@@ -512,6 +512,9 @@ export const GUIDE = [
     <ul>
       <li><b>Polyline</b> and <b>Polygon</b>: click each corner. Double-click or <kbd>Enter</kbd> to finish.</li>
       <li><b>Curve</b> and <b>Closed curve</b>: click points, and a smooth line runs through them.</li>
+      <li><b>Bezier curve</b> and <b>Closed Bezier curve</b>: click for a corner, or press and drag to pull out
+      handles for a smooth bend. Double-click or <kbd>Enter</kbd> to finish; <kbd>Backspace</kbd> takes back the
+      last point. On a vector layer the points stay editable with the Control point tool.</li>
       <li><kbd>Backspace</kbd> takes back the last point; <kbd>Esc</kbd> drops the shape.</li>
     </ul>
     <h4>Text <kbd>T</kbd></h4>
@@ -689,7 +692,22 @@ export const GUIDE = [
     </ul>
     <h4>Line edit <kbd>Y</kbd></h4>
     <p>Click a line to pick it, then drag it to bend it. The tool panel changes its width, opacity or colour,
-    <b>Smooth</b> evens out a shaky line, and <kbd>Del</kbd> deletes it.</p>
+    <b>Smooth</b> evens out a shaky line, <b>Simplify</b> tidies it into a few smooth curves, and <kbd>Del</kbd>
+    deletes it. With no line picked, <b>Simplify all lines</b> tidies the whole layer.</p>
+    <h4>Control points <kbd>Y</kbd> (press again)</h4>
+    <p>Every line on a vector layer has control points, as in Clip Studio Paint. Click a line with the
+    <b>Control point</b> tool to see them: squares are corners, circles are smooth points with two handles.</p>
+    <ol>
+      <li>Drag a point to move it, or drag a handle to bend the curve next to it. A smooth point stays smooth;
+      hold <kbd>Alt</kbd> to bend one side only.</li>
+      <li>Double-click the line to add a point, double-click a point to remove it.</li>
+      <li><kbd>Alt</kbd>+click a point to switch it between corner and smooth.</li>
+      <li>The <b>Pressure</b> slider sets how thick the line is at the picked point.</li>
+    </ol>
+    <p>A line drawn freehand gets its points the first time you change one. <b>Simplify by</b> sets how far
+    Simplify may move a line: more gives fewer points and smoother curves.</p>
+    <p class="tip">For clean curves, draw with the Figure tool's <b>Bezier curve</b> on a vector layer, then fine-tune
+    them with the Control point tool.</p>
     <h4>Selecting lines</h4>
     <p>Draw a selection round some lines with any selection tool: a line counts as selected when at least half of
     it is inside. Then <kbd>Del</kbd> removes those lines, and Edit → <b>Transform</b> (<kbd>Ctrl</kbd>+<kbd>T</kbd>)

@@ -7,7 +7,8 @@
 import { Layer } from '../doc.js';
 import { symmetryPoints } from '../symmetry.js';
 import { stampAt } from '../brush.js';
-import { emptyVector, addStrokes, resample, changedBounds, eraseVector } from '../vector.js';
+import { emptyVector, addStrokes, resample, changedBounds, eraseVector, curveStroke } from '../vector.js';
+import { mapCtrl } from '../bezier.js';
 import { renderVector } from '../vectorlayer.js';
 import { toast } from '../ui.js';
 
@@ -44,29 +45,36 @@ export const vectorMethods = {
 
   /**
    * Turns a finished pen stroke (its smoothed path, [[x, y, p]]) into vector lines, one per symmetric copy, and
-   * replaces the live stroke with them. s: the tool settings it was drawn with.
+   * replaces the live stroke with them. s: the tool settings it was drawn with. With curve = {ctrl, closed}
+   * (Bezier control points, bezier.js) the lines keep them, each symmetric copy mapped along.
    */
-  commitVectorStroke(layer, pts, s, opacity, label, color = this.inkFor(layer)) {
+  commitVectorStroke(layer, pts, s, opacity, label, color = this.inkFor(layer), curve = null) {
     this.live = null;
     if (!pts.length) { this.updateComp(null); this.requestRender(); return; }
     const d = this.doc, base = resample(pts, Math.max(1, Math.min(4, s.size * 0.15)));
     const copies = base.map(([x, y]) => symmetryPoints(d.rulers.symmetry, x, y, d.width, d.height));
     const r2 = v => Math.round(v * 100) / 100;
-    const strokes = copies[0].map((_, k) => ({
-      pts: base.map((q, i) => [r2(copies[i][k].x), r2(copies[i][k].y), ...q.slice(2)]),
-      color, opacity, seed: Math.floor(Math.random() * 2147483646) + 1,
-    }));
+    const seed = () => Math.floor(Math.random() * 2147483646) + 1;
+    const strokes = curve
+      ? copies[0].map((_, k) => curveStroke({ color, opacity, seed: seed() }, mapCtrl(curve.ctrl, (x, y) => {
+        const q = symmetryPoints(d.rulers.symmetry, x, y, d.width, d.height)[k] || { x, y };
+        return [q.x, q.y];
+      }).map(a => a.map((v, i) => (i === 2 ? v : r2(v)))), curve.closed))
+      : copies[0].map((_, k) => ({
+        pts: base.map((q, i) => [r2(copies[i][k].x), r2(copies[i][k].y), ...q.slice(2)]),
+        color, opacity, seed: seed(),
+      }));
     const before = layer.vector, after = addStrokes(before, s, strokes);
     this.showVector(layer, before, after);
     this.pushVectorStep(layer, before, after, label);
   },
 
-  /** A Figure outline as a vector line: even pressure, the figure's size, hardness and opacity. */
-  commitVectorFigure(layer, points, closed, s) {
+  /** A Figure outline as a vector line: even pressure, the figure's size, hardness and opacity; curve: its control points. */
+  commitVectorFigure(layer, points, closed, s, curve = null) {
     const pts = points.map(p => [p.x, p.y, 1]);
     if (closed && pts.length > 1) pts.push(pts[0].slice());
     const brush = { size: s.size, hardness: s.hardness, flow: 1, spacing: 0.08, pressureSize: false, pressureOpacity: false };
-    this.commitVectorStroke(layer, pts, brush, s.opacity, 'Figure');
+    this.commitVectorStroke(layer, pts, brush, s.opacity, 'Figure', this.inkFor(layer), curve);
   },
 
   // ---------- erasing lines ----------

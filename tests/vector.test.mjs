@@ -212,3 +212,38 @@ test('selecting, removing and transforming lines', () => {
   // any mapping function (Distort)
   assert.deepEqual(ends(mapStrokes(v, [0], (x, y) => [x, y + x], null, 100).strokes[0]), [11, [0, 0], [10, 10]]);
 });
+
+// ---------- Bezier control points on lines ----------
+import { curveStroke, plainStroke, simplifyStroke, translateVector as tv, editStroke as es } from '../web/js/vector.js';
+
+test('a line with control points keeps them through a save, a move and a transform, and loses them when erased', () => {
+  const ctrl = [[0, 0, 1, 0, 0, 0, 0], [20, 0, 0.5, 0, 0, 0, 0]];
+  const s = curveStroke({ b: 0, color: '#000000', opacity: 1, seed: 1 }, ctrl, false);
+  assert.deepEqual(s.pts[0], [0, 0, 1]);
+  assert.deepEqual(s.pts.at(-1), [20, 0, 0.5]);
+  assert.ok(s.pts.every((q, i) => !i || q[0] - s.pts[i - 1][0] <= 2 + 1e-9), 'path no more than 2 px apart');
+  const v = { brushes: [B], strokes: [s] };
+  const loaded = sanitizeVector(JSON.parse(JSON.stringify(v)));
+  assert.deepEqual(loaded.strokes[0].ctrl, ctrl, 'saved and loaded');
+  assert.equal(loaded.strokes[0].closed, undefined);
+  assert.deepEqual(tv(v, 5, 1).strokes[0].ctrl, [[5, 1, 1, 0, 0, 0, 0], [25, 1, 0.5, 0, 0, 0, 0]], 'Move tool moves the points');
+  const scaled = mapStrokes(v, [0], null, [2, 0, 0, 2, 0, 0]);
+  assert.deepEqual(scaled.strokes[0].ctrl.map(a => a.slice(0, 2)), [[0, 0], [40, 0]], 'transform maps the points');
+  assert.deepEqual(scaled.strokes[0].pts.at(-1).slice(0, 2), [40, 0], 'and the path follows them');
+  const erased = eraseVector(v, 'area', [10, -5], [10, 5], 2);
+  assert.equal(erased.strokes.length, 2);
+  assert.ok(erased.strokes.every(x => !x.ctrl), 'cut lines have plain paths');
+  assert.ok(!es(v, 0, { pts: [[0, 0, 1], [1, 1, 1]] }).strokes[0].ctrl, 'new points without new control points drop them');
+  assert.ok(es(v, 0, { color: '#ff0000' }).strokes[0].ctrl, 'a colour change keeps them');
+  assert.ok(!plainStroke({ ...s, closed: true }, s.pts).closed);
+});
+
+test('Simplify: a wobbly drawn line becomes a few control points within the tolerance', () => {
+  const pts = Array.from({ length: 101 }, (_, i) => [i, 50 + 10 * Math.sin(i / 100 * Math.PI) + (i % 2 ? 0.3 : -0.3), 1]);
+  const s = simplifyStroke({ pts, b: 0, color: '#000000', opacity: 1, seed: 1 }, 2);
+  assert.ok(s.ctrl.length <= 3, `${s.ctrl.length} control points`);
+  for (const q of pts) {
+    const d = Math.min(...s.pts.map(p => Math.hypot(p[0] - q[0], p[1] - q[1])));
+    assert.ok(d <= 2.5, `point ${q} is ${d} px off`);
+  }
+});
