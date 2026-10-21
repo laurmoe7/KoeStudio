@@ -275,7 +275,11 @@ export const patternMethods = {
     const fill = await this.fillDialog(layer, 'New fill layer', 'Create');
     removeNode(layer);
     d.active = prev;
-    if (!fill) { this.layersChanged(); return; }
+    if (!fill) {  // its canvases would keep their GPU memory until garbage collection
+      for (const c of [layer.canvas, layer.mask?.canvas]) if (c) c.width = c.height = 0;
+      this.layersChanged();
+      return;
+    }
     layer.fill = fill;
     store('fillLayer', { type: fill.type, pattern: fill.id, colors: fill.colors });
     this.insertNode(layer, 'New fill layer');
