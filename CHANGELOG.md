@@ -5,6 +5,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-22
 
 ### New
+- Saved selections: Select → Save selection… keeps a selection under a name with the artwork, and Load selection or the Saved selections… window brings it back, also added to, subtracted from or intersected with the current one.
 - Text can follow a line: drag with the Text tool to draw it, then type; Layer → Take text off its path straightens it again.
 - Text warp: bend a text into an arch, arc, bulge, waving flag or slope, with a Bend amount, and keep it editable.
 - Letter gap in the Text tool spreads letters apart or pulls them closer.

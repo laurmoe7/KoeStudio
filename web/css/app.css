@@ -568,6 +568,10 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .text-edit textarea { position: absolute; pointer-events: auto; margin: 0; padding: 0; border: none; resize: none; overflow: hidden;
   white-space: pre; background: var(--accent-06); color: transparent; caret-color: var(--accent-2);
   outline: 1px dashed var(--accent); user-select: text; box-sizing: content-box; }
+.ssel-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow: auto; margin: 8px 0; }
+.ssel-row { display: flex; align-items: center; gap: 8px; }
+.ssel-row canvas { flex: none; border: 1px solid var(--line); border-radius: 3px; }
+.ssel-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .text-edit.shaped textarea { color: var(--text); background: var(--panel); opacity: .9; }
 .save-state.error { color: var(--danger); }
 

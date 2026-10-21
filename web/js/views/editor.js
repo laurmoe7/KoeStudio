@@ -59,6 +59,7 @@ import { ctrlPointMethods } from './ctrlpointtool.js';
 import { splitViewMethods } from './splitview.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
+import { savedSelMethods } from './savedseltools.js';
 import { printLabel } from '../resolution.js';
 import { detectShape, shapePoints, adjustShape } from '../quickshape.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -475,6 +476,10 @@ export class Editor {
         { label: 'Shrink selection…', run: () => this.morphSelection('shrink'), disabled: !this.sel.active },
         { label: 'Feather selection…', run: () => this.morphSelection('feather'), disabled: !this.sel.active },
         { label: 'Border selection…', run: () => this.morphSelection('border'), disabled: !this.sel.active },
+        '-',
+        { label: 'Save selection…', run: () => this.saveSelection(), disabled: !this.sel.active },
+        { label: 'Load selection', sub: this.savedSelMenu() },
+        { label: 'Saved selections…', run: () => this.savedSelsDialog() },
         '-',
         { label: 'Quick mask (paint the selection)', key: 'Q', checked: !!this.quickMask, run: () => this.toggleQuickMask() },
         { label: 'Transform selection…', key: 'Ctrl+T', run: () => this.beginTransform() },
@@ -2311,7 +2316,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods);
+Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods, savedSelMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

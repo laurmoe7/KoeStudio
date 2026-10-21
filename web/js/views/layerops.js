@@ -742,7 +742,7 @@ export const layerMethods = {
   },
 
   /** Mirrors rasters' pixels. Mirroring twice gives the original back, so undo is the same operation. With
-   *  canvas = true (Flip canvas) the guides and rulers turn round too. */
+   *  canvas = true (Flip canvas) the guides, rulers and saved selections turn round too. */
   flipPixels(rasters, axis, label, canvas = false) {
     const d = this.doc;
     const flip = () => {
@@ -765,6 +765,7 @@ export const layerMethods = {
     const m = axis === 'h' ? [-1, 0, 0, 1, d.width, 0] : [1, 0, 0, -1, 0, d.height];
     const tx = this.textsIn(rasters, m);  // text layers are mirrored in their matrix and stay editable
     const rl = this.rulersAlong(canvas ? m : null, d.width, d.height, d.width, d.height);
-    this.structural(label, () => { flip(); tx.drop(); rl.apply(); }, () => { flip(); tx.restore(); rl.revert(); });
+    const ss = canvas ? this.savedSelsAlong(m, d.width, d.height) : { apply() {}, revert() {}, bytes: 0 };  // saved selections turn round too
+    this.structural(label, () => { flip(); tx.drop(); rl.apply(); ss.apply(); }, () => { flip(); tx.restore(); rl.revert(); ss.revert(); }, ss.bytes);
   },
 };

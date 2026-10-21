@@ -555,6 +555,15 @@ export const GUIDE = [
     <figure data-pic="selmodes"><figcaption>Hold a key while you drag to change the selection you already have.</figcaption></figure>
     <p><kbd>Ctrl+A</kbd> selects everything, <kbd>Ctrl+D</kbd> deselects, <kbd>Ctrl+Shift+I</kbd> swaps inside and outside.
     Deselected by mistake? <kbd>Ctrl+Shift+D</kbd> (Select → <b>Reselect</b>) brings the last selection back.</p>
+    <p><b>Keep a selection to use again later</b> (like Clip Studio Paint's selection layers):</p>
+    <ol>
+      <li>Make the selection, then Select → <b>Save selection…</b> and give it a name.</li>
+      <li>Any time later, Select → <b>Load selection</b> and pick it: it becomes the selection again.</li>
+      <li>Select → <b>Saved selections…</b> shows them all with a picture. There you can load one added to,
+      subtracted from or intersected with the selection you have, and rename or delete them.</li>
+    </ol>
+    <p class="tip">Saved selections are kept with the artwork, so they are still there next time you open it. They
+    follow crops, resizes, turns and flips of the canvas.</p>
     <p>A small bar under the selection has the usual next steps: deselect, invert, transform, fill, delete, copy to a
     new layer and crop. Turn it off under View → Selection bar.</p>
     <h4>Select menu</h4>

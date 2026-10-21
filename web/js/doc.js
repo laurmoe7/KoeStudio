@@ -10,6 +10,7 @@ import { sanitizeVector } from './vector.js';
 import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
 import { sanitizeDpi } from './resolution.js';
+import { sanitizeSavedSels, savedSelFrom, savedSelJSON } from './savedsel.js';
 import { applyTextureMode, textureValueAt } from './texmodes.js';
 import { isCustomBlend, CUSTOM_BLENDS, BLEND_SHADER, blendPixels } from './blendmodes.js';
 
@@ -41,7 +42,8 @@ const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
  * children}) in `layers`, gives any node an optional `mask: {png, enabled}`, and stores `activePath`.
  * `rulers` (guides, perspective ruler, snapping; see rulers.js) is optional in either version, as is a layer's
  * `tone` (shown as screentone; see tone.js), a layer's `vector` (its lines as data; see vector.js), and any node's
- * `label` (a colour label from LABELS), and a layer's `adjust` (a correction layer; see adjust.js).
+ * `label` (a colour label from LABELS), and a layer's `adjust` (a correction layer; see adjust.js). `selections`
+ * (saved selections, savedsel.js) is optional too.
  */
 export function sanitizeDoc(raw) {
   const d = raw && typeof raw === 'object' ? raw : {};
@@ -81,19 +83,21 @@ export function sanitizeDoc(raw) {
     return out;
   };
   const layers = (Array.isArray(d.layers) ? d.layers : []).map(l => node(l, 0));
+  const width = side(d.width || 1920), height = side(d.height || 1080);
   const activePath = Array.isArray(d.activePath) ? d.activePath.map(n => Math.max(0, Math.round(Number(n) || 0)))
     : [Math.max(0, Math.min(layers.length - 1, Math.round(Number(d.active) || 0)))];
   return {
     format: 'koe',
     version: FORMAT_VERSION,
     title: String(d.title || 'Untitled').slice(0, 120),
-    width: side(d.width || 1920),
-    height: side(d.height || 1080),
+    width,
+    height,
     paper: d.paper === null ? null : (/^#[0-9a-f]{6}$/i.test(d.paper) ? d.paper : '#ffffff'),
     dpi: sanitizeDpi(d.dpi),  // resolution for printing (resolution.js); older files: 72
     timelapse: d.timelapse === true,  // record a timelapse frame after each autosave (editor.js); off for older files
     activePath,
     rulers: sanitizeRulers(d.rulers),
+    selections: sanitizeSavedSels(d.selections, width, height),  // saved selections (savedsel.js); [] when none
     layers,
   };
 }
@@ -314,6 +318,7 @@ export class Doc {
     this.root = new Folder({ name: 'root' });
     this.active = null;  // the selected layer or folder
     this.rulers = defaultRulers();
+    this.savedSels = [];  // saved selections (savedsel.js), never changed in place: undo swaps the list
     this.version = 0;    // raised on any change worth saving
   }
 
@@ -345,6 +350,11 @@ export class Doc {
       insertNode(parent, parent.children.length, n);
     };
     for (const l of s.layers) build(l, d.root);
+    loads.push(Promise.all(s.selections.map(savedSelFrom)).then(list => {
+      list.forEach((sel, i) => { if (!sel) d.unreadable.push(`saved selection ${s.selections[i].name}`); });
+      d.savedSels = list.filter(Boolean);
+      d.lostSels = s.selections.filter((_, i) => !list[i]);  // unreadable ones are saved back as they were
+    }));
     await Promise.all(loads);
     if (!allLayers(d.root).length) insertNode(d.root, d.root.children.length, new Layer(d.width, d.height, { name: 'Layer 1' }));
     d.active = nodeAt(d.root, s.activePath) || d.root.children[d.root.children.length - 1];
@@ -389,8 +399,12 @@ export class Doc {
     };
     const layers = [];
     for (const n of this.root.children) layers.push(await node(n));
+    const selections = [];
+    for (const s of this.savedSels) selections.push(await savedSelJSON(s));
+    selections.push(...(this.lostSels || []).filter(s => s.x + s.w <= this.width && s.y + s.h <= this.height));
     return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper, dpi: this.dpi,
-      activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, ...(this.timelapse ? { timelapse: true } : {}), layers };
+      activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, ...(this.timelapse ? { timelapse: true } : {}),
+      ...(selections.length ? { selections } : {}), layers };
   }
 
   /** All raster layers (not folders), bottom first. */
