@@ -293,6 +293,18 @@ export const PICS = {
     ${arrow(150, 58, 290, 58)}
     ${t(110, 124, 'Ctrl+click: copy from here')}${t(330, 124, 'Paint: the copy appears here')}
   `, 'The clone stamp copies from where you Ctrl+clicked to where you paint'),
+  heal: svg(460, 130, (() => {
+    // the same dotted texture on a dark and a light patch: healing keeps the light and takes the dots
+    const dots = (x, y, fill) => Array.from({ length: 25 }, (_, i) => `<circle cx="${x + 9 + (i % 5) * 14 + (Math.floor(i / 5) % 2) * 7}" cy="${y + 9 + Math.floor(i / 5) * 14}" r="2.6" fill="${fill}"/>`).join('');
+    return `${paper(4, 4, 452, 100)}
+    <rect x="40" y="16" width="76" height="76" rx="6" fill="#7a5a3c"/>${dots(40, 16, '#5a3f28')}
+    <rect x="192" y="16" width="76" height="76" rx="6" fill="#dcbf98"/><circle cx="230" cy="54" r="13" fill="#3a2020"/>
+    <rect x="344" y="16" width="76" height="76" rx="6" fill="#dcbf98"/>${dots(344, 16, '#b8976e')}
+    <circle cx="78" cy="54" r="30" class="cross"/><path class="cross" d="M72,54 H84 M78,48 V60"/>
+    <circle cx="382" cy="54" r="30" class="brush"/>
+    ${arrow(122, 54, 186, 54)}${arrow(274, 54, 338, 54)}
+    ${t(78, 124, 'Ctrl+click: the texture')}${t(230, 124, 'A spot on light skin')}${t(382, 124, 'Healed: dots, but light')}`;
+  })(), 'The healing brush copies the texture of the source but keeps the colour and light of where you paint'),
 
   // ---------- Rulers ----------
   perspective: svg(460, 140, `

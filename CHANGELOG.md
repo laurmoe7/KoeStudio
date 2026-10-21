@@ -13,6 +13,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Any brush can paint a pattern instead of the colour (Brush settings → Pattern), and crossing strokes line up.
 - Fill layers (Layer → New → Fill layer…) hold a colour, gradient or pattern you can change any time, and follow flips, canvas changes and the Move tool.
 - Saved selections: Select → Save selection… keeps a selection under a name with the artwork, and Load selection or the Saved selections… window brings it back, also added to, subtracted from or intersected with the current one.
+- Healing brush (S, press again): like the clone stamp, but the copied texture takes on the colour and light of where you paint, so spots and marks disappear; its Spot setting needs no source and takes texture from around each dab.
 - Text can follow a line: drag with the Text tool to draw it, then type; Layer → Take text off its path straightens it again.
 - Text warp: bend a text into an arch, arc, bulge, waving flag or slope, with a Bend amount, and keep it editable.
 - Letter gap in the Text tool spreads letters apart or pulls them closer.
