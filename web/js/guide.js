@@ -20,7 +20,7 @@ export const GUIDE = [
     4 Canvas · 5 Colour · 6 Layers</figcaption></figure>
     <ul>
       <li>Click a tool, or press its key. Hover over any button to see what it does and its key.</li>
-      <li>Click a panel's heading to fold it away.</li>
+      <li>Click a panel's heading to fold it away. Drag the heading to move the panel (see <button type="button" class="guide-link" data-goto="view">Zoom, view and undo</button>).</li>
       <li>Menu items with <b>›</b> open a smaller menu to the side. With a menu open, point at another menu name to
       switch to it, or use the arrow keys.</li>
       <li>The arrow at the top left takes you back to the gallery.</li>
@@ -919,6 +919,29 @@ export const GUIDE = [
       room, double-click it for half and half.</li>
       <li><b>Hide panels</b> <kbd>Tab</kbd>: the tool bar and side panels go away so the canvas fills the window.
       Shortcuts still work. Press <kbd>Tab</kbd> again to bring them back.</li>
+    </ul>
+    <h4>Arranging the panels</h4>
+    <ol>
+      <li>Drag a panel by its heading. A blue line shows where it will go when you let go over the left or right side.</li>
+      <li>Let go over the canvas instead, and it becomes a floating window. Drag its bottom-right corner to size it.</li>
+      <li>Drag a floating window's heading back onto a side to dock it again.</li>
+    </ol>
+    <p>Right-click a panel's heading for the same choices without dragging: dock left, dock right, floating, folded,
+    or reset everything.</p>
+    <p><b>Workspaces:</b> View → Workspace → <b>Save workspace…</b> keeps the arrangement under a name, for example
+    one for inking and one for colouring. Pick a name in View → Workspace to switch to it. <b>Reset to the standard
+    workspace</b> puts every panel back where it started.</p>
+    <h4>Radial menu</h4>
+    <figure data-pic="radial"></figure>
+    <ol>
+      <li>Right-click the canvas (or press your pen's side button) with any tool except Move.</li>
+      <li>Eight tools and commands show round the pointer. Click one.</li>
+      <li>Or keep the button held, move onto one and let go.</li>
+    </ol>
+    <p>Settings → <b>Radial menu…</b> chooses what each of the eight places holds. You can also give it a key in
+    Settings → Keyboard shortcuts.</p>
+    <p class="tip">The panel arrangement and the radial menu are the same for every artwork you open.</p>
+    <ul>
       <li><b>Theme</b> (Settings menu, also on the start screen) changes the colours of the app itself:
       Midnight, Dusty rose, Lavender dusk, Moss, Deep sea, Cocoa or Ink black. Your artwork does not change.</li>
     </ul>
@@ -1007,7 +1030,7 @@ export const SHORTCUTS = [
     ['Ctrl+click / Shift+click', 'Pick several layers'], ['Alt+click an eye', 'Show only that layer (again: the others come back)']]],
   ['Touch screen', [['Two fingers: pinch / twist / drag', 'Zoom / turn / move the view'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo']]],
   ['View', [['Space (hold)', 'Move the view'], ['Shift+Space+drag', 'Turn the view'], ['Ctrl+Space+drag', 'Zoom in (right) / out (left)'], ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+Alt+0', 'Zoom to the selection'], ['Ctrl+= / Ctrl+-', 'Zoom in / out'],
-    ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'], ['Tab', 'Hide / show the panels'],
+    ['4 / 6 / 5', 'Turn left / right / straighten'], ['Shift+M', 'Mirror the view'], ["Ctrl+'", 'Show the grid'], ['Tab', 'Hide / show the panels'], ['Right-click the canvas', 'Radial menu (not with the Move tool)'],
     ['Ctrl+2 / Ctrl+;', 'Snap to rulers / show guides'], ['Ctrl+Tab / Ctrl+Shift+Tab', 'Next / previous open artwork']]],
   ['File and program', [['Ctrl+S', 'Save now'], ['Ctrl+Shift+S', 'Export a PNG'], ['Ctrl+Alt+Shift+S', 'Export…'],
     ['Ctrl+Alt+C / Ctrl+Alt+I', 'Canvas size / image size'], ['F1', 'This guide'], ['F5 / Ctrl+R', 'Reload the screen'],

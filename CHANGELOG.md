@@ -5,6 +5,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-22
 
 ### New
+- Panels can be moved: drag a panel's heading to the other side, to another place in a side, or out over the canvas as a floating window you can size.
+- Workspaces: View → Workspace saves the panel arrangement under a name and switches between saved ones.
+- Radial menu: right-click the canvas (or press the pen's side button) to pick from eight tools and commands round the pointer; Settings → Radial menu… chooses them.
 - Patterns: eight built-in patterns plus your own, made from a picture or a selection in Edit → Patterns….
 - The Fill tool and Edit → Fill with pattern… can fill with a pattern, sized, turned and shifted as you like; Ctrl+Alt+Backspace repeats it.
 - Any brush can paint a pattern instead of the colour (Brush settings → Pattern), and crossing strokes line up.

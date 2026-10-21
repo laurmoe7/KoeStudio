@@ -48,6 +48,7 @@ export const COMMANDS = [
   ['snap', 'View', 'Snap to rulers', ['ctrl+2']],
   ['guides', 'View', 'Show rulers and guides', ['ctrl+;']],
   ['panels', 'View', 'Hide / show the panels', ['tab']],
+  ['radialMenu', 'View', 'Open the radial menu at the pointer', []],
   ['save', 'File', 'Save now', ['ctrl+s']],
   ['exportPng', 'File', 'Export a PNG', ['ctrl+shift+s']],
   ['export', 'File', 'Export…', ['ctrl+alt+shift+s']],

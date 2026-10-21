@@ -134,8 +134,36 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .menu-btn:hover { background: var(--panel-2); }
 .ed-title { background: transparent; border-color: transparent; font-weight: 600; margin-left: 10px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .save-state { min-width: 110px; text-align: right; padding-right: 6px; }
-.ed-body { flex: 1; display: flex; min-height: 0; }
-.ed-body.panels-hidden > .ed-tools, .ed-body.panels-hidden > .ed-left, .ed-body.panels-hidden > .ed-side { display: none; }
+.ed-body { flex: 1; display: flex; min-height: 0; position: relative; }
+.ed-body.panels-hidden > .ed-tools, .ed-body.panels-hidden > .ed-left, .ed-body.panels-hidden > .ed-side, .ed-body.panels-hidden > .float-panel { display: none; }
+/* moving panels (workspacetools.js): an empty side shows only while a panel is dragged, as a place to drop it */
+.ed-left.empty, .ed-side.empty { display: none; }
+.ed-body.docking > .ed-left.empty, .ed-body.docking > .ed-side.empty { display: flex; width: 44px; }
+.ed-body.docking > .ed-left, .ed-body.docking > .ed-side { outline: 1px dashed var(--line); outline-offset: -3px; }
+.ed-body.docking > .drop-here { outline: 2px solid var(--accent); }
+.dock-mark { position: absolute; height: 4px; border-radius: 2px; background: var(--accent); z-index: 31; pointer-events: none; }
+.float-panel { position: absolute; z-index: 30; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); overflow: hidden; resize: both; min-width: 180px; min-height: 40px; }
+.float-panel.folded { resize: horizontal; }
+.float-panel > .panel { flex: 1; display: flex; flex-direction: column; min-height: 0; border: none; }
+.float-panel > .panel > :not(h3) { flex: 1; min-height: 0; overflow: auto; max-height: none; }
+.float-panel > .panel.grow:not(.folded) { min-height: 0; }
+.float-panel .panel-head { cursor: grab; }
+.panel-head { touch-action: none; }
+/* the radial menu: tools and commands round the pointer */
+.radial { position: fixed; z-index: 60; width: 0; height: 0; }
+.radial-ring { position: absolute; left: -128px; top: -128px; width: 256px; height: 256px; border-radius: 50%; background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border: 1px solid var(--line); box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+.radial-mid { position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; border-radius: 50%; padding: 0; border: 2px solid var(--line);
+  background: linear-gradient(135deg, var(--main) 50%, var(--sub) 50%); }
+.radial-slot { position: absolute; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; padding: 2px; display: grid; place-items: center;
+  font-size: 9px; line-height: 1.1; text-align: center; overflow: hidden; background: var(--panel-2); }
+.radial-slot span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.radial-slot.empty { opacity: .35; }
+.radial-slot.on { border-color: var(--accent); color: var(--accent); }
+.radial-slot.hot, .radial-slot:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+.radial-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 14px; }
+.radial-grid select { width: 100%; min-width: 0; }
 .ed-tools { scrollbar-width: none; width: 48px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; overflow-y: auto; }
 .ed-tools.two-col { width: 86px; display: grid; grid-template-columns: 38px 38px; justify-content: center; align-content: start; }
 .ed-tools.two-col .tool-sep { grid-column: 1 / -1; justify-self: center; width: 64px; margin: 3px 0; }
@@ -198,7 +226,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .ed-left:not(:has(.panel:not(.folded))) .panel.folded { padding: 4px 2px; }
 .ed-left:not(:has(.panel:not(.folded))) .panel.folded .panel-head span { display: none; }
 .ed-left .panel.grow:not(.folded) { min-height: 0; }
-.ed-left .tool-props { max-height: none; flex: 1; }
+[data-panel="tool"] .tool-props { max-height: none; flex: 1; }
 .prop-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 10px 0 3px; font-weight: 600; }
 .prop-group:first-child { margin-top: 2px; }
 .panel { border-bottom: 1px solid var(--line); padding: 4px 10px 10px; flex: none; }

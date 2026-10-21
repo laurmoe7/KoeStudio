@@ -230,6 +230,19 @@ export const PICS = {
     ${t(113, 124, 'Drag with the Text tool')}${t(347, 124, 'Warp, and a wider letter gap')}
   `, 'Text following a drawn line; arched text and text with wider letter spacing'),
 
+  // ---------- Radial menu ----------
+  radial: svg(460, 150, `
+    ${paper(4, 4, 452, 120)}
+    <circle cx="230" cy="64" r="58" fill="#3a3b45"/>
+    ${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i * Math.PI / 4, x = 230 + 40 * Math.sin(a), y = 64 - 40 * Math.cos(a);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" fill="${i === 2 ? '#3e8fe0' : '#8a8b98'}"/>`; }).join('')}
+    <circle cx="230" cy="64" r="12" fill="#1b1b1f" stroke="#fff" stroke-width="2"/>
+    ${arrow(236, 70, 262, 66, 'arrow thin')}
+    ${t(120, 60, 'Right-click', 'end', 'dark')}${t(120, 76, 'the canvas', 'end', 'dark')}
+    ${t(296, 60, 'Move onto one', 'start', 'dark')}${t(296, 76, 'and let go', 'start', 'dark')}
+    ${t(230, 144, 'Eight tools or commands round the pointer')}
+  `, 'The radial menu: eight round buttons in a ring around the pointer'),
+
   // ---------- Correction layers ----------
   adjust: svg(460, 140, `
     <defs><clipPath id="gp-adj1"><rect x="4" y="4" width="136" height="100" rx="4"/></clipPath><clipPath id="gp-adj2"><rect x="320" y="4" width="136" height="100" rx="4"/></clipPath></defs>

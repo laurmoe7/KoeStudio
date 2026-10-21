@@ -60,6 +60,7 @@ import { splitViewMethods } from './splitview.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
 import { savedSelMethods } from './savedseltools.js';
+import { workspaceMethods } from './workspacetools.js';
 import { printLabel } from '../resolution.js';
 import { detectShape, shapePoints, adjustShape } from '../quickshape.js';
 import { brushMethods, curveSvg } from './brushtools.js';
@@ -204,6 +205,7 @@ export class Editor {
     if (this.suspended) return;
     this.finishTransform();
     this.finishText();
+    this.closeRadial();
     this.detach();
     this.held = { space: false, alt: false };
     this.pointer = null;
@@ -223,6 +225,7 @@ export class Editor {
     this.attach();
     this.selectTool(this.tool);
     this.onShortcuts();
+    this.applyLayout();  // panels moved in another tab
     this.resize();
     this.resizePassive();
   }
@@ -372,7 +375,7 @@ export class Editor {
       b.onpointerenter = () => { const o = openMenuOwner(); if (o && o !== b && bar.includes(o)) openBar(b); };
     }
     // using the side panels or the tool bar while transforming applies the transform first
-    for (const el of this.root.querySelectorAll('.ed-side, .ed-left, .ed-tools, .ed-top')) {
+    for (const el of this.root.querySelectorAll('[data-panel], .ed-tools, .ed-top')) {  // panels: docked or floating
       el.addEventListener('pointerdown', e => {
         if (e.target.closest('[data-act="undo"]')) return;
         this.finishTransform();
@@ -381,18 +384,8 @@ export class Editor {
       }, true);
     }
     $('.ed-title').onclick = () => this.rename();
-    // side panels fold away by clicking their heading; remembered between launches
-    const folded = store('folded') || {};
-    this.root.querySelectorAll('[data-panel]').forEach(sec => {
-      sec.classList.toggle('folded', !!folded[sec.dataset.panel]);
-      sec.querySelector('.panel-head').onclick = () => {
-        sec.classList.toggle('folded');
-        const f = store('folded') || {};
-        f[sec.dataset.panel] = sec.classList.contains('folded');
-        store('folded', f);
-        if (sec.dataset.panel === 'navigator') { this.navStale = true; this.scheduleNav(); }
-      };
-    });
+    // side panels fold by clicking their heading, move by dragging it, and are kept as the workspace (workspacetools.js)
+    this.initWorkspace();
     $('.mask-chip:not(.qmask-chip)').onclick = () => this.editMask(false);
     $('.qmask-chip').onclick = () => this.toggleQuickMask();
     $('.gray-chip').onclick = () => this.toggleGrayView();
@@ -498,6 +491,7 @@ export class Editor {
         { label: 'Pen pressure…', run: () => this.pressureDialog() },
         { label: 'Shortcut strip (pen tablets)', sub: this.stripMenu() },
         { label: 'Keyboard shortcuts…', run: () => shortcutEditor() },
+        { label: 'Radial menu…', run: () => this.radialDialog() },
       ],
       layer: [
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
@@ -565,6 +559,7 @@ export class Editor {
           { label: 'Mirror view', key: 'Shift+M', run: () => this.flipView() },
         ] },
         { label: 'Hide panels', key: 'Tab', checked: !!this.panelsHidden, run: () => this.togglePanels() },
+        { label: 'Workspace', sub: this.workspaceMenu() },
         { label: 'Second view (side by side)', checked: !!this.split, run: () => this.toggleSplit() },
         '-',
         { label: 'Grid', key: "Ctrl+'", checked: d.rulers.grid.show, run: () => this.toggleGrid() },
@@ -1267,6 +1262,7 @@ export class Editor {
       this.pointer = p;
       if (e.button === 1) return this.beginPan(p, e.pointerId);
       if (e.button === 2 && !this.xf && this.effectiveTool() === 'move') return this.layerMenuAt(toDoc(this.view, p.x, p.y), e.clientX, e.clientY);
+      if (e.button === 2 && !this.xf && !this.gesture) return this.openRadial(e.clientX, e.clientY, true);  // workspacetools.js
       if (e.button !== 0 && !(e.pointerType === 'pen' && e.button === 5)) return;
       const dp = { ...toDoc(this.view, p.x, p.y), p: pressure(e) };
       if (this.canvasPick) { this.canvasPick(dp); return; }  // a dialog takes canvas clicks (Color range, blur centre)
@@ -2276,7 +2272,7 @@ export class Editor {
       save: () => this.save(), exportPng: () => this.exportAs('png'), export: () => this.exportAs(),
       mergeDown: () => this.mergeDown(), mergeVisible: () => this.mergeVisible(), newLayer: () => this.layerAdd(), groupFolder: () => this.groupIntoFolder(),
       repeatFilter: () => this.repeatFilter(),
-      renameLayer: () => this.renameLayer(), findLayer: () => this.findLayerMode(), panels: () => this.togglePanels(),
+      renameLayer: () => this.renameLayer(), findLayer: () => this.findLayerMode(), panels: () => this.togglePanels(), radialMenu: () => this.radialAtPointer(),
       fit: () => this.fit(), actual: () => this.actual(), zoomIn: () => this.zoomStep(1), zoomOut: () => this.zoomStep(-1),
     };
   }
@@ -2329,7 +2325,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods, savedSelMethods, patternMethods);
+Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods, savedSelMethods, patternMethods, workspaceMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';
