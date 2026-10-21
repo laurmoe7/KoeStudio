@@ -13,6 +13,7 @@ import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
 import { sanitizeDpi } from './resolution.js';
 import { sanitizeSavedSels, savedSelFrom, savedSelJSON } from './savedsel.js';
+import { sanitizeComps, sanitizeOffset, sanitizeUid, newUid } from './layercomps.js';
 import { applyTextureMode, textureValueAt } from './texmodes.js';
 import { isCustomBlend, CUSTOM_BLENDS, BLEND_SHADER, blendPixels } from './blendmodes.js';
 
@@ -46,12 +47,14 @@ const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
  * `tone` (shown as screentone; see tone.js), a layer's `vector` (its lines as data; see vector.js), its `fill` (a fill
  * layer's colour, gradient or pattern; see patterns.js), and any node's
  * `label` (a colour label from LABELS), and a layer's `adjust` (a correction layer; see adjust.js). `selections`
- * (saved selections, savedsel.js) is optional too.
+ * (saved selections, savedsel.js) is optional too, as are `comps` (layer comps, layercomps.js), any node's `uid` and a
+ * layer's `offset`.
  */
 export function sanitizeDoc(raw) {
   const d = raw && typeof raw === 'object' ? raw : {};
   const side = n => Math.max(1, Math.min(MAX_SIDE, Math.round(Number(n) || 0))) || 1;
   let count = 0;
+  const uids = new Set();  // a uid used twice (a hand-edited file) is given to the first node only
   const node = (l, depth) => {
     const folder = l?.type === 'folder' && depth < MAX_DEPTH;
     count += folder ? 0 : 1;
@@ -68,11 +71,15 @@ export function sanitizeDoc(raw) {
       reference: l?.reference === true,
       draft: l?.draft === true,  // shown while drawing, left out of exports and of Fill / the wand looking at all layers
     };
+    const uid = sanitizeUid(l?.uid);  // how layer comps know the node (layercomps.js); a new one on opening when missing
+    if (uid && !uids.has(uid)) { out.uid = uid; uids.add(uid); }
     if (folder) {
       out.open = l.open !== false;
       out.children = (Array.isArray(l.children) ? l.children : []).map(c => node(c, depth + 1));
     } else {
       out.alphaLock = !!l?.alphaLock;
+      const offset = sanitizeOffset(l?.offset);  // how far the Move tool moved it in all (a comp's position)
+      if (offset) out.offset = offset;
       out.png = isPng(l?.png) ? l.png : null;
       const adjust = sanitizeAdjust(l?.adjust);
       if (adjust) out.adjust = adjust;  // a correction layer (adjust.js): no pixels of its own, png stays empty
@@ -102,6 +109,7 @@ export function sanitizeDoc(raw) {
     activePath,
     rulers: sanitizeRulers(d.rulers),
     selections: sanitizeSavedSels(d.selections, width, height),  // saved selections (savedsel.js); [] when none
+    comps: sanitizeComps(d.comps, b => BLEND_IDS.has(b) || b === PASS_THROUGH[0], uids),  // layer comps (layercomps.js); [] when none
     layers,
   };
 }
@@ -188,6 +196,8 @@ export class Layer extends Raster {
     this.clip = !!props.clip;
     this.mask = null;
     this.label = props.label || null;  // colour label in the layer list (LABELS)
+    this.uid = props.uid || newUid();  // saved: how layer comps know it (layercomps.js)
+    this.offset = props.offset || null;  // {x, y}: how far the Move tool moved it in all, or null (a comp's position)
     this.locked = !!props.locked;        // no pixel changes (Layer panel → Lock)
     this.reference = !!props.reference;  // Fill and the wand can look at reference layers only
     this.draft = !!props.draft;  // a draft (sketch) layer: shown, but not exported nor seen by Fill / the wand
@@ -216,6 +226,7 @@ export class Folder {
     this.children = [];  // bottom first
     this.mask = null;
     this.label = props.label || null;
+    this.uid = props.uid || newUid();
     this.locked = !!props.locked;
     this.reference = !!props.reference;
     this.draft = !!props.draft;
@@ -230,7 +241,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, fill: n.fill, tone: n.tone ? { ...n.tone } : null, effects: n.effects, layerColor: n.layerColor, expression: n.expression, adjust: n.adjust });
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, fill: n.fill, tone: n.tone ? { ...n.tone } : null, effects: n.effects, layerColor: n.layerColor, expression: n.expression, adjust: n.adjust, offset: n.offset });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -324,6 +335,7 @@ export class Doc {
     this.active = null;  // the selected layer or folder
     this.rulers = defaultRulers();
     this.savedSels = [];  // saved selections (savedsel.js), never changed in place: undo swaps the list
+    this.comps = [];  // layer comps (layercomps.js), never changed in place: undo swaps the list
     this.version = 0;    // raised on any change worth saving
   }
 
@@ -340,6 +352,7 @@ export class Doc {
     const d = new Doc({ ...s, id });
     d.rulers = s.rulers;
     d.timelapse = s.timelapse;
+    d.comps = s.comps;
     // the tree is built first and every picture decoded at once (the browser decodes them in parallel, off the page)
     const loads = [];
     d.unreadable = [];  // names of layers (or masks) whose picture could not be read: they open empty
@@ -381,7 +394,7 @@ export class Doc {
       out.png = delta.have?.has(key) ? 'ref:' + key : png;
     };
     const node = async n => {
-      const out = { type: n.kind, name: n.name, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };
+      const out = { type: n.kind, name: n.name, uid: n.uid, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };
       if (n.locked) out.locked = true;
       if (n.reference) out.reference = true;
       if (n.draft) out.draft = true;
@@ -391,6 +404,7 @@ export class Doc {
         for (const c of n.children) out.children.push(await node(c));
       } else {
         out.alphaLock = n.alphaLock;
+        if (n.offset) out.offset = n.offset;
         await pic(n, out);
         if (n.text) out.text = n.text;
         if (n.vector) out.vector = n.vector;
@@ -411,7 +425,7 @@ export class Doc {
     selections.push(...(this.lostSels || []).filter(s => s.x + s.w <= this.width && s.y + s.h <= this.height));
     return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper, dpi: this.dpi,
       activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, ...(this.timelapse ? { timelapse: true } : {}),
-      ...(selections.length ? { selections } : {}), layers };
+      ...(selections.length ? { selections } : {}), ...(this.comps.length ? { comps: this.comps } : {}), layers };
   }
 
   /** All raster layers (not folders), bottom first. */

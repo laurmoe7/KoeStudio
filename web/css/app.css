@@ -764,3 +764,16 @@ body:has(.modal-back) > .menu { z-index: 110; }  /* a menu opened from a dialog 
 .pat-acts .icon-btn { width: 22px; height: 22px; font-size: 12px; }
 .pat-pick { display: flex; align-items: flex-end; gap: 10px; }
 .pat-pick .field { flex: 1; }
+/* Layer comps window (comptools.js) */
+.comp-win { width: 260px; max-height: min(460px, calc(100vh - 80px)); }
+.comp-list { flex: 1; min-height: 60px; overflow: auto; padding: 4px; }
+.comp-row { display: flex; align-items: center; gap: 4px; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
+.comp-row:hover { background: var(--panel-2); }
+.comp-row.on { background: var(--accent-2); color: #fff; }
+.comp-mark { width: 12px; flex: none; font-size: 10px; text-align: center; color: var(--accent); }
+.comp-row.on .comp-mark { color: inherit; }
+.comp-name { flex: 1; min-width: 0; display: flex; flex-direction: column; user-select: none; }
+.comp-name b { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.comp-name small { font-size: 10.5px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.comp-empty { padding: 8px 6px; margin: 0; }
+.lp-find-labels { margin-top: 4px; }

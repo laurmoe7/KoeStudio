@@ -248,6 +248,7 @@ export const layerMethods = {
   layersChanged() {
     if (!this.doc.active.mask) this.maskEdit = false;
     this.layerPanel.render();
+    this.renderCompWindow(true);  // which comp the layers now match
     this.changed(null);
   },
 
@@ -627,6 +628,11 @@ export const layerMethods = {
       }
       if (p.vectorBefore) p.r.vector = p.vectorAfter = translateVector(p.vectorBefore, dx, dy);  // a vector layer keeps its lines
       if (p.fillBefore) p.r.fill = p.fillAfter = mapFill(p.fillBefore, [1, 0, 0, 1, dx, dy]);  // a fill layer's gradient or pattern moves
+      if (p.r.kind === 'layer') {  // the layer's position for layer comps (a mask moved on its own does not count)
+        if (!('offBefore' in p)) p.offBefore = p.r.offset;
+        const x = (p.offBefore?.x || 0) + dx, y = (p.offBefore?.y || 0) + dy;
+        p.r.offset = p.offAfter = x || y ? { x, y } : null;
+      }
     }
     const put = key => {
       for (const p of parts) {
@@ -634,6 +640,7 @@ export const layerMethods = {
         if (p.textBefore) p.r.text = key === 'before' ? p.textBefore : p.textAfter;
         if (p.vectorBefore) p.r.vector = key === 'before' ? p.vectorBefore : p.vectorAfter;
         if (p.fillBefore) p.r.fill = key === 'before' ? p.fillBefore : p.fillAfter;
+        if ('offBefore' in p) p.r.offset = key === 'before' ? p.offBefore : p.offAfter;
       }
       this.changed(null);
     };

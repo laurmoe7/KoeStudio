@@ -5,6 +5,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-22
 
 ### New
+- Layer comps: keep which layers show (and if you like their opacity, blending and position) under a name, switch between them in one undo step, and export each one as a picture.
+- The Find layers bar can show only the layers with one colour label, on its own or with the name search.
 - Panels can be moved: drag a panel's heading to the other side, to another place in a side, or out over the canvas as a floating window you can size.
 - Workspaces: View → Workspace saves the panel arrangement under a name and switches between saved ones.
 - Radial menu: right-click the canvas (or press the pen's side button) to pick from eight tools and commands round the pointer; Settings → Radial menu… chooses them.
@@ -34,6 +36,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Ten more layer blending modes, as in Clip Studio Paint and Photoshop: Add, Subtract, Linear burn, Vivid light, Linear light, Pin light, Hard mix, Divide, Darker color and Lighter color; the blending list is now grouped the same way.
 
 ### Fixed
+- Finding layers by a name no layer has no longer stops the layer thumbnails from updating.
 - Clicking an artwork twice while it opens no longer opens it in two tabs that save over each other.
 - Clicking a tab's × twice no longer closes a second, different artwork as well.
 - With the canvas split, moving the pointer over the other view no longer draws the brush outline in the wrong place.

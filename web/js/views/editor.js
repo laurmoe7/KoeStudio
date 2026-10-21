@@ -60,6 +60,7 @@ import { splitViewMethods } from './splitview.js';
 import { symmetryMethods } from './symmetrytools.js';
 import { adjustMethods } from './adjusttools.js';
 import { savedSelMethods } from './savedseltools.js';
+import { compMethods } from './comptools.js';
 import { workspaceMethods } from './workspacetools.js';
 import { printLabel } from '../resolution.js';
 import { detectShape, shapePoints, adjustShape } from '../quickshape.js';
@@ -226,6 +227,7 @@ export class Editor {
     this.selectTool(this.tool);
     this.onShortcuts();
     this.applyLayout();  // panels moved in another tab
+    this.renderCompWindow(true);  // opened or closed in another tab
     this.resize();
     this.resizePassive();
   }
@@ -403,6 +405,7 @@ export class Editor {
     this.renderHistory();
     this.renderRefWindow();
     this.renderActionWindow();
+    this.renderCompWindow();
     this.updateUndoButtons();
     this.updateSnapButton();
     this.root.querySelector('[data-act="rulers"]').classList.toggle('on', this.showRulers);
@@ -584,6 +587,7 @@ export class Editor {
         '-',
         { label: 'Reference window', checked: this.refState().open, run: () => this.toggleRefWindow() },
         { label: 'Auto actions', checked: this.actState().open, run: () => this.toggleActionWindow() },
+        { label: 'Layer comps', checked: this.compState().open, run: () => this.toggleCompWindow() },
         { label: 'Brushes (with stroke previews)', checked: this.brushListState().open, run: () => this.toggleBrushList() },
         '-',
         { label: 'Reload screen', key: 'F5', run: () => window.koeReload?.() },
@@ -2327,7 +2331,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods, savedSelMethods, patternMethods, workspaceMethods);
+Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods, savedSelMethods, patternMethods, workspaceMethods, compMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

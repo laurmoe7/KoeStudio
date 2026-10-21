@@ -72,7 +72,10 @@ export class LayerPanel {
         </span>
       </div>
       <div class="lp-picked" hidden title="The settings above and the buttons below change all of them"><span></span><button type="button" title="Keep only the selected layer picked">Only this one</button></div>
-      <div class="lp-find" hidden><input type="search" placeholder="Find layers by name" aria-label="Find layers by name"></div>
+      <div class="lp-find" hidden><input type="search" placeholder="Find layers by name" aria-label="Find layers by name">
+        <span class="lp-labels lp-find-labels" role="radiogroup" aria-label="Show only layers with this label" title="Show only the layers with this colour label (click again for all)"><span>Only</span>
+          ${LABELS.map(([id, color]) => `<button class="lp-label-btn" data-find-label="${id}" style="background:${color}" title="Only ${id} layers"></button>`).join('')}
+        </span></div>
       <div class="lp-list" role="tree" aria-label="Layers"></div>
       <div class="lp-buttons">
         <button class="icon-btn" data-op="add" title="New layer (Ctrl+Shift+N)">${icon('plus', 18)}</button>
@@ -83,7 +86,8 @@ export class LayerPanel {
         <button class="icon-btn" data-op="down" title="Move down">${icon('down', 18)}</button>
         <button class="icon-btn" data-op="merge" title="Merge with layer below, or merge a folder into one layer (Ctrl+E)">${icon('merge', 18)}</button>
         <button class="icon-btn" data-op="del" title="Delete">${icon('trash', 18)}</button>
-        <button class="icon-btn" data-op="find" title="Find layers by name">${icon('search', 18)}</button>
+        <button class="icon-btn" data-op="find" title="Find layers by name or colour label">${icon('search', 18)}</button>
+        <button class="icon-btn" data-op="comps" title="Layer comps: saved sets of which layers show">${icon('comps', 18)}</button>
       </div>`;
     this.list = root.querySelector('.lp-list');
     root.querySelector('.lp-picked button').onclick = () => editor.selectNode(editor.doc.active);
@@ -92,6 +96,7 @@ export class LayerPanel {
       mask: () => editor.doc.active.mask ? editor.editMask(true) : editor.addMask(),
       up: () => editor.layerMove(1), down: () => editor.layerMove(-1), merge: () => editor.mergeDown(), del: () => editor.layerDelete(),
       find: () => this.showFind(this.findBox.hidden),
+      comps: () => editor.toggleCompWindow(),
     };
     // finding layers: the list shows only names containing the text, with the folders they are in
     this.findBox = root.querySelector('.lp-find');
@@ -101,6 +106,10 @@ export class LayerPanel {
       e.stopPropagation();  // typing a name must not choose tools
       if (e.key === 'Escape') this.showFind(false);
       if (e.key === 'Enter') { const hit = this.list.querySelector('.lp-row.found'); if (hit) editor.selectNode(hit._node); }
+    });
+    this.findLabel = null;  // with the find box open: show only layers with this colour label
+    this.findBox.querySelectorAll('[data-find-label]').forEach(b => {
+      b.onclick = () => { this.findLabel = this.findLabel === b.dataset.findLabel ? null : b.dataset.findLabel; this.render(); };
     });
     root.querySelectorAll('.lp-buttons button').forEach(b => { b.onclick = () => ops[b.dataset.op](); });
     const blend = root.querySelector('.lp-blend');
@@ -133,7 +142,7 @@ export class LayerPanel {
       const n = editor.doc.active;
       editor.setPickedProp('expression', expr.value === n.expression?.mode ? n.expression : defaultExpression(expr.value), 'Expression color');
     };
-    root.querySelectorAll('.lp-label-btn').forEach(b => { b.onclick = () => editor.setPickedProp('label', b.dataset.label || null, 'Color label'); });
+    root.querySelectorAll('.lp-label-btn[data-label]').forEach(b => { b.onclick = () => editor.setPickedProp('label', b.dataset.label || null, 'Color label'); });
     this.bindDrag();
   }
 
@@ -157,19 +166,24 @@ export class LayerPanel {
     const expr = this.root.querySelector('.lp-expr');
     expr.value = n.expression?.mode || 'color';
     expr.disabled = multi ? multi.every(m => isFolder(m) || m.adjust) : folder || !!n.adjust;
-    this.root.querySelectorAll('.lp-label-btn').forEach(b => { b.classList.toggle('on', (n.label || '') === b.dataset.label); b.setAttribute('aria-checked', (n.label || '') === b.dataset.label); });
+    this.root.querySelectorAll('.lp-label-btn[data-label]').forEach(b => { b.classList.toggle('on', (n.label || '') === b.dataset.label); b.setAttribute('aria-checked', (n.label || '') === b.dataset.label); });
     this.root.querySelector('[data-op="mask"]').title = n.mask ? 'Paint on the mask' : 'Add a mask (hides outside the selection, if there is one)';
     const chip = ed.root.querySelector('.mask-chip:not(.qmask-chip)');
     if (chip) chip.hidden = !ed.maskEdit;
     this.list.innerHTML = '';
     const query = this.findBox.hidden ? '' : this.findBox.querySelector('input').value.trim();
-    const rows = findRows(ed.doc.root, query);
-    this.root.querySelector('[data-op="find"]').classList.toggle('on', !!query);
-    if (query && !rows.length) this.list.innerHTML = `<p class="muted small lp-none">No layer is called “${esc(query)}”.</p>`;
+    const label = this.findBox.hidden ? null : this.findLabel, filtered = !!(query || label);
+    const rows = findRows(ed.doc.root, query, label);
+    this.root.querySelector('[data-op="find"]').classList.toggle('on', filtered);
+    this.findBox.querySelectorAll('[data-find-label]').forEach(b => { b.classList.toggle('on', b.dataset.findLabel === label); b.setAttribute('aria-checked', b.dataset.findLabel === label); });
+    if (filtered && !rows.length) {
+      const what = label && query ? `with a ${label} label is called “${esc(query)}”` : label ? `has a ${label} label` : `is called “${esc(query)}”`;
+      this.list.innerHTML = `<p class="muted small lp-none">No layer ${what}.</p>`;
+    }
     for (const { node, depth, match } of rows) {
       const row = document.createElement('div');
       const active = node === n, picked = ed.picked.has(node);
-      row.className = 'lp-row' + (active ? ' active' : picked ? ' picked' : '') + (node.clip ? ' clipped' : '') + (isFolder(node) ? ' folder' : '') + (query ? (match ? ' found' : ' around') : '');
+      row.className = 'lp-row' + (active ? ' active' : picked ? ' picked' : '') + (node.clip ? ' clipped' : '') + (isFolder(node) ? ' folder' : '') + (filtered ? (match ? ' found' : ' around') : '');
       row.setAttribute('role', 'treeitem');
       row.setAttribute('aria-selected', active || picked);
       if (isFolder(node)) row.setAttribute('aria-expanded', node.open);
@@ -207,7 +221,7 @@ export class LayerPanel {
   showFind(on) {
     this.findBox.hidden = !on;
     const input = this.findBox.querySelector('input');
-    if (on) input.focus(); else input.value = '';
+    if (on) input.focus(); else { input.value = ''; this.findLabel = null; }
     this.render();
   }
 
@@ -218,6 +232,7 @@ export class LayerPanel {
     const w = doc.width * s, h = doc.height * s, x = (PW - w) / 2, y = (PH - h) / 2;
     for (const row of this.list.children) {
       const n = row._node;
+      if (!n) continue;  // the "no layer found" note
       const thumb = row.querySelector('.lp-thumb');
       // only rows whose pixels changed since their thumbnail was drawn (a stroke changes one layer)
       const key = `${n.version}/${n.mask?.version}/${doc.width}x${doc.height}/${dpr}`;

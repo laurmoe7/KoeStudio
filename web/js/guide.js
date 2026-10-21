@@ -674,7 +674,9 @@ export const GUIDE = [
       <li><b>Draft</b> is for sketches: you see the layer while you draw, but exports leave it out, and Fill and the
       Magic wand looking at all layers ignore it, so the sketch lines never stop a fill.</li>
       <li>The coloured dots are labels, to help you find layers. The <b>magnifier</b> under the list finds layers by
-      name (inside closed folders too); <kbd>Enter</kbd> selects the first one, <kbd>Esc</kbd> shows all again.</li>
+      name (inside closed folders too); <kbd>Enter</kbd> selects the first one, <kbd>Esc</kbd> shows all again.
+      Click a dot next to <b>Only</b> in its bar to see just the layers with that label (with the name too, if you
+      typed one); click it again to see them all.</li>
       <li>Which layer is that stray dot on? Layer → <b>Find layer on canvas</b>, then click the dot: its layer gets
       selected. (With the Move tool, <kbd>Ctrl</kbd>+click does the same.)</li>
     </ul>
@@ -688,6 +690,22 @@ export const GUIDE = [
       <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click or <kbd>Shift</kbd>+click more layers, then move, hide, delete,
       merge or change them together.</li>
     </ul>
+    <h4>Layer comps</h4>
+    <p>A comp remembers which layers show, so you can flip between versions of a picture: day and night, with or
+    without the background, different outfits.</p>
+    <ol>
+      <li>Click the <b>stack</b> button under the layer list (or View → Layer comps) to open the Layer comps window.</li>
+      <li>Show and hide layers the way you want, then press <b>New</b> and give the comp a name. Tick Opacity,
+      Blending mode or Position if the comp should keep those too.</li>
+      <li>Click a comp to show the layers that way. A dot marks the comps that match what you see now.</li>
+    </ol>
+    <ul>
+      <li><b>Update</b> keeps the layers as they look now in the selected comp; <b>⋯</b> renames or deletes it.</li>
+      <li><b>Export…</b> saves each comp as a PNG of the whole picture, named after the comp.</li>
+      <li>Layers added after a comp was made stay as they are when you click it.</li>
+      <li>Position is where the Move tool put each layer. Paint pushed past the edge of the canvas is cut off.</li>
+    </ul>
+    <p class="tip">Switching to a comp is one step: <kbd>Ctrl+Z</kbd> puts every layer back as it was.</p>
     <h4>Fill layers</h4>
     <p>A fill layer is all one colour, gradient or pattern, and stays editable: change it any time, and it always
     covers the whole canvas.</p>
