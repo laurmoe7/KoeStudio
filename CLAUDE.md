@@ -40,7 +40,7 @@ Detailed notes per area (data shapes, function names, how each feature hangs tog
 
 ### Rules that cross features
 
-- **Text and vector layers** keep their pixels as a rendering of their data (`renderTextLayer`, `renderVector`). Change pixels only through `this.target(verb)`, which refuses them (offering Rasterize) unless asked with `{ read: true }` / `{ vector: true }`; whole-canvas changes, flips and merges call `textsIn(rasters, m)` so the text follows or is dropped (and comes back on undo). Vector objects are immutable, and a line's brush is always looked up through `brushOf(v, s)`.
+- **Text, vector and fill layers** keep their pixels as a rendering of their data (`renderTextLayer`, `renderVector`, `renderFillLayer`). Change pixels only through `this.target(verb)`, which refuses them (offering Rasterize) unless asked with `{ read: true }` / `{ vector: true }`; whole-canvas changes, flips and merges call `textsIn(rasters, m)` so the text follows or is dropped (and comes back on undo). Vector objects are immutable, and a line's brush is always looked up through `brushOf(v, s)`.
 - Anything that draws the live stroke (`live.canvas`) goes through `liveSource(live, r)`, which applies the brush texture and the dual brush.
 - New drawing tools pass their stamps through `symmetryStamps` so the symmetry ruler works.
 - Any change of canvas size goes through `reshapeCanvas(label, w, h, paint)`, passing its `m` so guides and rulers follow.

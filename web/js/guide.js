@@ -380,8 +380,19 @@ export const GUIDE = [
       Texture mode. Impasto, Runs dry and Texture each dab follow only the main brush.</li>
     </ul>
 
+    <h4>Pattern (its own page)</h4>
+    <p>The brush paints a pattern instead of the colour: the stroke's shape, pressure and texture stay, and the
+    pattern shows through it. The pattern is fixed to the canvas, so overlapping strokes line up.</p>
+    <ul>
+      <li><b>Pattern size</b> 1 is the pattern's own size. Small patterns (dots, lines) look best at 1-3.</li>
+      <li>Built-in patterns take the main colour; your own patterns (Edit → Patterns…) keep their colours.</li>
+      <li>Good for fabric, scales, brickwork or quick tone-like shading on a colour layer.</li>
+    </ul>
+
     <h4>Settings that don't go together</h4>
     <ul>
+      <li><b>Pattern</b> replaces the colour, so Color mixing and colour jitter show nothing with it. The Eraser has
+      no pattern, and on vector layers lines are drawn in the colour.</li>
       <li><b>Hard pixels</b> turns off Wet edges, Impasto, Runs dry and Grain by pressure, so pixel art stays crisp.</li>
       <li><b>Grain by pressure</b> with a hair tip: hatching (see above).</li>
       <li><b>Runs dry</b> with the Round tip: no effect.</li>
@@ -500,6 +511,26 @@ export const GUIDE = [
       round it (the fill, the lines, the paper outside) run on past your stroke, so they are left alone.</li>
     </ol>
     <p class="tip">Brush a little wider than the specks. A speck your stroke only half covers is not filled.</p>
+    <h4>Patterns</h4>
+    <figure data-pic="pattern"></figure>
+    <p>A pattern repeats a small picture: dots, stripes, bricks, or one of your own. It is fixed to the canvas, so
+    fills and strokes that use it line up with each other.</p>
+    <ul>
+      <li><b>Fill tool</b>: choose a <b>Pattern</b> in its settings, then click as usual. <b>Pattern size</b>,
+      <b>Pattern angle</b> and <b>Shift</b> place it. Choose Off to fill with the colour again.</li>
+      <li><b>Edit → Fill with pattern…</b> fills the selection (or the whole layer) with a pattern you pick.
+      <kbd>Ctrl+Alt+Backspace</kbd> does it again with the Fill tool's pattern, without asking.</li>
+      <li><b>Any brush</b> can paint a pattern instead of the colour: Brush settings… → <b>Pattern</b>.</li>
+      <li>The built-in patterns take the main colour. Your own keep their colours.</li>
+    </ul>
+    <p>To make your own pattern:</p>
+    <ol>
+      <li>Open <b>Edit → Patterns…</b>.</li>
+      <li>Click <b>Add from picture…</b> and pick an image file, or select part of a layer first and click
+      <b>Add from selection</b>.</li>
+      <li>It now shows in every Pattern list. Rename or delete it in the same window.</li>
+    </ol>
+    <p class="tip">A pattern that should repeat without seams needs a picture whose edges join up, like a tile.</p>
     <p class="tip">With a selection, every fill stays inside it. Colouring under line art is shown step by step in <button type="button" class="guide-link" data-goto="first">Your first picture</button>.</p>`],
 
   ['shapes', 'Shapes and text', `
@@ -645,6 +676,21 @@ export const GUIDE = [
       selection onto its own layer.</li>
       <li><b>Several at once:</b> <kbd>Ctrl</kbd>+click or <kbd>Shift</kbd>+click more layers, then move, hide, delete,
       merge or change them together.</li>
+    </ul>
+    <h4>Fill layers</h4>
+    <p>A fill layer is all one colour, gradient or pattern, and stays editable: change it any time, and it always
+    covers the whole canvas.</p>
+    <ol>
+      <li>Choose <b>Layer → New → Fill layer…</b>. With a selection, the layer gets a mask that shows only the
+      selected part.</li>
+      <li>Pick <b>Color</b>, <b>Gradient</b> or <b>Pattern</b> and set it up. The canvas shows it as you go.</li>
+      <li>Click <b>Create</b>.</li>
+    </ol>
+    <ul>
+      <li>To change it later, click its thumbnail twice, or use Layer → <b>Fill layer settings…</b>.</li>
+      <li>The Move tool slides its gradient or pattern. Flipping, turning or resizing the canvas redraws it.</li>
+      <li>Blend modes, opacity and masks work as on any layer: paint on its mask to hide parts.</li>
+      <li>You cannot paint on it. Layer → Rasterize → <b>Fill layer</b> turns it into ordinary pixels.</li>
     </ul>
     <p>See also: <button type="button" class="guide-link" data-goto="effects">Layer effects</button>, <button type="button" class="guide-link" data-goto="adjust">Correction layers</button>, <button type="button" class="guide-link" data-goto="masks">Masks</button>, <button type="button" class="guide-link" data-goto="vector">Vector layers</button>.</p>`],
 
@@ -952,7 +998,7 @@ export const SHORTCUTS = [
   ['Painting', [['Hold a tool key', 'Use that tool until you let go'], ['[ / ]', 'Smaller / bigger brush'], ['Ctrl+Alt+drag', 'Set the brush size on the canvas'], ['X', 'Swap main and sub colour'], ['Alt (hold)', 'Pick a colour'],
     ['Shift+click', 'Straight line from the last stroke']]],
   ['Edit', [['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy / cut / paste'], ['Ctrl+T', 'Transform'],
-    ['Del', 'Clear the selection or layer'], ['Alt+Del / Shift+Alt+Del', 'Fill the selection or layer with the main / sub colour'], ['Ctrl+F', 'Repeat the last filter']]],
+    ['Del', 'Clear the selection or layer'], ['Alt+Del / Shift+Alt+Del', 'Fill the selection or layer with the main / sub colour'], ['Ctrl+Alt+Backspace', 'Fill the selection or layer with the Fill tool pattern'], ['Ctrl+F', 'Repeat the last filter']]],
   ['Selection', [['Ctrl+A / Ctrl+D', 'Select all / deselect'], ['Ctrl+Shift+I', 'Invert the selection'], ['Ctrl+Shift+D', 'Reselect (bring back the last selection)'], ['Q', 'Quick mask'],
     ['Shift / Alt (while dragging)', 'Add to / subtract from the selection'], ['Ctrl+click a layer thumbnail', 'Select its pixels (+Shift add, +Alt subtract)']]],
   ['Layers', [['Ctrl+click (Move tool)', 'Pick the layer under the pointer'], ['Arrows / Shift+arrows (Move tool)', 'Move the layer or selection 1 / 10 px'], ['Ctrl+Shift+N', 'New layer'], ['Ctrl+G', 'Put in a new folder'], ['Ctrl+E', 'Merge down (or merge folder)'],

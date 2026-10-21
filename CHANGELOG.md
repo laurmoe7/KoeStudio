@@ -5,6 +5,10 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 ## 2026-10-22
 
 ### New
+- Patterns: eight built-in patterns plus your own, made from a picture or a selection in Edit → Patterns….
+- The Fill tool and Edit → Fill with pattern… can fill with a pattern, sized, turned and shifted as you like; Ctrl+Alt+Backspace repeats it.
+- Any brush can paint a pattern instead of the colour (Brush settings → Pattern), and crossing strokes line up.
+- Fill layers (Layer → New → Fill layer…) hold a colour, gradient or pattern you can change any time, and follow flips, canvas changes and the Move tool.
 - Saved selections: Select → Save selection… keeps a selection under a name with the artwork, and Load selection or the Saved selections… window brings it back, also added to, subtracted from or intersected with the current one.
 - Text can follow a line: drag with the Text tool to draw it, then type; Layer → Take text off its path straightens it again.
 - Text warp: bend a text into an arch, arc, bulge, waving flag or slope, with a Bend amount, and keep it editable.

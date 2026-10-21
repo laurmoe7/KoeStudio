@@ -125,6 +125,15 @@ export const PICS = {
     ${t(102, 134, 'A few scribbles under the lines')}${t(358, 134, 'Colorize fills each shape')}
   `, 'Two shapes of line art with a scribble of colour in each, and the same shapes filled with those colours'),
 
+  pattern: svg(460, 120, `
+    <defs><pattern id="gp-pat-stripes" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="14" fill="#f08c2e"/></pattern>
+      <mask id="gp-pat-strokes"><path d="M30,40 C90,10 150,70 210,40 M120,14 L130,84" fill="none" stroke="#fff" stroke-width="22" stroke-linecap="round"/></mask></defs>
+    ${paper(4, 4, 220, 92)}${paper(236, 4, 220, 92)}
+    <rect x="4" y="4" width="220" height="92" fill="url(#gp-pat-stripes)" mask="url(#gp-pat-strokes)"/>
+    <rect x="236" y="4" width="220" height="92" rx="4" fill="url(#gp-pat-stripes)"/>
+    ${t(114, 114, 'Pattern brush: strokes line up')}${t(346, 114, 'Fill layer: the whole canvas')}
+  `, 'Two crossing pattern brush strokes whose stripes line up, and a fill layer covered with the same stripes'),
+
   gradient: svg(460, 110, `
     <defs><linearGradient id="gp-grad"><stop offset="0" stop-color="#3e8fe0"/><stop offset="1" stop-color="#ffffff"/></linearGradient>
     <linearGradient id="gp-grad-r" spreadMethod="reflect" x2="0.25"><stop offset="0" stop-color="#e5484d"/><stop offset="1" stop-color="#e6c84a"/></linearGradient></defs>
