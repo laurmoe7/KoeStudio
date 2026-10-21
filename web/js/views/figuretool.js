@@ -11,6 +11,7 @@
 
 import { constrain, figurePoints, figureBounds, pointsBounds, polyCorners, splinePoints, POLY_SHAPES, SMOOTH_SHAPES, BEZIER_SHAPES } from '../figure.js';
 import { curvePoints, cornerCtrl, fitCurve } from '../bezier.js';
+import { parallelEnd } from '../rulers.js';
 import { Painter } from '../painter.js';
 import { union } from '../rect.js';
 import { toast } from '../ui.js';
@@ -18,6 +19,7 @@ import { toScreen, toDoc, matrix } from '../view.js';
 
 const SPACING = 0.1;  // stamp spacing as a share of the brush size
 const CLOSE_PX = 8;   // clicking this close (screen px) to a polygon's first corner closes it
+const STRAIGHT = new Set(['line', 'arrow', 'arrow2']);  // shapes that follow a parallel line ruler
 
 export const figureMethods = {
   beginFigure(dp, id, shift, dbl = false) {
@@ -43,7 +45,7 @@ export const figureMethods = {
   /** Redraws the whole shape into the stroke canvas and recomposites what it covered before and now. */
   figureDraw() {
     const g = this.gesture, s = g.s, ctx = this.strokeCtx;
-    const b = g.shift ? constrain(s.figure, g.start, g.cur) : g.cur;
+    const b = g.shift ? constrain(s.figure, g.start, g.cur) : STRAIGHT.has(s.figure) ? parallelEnd(this.doc.rulers, g.start, g.cur) : g.cur;
     const { points, closed } = figurePoints(s.figure, g.start, b, s.size * SPACING, s.corner, s.sides, s.depth);
     const r = union(figureBounds(g.start, b, s.size), pointsBounds(points, s.size));  // an arrow's head reaches past the box
     const area = union(g.bounds, r);
@@ -107,7 +109,7 @@ export const figureMethods = {
       if (layer) this.figPoly = { layer, closed: POLY_SHAPES[shape], smooth: SMOOTH_SHAPES.has(shape), points: [{ x: dp.x, y: dp.y }] };
       return;
     }
-    const last = p.points[p.points.length - 1], q = shift ? constrain('line', last, dp) : { x: dp.x, y: dp.y };
+    const last = p.points[p.points.length - 1], q = shift ? constrain('line', last, dp) : p.smooth ? { x: dp.x, y: dp.y } : parallelEnd(this.doc.rulers, last, { x: dp.x, y: dp.y });
     const first = toScreen(this.view, p.points[0].x, p.points[0].y), here = toScreen(this.view, q.x, q.y);
     const onFirst = p.closed && p.points.length >= 3 && Math.hypot(first.x - here.x, first.y - here.y) <= CLOSE_PX;
     if (dbl || onFirst) return this.finishFigurePoly();
@@ -207,7 +209,7 @@ export const figureMethods = {
     let pts = p.points.slice();
     if (this.pointer && !this.gesture) {
       const q = toDoc(this.view, this.pointer.x, this.pointer.y), last = pts[pts.length - 1];
-      pts.push(this.pointerShift ? constrain('line', last, q) : q);
+      pts.push(this.pointerShift ? constrain('line', last, q) : p.smooth ? q : parallelEnd(this.doc.rulers, last, q));
     }
     if (p.smooth) pts = splinePoints(polyCorners(pts, false), p.closed && pts.length > 2, 2 / this.view.zoom);  // the curve as it will be
     ctx.save();

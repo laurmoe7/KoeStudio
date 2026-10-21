@@ -571,7 +571,7 @@ export class Editor {
           { label: 'Snap to rulers', key: 'Ctrl+2', checked: d.rulers.snap, run: () => this.toggleSnap() },
           { label: 'Ruler tool…', key: 'U', run: () => this.selectTool('ruler') },
           { label: 'Clear guides', run: () => this.clearGuides(), disabled: !d.rulers.guides.length },
-          { label: 'Clear line, curve and concentric rulers', run: () => this.clearShapes(), disabled: !d.rulers.shapes.length },
+          { label: 'Clear line, parallel, curve and concentric rulers', run: () => this.clearShapes(), disabled: !d.rulers.shapes.length },
           '-',
           { label: 'Symmetry ruler', checked: d.rulers.symmetry.kind !== 'off', run: () => this.toggleSymmetry() },
           { label: 'Symmetry settings…', run: () => this.symmetryDialog() },
