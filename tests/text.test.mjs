@@ -1,7 +1,7 @@
 // Text layout, text settings, gradient maths and tool keys. Expected values are worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutText, sanitizeText, fontCss, sanitizeTextMatrix, toTextLocal, textTransformStart, textMatrixAfter, textAfterMap, styleRange, editContent, restyleText, styleAt } from '../web/js/textlayer.js';
+import { layoutText, sanitizeText, fontCss, sanitizeTextMatrix, toTextLocal, textTransformStart, textMatrixAfter, textAfterMap, styleRange, editContent, restyleText, styleAt, sanitizeTextPath, pathFromPoints, pathWalker, warpEdges, warpBounds, isWarped, PATH_MAX } from '../web/js/textlayer.js';
 import { xfMatrix } from '../web/js/transform.js';
 import { gradientStops, snapEnd, gradientReach, repeatStops } from '../web/js/gradient.js';
 import { toolForKey, sanitizeSettings } from '../web/js/tools.js';
@@ -192,4 +192,82 @@ test('layout with mixed sizes', () => {
   // column 1: a, a (20 each) and b (40) down; pitch 40. Column 2: c, pitch 20.
   assert.deepEqual(v.bounds, { x: 40, y: 0, w: 60, h: 80 });
   assert.deepEqual(v.glyphs.map(g => [g.str, g.x, g.y]), [['a', 80, 0], ['a', 80, 20], ['b', 80, 40], ['c', 50, 0]]);
+});
+
+test('letter spacing goes between letters', () => {
+  const t = sanitizeText({ content: 'abc', x: 0, y: 0, size: 20, leading: 1, tracking: 0.5 });
+  const { glyphs, bounds } = layoutText(t, measure);
+  // each letter 10 wide, 0.5 x 20 = 10 px between them, none after the last: 3 x 10 + 2 x 10
+  assert.deepEqual(glyphs.map(g => [g.str, g.x]), [['a', 0], ['b', 20], ['c', 40]]);
+  assert.equal(bounds.w, 50);
+  assert.deepEqual(layoutText({ ...t, align: 'center', x: 100 }, measure).glyphs.map(g => g.x), [75, 95, 115], 'centred: 100 - 50/2');
+  assert.equal(layoutText({ ...t, content: 'ab', tracking: -0.5 }, measure).bounds.w, 10, 'pulled together: 20 - 10');
+  const v = layoutText({ ...t, content: 'ab', vertical: true }, measure);
+  assert.deepEqual(v.glyphs.map(g => g.y), [0, 30], 'down a column: 20 x 1.5 apart');
+  assert.equal(v.bounds.h, 50, '30 + the last letter 20');
+  assert.equal(sanitizeText({ tracking: 9 }).tracking, 2);
+  assert.equal(sanitizeText({}).tracking, 0);
+});
+
+test('text along a path', () => {
+  const t = sanitizeText({ content: 'ab', x: 10, y: 20, size: 20, leading: 1, path: [[0, 0], [100, 0]] });
+  const { glyphs, bounds } = layoutText(t, measure);
+  // baseline 0.8 x 20 = 16 below the line top sits on the path; each letter centred at its middle along it
+  assert.deepEqual(glyphs.map(g => [g.str, g.x, g.y, g.rot, g.ox, g.oy]), [['a', 15, 20, 0, -5, -16], ['b', 25, 20, 0, -5, -16]]);
+  assert.deepEqual(bounds, { x: 10, y: 4, w: 20, h: 20 });
+  assert.equal(layoutText({ ...t, align: 'center' }, measure).glyphs[0].x, 55, 'centred on the path: (100 - 20) / 2 + 5, from x 10');
+  assert.equal(layoutText({ ...t, align: 'right' }, measure).glyphs[1].x, 105, 'ends at the end of the path: 10 + 100 - 5');
+  const two = layoutText({ ...t, content: 'a\nb' }, measure).glyphs;
+  assert.deepEqual([two[1].x, two[1].oy], [15, 4], 'the second line starts at the path start, one line (20) lower');
+  const down = layoutText({ ...t, path: [[0, 0], [0, 100]] }, measure);
+  near(down.glyphs[0].rot, Math.PI / 2);
+  near(down.glyphs[0].x, 10); near(down.glyphs[0].y, 25);
+  // turned a quarter: the letters' tops (16 px above the path) point to +x, their width runs down
+  ['x', 'y', 'w', 'h'].forEach((k, i) => near(down.bounds[k], [6, 20, 20, 20][i], k));
+  const past = layoutText({ ...t, content: 'abc', path: [[0, 0], [10, 0]] }, measure).glyphs[2];
+  assert.deepEqual([past.x, past.y], [35, 20], 'past the end it goes straight on: 10 + 25');
+  const bent = layoutText({ ...t, content: 'abc', path: [[0, 0], [10, 0], [10, 10]] }, measure).glyphs;
+  assert.deepEqual([bent[1].x, bent[1].y, bent[1].rot], [20, 25, Math.PI / 2], 'b, centred 15 along: 5 down the second piece');
+  assert.equal(layoutText({ ...t, vertical: true }, measure).glyphs[0].rot, 0, 'vertical text on a path runs along it');
+  assert.deepEqual(layoutText({ ...t, content: '' }, measure).bounds, { x: 10, y: 4, w: 0, h: 20 }, 'empty: a caret-sized box');
+});
+
+test('text paths: saved, walked and drawn', () => {
+  assert.equal(sanitizeTextPath([[0, 0]]), null, 'one point is no path');
+  assert.equal(sanitizeTextPath([[0, 0], [1, 'x']]), null);
+  assert.equal(sanitizeTextPath('0,0'), null);
+  assert.deepEqual(sanitizeTextPath([[0, 0], [0, 0], [1.234, 2]]), [[0, 0], [1.23, 2]], 'repeats dropped, 1/100 px kept');
+  assert.equal(sanitizeText({ path: [[0, 0], [NaN, 1]] }).path, undefined);
+  assert.equal(pathWalker({ x: 0, y: 0, path: [[0, 0], [3, 4], [3, 4], [3, 10]] }).length, 11, '5 + 6, the repeated point skipped');
+  assert.deepEqual(pathFromPoints([{ x: 5, y: 5 }, { x: 25, y: 5 }], 4), { x: 5, y: 5, path: [[0, 0], [4, 0], [8, 0], [12, 0], [16, 0], [20, 0]] },
+    'a straight line: every 4 px, relative to its start, unchanged by smoothing');
+  // a corner: (0,0) (4,0) (4,4); three passes of [1 2 1]/4 on the middle point, the ends kept:
+  // (3, 1), then (2.5, 1.5), then (2.25, 1.75)
+  assert.deepEqual(pathFromPoints([{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }], 4).path, [[0, 0], [2.25, 1.75], [4, 4]]);
+  assert.equal(pathFromPoints([{ x: 1, y: 1 }], 4).path, null, 'a click is no path');
+  const long = pathFromPoints([{ x: 0, y: 0 }, { x: 2000, y: 0 }], 4).path;
+  assert.ok(long.length <= PATH_MAX && long[long.length - 1][0] === 2000, 'a long line keeps at most PATH_MAX points and its end');
+});
+
+test('text warps', () => {
+  const at = (warp, bend, u) => warpEdges(warp, bend, u, 100, 20);
+  assert.deepEqual(at('none', 1, 0.5), [0, 20]);
+  assert.deepEqual(at('arch', 1, 0), [0, 20], 'the ends stay');
+  assert.deepEqual(at('arch', 1, 0.5), [-25, -5], 'the middle rises a quarter of the width');
+  assert.deepEqual(at('arch', -1, 0.5), [25, 45]);
+  assert.deepEqual(at('arcTop', 1, 0.5), [-16, 20], 'the top rises 0.8 x 20');
+  assert.deepEqual(at('arcBottom', 1, 0.5), [0, 36]);
+  assert.deepEqual(at('bulge', 1, 0.5), [-8, 28], '0.4 x 20 out on both sides');
+  assert.deepEqual(at('bulge', -1, 0.5), [8, 12], 'pinched to a fifth');
+  assert.deepEqual(at('flag', 1, 0.25), [-10, 10], 'a whole wave: up half the height at a quarter');
+  assert.deepEqual(at('flag', 1, 0.75), [10, 30]);
+  assert.deepEqual(at('rise', 1, 0), [10, 30], 'the left end down half the height');
+  assert.deepEqual(at('rise', 1, 1), [-10, 10]);
+  const b = { x: 0, y: 0, w: 100, h: 20 };
+  assert.deepEqual(warpBounds({ warp: 'arch', bend: 1 }, b), { x: 0, y: -25, w: 100, h: 45 });
+  assert.deepEqual(warpBounds({ warp: 'flag', bend: 1 }, b), { x: 0, y: -10, w: 100, h: 40 });
+  assert.equal(isWarped({ warp: 'arch', bend: 0 }), false, 'no bend, no warp');
+  assert.equal(isWarped(sanitizeText({})), false);
+  assert.equal(sanitizeText({ warp: 'twist' }).warp, 'none');
+  assert.equal(sanitizeText({ warp: 'flag', bend: -3 }).bend, -1);
 });

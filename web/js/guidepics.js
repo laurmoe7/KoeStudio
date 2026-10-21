@@ -210,6 +210,17 @@ export const PICS = {
     ${t(113, 124, 'A layer as it is')}${t(347, 124, 'With Border and Drop shadow')}
   `, 'Lettering before and after a white border and a drop shadow'),
 
+  // ---------- Text along a path, letter gap, warp ----------
+  textshape: svg(460, 130, `
+    <defs><path id="gp-tp" d="M18,82 C60,20 110,20 150,60 S200,100 214,50"/><path id="gp-arch" d="M280,76 Q347,-4 414,76"/></defs>
+    ${paper(4, 4, 218, 100)}${paper(238, 4, 218, 100)}
+    <path class="leader" stroke-dasharray="4 3" d="M18,82 C60,20 110,20 150,60 S200,100 214,50"/>
+    <text class="dark" style="font-size:15px"><textPath href="#gp-tp">Text along the line</textPath></text>
+    <text class="dark" style="font-size:22px;font-weight:700"><textPath href="#gp-arch" startOffset="50%" text-anchor="middle">ARCH</textPath></text>
+    <text x="347" y="92" class="dark" style="font-size:15px;letter-spacing:6px" text-anchor="middle">gap</text>
+    ${t(113, 124, 'Drag with the Text tool')}${t(347, 124, 'Warp, and a wider letter gap')}
+  `, 'Text following a drawn line; arched text and text with wider letter spacing'),
+
   // ---------- Correction layers ----------
   adjust: svg(460, 140, `
     <defs><clipPath id="gp-adj1"><rect x="4" y="4" width="136" height="100" rx="4"/></clipPath><clipPath id="gp-adj2"><rect x="320" y="4" width="136" height="100" rx="4"/></clipPath></defs>

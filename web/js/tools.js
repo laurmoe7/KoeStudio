@@ -2,7 +2,7 @@
 
 import { SELECT_MODES } from './selection.js';
 import { GRADIENT_COLORS, GRADIENT_SHAPES, GRADIENT_REPEATS, isUserGradient } from './gradient.js';
-import { FONTS, ALIGNS, OUTLINE_COLORS } from './textlayer.js';
+import { FONTS, ALIGNS, OUTLINE_COLORS, WARPS } from './textlayer.js';
 import { TEXTURES } from './textures.js';
 import { TEXTURE_MODES } from './texmodes.js';
 import { FIGURE_SHAPES } from './figure.js';
@@ -73,7 +73,7 @@ export const TOOLS = [
   { id: 'figure', label: 'Figure', key: 'u', kind: 'figure', icon: 'figure', group: 'draw',
     defaults: { figure: 'line', size: 6, opacity: 1, hardness: 1, corner: 0, sides: 5, depth: 0.5, fill: false } },
   { id: 'text', label: 'Text', key: 't', kind: 'text', icon: 'text', group: 'draw',
-    defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, vertical: false, outline: 0, outlineColor: 'white' } },
+    defaults: { font: 'Segoe UI', size: 48, bold: false, italic: false, align: 'left', leading: 1.2, tracking: 0, vertical: false, outline: 0, outlineColor: 'white', warp: 'none', bend: 0.5 } },
   { id: 'picker', label: 'Eyedropper', key: 'i', kind: 'picker', icon: 'picker', group: 'draw', defaults: { pickFrom: 'all', average: '1' } },
   { id: 'select', label: 'Rectangle selection', key: 'm', kind: 'select', icon: 'rectSel', group: 'select', defaults: { mode: 'replace' } },
   { id: 'ellipse', label: 'Ellipse selection', key: 'm', kind: 'select', icon: 'ellipseSel', group: 'select', defaults: { mode: 'replace' } },
@@ -194,8 +194,11 @@ export const SETTING_FIELDS = [
   ['loadMin', 'Min. load', 'range', 0, 1, 0.01],
   ['loadCurve', 'Load curve', 'curve'],
   ['leading', 'Line spacing', 'range', 0.5, 4, 0.05],
+  ['tracking', 'Letter gap', 'range', -0.5, 2, 0.01],
   ['outline', 'Outline', 'range', 0, 50, 1],
   ['outlineColor', 'Outline in', 'choice', OUTLINE_COLORS],
+  ['warp', 'Warp', 'choice', WARPS],
+  ['bend', 'Bend', 'range', -1, 1, 0.01],
   ['corner', 'Rounding', 'range', 0, 500, 1],
   ['sides', 'Corners', 'range', 3, 32, 1],
   ['depth', 'Star depth', 'range', 0.1, 0.95, 0.01],
@@ -261,6 +264,9 @@ export const SETTING_HINTS = {
   repeat: 'Once: the end colours fill the rest. Repeat: the gradient starts over and over. Mirror: it goes back and forth',
   align: 'Which side lines line up on (for vertical text: top, middle or bottom of the columns)',
   leading: 'Distance between lines (or columns), as a multiple of the text size',
+  tracking: 'Extra space between letters, as a share of the text size (below 0 pulls them closer)',
+  warp: 'Bends the whole text into a shape: an arch, a bulge, a waving flag...',
+  bend: 'How strongly the warp bends the text; below 0 it bends the other way',
   vertical: 'Write top to bottom, with columns from right to left, as in manga',
   texture: 'Paper grain for the whole stroke; it stays fixed to the canvas, so strokes share one grain',
   textureAmount: 'How much paint the grooves of the texture leave out',

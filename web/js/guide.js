@@ -523,15 +523,26 @@ export const GUIDE = [
       <li>Click somewhere else, or press <kbd>Esc</kbd>, when you are done.</li>
       <li>Click the text again any time to change it.</li>
     </ol>
-    <p>Choose the font, size, bold, italic, alignment and line spacing in the tool panel. <b>Vertical</b> writes top to
-    bottom, as in manga. <b>Outline</b> puts a border round the letters.</p>
+    <p>Choose the font, size, bold, italic, alignment and line spacing in the tool panel. <b>Letter gap</b> spreads the
+    letters apart (or pulls them closer below 0). <b>Vertical</b> writes top to bottom, as in manga. <b>Outline</b>
+    puts a border round the letters.</p>
+    <figure data-pic="textshape"></figure>
+    <p><b>Text along a line:</b></p>
+    <ol>
+      <li>With the Text tool, drag on the canvas to draw the line instead of clicking.</li>
+      <li>Type: the letters stand on the line and turn with it. Alignment puts them at its start, middle or end.</li>
+      <li>Lines after the first follow under it. The text box shows the words plainly just below.</li>
+    </ol>
+    <p>Layer → <b>Take text off its path</b> makes it an ordinary straight text again.</p>
+    <p><b>Warp</b> bends the whole text: Arch, Arc upper, Arc lower, Bulge, Flag or Rise. <b>Bend</b> sets how far;
+    below 0 bends the other way. The text stays editable, and Transform still turns and sizes it.</p>
     <p><b>Style part of the text:</b> select some letters in the text box, then change the font, size, Bold, Italic
     or the main colour: only those letters change. With nothing selected, a change goes to the whole text. Letters
     you type carry on the look of the letter before them.</p>
     <p>Edit → <b>Transform</b> (<kbd>Ctrl</kbd>+<kbd>T</kbd>) turns, sizes and mirrors a text layer and it stays text:
     you can still click it to change the words, and it stays sharp at any size. Flipping, turning or resizing the
     canvas keeps text editable too. Only Distort and Mesh need it rasterized.</p>
-    <p class="tip">Text stays editable on its own layer. To paint on it, use Layer → Rasterize → Text first.</p>`],
+    <p class="tip">Text stays editable on its own layer, also on a path or warped. To paint on it, use Layer → Rasterize → Text first.</p>`],
 
   ['selection', 'Selections', `
     <p class="lead">A selection fences off part of the picture. Painting, fills, filters and <kbd>Del</kbd> then only

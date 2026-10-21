@@ -2,6 +2,13 @@
 
 What changed in KoeStudio, newest first. Older changes are in the git history.
 
+## 2026-10-22
+
+### New
+- Text can follow a line: drag with the Text tool to draw it, then type; Layer → Take text off its path straightens it again.
+- Text warp: bend a text into an arch, arc, bulge, waving flag or slope, with a Bend amount, and keep it editable.
+- Letter gap in the Text tool spreads letters apart or pulls them closer.
+
 ## 2026-10-21
 
 ### New

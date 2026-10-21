@@ -532,6 +532,7 @@ export class Editor {
           { label: 'Text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
           { label: 'Vector layer', run: () => this.rasterizeVector(d.active), disabled: !d.active.vector },
         ] },
+        { label: 'Take text off its path', run: () => this.removeTextPath(d.active), disabled: !d.active.text?.path },
         '-',
         { label: 'Flip layer horizontally', run: () => this.flipPixels(this.layerRasters(), 'h', 'Flip layer') },
         { label: 'Flip layer vertically', run: () => this.flipPixels(this.layerRasters(), 'v', 'Flip layer') },
@@ -914,6 +915,7 @@ export class Editor {
     this.drawLineEditOverlay(ctx);
     this.drawCtrlPointOverlay(ctx);
     this.drawCloneOverlay(ctx);
+    this.drawTextPathOverlay(ctx);
     this.placeTextEditor();
     this.placeSelectionBar();
     const brush = this.updateCursor(), sizing = this.gesture?.type === 'brushsize' ? this.gesture : null;
@@ -1107,6 +1109,7 @@ export class Editor {
     return SETTING_FIELDS.filter(f => f[0] in s && f[2] !== 'id' && !(f[2] === 'curve' && !s[f[0]])
       && !((f[2] === 'tips' || f[0] === 'tipOrder') && !s.tips?.length)
       && !(shapeOnly[f[0]] && 'figure' in s && !shapeOnly[f[0]].includes(s.figure))
+      && !(f[0] === 'bend' && s.warp === 'none')
       && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureAngle', 'textureInvert'].includes(f[0]))
       && !(s.comboTip === 'none' && f[0].startsWith('combo') && f[0] !== 'comboTip'));  // the second brush's settings once it is on
   }
@@ -1142,7 +1145,7 @@ export class Editor {
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged(k);
         if (k === 'sample' && (t.id === 'fill' || t.id === 'wand')) this.prepareSample(t.id);  // the other pixels, ready too
-        if (k === 'texture' || k === 'figure' || k === 'comboTip' || dropTips) this.renderToolProps();  // which settings show depends on these
+        if (k === 'texture' || k === 'figure' || k === 'comboTip' || k === 'warp' || dropTips) this.renderToolProps();  // which settings show depends on these
         else this.showSetting(k, inp);
         this.drawBrushPreview();
         this.drawGradientStrip();
@@ -1278,7 +1281,7 @@ export class Editor {
       else if (tool.kind === 'figure') this.beginFigure(this.gridPoint(dp), e.pointerId, e.shiftKey, e.detail >= 2);
       else if (tool.kind === 'fill') this.fillAt(dp);
       else if (tool.kind === 'gradient') this.beginGradient(dp, e.pointerId);
-      else if (tool.kind === 'text') { e.preventDefault(); this.textClick(dp); }
+      else if (tool.kind === 'text') { e.preventDefault(); this.beginTextPath(dp, e.pointerId); }
       else if (tool.kind === 'picker') { this.gesture = { type: 'pick', tool: toolId, id: e.pointerId, before: this.colors.main }; this.pickAt(dp); }
       else if (tool.kind === 'move') this.beginMove(dp, e.pointerId);
       if (this.gesture && e.pointerType === 'touch') this.gesture.touch = true;
@@ -1316,6 +1319,8 @@ export class Editor {
           this.vectorEraseTo({ ...toDoc(this.view, p.x, p.y), p: pressure(e) });
         } else if (g.type === 'lassofill') {
           this.lassoFillDrag(toDoc(this.view, p.x, p.y));
+        } else if (g.type === 'textpath') {
+          this.textPathDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'gapfill') {
           this.gapFillDrag(toDoc(this.view, p.x, p.y));
         } else if (g.type === 'pan') {
@@ -1363,6 +1368,7 @@ export class Editor {
       else if (g.type === 'ctrlpoint') this.endCtrlPoint();
       else if (g.type === 'verase') this.endVectorErase();
       else if (g.type === 'lassofill') this.endLassoFill();
+      else if (g.type === 'textpath') this.endTextPath();
       else if (g.type === 'gapfill') this.endGapFill();
       else if (g.type === 'guide' || g.type === 'vp' || g.type === 'shape') this.rulerEnd(this.pointer);
       else if (g.type === 'gradient') this.endGradient();
@@ -2313,7 +2319,7 @@ function fmt(key, v) {
   if (key === 'simplify') return v + ' px';
   if (key === 'gap') return v ? Math.round(v) + ' px' : 'Off';
   if (key === 'wetEdgeSize') return v ? (Math.round(v * 10) / 10) + ' px' : 'Auto';
-  if (key === 'depth') return Math.round(v * 100) + '%';
+  if (key === 'depth' || key === 'tracking' || key === 'bend') return Math.round(v * 100) + '%';
   if (key === 'spacing' && v < 0.1) return (Math.round(v * 1000) / 10) + '%';  // fine spacing: 0.5%, 2.5%
   if (['opacity', 'flow', 'strength', 'hardness', 'spacing', 'minSize', 'minFlow', 'thickness', 'tipRandom', 'scatter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'textureAmount', 'textureScale', 'tiltSize', 'tiltSizeMin', 'tiltFlow', 'speedSize', 'speedFlow', 'texturePressure', 'dualSize', 'dualSpacing', 'dualScatter', 'wetEdges', 'impasto', 'dryOut', 'mix', 'mixStretch', 'paintLoad', 'paintMin', 'loadMin', 'wetEdgeDarken', 'taperSize', 'taperOpacity', 'roundJitter', 'countJitter'].includes(key) || (key.startsWith('combo') && key !== 'comboAngle')) return Math.round(v * 100) + '%';
   if (key === 'tipAngle' || key === 'comboAngle' || key === 'textureAngle') return Math.round(v) + '°';

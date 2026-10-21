@@ -568,6 +568,7 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); }
 .text-edit textarea { position: absolute; pointer-events: auto; margin: 0; padding: 0; border: none; resize: none; overflow: hidden;
   white-space: pre; background: var(--accent-06); color: transparent; caret-color: var(--accent-2);
   outline: 1px dashed var(--accent); user-select: text; box-sizing: content-box; }
+.text-edit.shaped textarea { color: var(--text); background: var(--panel); opacity: .9; }
 .save-state.error { color: var(--danger); }
 
 /* file browser (filebrowser.js) */
