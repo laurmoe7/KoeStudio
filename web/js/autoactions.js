@@ -17,7 +17,7 @@ export const RECORD_MENUS = ['edit', 'image', 'select', 'layer', 'filter'];
 /** Menu items that are never recorded: they need the canvas (dragging, clicking) or undo the recording itself. */
 export const SKIP_ITEMS = new Set(['Undo', 'Redo', 'Find layer on canvas', 'Crop tool', 'Transform…', 'Transform selection…', 'Quick mask (paint the selection)', 'Color range…']);
 /** Keyboard commands that change the artwork, and so are recorded. */
-export const RECORD_CMDS = new Set(['clear', 'fillMain', 'fillSub', 'repeatFilter', 'selectAll', 'deselect', 'invertSelection', 'newLayer',
+export const RECORD_CMDS = new Set(['clear', 'fillMain', 'fillSub', 'fillPattern', 'repeatFilter', 'selectAll', 'deselect', 'invertSelection', 'newLayer',
   'groupFolder', 'mergeDown', 'mergeVisible', 'layerCopy', 'layerCut', 'swapColors']);
 /** Editor methods the Layers panel calls directly, recorded with their arguments. */
 export const RECORD_CALLS = { layerAdd: 'New layer', folderAdd: 'New folder', layerDuplicate: 'Duplicate layer', layerDelete: 'Delete layer',

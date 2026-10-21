@@ -304,7 +304,10 @@ export const brushMethods = {
       const dp = new Painter(dual.getContext('2d'), { color: '#000000', hardness: b.hardness, tip: b.dualTip });
       for (const st of dualStamps(line, b)) dp.dab(st.x, st.y, st.size, 1);
     }
-    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture, wet: wetFor(b), impasto: imp, dual, combo }, r);
+    // the pattern brush: the pattern as it lies on the canvas (patterntools.js), at the screen's pixel size
+    const tile = !t.erase && s.pattern && s.pattern !== 'none' ? this.patternTile(s.pattern, null) : null;
+    const pattern = tile && { tile, place: { ...this.patternPlace(s), scale: (s.patScale ?? 1) * dpr } };
+    const r = { x: 0, y: 0, w, h }, [src, sx, sy] = liveSource({ canvas: scratch, texture, wet: wetFor(b), impasto: imp, dual, combo, pattern }, r);
     ctx.globalAlpha = s.opacity ?? 1;
     ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
     ctx.globalAlpha = 1;

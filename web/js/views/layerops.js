@@ -11,6 +11,8 @@ import { toneDensity } from '../tone.js';
 import { translateVector, strokesInside, removeStrokes } from '../vector.js';
 import { adjustFilter } from '../adjust.js';
 import { drawSnapshot, snapBytes } from '../snapshot.js';
+import { mapFill } from '../patterns.js';
+import { renderFillLayer } from '../fillrender.js';
 
 /** The node itself or the nearest folder around it that is locked, or null. */
 export function lockedNode(n) {
@@ -45,6 +47,10 @@ export const layerMethods = {
     }
     if (n.text && !read && !text) {
       toast('This is a text layer. Use the Text tool to change it, or rasterize it to paint on it.', { action: { label: 'Rasterize', run: () => this.rasterizeText(n) }, ms: 6000 });
+      return null;
+    }
+    if (n.fill && !read) {
+      toast(`This is a fill layer: it shows a colour, gradient or pattern. Change it in Layer → Fill layer settings…, or rasterize it to ${verb} it.`, { action: { label: 'Rasterize', run: () => this.rasterizeFill(n) }, ms: 6000 });
       return null;
     }
     if (n.vector && !read && !vector) {
@@ -574,7 +580,7 @@ export const layerMethods = {
       if (lockedNode(m)) { toast(`"${lockedNode(m).name}" is locked. Untick Lock in the Layers panel to move it.`); return null; }
     }
     const full = { x: 0, y: 0, w: d.width, h: d.height };
-    return this.layerRasters().map(r => ({ r, before: this.snapshot(r, full), textBefore: r.text, vectorBefore: r.vector }));
+    return this.layerRasters().map(r => ({ r, before: this.snapshot(r, full), textBefore: r.text, vectorBefore: r.vector, fillBefore: r.fill }));
   },
 
   moveTo(pt) {
@@ -588,6 +594,7 @@ export const layerMethods = {
   shiftParts(parts, dx, dy) {
     const d = this.doc;
     for (const p of parts) {
+      if (p.fillBefore) { renderFillLayer(p.r, mapFill(p.fillBefore, [1, 0, 0, 1, dx, dy])); continue; }  // a fill layer stays whole
       p.r.ctx.clearRect(0, 0, d.width, d.height);
       drawSnapshot(p.r.ctx, p.before, dx, dy);
     }
@@ -618,12 +625,14 @@ export const layerMethods = {
         p.r.text = p.textAfter = m ? { ...t, m: [m[0], m[1], m[2], m[3], m[4] + dx, m[5] + dy] } : { ...t, x: t.x + dx, y: t.y + dy };
       }
       if (p.vectorBefore) p.r.vector = p.vectorAfter = translateVector(p.vectorBefore, dx, dy);  // a vector layer keeps its lines
+      if (p.fillBefore) p.r.fill = p.fillAfter = mapFill(p.fillBefore, [1, 0, 0, 1, dx, dy]);  // a fill layer's gradient or pattern moves
     }
     const put = key => {
       for (const p of parts) {
         this.putSnapshot(p.r, { x: 0, y: 0, w: d.width, h: d.height }, p[key]);
         if (p.textBefore) p.r.text = key === 'before' ? p.textBefore : p.textAfter;
         if (p.vectorBefore) p.r.vector = key === 'before' ? p.vectorBefore : p.vectorAfter;
+        if (p.fillBefore) p.r.fill = key === 'before' ? p.fillBefore : p.fillAfter;
       }
       this.changed(null);
     };

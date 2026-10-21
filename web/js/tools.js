@@ -10,6 +10,7 @@ import { LIQUIFY_MODES } from './liquify.js';
 import { sanitizeCurve } from './brush.js';
 import { imageRef } from './brushtip.js';
 import { COMBO_DEFAULTS, COMBO_MODES } from './combo.js';
+import { patternChoices, isUserPattern } from './patterns.js';
 
 /** Where Fill and the Magic wand find their area. */
 export const SAMPLE_FROM = [['all', 'All layers'], ['layer', 'This layer'], ['reference', 'Reference layers']];
@@ -23,7 +24,7 @@ function tex(texture = 'none', textureAmount = 0.5) {
     minFlow: 0, sizeCurve: null, flowCurve: null, scatter: 0, scatterBoth: true, sizeJitter: 0, flowJitter: 0, hueJitter: 0, satJitter: 0, valJitter: 0, colorJitterStroke: false, taperIn: 0, taperOut: 0, taperSize: 1, taperOpacity: 0,
     tiltSize: 0, tiltSizeMin: 1, tiltSizeCurve: null, tiltFlow: 0, tiltAngle: false, speedSize: 0, speedFlow: 0, count: 1, countJitter: 0, quickShape: false, refStop: false,
     dualTip: 'none', dualSize: 0.6, dualSpacing: 0.25, dualScatter: 0.5, wetEdges: 0, wetEdgeSize: 0, wetEdgeDarken: 0, impasto: 0, dryOut: 0, mix: 0, mixStretch: 0.5, paintLoad: 1,
-    paintMin: 1, paintCurve: null, loadMin: 1, loadCurve: null,
+    paintMin: 1, paintCurve: null, loadMin: 1, loadCurve: null, pattern: 'none', patScale: 1, patAngle: 0,
     ...COMBO_DEFAULTS, preset: '' };
 }
 
@@ -65,7 +66,7 @@ export const TOOLS = [
   { id: 'clone', label: 'Clone stamp', key: 's', kind: 'retouch', icon: 'clone', group: 'draw',
     defaults: { size: 40, strength: 1, hardness: 0.6, spacing: 0.08, sample: 'layer', aligned: true, pressureSize: true, pressureOpacity: false, minSize: 0.3, smoothing: 2, gamma: 1 } },
   { id: 'fill', label: 'Fill', key: 'g', kind: 'fill', icon: 'fill', group: 'draw',
-    defaults: { opacity: 1, tolerance: 12, grow: 1, gap: 0, sample: 'all', contiguous: true } },
+    defaults: { opacity: 1, tolerance: 12, grow: 1, gap: 0, sample: 'all', contiguous: true, pattern: 'none', patScale: 1, patAngle: 0, patX: 0, patY: 0 } },
   { id: 'gradient', label: 'Gradient', key: 'g', kind: 'gradient', icon: 'gradient', group: 'draw',
     defaults: { colors: 'main-sub', shape: 'linear', repeat: 'none', dither: false, opacity: 1 } },
   { id: 'lassofill', label: 'Lasso fill', key: 'g', kind: 'lassofill', icon: 'lassoFill', group: 'draw', defaults: { opacity: 1, lassoErase: false } },
@@ -217,6 +218,11 @@ export const SETTING_FIELDS = [
   ['average', 'Sample', 'choice', PICK_AVERAGE],
   ['contiguous', 'Connected only', 'check'],
   ['aligned', 'Aligned', 'check'],
+  ['pattern', 'Pattern', 'choice', patternChoices()],
+  ['patScale', 'Pattern size', 'range', 0.1, 10, 0.05],
+  ['patAngle', 'Pattern angle', 'range', 0, 360, 1],
+  ['patX', 'Shift ↔', 'range', -500, 500, 1],
+  ['patY', 'Shift ↕', 'range', -500, 500, 1],
 ];
 
 /** The paint settings the tool panel shows; the rest are in the Brush settings window (as Clip Studio Paint's Sub Tool Detail). */
@@ -231,6 +237,7 @@ export const SETTING_GROUPS = [
   ['Tilt and speed', ['tiltSize', 'tiltSizeMin', 'tiltSizeCurve', 'tiltFlow', 'tiltAngle', 'speedSize', 'speedFlow']],
   ['Variation', ['scatter', 'scatterBoth', 'count', 'countJitter', 'sizeJitter', 'flowJitter', 'hueJitter', 'satJitter', 'valJitter', 'colorJitterStroke']],
   ['Texture', ['texture', 'textureAmount', 'textureScale', 'textureAngle', 'textureInvert', 'textureMode', 'textureEachDab', 'textureEmphasis', 'texturePressure', 'grainPressure']],
+  ['Pattern', ['pattern', 'patScale', 'patAngle']],
   ['Dual brush', ['dualTip', 'dualSize', 'dualSpacing', 'dualScatter']],
   ['Combined', ['comboTip', 'comboMode', 'comboSize', 'comboFlow', 'comboHardness', 'comboSpacing', 'comboThickness', 'comboAngle', 'comboRandom', 'comboFollow',
     'comboScatter', 'comboSizeJitter', 'comboPressureSize', 'comboMinSize', 'comboPressureFlow', 'comboMinFlow']],
@@ -375,7 +382,7 @@ export function applySettings(s, from) {
     if (!(key in s) || !(key in from)) continue;
     const v = from[key];
     if (type === 'check') s[key] = !!v;
-    else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture' || key === 'dualTip' || key === 'comboTip') && imageRef(v)) || (key === 'colors' && isUserGradient(v))) s[key] = v; }
+    else if (type === 'choice') { if (min.some(o => o[0] === v) || ((key === 'tip' || key === 'texture' || key === 'dualTip' || key === 'comboTip') && imageRef(v)) || (key === 'colors' && isUserGradient(v)) || (key === 'pattern' && isUserPattern(v))) s[key] = v; }
     else if (type === 'curve') s[key] = sanitizeCurve(v);
     else if (type === 'tips') s[key] = Array.isArray(v) ? v.filter(x => typeof x === 'string' && imageRef(x)).slice(0, MAX_TIPS - 1) : [];
     else if (type === 'id') s[key] = typeof v === 'string' && /^(?:[0-9a-f]{0,32}|b-[a-z0-9-]{1,30})$/.test(v) ? v : '';  // saved, or built-in (builtinbrushes.js)

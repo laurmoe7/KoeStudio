@@ -7,6 +7,8 @@ import { sanitizeText } from './textlayer.js';
 import { sanitizeTone, applyTone } from './tone.js';
 import { sanitizeExpression, applyExpression } from './expression.js';
 import { sanitizeVector } from './vector.js';
+import { sanitizeFill } from './patterns.js';
+import { loadPatternSrc, paintPattern } from './fillrender.js';
 import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
 import { sanitizeDpi } from './resolution.js';
@@ -41,7 +43,8 @@ const isPng = s => typeof s === 'string' && s.startsWith('data:image/png');
  * Version 1 files had a flat `layers` list and an `active` index; version 2 nests folders ({type: 'folder',
  * children}) in `layers`, gives any node an optional `mask: {png, enabled}`, and stores `activePath`.
  * `rulers` (guides, perspective ruler, snapping; see rulers.js) is optional in either version, as is a layer's
- * `tone` (shown as screentone; see tone.js), a layer's `vector` (its lines as data; see vector.js), and any node's
+ * `tone` (shown as screentone; see tone.js), a layer's `vector` (its lines as data; see vector.js), its `fill` (a fill
+ * layer's colour, gradient or pattern; see patterns.js), and any node's
  * `label` (a colour label from LABELS), and a layer's `adjust` (a correction layer; see adjust.js). `selections`
  * (saved selections, savedsel.js) is optional too.
  */
@@ -75,6 +78,7 @@ export function sanitizeDoc(raw) {
       if (adjust) out.adjust = adjust;  // a correction layer (adjust.js): no pixels of its own, png stays empty
       else if (l?.text) out.text = sanitizeText(l.text);  // a text layer (textlayer.js); png holds its last rendering
       else if (l?.vector) out.vector = sanitizeVector(l.vector);  // a vector layer (vector.js); png holds its last rendering
+      else if (sanitizeFill(l?.fill)) out.fill = sanitizeFill(l.fill);  // a fill layer (patterns.js); png holds its last rendering
       out.tone = adjust ? null : sanitizeTone(l?.tone);
       out.effects = adjust ? null : sanitizeEffects(l?.effects);  // border and drop shadow (effects.js); null when none
       out.layerColor = !adjust && /^#[0-9a-f]{6}$/i.test(l?.layerColor) ? l.layerColor.toLowerCase() : null;  // all paint shown in this colour
@@ -189,6 +193,7 @@ export class Layer extends Raster {
     this.draft = !!props.draft;  // a draft (sketch) layer: shown, but not exported nor seen by Fill / the wand
     this.text = props.text || null;  // set on text layers: what to draw (textlayer.js)
     this.vector = props.vector || null;  // set on vector layers: the lines (vector.js); never changed in place
+    this.fill = props.fill || null;  // set on fill layers: the colour, gradient or pattern drawn (patterns.js); never changed in place
     this.tone = props.tone || null;  // set on screentone layers: how the dots look (tone.js)
     this.effects = props.effects || null;  // border and drop shadow, drawn under the pixels (effects.js)
     this.layerColor = props.layerColor || null;  // '#rrggbb': all paint shown in this colour (Layer → Layer color)
@@ -225,7 +230,7 @@ export function cloneNode(n, w, h) {
     c = new Folder(props);
     for (const child of n.children) insertNode(c, c.children.length, cloneNode(child, w, h));
   } else {
-    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, tone: n.tone ? { ...n.tone } : null, effects: n.effects, layerColor: n.layerColor, expression: n.expression, adjust: n.adjust });
+    c = new Layer(w, h, { ...props, text: n.text ? { ...n.text } : null, vector: n.vector, fill: n.fill, tone: n.tone ? { ...n.tone } : null, effects: n.effects, layerColor: n.layerColor, expression: n.expression, adjust: n.adjust });
     c.copyFrom(n);
   }
   if (n.mask) {
@@ -343,6 +348,7 @@ export class Doc {
       const n = src.type === 'folder' ? new Folder(src) : new Layer(d.width, d.height, src);
       if (src.type === 'folder') for (const c of src.children) build(c, n);
       else load(n, src.png, src.name);
+      if (src.fill?.type === 'pattern') loads.push(loadPatternSrc(src.fill.src));  // ready to draw again when the canvas changes
       if (src.mask) {
         n.mask = new Mask(d.width, d.height, src.mask.enabled);
         load(n.mask, src.mask.png, `${src.name} (mask)`);
@@ -388,6 +394,7 @@ export class Doc {
         await pic(n, out);
         if (n.text) out.text = n.text;
         if (n.vector) out.vector = n.vector;
+        if (n.fill) out.fill = n.fill;
         if (n.tone) out.tone = n.tone;
         if (n.effects) out.effects = n.effects;
         if (n.layerColor) out.layerColor = n.layerColor;
@@ -994,16 +1001,22 @@ function textureModeSource(ctx, live, r) {
  * A stroke inside a selection (live.sel) is cut down to it the same way, once per read: clipping the stroke canvas
  * itself after every dab would apply a feathered selection's partial alpha again and again. live.dual (a canvas of
  * the dual brush's dabs) and live.inside (where a brush that stays inside reference lines may paint) cut it down the same way.
- * A combined brush's second brush is blended in first (strokeOf).
+ * A combined brush's second brush is blended in first (strokeOf). With live.pattern = {tile, place} (the pattern
+ * brush) the stroke's colour is replaced by the pattern there (source-in), before wet edges, impasto and the grain.
  */
 export function liveSource(live, r) {
-  if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet && !live.impasto) return strokeOf(live, r);
+  if (!live.texture && !live.sel && !live.dual && !live.inside && !live.wet && !live.impasto && !live.pattern) return strokeOf(live, r);
   const [c, ctx] = scratchCanvas('live', r);
   const cpu = live.texture?.cpu;
   if (cpu) textureModeSource(ctx, live, r);
   else {
     const [src, sx, sy] = strokeOf(live, r);
     ctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);
+  }
+  if (live.pattern) {  // the pattern brush: the stroke shows the pattern (fixed to the canvas) instead of its colour
+    ctx.globalCompositeOperation = 'source-in';
+    paintPattern(ctx, live.pattern.tile, live.pattern.place, r, r);
+    ctx.globalCompositeOperation = 'source-over';
   }
   if (live.wet) wetEdges(ctx, live, r);
   if (live.impasto) impasto(ctx, live, r);

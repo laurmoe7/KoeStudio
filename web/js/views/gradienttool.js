@@ -2,7 +2,8 @@
 // selection, or the whole layer, through the stroke canvas, so opacity, alpha lock, masks and undo work as for
 // painting. Editor methods (mixed into Editor.prototype in editor.js).
 
-import { gradientStops, snapEnd, gradientReach, repeatStops, reflectStops, diamondQuarters, ditherData } from '../gradient.js';
+import { gradientStops, snapEnd, ditherData } from '../gradient.js';
+import { drawGradient } from '../fillrender.js';
 import { clip } from '../rect.js';
 import { matrix } from '../view.js';
 import { readPixels } from '../doc.js';
@@ -27,50 +28,12 @@ export const gradientMethods = {
   paintGradient() {
     const g = this.gesture, ctx = this.strokeCtx, { start, end, area, s } = g;
     this.resetStroke();
-    const len = Math.hypot(end.x - start.x, end.y - start.y);
-    if (len < 0.5) { this.updateComp(area); this.requestRender(); return; }
+    if (Math.hypot(end.x - start.x, end.y - start.y) < 0.5) { this.updateComp(area); this.requestRender(); return; }
     // on a mask only coverage counts: the main colour end hides fully, the other end hides nothing
-    let stops = g.t.kind === 'mask'
+    const stops = g.t.kind === 'mask'
       ? (!s.colors.startsWith('sub') && !s.colors.startsWith('clear') ? [[0, '#000000'], [1, 'rgba(0,0,0,0)']] : [[0, 'rgba(0,0,0,0)'], [1, '#000000']])
       : gradientStops(s.colors, this.colors.main, this.colors.sub, this.userGrads());
-    // Reflected: one straight gradient from the start mirrored behind it to the end, with its stops both ways
-    const shape = s.shape === 'reflected' ? 'linear' : s.shape;
-    const from = s.shape === 'reflected' ? { x: 2 * start.x - end.x, y: 2 * start.y - end.y } : start;
-    if (s.shape === 'reflected') stops = reflectStops(stops);
-    let a = from, b = end, r = len;
-    const span = Math.hypot(end.x - from.x, end.y - from.y);
-    if ((s.repeat === 'repeat' || s.repeat === 'mirror') && shape !== 'conic') {  // stretch the gradient over the area, with copies of the stops
-      const { before, after } = gradientReach(shape, from, end, area), dx = end.x - from.x, dy = end.y - from.y;
-      const reps = before + 1 + after;
-      stops = repeatStops(stops, s.repeat, reps, before, 1 / (span * reps));
-      a = { x: from.x - before * dx, y: from.y - before * dy };
-      b = { x: end.x + after * dx, y: end.y + after * dy };
-      r = len * (1 + after);
-    }
-    const fill = grad => {
-      for (const [o, c] of stops) grad.addColorStop(o, c);
-      ctx.fillStyle = grad;
-    };
-    if (shape === 'diamond') {  // four straight gradients, one per quarter (diamondQuarters)
-      const far = 2 * (Math.hypot(area.w, area.h) + Math.hypot(start.x - area.x, start.y - area.y));
-      ctx.save();
-      for (const q of diamondQuarters(start, end, r, far)) {
-        ctx.beginPath();
-        q.poly.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-        ctx.closePath();
-        ctx.save();
-        ctx.clip();
-        fill(ctx.createLinearGradient(q.from.x, q.from.y, q.to.x, q.to.y));
-        ctx.fillRect(area.x, area.y, area.w, area.h);
-        ctx.restore();
-      }
-      ctx.restore();
-    } else {
-      fill(shape === 'radial' ? ctx.createRadialGradient(start.x, start.y, 0, start.x, start.y, r)
-        : shape === 'conic' ? ctx.createConicGradient(Math.atan2(end.y - start.y, end.x - start.x), start.x, start.y)
-          : ctx.createLinearGradient(a.x, a.y, b.x, b.y));
-      ctx.fillRect(area.x, area.y, area.w, area.h);
-    }
+    drawGradient(ctx, { shape: s.shape, repeat: s.repeat, start, end, stops, area });
     this.sel.clipCanvas(ctx, area);
     this.updateComp(area);
     this.requestRender();

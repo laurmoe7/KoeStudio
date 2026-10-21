@@ -177,6 +177,7 @@ export class LayerPanel {
       const sub = [blendLabel(node.blend), Math.round(node.opacity * 100) + '%'];
       if (node.text) sub.unshift('Text');
       if (node.vector) sub.unshift('Vector');
+      if (node.fill) sub.unshift(node.fill.type === 'color' ? 'Color fill' : node.fill.type === 'gradient' ? 'Gradient fill' : 'Pattern fill');
       if (node.tone) sub.unshift('Tone');
       if (node.expression) sub.unshift(expressionLabel(node.expression));
       if (node.adjust) sub.unshift(adjustLabel(node.adjust.type));
@@ -284,6 +285,7 @@ export class LayerPanel {
         this.lastTap = rename ? null : { key: d.node, time: performance.now() };
         this.ed.selectNode(d.node, { mask: d.mask });
         if (rename && d.thumb && d.node.adjust) this.ed.adjustSettings(d.node);  // a correction's thumbnail opens its settings
+        else if (rename && d.thumb && d.node.fill) this.ed.fillLayerSettings(d.node);  // so does a fill layer's
         else if (rename) this.rename(d.node);
       }
       else if (d.drop && e.type === 'pointerup') {

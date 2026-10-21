@@ -16,6 +16,7 @@ export const COMMANDS = [
   ['clear', 'Edit', 'Clear the selection or layer', ['delete', 'backspace']],
   ['fillMain', 'Edit', 'Fill with the main colour', ['alt+delete', 'alt+backspace']],
   ['fillSub', 'Edit', 'Fill with the sub colour', ['alt+shift+delete', 'alt+shift+backspace']],
+  ['fillPattern', 'Edit', 'Fill with the Fill tool pattern', ['ctrl+alt+backspace']],
   ['repeatFilter', 'Edit', 'Repeat the last filter', ['ctrl+f']],
   ['canvasSize', 'Edit', 'Canvas size', ['ctrl+alt+c']],
   ['imageSize', 'Edit', 'Image size', ['ctrl+alt+i']],

@@ -64,6 +64,8 @@ import { printLabel } from '../resolution.js';
 import { detectShape, shapePoints, adjustShape } from '../quickshape.js';
 import { brushMethods, curveSvg } from './brushtools.js';
 import { brushManagerMethods } from './brushmanager.js';
+import { patternMethods } from './patterntools.js';
+import { patternChoices } from '../patterns.js';
 import { symmetryStamps } from '../symmetry.js';
 import { linePoints } from '../figure.js';
 
@@ -157,6 +159,7 @@ export class Editor {
     this.showDocSize();
     this.selectTool(this.tool);
     this.loadBrushLibrary();
+    this.preloadPatterns();
     this.attach();
     if (isNew) this.save();
     else this.setStatus('Saved');
@@ -215,6 +218,8 @@ export class Editor {
     if (TOOL_BY_ID[store('tool')]) this.tool = store('tool');
     this.colors.reload();
     this.loadBrushLibrary();  // brushes saved or imported meanwhile
+    this.userPatternList = null;  // patterns made in another tab meanwhile
+    this.preloadPatterns();
     this.attach();
     this.selectTool(this.tool);
     this.onShortcuts();
@@ -450,6 +455,8 @@ export class Editor {
         { label: this.sel.active ? 'Delete selected pixels' : 'Clear layer', rec: 'clear', key: 'Del', run: () => this.clearLayer() },
         { label: this.sel.active ? 'Fill selection with main color' : 'Fill layer with main color', rec: 'fill-main', key: 'Alt+Del', run: () => this.fillLayer() },
         { label: this.sel.active ? 'Fill selection with sub color' : 'Fill layer with sub color', rec: 'fill-sub', key: 'Shift+Alt+Del', run: () => this.fillLayer(true) },
+        { label: 'Fill with pattern…', rec: 'fill-pattern', run: () => this.fillPatternDialog() },
+        { label: 'Patterns…', run: () => this.patternsDialog() },
       ],
       image: [
         { label: 'Canvas size…', key: 'Ctrl+Alt+C', run: () => this.canvasSizeDialog() },
@@ -496,6 +503,7 @@ export class Editor {
         { label: 'New layer', key: 'Ctrl+Shift+N', run: () => this.layerAdd() },
         { label: 'New', sub: [
           { label: 'Vector layer', run: () => this.newVectorLayer() },
+          { label: this.sel.active ? 'Fill layer (in selection)…' : 'Fill layer…', rec: 'fill-layer', run: () => this.newFillLayer() },
           { label: 'Folder', run: () => this.folderAdd() },
           { label: this.sel.active ? 'Correction layer (in selection)…' : 'Correction layer…', rec: 'correction', run: () => this.newAdjustLayer() },
           { label: this.sel.active ? 'Screentone (in selection)…' : 'Screentone…', rec: 'screentone', run: () => this.newToneLayer() },
@@ -529,6 +537,7 @@ export class Editor {
         { label: 'Expression color…', checked: !!d.active.expression, run: () => this.expressionDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
         { label: 'Screentone settings…', run: () => this.toneDialog(), disabled: isFolder(d.active) || !!d.active.adjust },
         { label: 'Correction layer settings…', run: () => this.adjustSettings(), disabled: !d.active.adjust },
+        { label: 'Fill layer settings…', run: () => this.fillLayerSettings(), disabled: !d.active.fill },
         { label: 'Rasterize', sub: [
           { label: 'Layer effects', run: () => this.rasterizeEffects(d.active), disabled: !d.active.effects },
           { label: 'Layer color', run: () => this.rasterizeLayerColor(d.active), disabled: !d.active.layerColor },
@@ -536,6 +545,7 @@ export class Editor {
           { label: 'Screentone', run: () => this.rasterizeTone(d.active), disabled: !d.active.tone },
           { label: 'Text', run: () => this.rasterizeText(d.active), disabled: !d.active.text },
           { label: 'Vector layer', run: () => this.rasterizeVector(d.active), disabled: !d.active.vector },
+          { label: 'Fill layer', run: () => this.rasterizeFill(d.active), disabled: !d.active.fill },
         ] },
         { label: 'Take text off its path', run: () => this.removeTextPath(d.active), disabled: !d.active.text?.path },
         '-',
@@ -1116,13 +1126,14 @@ export class Editor {
       && !(shapeOnly[f[0]] && 'figure' in s && !shapeOnly[f[0]].includes(s.figure))
       && !(f[0] === 'bend' && s.warp === 'none')
       && !(s.texture === 'none' && ['textureAmount', 'textureScale', 'textureAngle', 'textureInvert'].includes(f[0]))
+      && !(f[0].startsWith('pat') && ('vectorErase' in s || (f[0] !== 'pattern' && s.pattern === 'none')))  // no pattern for the Eraser; its settings once one is chosen
       && !(s.comboTip === 'none' && f[0].startsWith('combo') && f[0] !== 'comboTip'));  // the second brush's settings once it is on
   }
 
   /** Rows for some settings: sliders and choices first, the check boxes together under them. */
   settingsHtml(fs, s) {
     const tip = key => (SETTING_HINTS[key] ? ` title="${esc(SETTING_HINTS[key])}"` : '');
-    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'dualTip' || key === 'comboTip' ? [['none', 'Off'], ...this.tipChoices()] : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : list;
+    const options = (key, list) => key === 'tip' ? this.tipChoices() : key === 'dualTip' || key === 'comboTip' ? [['none', 'Off'], ...this.tipChoices()] : key === 'texture' ? this.textureChoices() : key === 'colors' ? gradientChoices(this.userGrads()) : key === 'pattern' ? patternChoices(this.userPatterns()) : list;
     const row = ([key, label, type, min, max, step]) => type === 'curve'
       ? `<div class="slider curve-row"${tip(key)}><span>${esc(label)}</span>${curveSvg(s[key])}<button class="icon-btn" data-clear-curve="${key}" title="${key === 'tiltSizeCurve' ? 'Remove the curve (the size then follows tilt in a straight line)' : key === 'paintCurve' || key === 'loadCurve' ? 'Remove the curve (it then follows pressure as the brush does)' : 'Remove the curve (use the Pressure setting instead)'}">✕</button></div>`
       : type === 'tips'
@@ -1150,7 +1161,7 @@ export class Editor {
         store('tools', this.settings);
         if (t.id === 'text') this.textSettingsChanged(k);
         if (k === 'sample' && (t.id === 'fill' || t.id === 'wand')) this.prepareSample(t.id);  // the other pixels, ready too
-        if (k === 'texture' || k === 'figure' || k === 'comboTip' || k === 'warp' || dropTips) this.renderToolProps();  // which settings show depends on these
+        if (k === 'texture' || k === 'figure' || k === 'comboTip' || k === 'warp' || k === 'pattern' || dropTips) this.renderToolProps();  // which settings show depends on these
         else this.showSetting(k, inp);
         this.drawBrushPreview();
         this.drawGradientStrip();
@@ -1516,7 +1527,8 @@ export class Editor {
       impasto: imp,
       dual: this.gesture.dual ? this.dualCanvas : null,
       combo: this.gesture.combo?.canvas ? { canvas: this.gesture.combo.canvas, op: this.gesture.combo.op } : null,
-      inside: s.refStop && !layer.vector ? this.insideLinesClip(line || pt, s.size / 2) : null };  // stay inside reference lines
+      inside: s.refStop && !layer.vector ? this.insideLinesClip(line || pt, s.size / 2) : null,  // stay inside reference lines
+      pattern: this.strokePattern(s, layer, tool.erase) };  // the pattern brush (patterntools.js)
     if (line) {
       this.addStampPoint({ ...line, p: pt.p });
       for (const q of linePoints({ ...line, p: pt.p }, pt, 3)) this.addStampPoint(q);
@@ -1888,9 +1900,10 @@ export class Editor {
     }
     this.resetStroke();
     this.strokeCtx.putImageData(img, b.x, b.y);
+    if (s.pattern !== 'none' && !this.patternIntoStroke(s, layer, b)) return this.resetStroke();  // the area takes the pattern
     this.sel.clipCanvas(this.strokeCtx, b);
     this.live = { layer, canvas: this.stroke, alpha: s.opacity, mode: this.strokeMode(layer, false) };
-    this.commitStroke(layer, b, 'Fill');
+    this.commitStroke(layer, b, s.pattern !== 'none' ? 'Fill with pattern' : 'Fill');
     if (layer.kind !== 'mask') this.colors.used();
   }
 
@@ -2258,7 +2271,7 @@ export class Editor {
       layerCopy: () => this.layerViaCopy(), layerCut: () => this.layerViaCopy(true),
       rotateLeft: () => this.rotate(-15), rotateRight: () => this.rotate(15), rotateReset: () => this.rotate(null),
       clear: () => (this.tool === 'lineedit' && this.deleteLine()) || (this.tool === 'ctrlpoint' && this.deleteCtrlPoint()) || (this.tool === 'ruler' && this.deleteShape()) || this.clearLayer(),
-      fillMain: () => this.fillLayer(), fillSub: () => this.fillLayer(true),
+      fillMain: () => this.fillLayer(), fillSub: () => this.fillLayer(true), fillPattern: () => this.fillWithPattern(),
       undo: () => this.undo(), redo: () => this.redo(),
       save: () => this.save(), exportPng: () => this.exportAs('png'), export: () => this.exportAs(),
       mergeDown: () => this.mergeDown(), mergeVisible: () => this.mergeVisible(), newLayer: () => this.layerAdd(), groupFolder: () => this.groupIntoFolder(),
@@ -2316,7 +2329,7 @@ const LOG_MAX = Math.log(1000);
 function sliderToSize(v) { return Math.max(1, Math.round(Math.exp((v / 1000) * LOG_MAX) * 10) / 10); }
 function sizeToSlider(size) { return Math.round((Math.log(Math.max(1, size)) / LOG_MAX) * 1000); }
 
-Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods, savedSelMethods);
+Object.assign(Editor.prototype, brushMethods, brushManagerMethods, selectionMethods, selectionBarMethods, timelapseMethods, canvasMethods, layerMethods, rulerMethods, gradientMethods, textMethods, toneMethods, filterMethods, figureMethods, quickMaskMethods, navMethods, vectorMethods, refMethods, exportMethods, smudgeMethods, liquifyMethods, retouchMethods, directPaintMethods, effectMethods, colorizeMethods, actionMethods, gradientEditMethods, pressureMethods, lineEditMethods, ctrlPointMethods, splitViewMethods, symmetryMethods, adjustMethods, stripMethods, savedSelMethods, patternMethods);
 
 function fmt(key, v) {
   if (key === 'size') return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' px';

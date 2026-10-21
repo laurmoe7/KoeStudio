@@ -9,6 +9,8 @@
 import { Layer } from '../doc.js';
 import { fontCss, renderTextLayer, sanitizeText, textBounds, textMatrix, toTextLocal, textAfterMap, editContent, styleRange, restyleText, styleAt, pathFromPoints, isWarped, RUN_KEYS } from '../textlayer.js';
 import { translateVector } from '../vector.js';
+import { mapFill } from '../patterns.js';
+import { renderFillLayer } from '../fillrender.js';
 import { allLayers, insertNode, removeNode, contains } from '../tree.js';
 import { toast } from '../ui.js';
 import { matrix } from '../view.js';
@@ -304,22 +306,25 @@ export const textMethods = {
    * For operations that change text or vector layers' pixels directly: drop their text or lines, so they become
    * ordinary pixels (and restore them on undo). With `m` (the affine the operation maps doc points by) text layers
    * instead follow it in their matrix and stay editable (redrawn sharp), unless that would shear them; vector
-   * lines follow a plain shift (crop, canvas size).
+   * lines follow a plain shift (crop, canvas size); fill layers follow any m and are drawn again on the new canvas.
    */
   textsIn(rasters, m = null) {
     const shift = m && m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1;
-    const list = rasters.filter(r => r.text || r.vector).map(r => {
+    const list = rasters.filter(r => r.text || r.vector || r.fill).map(r => {
       const t2 = r.text && m ? textAfterMap(r.text, m) : null;
       const v2 = r.vector && shift ? translateVector(r.vector, m[4], m[5]) : null;
-      return [r, r.text, r.vector, t2, v2];
+      const f2 = r.fill && m ? mapFill(r.fill, m) : null;  // a fill layer is drawn again, whole, on the new canvas
+      return [r, r.text, r.vector, t2, v2, r.fill, f2];
     });
     return {
-      drop: () => list.forEach(([r, , , t2, v2]) => {
+      drop: () => list.forEach(([r, , , t2, v2, , f2]) => {
         r.text = t2;
         r.vector = v2;
+        r.fill = f2;
         if (t2) renderTextLayer(r);
+        if (f2) renderFillLayer(r);
       }),
-      restore: () => list.forEach(([r, t, v]) => { r.text = t; r.vector = v; }),
+      restore: () => list.forEach(([r, t, v, , , f]) => { r.text = t; r.vector = v; r.fill = f; }),
     };
   },
 };
