@@ -30,7 +30,8 @@ export const lineEditMethods = {
     const layer = this.lineEditLayer();
     if (!layer) return;
     const v = layer.vector, i = nearestStroke(v, dp.x, dp.y, PICK_PX / this.view.zoom);
-    if (i < 0) { this.vline = null; this.renderToolProps(); return; }
+    if (i < 0) { this.vline = null; this.vpoint = null; this.renderToolProps(); return; }
+    if (v.strokes[i] !== this.vline?.stroke) this.vpoint = null;  // the Control point tool's picked point was on the other line
     this.vline = { layer, stroke: v.strokes[i] };
     this.gesture = { type: 'lineedit', tool: 'lineedit', id, layer, before: v, index: i, orig: v.strokes[i], grab: dp, moved: false };
     this.renderToolProps();

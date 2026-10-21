@@ -87,7 +87,8 @@ export const ctrlPointMethods = {
         return;
       }
       if (hit.part === 'anchor' && e.altKey) {
-        this.setCurve(c, toggleCorner(c.ctrl, c.closed, hit.i), 'Corner / smooth point');
+        const ctrl = toggleCorner(c.ctrl, c.closed, hit.i);
+        if (ctrl !== c.ctrl) this.setCurve(c, ctrl, 'Corner / smooth point');  // unchanged: no empty undo step
         this.vpoint = hit.i;
         this.renderToolProps();
         return;
@@ -125,7 +126,7 @@ export const ctrlPointMethods = {
   /** Del with this tool: the picked point (when the line keeps two), else the picked line. */
   deleteCtrlPoint() {
     const c = this.pickedCurve();
-    if (c && this.vpoint != null && c.ctrl.length > 2) {
+    if (c && this.vpoint != null && this.vpoint < c.ctrl.length && c.ctrl.length > 2) {
       this.setCurve(c, removeAnchor(c.ctrl, this.vpoint), 'Delete control point');
       this.vpoint = null;
       this.renderToolProps();

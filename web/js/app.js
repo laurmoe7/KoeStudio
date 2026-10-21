@@ -64,8 +64,17 @@ async function gallery() {
   await showGallery(galleryRoot, { onOpen: openArtwork, isOpen: id => open.some(o => o.editor.doc.id === id), onRenamed, onDeleting });
 }
 
+// Openings run one after the other: a second click on a card while it loads must find the first tab instead of
+// opening the artwork twice (two editors saving over each other), and two loading at once would both show.
+let opening = Promise.resolve();
+function openArtwork(what) {
+  const next = opening.then(() => openOne(what));
+  opening = next.catch(() => {});
+  return next;
+}
+
 /** Opens an artwork in a tab of its own ({id} of a saved one, or {newDoc}); an open one is just shown. */
-async function openArtwork({ id, newDoc }) {
+async function openOne({ id, newDoc }) {
   closeMenus();
   const there = id && open.find(o => o.editor.doc.id === id);
   if (there) return show(there);
@@ -97,10 +106,15 @@ async function openArtwork({ id, newDoc }) {
 }
 
 /** Closes an artwork's tab: saved first; then the next tab (or the gallery) shows. */
-async function closeArtwork(o) {
-  if (!o) return;
+function closeArtwork(o) {
+  if (!o) return Promise.resolve();
+  return (o.closing ||= closeNow(o));  // a second click on × (or File → Close) while it saves waits for the first
+}
+
+async function closeNow(o) {
   await o.editor.flush().catch(() => {});
   const i = open.indexOf(o);
+  if (i < 0) return;
   open.splice(i, 1);
   o.editor.destroy();
   o.el.remove();

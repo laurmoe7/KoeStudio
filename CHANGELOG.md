@@ -13,6 +13,11 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Ten more layer blending modes, as in Clip Studio Paint and Photoshop: Add, Subtract, Linear burn, Vivid light, Linear light, Pin light, Hard mix, Divide, Darker color and Lighter color; the blending list is now grouped the same way.
 
 ### Fixed
+- Clicking an artwork twice while it opens no longer opens it in two tabs that save over each other.
+- Clicking a tab's × twice no longer closes a second, different artwork as well.
+- With the canvas split, moving the pointer over the other view no longer draws the brush outline in the wrong place.
+- With the canvas split, drawing stays smooth: the other view now redraws only the part that changed.
+- The Control point tool's Del no longer removes a point from a line other than the one you picked it on.
 - When a layer could not be turned into a PNG (out of memory), saving now says so and keeps trying instead of quietly stopping for good.
 - Export layers says which layer could not be made into a file instead of failing with a puzzling message.
 - Export layers, Flip layer and the Color range preview free their working memory straight away, so big canvases stay smooth.

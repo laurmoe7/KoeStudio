@@ -7,6 +7,7 @@
 
 import { store } from '../ui.js';
 import { fitView, resizedView } from '../view.js';
+import { union } from '../rect.js';
 
 /** What makes a pane: swapped between the editor and this.pane2. */
 const PANE_FIELDS = ['viewport', 'viewCanvas', 'overlay', 'vctx', 'octx', 'view', 'vw', 'vh', 'paperLayer'];
@@ -110,17 +111,30 @@ export const splitViewMethods = {
     this.renderPassive();
   },
 
-  /** Redraws the other pane on the next frame (after the active one changed). */
-  schedulePassive() {
-    if (this.split && !this.passiveRaf) this.passiveRaf = requestAnimationFrame(() => { this.passiveRaf = 0; this.renderPassive(); });
+  /**
+   * Redraws doc region r (or 'all') of the other pane on the next frame, after the active one drew it: while
+   * drawing only the part the stroke changed, as in the active pane.
+   */
+  schedulePassive(r = 'all') {
+    if (!this.split) return;
+    const d = this.passiveDirty;
+    this.passiveDirty = r === 'all' || d === 'all' ? 'all' : d ? union(d, r) : r;
+    if (!this.passiveRaf) this.passiveRaf = requestAnimationFrame(() => {
+      this.passiveRaf = 0;
+      const region = this.passiveDirty;
+      this.passiveDirty = null;
+      this.renderPassive(region || 'all');
+    });
   },
 
-  /** Draws the other pane whole: paper, the composite through its own view, and an empty overlay. */
-  renderPassive() {
+  /** Draws the other pane (region: a doc rect, or 'all': paper, the composite through its own view, an empty overlay). */
+  renderPassive(region = 'all') {
     if (!this.split || this.destroyed) return;
     if (!this.pane2.view) { this.resizePassive(); return; }
     this.withPassive(() => {
-      this.render('all');
+      const all = region === 'all' || !this.paperLayer;  // a partial redraw copies the paper from its last full one
+      this.render(all ? 'all' : region);
+      if (!all) return;
       this.octx.setTransform(1, 0, 0, 1, 0, 0);
       this.octx.clearRect(0, 0, this.overlay.width, this.overlay.height);
     });

@@ -93,7 +93,7 @@ export class Editor {
   constructor(root, { onHome, onOpen }) {
     this.root = root;
     this.onHome = onHome;
-    this.onOpen = onOpen;  // opens another artwork in place of this one ({id} or {newDoc})
+    this.onOpen = onOpen;  // opens another artwork in a tab of its own ({id} or {newDoc}; app.js)
     this.settings = sanitizeSettings(store('tools'));
     this.initActions();  // Auto actions (actiontools.js): recording wraps some methods
     this.loadPressureCurve();  // Settings → Pen pressure (pressuretool.js)
@@ -735,7 +735,7 @@ export class Editor {
     if (tint) { ctx.globalAlpha = 0.45; ctx.drawImage(tint, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); ctx.globalAlpha = 1; }
     ctx.restore();
     this.scheduleNav();
-    if (!this.drawingPassive) this.schedulePassive();
+    if (!this.drawingPassive) this.schedulePassive(r || 'all');
     if (r || this.drawingPassive) return;
     this.zoomLabel.textContent = Math.round(this.view.zoom * 1000) / 10 + '%';
     const deg = Math.round(((this.view.rot * 180 / Math.PI) % 360 + 540) % 360 - 180);
@@ -1230,7 +1230,12 @@ export class Editor {
       const [ia, ib] = [...this.touches.keys()];
       this.gesture = { type: 'touchview', ids: [ia, ib], a0: this.touches.get(ia), b0: this.touches.get(ib), view: { ...this.view }, t0: performance.now(), moved: false, count: this.touches.size };
     };
+    // with the canvas split (splitview.js) only the pane being worked on takes input: a press or a scroll in the
+    // other one makes it that pane first, so what still reaches a pane that is not (hovering it, a press in the
+    // middle of a gesture) would be measured against the wrong view
+    const other = () => el !== this.overlay;
     el.addEventListener('pointerdown', e => {
+      if (other()) return;
       if (e.pointerType !== 'mouse') this.notePenUsed();  // the shortcut strip shows from then on
       if (e.pointerType === 'touch') {
         this.touches.set(e.pointerId, pos(e));
@@ -1280,6 +1285,7 @@ export class Editor {
       this.drawOverlay();
     });
     el.addEventListener('pointermove', e => {
+      if (other()) return;
       const p = pos(e);
       this.pointer = p;
       this.pointerShift = e.shiftKey;
@@ -1383,9 +1389,10 @@ export class Editor {
     };
     el.addEventListener('pointerup', lift);
     el.addEventListener('pointercancel', lift);
-    el.addEventListener('pointerleave', () => { if (!this.gesture) { this.pointer = null; this.drawOverlay(); } });
+    el.addEventListener('pointerleave', () => { if (!other() && !this.gesture) { this.pointer = null; this.drawOverlay(); } });
     el.addEventListener('wheel', e => {
       e.preventDefault();
+      if (other()) return;
       const p = pos(e);
       if (e.shiftKey && !e.ctrlKey) this.setView(rotateAt(this.view, Math.sign(e.deltaY || e.deltaX) * Math.PI / 12, p.x, p.y));
       else this.setView(zoomAt(this.view, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), p.x, p.y));
