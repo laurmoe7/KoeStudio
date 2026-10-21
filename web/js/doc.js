@@ -11,11 +11,16 @@ import { sanitizeEffects, effectReach, effectsImage } from './effects.js';
 import { sanitizeAdjust, adjustFilter } from './adjust.js';
 import { sanitizeDpi } from './resolution.js';
 import { applyTextureMode, textureValueAt } from './texmodes.js';
+import { isCustomBlend, CUSTOM_BLENDS, BLEND_SHADER, blendPixels } from './blendmodes.js';
 
 export const BLEND_MODES = [
-  ['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'],
-  ['darken', 'Darken'], ['lighten', 'Lighten'], ['color-dodge', 'Color dodge'], ['color-burn', 'Color burn'],
-  ['hard-light', 'Hard light'], ['soft-light', 'Soft light'], ['difference', 'Difference'], ['exclusion', 'Exclusion'],
+  ['source-over', 'Normal'],
+  ['darken', 'Darken'], ['multiply', 'Multiply'], ['color-burn', 'Color burn'], ['linear-burn', 'Linear burn'],
+  ['subtract', 'Subtract'], ['darker-color', 'Darker color'],
+  ['lighten', 'Lighten'], ['screen', 'Screen'], ['color-dodge', 'Color dodge'], ['add', 'Add'], ['lighter-color', 'Lighter color'],
+  ['overlay', 'Overlay'], ['soft-light', 'Soft light'], ['hard-light', 'Hard light'], ['vivid-light', 'Vivid light'],
+  ['linear-light', 'Linear light'], ['pin-light', 'Pin light'], ['hard-mix', 'Hard mix'],
+  ['difference', 'Difference'], ['exclusion', 'Exclusion'], ['divide', 'Divide'],
   ['hue', 'Hue'], ['saturation', 'Saturation'], ['color', 'Color'], ['luminosity', 'Luminosity'],
 ];
 /** Folders also have "Through": their layers blend straight onto what is below, as if there were no folder. */
@@ -433,6 +438,110 @@ function scratchCanvas(key, r, opts) {
 const maskOn = n => !!(n.mask && n.mask.enabled);
 const blendOf = n => (n.blend === PASS_THROUGH[0] ? 'source-over' : n.blend);
 
+// ---------- blend modes the canvas lacks (blendmodes.js) ----------
+// The part of ctx under the source and the source itself are copied into two canvases, both uploaded to WebGL as
+// textures (GPU to GPU, nothing read back), and the shader's result is laid on with source-over. Done in tiles of
+// at most BLEND_TILE px, in canvases rounded up to 256 px steps so they are rarely resized.
+const BLEND_TILE = 2048;
+let blendGl = null;  // {canvas, gl, prog, mode, tex: [src, dst]}, or false when WebGL is not available
+
+function blendContext() {
+  if (blendGl && !blendGl.gl.isContextLost()) return blendGl;
+  if (blendGl === false) return null;
+  const canvas = document.createElement('canvas');
+  const gl = canvas.getContext('webgl', { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false, depth: false });
+  if (!gl) { blendGl = false; return null; }
+  const shader = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, shader(gl.VERTEX_SHADER, `attribute vec2 aPos; uniform vec2 uSize; varying vec2 vUv;
+    void main() { vUv = aPos / uSize; gl_Position = vec4(vUv.x * 2.0 - 1.0, 1.0 - vUv.y * 2.0, 0.0, 1.0); }`));
+  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, BLEND_SHADER));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { blendGl = false; return null; }
+  gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  const pos = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);  // as the canvas keeps them; the shader unpremultiplies
+  const tex = [0, 1].map(unit => {
+    const t = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
+    for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
+    return t;
+  });
+  gl.uniform1i(gl.getUniformLocation(prog, 'uSrc'), 0);
+  gl.uniform1i(gl.getUniformLocation(prog, 'uDst'), 1);
+  blendGl = { canvas, gl, tex, mode: gl.getUniformLocation(prog, 'uMode'), size: gl.getUniformLocation(prog, 'uSize') };
+  return blendGl;
+}
+
+// Canvases for one tile: the source, the backdrop (willReadFrequently only for the CPU fallback) and the CPU result.
+const blendCanvases = {};
+function blendCanvas(key, w, h, cpu) {
+  const W = Math.ceil(w / 256) * 256, H = Math.ceil(h / 256) * 256;
+  let c = blendCanvases[key];
+  if (!c) c = blendCanvases[key] = document.createElement('canvas');
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const ctx = c.getContext('2d', cpu ? { willReadFrequently: true } : undefined);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'copy';  // replaces what an earlier tile left, transparent pixels included
+  return [c, ctx];
+}
+
+/** Region (sx, sy, r.w, r.h) of src drawn at r in ctx with the given alpha and blend mode, the canvas's own or blendmodes.js's. */
+export function drawBlended(ctx, src, sx, sy, r, alpha, blend) {
+  if (!isCustomBlend(blend)) {
+    ctx.globalAlpha = alpha;
+    ctx.globalCompositeOperation = blend;
+    ctx.drawImage(src, sx, sy, r.w, r.h, r.x, r.y, r.w, r.h);
+    return;
+  }
+  for (let y = 0; y < r.h; y += BLEND_TILE) {
+    for (let x = 0; x < r.w; x += BLEND_TILE) {
+      const t = { x: r.x + x, y: r.y + y, w: Math.min(BLEND_TILE, r.w - x), h: Math.min(BLEND_TILE, r.h - y) };
+      blendTile(ctx, src, sx + x, sy + y, t, alpha, blend);
+    }
+  }
+}
+
+function blendTile(ctx, src, sx, sy, r, alpha, blend) {
+  const g = blendContext(), cpu = !g;
+  // what ctx holds under r, read where ctx's transform puts it (scaled for thumbnails), as drawAdjust does
+  const m = ctx.getTransform();
+  const [dc, dctx] = blendCanvas('dst', r.w, r.h, cpu);
+  dctx.drawImage(ctx.canvas, m.a * r.x + m.e, m.d * r.y + m.f, m.a * r.w, m.d * r.h, 0, 0, r.w, r.h);
+  const [sc, sctx] = blendCanvas('src', r.w, r.h, cpu);
+  sctx.drawImage(src, sx, sy, r.w, r.h, 0, 0, r.w, r.h);
+  let out;
+  if (g) {
+    const { gl, canvas } = g;
+    if (canvas.width !== sc.width || canvas.height !== sc.height) { canvas.width = sc.width; canvas.height = sc.height; }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    for (const [unit, c] of [[0, sc], [1, dc]]) {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, g.tex[unit]);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    }
+    gl.uniform1i(g.mode, CUSTOM_BLENDS.indexOf(blend));
+    gl.uniform2f(g.size, canvas.width, canvas.height);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, r.w, 0, 0, r.h, 0, r.h, r.w, 0, r.w, r.h]), gl.STATIC_DRAW);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    out = canvas;
+  } else {  // no WebGL: the same formulas on the CPU
+    const d = dctx.getImageData(0, 0, r.w, r.h).data, s = sctx.getImageData(0, 0, r.w, r.h).data;
+    const [oc, octx] = blendCanvas('out', r.w, r.h, true);
+    octx.putImageData(new ImageData(blendPixels(blend, d, s), r.w, r.h), 0, 0);
+    out = oc;
+  }
+  ctx.globalAlpha = alpha;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(out, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+}
+
 /**
  * Draws the doc's region r (doc pixels) into ctx at the same coordinates (ctx's transform applies on top).
  * live = { layer, canvas, alpha, mode, texture } is a stroke in progress on a layer or mask, drawn as if already
@@ -509,15 +618,9 @@ function drawChildren(ctx, nodes, r, live, depth) {
         cctx.translate(-r.x, -r.y);
         drawNode(cctx, n, r, live, 1, 'source-over', depth + 1);
         drawNode(cctx, base, r, live, 1, 'destination-in', depth + 1);
-        gctx.setTransform(1, 0, 0, 1, 0, 0);
-        gctx.globalAlpha = n.opacity;
-        gctx.globalCompositeOperation = blendOf(n);
-        gctx.drawImage(cc, 0, 0, r.w, r.h, 0, 0, r.w, r.h);
-        gctx.translate(-r.x, -r.y);
+        drawBlended(gctx, cc, 0, 0, r, n.opacity, blendOf(n));
       }
-      ctx.globalAlpha = base.opacity;
-      ctx.globalCompositeOperation = blendOf(base);
-      ctx.drawImage(gc, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+      drawBlended(ctx, gc, 0, 0, r, base.opacity, blendOf(base));
       i = j - 1;
     }
   }
@@ -542,9 +645,7 @@ function drawNode(ctx, node, r, live, alpha, blend, depth) {
     [src] = layerImage(node, r, live, depth, node.tone || node.expression ? `tone${depth}` : `node${depth}`);
     sx = 0; sy = 0;
   }
-  ctx.globalAlpha = alpha;
-  ctx.globalCompositeOperation = blend;
-  ctx.drawImage(src, sx, sy, r.w, r.h, r.x, r.y, r.w, r.h);
+  drawBlended(ctx, src, sx, sy, r, alpha, blend);
 }
 
 /**
@@ -560,9 +661,7 @@ function drawAdjust(ctx, node, r, live, alpha, blend, depth) {
   cctx.drawImage(ctx.canvas, t.a * r.x + t.e, t.d * r.y + t.f, t.a * r.w, t.d * r.h, 0, 0, r.w, r.h);
   cctx.filter = 'none';
   if (maskOn(node)) applyMask(cctx, node, r, live, depth);
-  ctx.globalAlpha = alpha;
-  ctx.globalCompositeOperation = blend === 'source-over' ? 'source-atop' : blend;
-  ctx.drawImage(c, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+  drawBlended(ctx, c, 0, 0, r, alpha, blend === 'source-over' ? 'source-atop' : blend);
 }
 
 /**

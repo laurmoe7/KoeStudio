@@ -592,7 +592,13 @@ export const GUIDE = [
       <li>The <b>eye</b> hides a layer. <kbd>Alt</kbd>+click an eye to see only that layer; <kbd>Alt</kbd>+click it
       again to bring the others back as they were. Double-click its name (or press <kbd>F2</kbd>) to rename it.</li>
       <li><b>Opacity</b> makes the whole layer see-through. <b>Blending</b> modes such as Multiply (for shadows) and
-      Screen (for light) change how it mixes with what is below.</li>
+      Screen (for light) change how it mixes with what is below. The list has the same 26 modes as Clip Studio Paint
+      and Photoshop, grouped: ones that darken, ones that lighten, contrast, difference, then colour.</li>
+      <li><b>Add</b> makes glows (paint the light in a dark or mid colour on its own layer),<b>Subtract</b> and <b>Linear burn</b> darken more strongly than
+      Multiply, <b>Vivid light</b>, <b>Linear light</b> and <b>Pin light</b> darken where the layer is darker than
+      mid-gray and lighten where it is lighter, <b>Hard mix</b> leaves only pure colours, <b>Divide</b> brightens
+      (dividing by a colour takes it out), and <b>Darker color</b> / <b>Lighter color</b> keep whichever whole colour is
+      darker or lighter, without mixing them.</li>
     </ul>
     <h4>Handy switches</h4>
     <figure data-pic="clip"></figure>

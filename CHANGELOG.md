@@ -4,6 +4,9 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 
 ## 2026-10-21
 
+### New
+- Ten more layer blending modes, as in Clip Studio Paint and Photoshop: Add, Subtract, Linear burn, Vivid light, Linear light, Pin light, Hard mix, Divide, Darker color and Lighter color; the blending list is now grouped the same way.
+
 ### Fixed
 - When a layer could not be turned into a PNG (out of memory), saving now says so and keeps trying instead of quietly stopping for good.
 - Export layers says which layer could not be made into a file instead of failing with a puzzling message.

@@ -4,7 +4,7 @@
 // What tools paint on is this.target(): the selected layer, or its mask while mask editing is on (this.maskEdit,
 // set by clicking the mask thumbnail). Folders have no pixels of their own, only an optional mask.
 
-import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, effectsCanvas, PASS_THROUGH } from '../doc.js';
+import { Layer, Folder, Mask, cloneNode, nodeRasters, renderFolder, tonedCanvas, effectsCanvas, drawBlended, PASS_THROUGH } from '../doc.js';
 import { isFolder, allLayers, allNodes, soloChange, contains, removeNode, insertNode, destination, stepTarget, outermost, rowRange, removeNodes, restoreNodes, moveNodes, shownLayersTopFirst, clipBase, clearNode, rowNeighbour } from '../tree.js';
 import { toast, menu } from '../ui.js';
 import { toneDensity } from '../tone.js';
@@ -386,9 +386,8 @@ export const layerMethods = {
     // GPU copies for undo (trimmed when idle), so merging does not wait for the GPU to read both layers back
     const full = { x: 0, y: 0, w: W, h: H }, before = this.snapshot(lower, full);
     lower.ctx.save();
-    lower.ctx.globalAlpha = n.opacity;
-    lower.ctx.globalCompositeOperation = lower.alphaLock || (n.adjust && n.blend === 'source-over') ? 'source-atop' : n.blend;
-    lower.ctx.drawImage(src, 0, 0);
+    drawBlended(lower.ctx, src, 0, 0, full, n.opacity,
+      lower.alphaLock || (n.adjust && n.blend === 'source-over') ? 'source-atop' : n.blend);
     lower.ctx.restore();
     const after = this.snapshot(lower, full);
     const put = img => { this.putSnapshot(lower, full, img); lower.touch(); };
