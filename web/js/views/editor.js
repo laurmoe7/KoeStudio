@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { Smoother, StampPath, stampAt, grainAt, stampBounds, dabCount, dabJitter, colorJitter, taperIn, taperOut, taperDab, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL, paintAt } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor, averageColor } from '../color.js';
-import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach, withoutDrafts, picKey } from '../doc.js';
+import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach, withoutDrafts, picKey, saveBody } from '../doc.js';
 import { isFolder } from '../tree.js';
 import { floodMask, growMask, closeGapFill, insideLines } from '../fill.js';
 import { History } from '../history.js';
@@ -2126,10 +2126,10 @@ export class Editor {
       // only the pictures changed since the last save travel; the server fills in the rest (app.py SAVE_CACHE)
       const thumb = await canvasToDataUrl(this.thumbCanvas(360));
       const send = async have => {
-        const delta = { have, keys: new Set() };
+        const delta = { have, keys: new Set(), texts: new Map() };
         const json = await d.toJSON(delta);
         json.thumb = thumb;
-        return { res: await api.save(d.id || '', json), keys: delta.keys };
+        return { res: await api.save(d.id || '', saveBody(json, delta.texts)), keys: delta.keys };
       };
       const have = this.serverHas && this.serverHas.id === d.id ? await this.serverHas.keys : null;
       let sent;

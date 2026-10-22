@@ -147,7 +147,10 @@ class Raster {
   async toPng() {
     if (this.pngVersion !== this.version) {
       const v = this.version;
-      this.png = await canvasToDataUrl(this.canvas);
+      const { url, key, text } = await canvasToPng(this.canvas);
+      this.png = url;
+      if (key) [this.hash, this.hashOf] = [key, url];
+      [this.pngText, this.pngTextOf] = [text || null, url];  // the url's bytes, for saveBody
       this.pngVersion = v;
     }
     return this.png;
@@ -271,14 +274,38 @@ export function nodeRasters(n) {
  * The worker gets an ImageBitmap (a copy taken now, on the GPU) and does the readback and encoding itself.
  */
 export function canvasToDataUrl(canvas) {
+  return canvasToPng(canvas).then(r => r.url);
+}
+
+/** As canvasToDataUrl, as {url, key, text}: from the worker also the url's key (picKey) and its bytes as a Blob (saveBody). */
+function canvasToPng(canvas) {
   if (canvas.width * canvas.height >= WORKER_PIXELS && pngWorker() && typeof createImageBitmap === 'function') {
     return createImageBitmap(canvas).then(bitmap => new Promise((resolve, reject) => {
       const id = ++pngJobs.next;
       pngJobs.waiting.set(id, { resolve, reject });
       pngJobs.worker.postMessage({ id, bitmap }, [bitmap]);
-    })).catch(() => { pngJobs.broken = true; return blobDataUrl(canvas); });  // a browser without OffscreenCanvas
+    })).catch(() => { pngJobs.broken = true; return blobDataUrl(canvas).then(url => ({ url })); });  // a browser without OffscreenCanvas
   }
-  return blobDataUrl(canvas);
+  return blobDataUrl(canvas).then(url => ({ url }));
+}
+
+/**
+ * The request body of a save: `json` as JSON text, with each placeholder string that toJSON put in for a picture
+ * (the keys of `texts`) replaced by that picture's data URL, given as a Blob of its bytes. The page then never turns
+ * the big strings into bytes itself (fetch did that on the main thread). Without placeholders it is plain JSON text.
+ */
+export function saveBody(json, texts) {
+  const s = JSON.stringify(json);
+  if (!texts?.size) return s;
+  const parts = [];
+  let at = 0;
+  const marks = [...texts.keys()].map(k => [s.indexOf(JSON.stringify(k)), k]).filter(([i]) => i >= 0).sort((a, b) => a[0] - b[0]);
+  for (const [i, k] of marks) {
+    parts.push(s.slice(at, i), '"', texts.get(k), '"');  // a data URL holds nothing JSON escapes
+    at = i + JSON.stringify(k).length;
+  }
+  parts.push(s.slice(at));
+  return new Blob(parts, { type: 'application/json' });
 }
 
 const WORKER_PIXELS = 1 << 20;  // smaller pictures read back in a few ms: not worth the trip
@@ -296,7 +323,7 @@ function pngWorker() {
     pngJobs.worker.onmessage = e => {
       const job = pngJobs.waiting.get(e.data.id);
       pngJobs.waiting.delete(e.data.id);
-      if (job) e.data.error ? job.reject(new Error(e.data.error)) : job.resolve(e.data.url);
+      if (job) e.data.error ? job.reject(new Error(e.data.error)) : job.resolve(e.data);
     };
     pngJobs.worker.onerror = () => {  // the worker could not start: every waiting job is done the old way
       pngJobs.broken = true;
@@ -389,15 +416,19 @@ export class Doc {
   /**
    * The document as saved. With `delta` = {have (Set of picture keys the server holds for this artwork, or null),
    * keys (an empty Set, filled with every picture's key)}, a layer or mask picture the server has is sent as
-   * "ref:<key>" (its pngHash; app.py SAVE_CACHE fills it in).
+   * "ref:<key>" (its pngHash; app.py SAVE_CACHE fills it in). With delta.texts (an empty Map) a picture sent whole
+   * whose bytes the PNG worker handed back is a placeholder string instead, kept in texts with those bytes (saveBody).
    */
   async toJSON(delta = null) {
+    const mark = `\u0001pic:${Math.random().toString(36).slice(2)}:`;
     const pic = async (r, out) => {
       const png = await r.toPng();
       if (!delta || !png) { out.png = png; return; }
       const key = await r.pngHash();
       delta.keys.add(key);
-      out.png = delta.have?.has(key) ? 'ref:' + key : png;
+      if (delta.have?.has(key)) out.png = 'ref:' + key;
+      else if (delta.texts && r.pngText && r.pngTextOf === png) { out.png = mark + delta.texts.size; delta.texts.set(out.png, r.pngText); }
+      else out.png = png;
     };
     const node = async n => {
       const out = { type: n.kind, name: n.name, uid: n.uid, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };

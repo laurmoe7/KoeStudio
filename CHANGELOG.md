@@ -24,6 +24,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Parallel line ruler: with the Ruler tool, every stroke and straight figure becomes a straight line in one direction, set by dragging the ruler's end or typing an angle.
 
 ### Faster
+- Autosave no longer makes the next stroke stutter on big artworks: the picture is prepared and sent without holding up the drawing.
 - Saving sends saved selections only when they changed, instead of every time.
 
 ### Fixed

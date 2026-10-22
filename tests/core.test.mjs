@@ -9,7 +9,7 @@ import { isReloadKey, comboOf, isTyping, springBack } from '../web/js/keys.js';
 import { union, clip, alphaBounds } from '../web/js/rect.js';
 import { newView, toDoc, toScreen, zoomAt, rotateAt, flipAt, fitView, fitRectView, resizedView } from '../web/js/view.js';
 import { sanitizeSettings, nextSize, TOOLS } from '../web/js/tools.js';
-import { sanitizeDoc } from '../web/js/doc.js';
+import { sanitizeDoc, saveBody } from '../web/js/doc.js';
 
 const near = (a, b, eps = 1e-9, msg) => assert.ok(Math.abs(a - b) < eps, msg || `${a} ≈ ${b}`);
 
@@ -329,4 +329,16 @@ test('fitting a rectangle of the canvas into the view', () => {
   assert.equal(t.rot, Math.PI / 2);
   const d = toScreen(t, 250, 125);
   assert.ok(Math.abs(d.x - 300) < 1e-9 && Math.abs(d.y - 200) < 1e-9);
+});
+
+test('a save body puts each picture Blob where its placeholder string was', async () => {
+  const a = 'data:image/png;base64,AAAA', b = 'data:image/png;base64,Bb+/=';
+  const json = { title: 'T "1"', layers: [{ png: '\u0001pic:x:0' }, { png: 'ref:abc' }, { mask: { png: '\u0001pic:x:1' } }] };
+  const texts = new Map([['\u0001pic:x:0', new Blob([a])], ['\u0001pic:x:1', new Blob([b])]]);
+  const body = saveBody(json, texts);
+  assert.ok(body instanceof Blob);
+  assert.deepEqual(JSON.parse(await body.text()), { title: 'T "1"', layers: [{ png: a }, { png: 'ref:abc' }, { mask: { png: b } }] });
+  // without placeholders: the JSON text itself
+  assert.equal(saveBody({ x: 1 }, new Map()), '{"x":1}');
+  assert.equal(saveBody({ x: 1 }), '{"x":1}');
 });

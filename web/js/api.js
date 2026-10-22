@@ -4,7 +4,7 @@ async function call(method, path, body, type = 'application/json') {
   const res = await fetch('/api/' + path, {
     method,
     headers: body === undefined ? {} : { 'Content-Type': type },
-    body: body === undefined ? undefined : (type === 'application/json' ? JSON.stringify(body) : body),
+    body: body === undefined ? undefined : (type === 'application/json' && typeof body !== 'string' && !(body instanceof Blob) ? JSON.stringify(body) : body),
   });
   const data = await res.json().catch(() => ({ error: `Server answered ${res.status}` }));
   if (!res.ok || data?.error) throw Object.assign(new Error(data?.error || `Server answered ${res.status}`), { status: res.status, data });
@@ -18,6 +18,7 @@ export const api = {
   list: () => call('GET', 'art'),
   /** edit: the server also remembers its pictures for saves that send only changes. */
   load: (id, edit = false) => call('GET', `art/file?id=${q(id)}${edit ? '&edit=1' : ''}`),
+  /** doc: the document's JSON text, or a Blob of it (doc.js saveBody). */
   save: (id, doc) => call('POST', `art/save?id=${q(id)}`, doc),
   remove: id => call('POST', `art/delete?id=${q(id)}`, {}),
   rename: (id, title) => call('POST', `art/rename?id=${q(id)}&title=${q(title)}`, {}),
