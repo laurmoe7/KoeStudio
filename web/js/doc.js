@@ -122,6 +122,14 @@ export async function picKey(png) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+const fillKeys = new WeakMap();  // pattern fill -> picKey of its tile
+
+/** The picKey of a pattern fill's tile (kept: fills are never changed in place). */
+export async function fillKey(fill) {
+  if (!fillKeys.has(fill)) fillKeys.set(fill, await picKey(fill.src));
+  return fillKeys.get(fill);
+}
+
 /** Pixels with a canvas, a change counter and a cached PNG: a layer or a mask. */
 class Raster {
   constructor(w, h) {
@@ -430,6 +438,12 @@ export class Doc {
       else if (delta.texts && r.pngText && r.pngTextOf === png) { out.png = mark + delta.texts.size; delta.texts.set(out.png, r.pngText); }
       else out.png = png;
     };
+    const fillOut = async fill => {  // a pattern fill's tile travels as a ref too (fills never change: key kept per fill)
+      if (!delta || fill.type !== 'pattern' || !fill.src) return fill;
+      const key = await fillKey(fill);
+      delta.keys.add(key);
+      return delta.have?.has(key) ? { ...fill, src: 'ref:' + key } : fill;
+    };
     const node = async n => {
       const out = { type: n.kind, name: n.name, uid: n.uid, visible: n.visible, opacity: n.opacity, blend: n.blend, clip: n.clip, label: n.label };
       if (n.locked) out.locked = true;
@@ -445,7 +459,7 @@ export class Doc {
         await pic(n, out);
         if (n.text) out.text = n.text;
         if (n.vector) out.vector = n.vector;
-        if (n.fill) out.fill = n.fill;
+        if (n.fill) out.fill = await fillOut(n.fill);
         if (n.tone) out.tone = n.tone;
         if (n.effects) out.effects = n.effects;
         if (n.layerColor) out.layerColor = n.layerColor;

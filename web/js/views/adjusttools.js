@@ -20,9 +20,16 @@ export const adjustMethods = {
     const type = await modal({
       title: 'New correction layer',
       body: `<p class="muted small">A correction layer changes the colours of everything below it, without changing those layers. Change its settings or opacity, hide it or paint on its mask at any time.</p>
-        <div class="adjust-list">${ADJUSTMENTS.map(([id, label]) => `<button type="button" data-type="${id}">${esc(label)}</button>`).join('')}</div>`,
-      buttons: [{ label: 'Cancel', value: null }],
-      onOpen: (root, close) => root.querySelectorAll('[data-type]').forEach(b => { b.onclick = () => close(b.dataset.type); }),
+        <div class="adjust-list">${ADJUSTMENTS.map(([id, label]) => `<button type="button" data-type="${id}">${esc(label)}</button>`).join('')}</div>
+        <input type="hidden" name="type" value="">`,
+      // a pick is this dialog's OK, with the type in a hidden field, so auto actions record it and play it back
+      // (filling the field and pressing the hidden primary button)
+      buttons: [{ label: 'Cancel', value: null }, { label: 'Add', primary: true }],
+      collect: root => root.querySelector('[name="type"]').value || undefined,
+      onOpen: (root, close) => {
+        root.querySelector('.modal-buttons .primary').hidden = true;
+        root.querySelectorAll('[data-type]').forEach(b => { b.onclick = () => { root.querySelector('[name="type"]').value = b.dataset.type; close(b.dataset.type, true); }; });
+      },
     });
     if (!type) return;
     const d = this.doc, prev = d.active, parent = prev.parent, index = parent.children.indexOf(prev) + 1;

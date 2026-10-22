@@ -705,7 +705,7 @@ export const GUIDE = [
       <li><b>Update</b> keeps the layers as they look now in the selected comp; <b>⋯</b> renames or deletes it.</li>
       <li><b>Export…</b> saves each comp as a PNG of the whole picture, named after the comp.</li>
       <li>Layers added after a comp was made stay as they are when you click it.</li>
-      <li>Position is where the Move tool put each layer. Paint pushed past the edge of the canvas is cut off.</li>
+      <li>Position is where the Move tool put each layer. It turns with the canvas when you flip, rotate or resize it. Paint pushed past the edge of the canvas is cut off.</li>
     </ul>
     <p class="tip">Switching to a comp is one step: <kbd>Ctrl+Z</kbd> puts every layer back as it was.</p>
     <h4>Fill layers</h4>

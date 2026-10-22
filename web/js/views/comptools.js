@@ -5,7 +5,7 @@
 // Editor methods (mixed into Editor.prototype in editor.js).
 
 import { api } from '../api.js';
-import { COMP_MAX, COMP_PARTS, captureComp, updateComp, compChanges, compMatches, nextCompName, uniqueCompName } from '../layercomps.js';
+import { COMP_MAX, COMP_PARTS, captureComp, updateComp, compChanges, compMatches, nextCompName, uniqueCompName, turnOffset, turnComps } from '../layercomps.js';
 import { allNodes } from '../tree.js';
 import { EXPORT_BY_ID, sanitizeExportOptions } from '../imageformats.js';
 import { pngWithDpi } from '../resolution.js';
@@ -87,6 +87,20 @@ export const compMethods = {
         { label: 'Delete', run: () => this.setComps('Delete layer comp', this.doc.comps.filter(x => x !== c), `"${c.name}" deleted. Undo (Ctrl+Z) brings it back.`) },
       ]);
     }
+  },
+
+  /**
+   * apply/revert for turning the Move tool's offsets of `layers` (null: every layer) and the positions comps keep
+   * for them by m (flips, quarter turns, scaling; see turnOffset), so a comp applied afterwards moves the right way.
+   */
+  offsetsAlong(m, layers = null) {
+    const d = this.doc, list = (layers || allNodes(d.root)).filter(n => n.kind === 'layer');
+    const offs = list.map(n => [n, n.offset, turnOffset(n.offset, m)]);
+    const comps = d.comps, after = turnComps(comps, m, layers ? new Set(list.map(n => n.uid)) : null);
+    return {
+      apply: () => { for (const [n, , o] of offs) n.offset = o; d.comps = after; },
+      revert: () => { for (const [n, o] of offs) n.offset = o; d.comps = comps; },
+    };
   },
 
   /** Replaces the list of comps as one undo step (the window follows through layersChanged). */

@@ -283,7 +283,7 @@ def load_backup(art_id, name):
         return json.load(f)
 
 
-# Saves that send only what changed: a layer, mask or saved selection picture the server already has may come as "ref:<key>", the
+# Saves that send only what changed: a layer, mask, pattern tile or saved selection picture the server already has may come as "ref:<key>", the
 # key being the SHA-1 of its data URL (pic_key). The pictures of the last save, or of the editor's load, of a few
 # artworks are kept here to fill those in, so the .koe file written is whole as before. A ref that is not here (the
 # server restarted, another window saved) fails the save with `missing`, and the editor sends everything again.
@@ -306,12 +306,12 @@ def _pictures(doc, cached=None):
     the pictures they name, raising MissingLayers for one that is not there."""
     keep = {}
 
-    def fix(holder):
-        png = holder.get('png')
+    def fix(holder, key='png'):
+        png = holder.get(key)
         if isinstance(png, str) and png.startswith('ref:') and cached is not None:
             if png[4:] not in cached:
                 raise MissingLayers(png[4:])
-            png = holder['png'] = cached[png[4:]]
+            png = holder[key] = cached[png[4:]]
         if isinstance(png, str) and png.startswith('data:'):
             keep[pic_key(png)] = png
 
@@ -321,6 +321,8 @@ def _pictures(doc, cached=None):
                 fix(n)
                 if isinstance(n.get('mask'), dict):
                     fix(n['mask'])
+                if isinstance(n.get('fill'), dict):
+                    fix(n['fill'], 'src')  # a pattern fill layer's tile
                 walk(n.get('children'))
 
     walk(doc.get('layers'))

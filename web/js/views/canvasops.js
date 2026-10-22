@@ -16,7 +16,7 @@ import { HANDLE_PX } from './selecttools.js';
 
 export const canvasMethods = {
   /** Gives every layer and mask (the quick mask too) a new w x h canvas drawn by paint(ctx, oldCanvas), as one undo step.
-   *  m ([a, b, c, d, e, f], old doc point to new) carries the guides and rulers (mapRulers) and saved selections along. */
+   *  m ([a, b, c, d, e, f], old doc point to new) carries the guides and rulers (mapRulers), saved selections and layer offsets (with comps) along. */
   reshapeCanvas(label, w, h, paint, m = null) {
     this.finishTransform();
     this.finishText();
@@ -37,7 +37,9 @@ export const canvasMethods = {
     const tx = this.textsIn(rasters, m);  // text follows m in its matrix (else becomes pixels); lines follow a shift
     const rl = this.rulersAlong(m, d.width, d.height, w, h);
     const ss = this.savedSelsAlong(m, w, h);  // saved selections follow too
-    this.structural(label, () => { this.setCanvasState(after); tx.drop(); rl.apply(); ss.apply(); }, () => { this.setCanvasState(before); tx.restore(); rl.revert(); ss.revert(); }, bytes + ss.bytes);
+    const of = m ? this.offsetsAlong(m) : { apply() {}, revert() {} };  // and the Move tool's offsets, with the comps' positions
+    this.structural(label, () => { this.setCanvasState(after); tx.drop(); rl.apply(); ss.apply(); of.apply(); },
+      () => { this.setCanvasState(before); tx.restore(); rl.revert(); ss.revert(); of.revert(); }, bytes + ss.bytes);
   },
 
   /** apply/revert for moving the rulers with a change of the canvas (see reshapeCanvas); nothing without m. */

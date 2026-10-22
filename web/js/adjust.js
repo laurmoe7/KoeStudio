@@ -155,22 +155,31 @@ export function adjustSpec(adjust) {
 // ---------- the SVG filters (browser only) ----------
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const cache = new Map();  // spec JSON -> 'url(#id)'
-const byObject = new WeakMap();  // adjust object -> 'url(#id)' (corrections are never changed in place)
+const cache = new Map();  // spec JSON -> 'url(#id)', least recently used first
+const CACHE_MAX = 64;  // a slider dragged in a correction's dialog makes a filter per step: only recent ones stay
+const byObject = new WeakMap();  // adjust object -> its spec JSON (corrections are never changed in place)
 let defs = null, nextId = 1;
 const num = v => +v.toFixed(5);
 
 /** The canvas filter for a correction ('none' when it changes nothing). */
 export function adjustFilter(adjust) {
-  if (byObject.has(adjust)) return byObject.get(adjust);
-  const spec = adjustSpec(adjust);
-  const key = JSON.stringify(spec);
-  let url = cache.get(key);
-  if (!url) {
-    url = spec.length ? buildFilter(spec) : 'none';
-    cache.set(key, url);
+  let key = byObject.get(adjust);
+  if (key === undefined) {
+    key = JSON.stringify(adjustSpec(adjust));
+    if (adjust && typeof adjust === 'object') byObject.set(adjust, key);
   }
-  if (adjust && typeof adjust === 'object') byObject.set(adjust, url);
+  let url = cache.get(key);
+  if (url) cache.delete(key);  // put back below as the most recent
+  else {
+    const spec = JSON.parse(key);
+    url = spec.length ? buildFilter(spec) : 'none';
+  }
+  cache.set(key, url);
+  if (cache.size > CACHE_MAX) {  // the oldest goes, with its <filter> element; built again if wanted later
+    const [old, oldUrl] = cache.entries().next().value;
+    cache.delete(old);
+    if (oldUrl !== 'none') defs.querySelector(`[id="${oldUrl.slice(5, -1)}"]`)?.remove();
+  }
   return url;
 }
 

@@ -95,6 +95,13 @@ class Storage(unittest.TestCase):
         sel['layers'][1]['children'][0]['png'] = 'ref:' + ka
         app.save_art(aid, sel)
         self.assertEqual(app.load_art(aid)['selections'][0]['png'], b)
+        # so may a pattern fill layer's tile
+        sel['layers'][0]['fill'] = {'type': 'pattern', 'src': b}
+        app.save_art(aid, sel)
+        sel['layers'][0]['fill'] = {'type': 'pattern', 'src': 'ref:' + kb}
+        sel['layers'][0]['png'] = 'ref:' + ka
+        app.save_art(aid, sel)
+        self.assertEqual(app.load_art(aid)['layers'][0]['fill']['src'], b)
         saved = app.load_art(aid)
         self.assertEqual(saved['layers'][0]['png'], a, 'refs filled in from the last save')
         self.assertEqual(saved['layers'][0]['mask']['png'], b)

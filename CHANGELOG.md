@@ -24,12 +24,16 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Parallel line ruler: with the Ruler tool, every stroke and straight figure becomes a straight line in one direction, set by dragging the ruler's end or typing an angle.
 
 ### Faster
+- Saving sends a pattern fill layer's pattern only when it changed, instead of every time.
+- Changing a correction layer's settings no longer leaves memory in use for every value tried.
 - Brushes with Texture each dab or No build-up (such as the Artemus pencils) draw about 20 times faster.
 - Brush tips and textures load in the background without holding up your first strokes, and switching between open artworks no longer loads them again.
 - Autosave no longer makes the next stroke stutter on big artworks: the picture is prepared and sent without holding up the drawing.
 - Saving sends saved selections only when they changed, instead of every time.
 
 ### Fixed
+- Auto actions now record adding a correction layer (Layer → New → Correction layer…) and play it back.
+- After flipping, turning or resizing the canvas, or flipping a layer, applying a layer comp with Position moves the layer the right way.
 - Auto actions now record loading a selection from the Saved selections… window, and no longer record opening Saved selections… or Patterns… as a step that does nothing.
 - A saved selection that couldn't be read is dropped when the canvas is cropped, resized, turned or flipped (Undo brings it back), instead of coming back in the wrong place.
 - Opening KoeStudio twice no longer lets both copies share one connection and mix up each other's work; the second copy now uses its own.

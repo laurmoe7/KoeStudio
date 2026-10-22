@@ -124,6 +124,32 @@ export function sanitizeOffset(o) {
   return x || y ? { x, y } : null;
 }
 
+/**
+ * An offset after the canvas (or the layer) is flipped, turned or scaled by m ([a, b, c, d, e, f], old point to
+ * new): a move is a difference of two points, so only the linear part applies. Null stays null.
+ */
+export function turnOffset(o, m) {
+  if (!o) return null;
+  return sanitizeOffset({ x: m[0] * o.x + m[2] * o.y, y: m[1] * o.x + m[3] * o.y });
+}
+
+/**
+ * The comps with the positions they keep turned by m as turnOffset does, for the layers whose uid is in `uids`
+ * (null: every layer). Comps without positions come back as they were (the same objects).
+ */
+export function turnComps(comps, m, uids = null) {
+  return comps.map(c => {
+    if (!c.use.position) return c;
+    const layers = {};
+    for (const [uid, e] of Object.entries(c.layers)) {
+      if (e.x === undefined || (uids && !uids.has(uid))) { layers[uid] = e; continue; }
+      const o = turnOffset({ x: e.x, y: e.y }, m) || { x: 0, y: 0 };
+      layers[uid] = { ...e, x: o.x, y: o.y };
+    }
+    return { ...c, layers };
+  });
+}
+
 /** A node uid as saved, or null when it is not one (a new one is given when the file is opened). */
 export function sanitizeUid(uid) {
   return typeof uid === 'string' && UID.test(uid) ? uid : null;

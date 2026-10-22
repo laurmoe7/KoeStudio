@@ -2,7 +2,7 @@
 // label. Expected values worked out by hand.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { captureComp, updateComp, compChanges, compMatches, sanitizeComps, sanitizeOffset, sanitizeUid, newUid, cleanCompName, nextCompName, uniqueCompName, COMP_MAX } from '../web/js/layercomps.js';
+import { captureComp, updateComp, compChanges, compMatches, sanitizeComps, sanitizeOffset, turnOffset, turnComps, sanitizeUid, newUid, cleanCompName, nextCompName, uniqueCompName, COMP_MAX } from '../web/js/layercomps.js';
 import { sanitizeDoc } from '../web/js/doc.js';
 import { findRows } from '../web/js/tree.js';
 
@@ -131,4 +131,28 @@ test('filtering the layer list by colour label, with the name search', () => {
   assert.equal(rows('sky', 'red'), '');
   assert.equal(rows('', 'green'), '');
   assert.equal(rows('i', null), 'Inks*0 Line*1', 'no label: the name search alone');
+});
+
+test('moves turn with the canvas: flips, quarter turns and scaling; shifts leave them', () => {
+  const flipH = [-1, 0, 0, 1, 200, 0], right = [0, 1, -1, 0, 100, 0], half = [0.5, 0, 0, 0.5, 0, 0], crop = [1, 0, 0, 1, -20, -10];
+  assert.deepEqual(turnOffset({ x: 30, y: 5 }, flipH), { x: -30, y: 5 });
+  assert.deepEqual(turnOffset({ x: 30, y: 5 }, right), { x: -5, y: 30 }, 'right becomes down, down becomes left');
+  assert.deepEqual(turnOffset({ x: 30, y: -8 }, half), { x: 15, y: -4 });
+  assert.deepEqual(turnOffset({ x: 30, y: 5 }, crop), { x: 30, y: 5 });
+  assert.equal(turnOffset(null, flipH), null);
+  assert.equal(turnOffset({ x: 1, y: 0 }, [0.4, 0, 0, 0.4, 0, 0]), null, 'a move scaled to nothing is none');
+});
+
+test('comps keep their positions turned with the layers, so applying one after a flip moves the right way', () => {
+  const pos = { name: 'P', use: { opacity: false, blend: false, position: true },
+    layers: { a: { visible: true, x: 0, y: 0 }, b: { visible: true, x: 12, y: 3 }, f: { visible: true } } };
+  const vis = { name: 'V', use: { opacity: false, blend: false, position: false }, layers: { a: { visible: true } } };
+  const flipH = [-1, 0, 0, 1, 200, 0];
+  const [p2, v2] = turnComps([pos, vis], flipH, new Set(['b', 'f']));
+  assert.equal(v2, vis);
+  assert.deepEqual(p2.layers, { a: { visible: true, x: 0, y: 0 }, b: { visible: true, x: -12, y: 3 }, f: { visible: true } });
+  // layer a was moved 50 right after comp P was kept; the canvas is flipped, which turns its move to 50 left
+  const a = { uid: 'a', kind: 'layer', visible: true, offset: turnOffset({ x: 50, y: 0 }, flipH) };
+  const [p3] = turnComps([pos], flipH);
+  assert.deepEqual(compChanges(p3, [a]).moves, [{ node: a, dx: 50, dy: 0 }], 'back to where P had it, mirrored');
 });

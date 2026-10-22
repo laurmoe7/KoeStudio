@@ -783,6 +783,8 @@ export const layerMethods = {
     const tx = this.textsIn(rasters, m);  // text layers are mirrored in their matrix and stay editable
     const rl = this.rulersAlong(canvas ? m : null, d.width, d.height, d.width, d.height);
     const ss = canvas ? this.savedSelsAlong(m, d.width, d.height) : { apply() {}, revert() {}, bytes: 0 };  // saved selections turn round too
-    this.structural(label, () => { flip(); tx.drop(); rl.apply(); ss.apply(); }, () => { flip(); tx.restore(); rl.revert(); ss.revert(); }, ss.bytes);
+    const of = this.offsetsAlong(m, canvas ? null : rasters);  // Move tool offsets (and comps' positions) of the flipped layers
+    this.structural(label, () => { flip(); tx.drop(); rl.apply(); ss.apply(); of.apply(); },
+      () => { flip(); tx.restore(); rl.revert(); ss.revert(); of.revert(); }, ss.bytes);
   },
 };
