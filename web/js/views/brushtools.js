@@ -12,7 +12,7 @@ import { api } from '../api.js';
 import { curveAt, stampAt, grainAt, previewPath, previewSettings } from '../brush.js';
 import { tipMask, textureGray, whiteToAlpha, fitSide, imageRef, TIP_MAX, TEXTURE_MAX } from '../brushtip.js';
 import { loadImage, liveSource } from '../doc.js';
-import { Painter, registerTip, registerTexture, forgetBrushImage, textureFor, strengthFor, copyFor, comboCopyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from '../painter.js';
+import { Painter, registerTip, registerTexture, forgetBrushImage, hasBrushImage, textureFor, strengthFor, copyFor, comboCopyFor, textureDabFor, grainFor, dryGrainFor, wetFor, impastoFor, heightFor } from '../painter.js';
 import { sanitizeBrush, strokeStamps, dualStamps, seeded } from '../vector.js';
 import { TEXTURES } from '../textures.js';
 import { TIPS, TOOL_BY_ID, BRUSH_KEYS, SETTING_GROUPS, applySettings } from '../tools.js';
@@ -96,8 +96,26 @@ export const brushMethods = {
     } catch {
       this.brushLib = { images: [], presets: [] };
     }
-    await Promise.all(this.brushLib.images.map(i => this.registerBrushImage(i).catch(() => {})));
-    this.brushThumbs?.clear();  // strokes drawn before the tip images were ready
+    // Registered once per page (every open artwork shares them; resume() loads the list again). Scaling a 2000 px
+    // picture down takes 20-45 ms on the page, and a library of big imported ones held up the first strokes for a
+    // second: they are scaled one per task, the current brush's first, never while the pen is down, each decoded
+    // off the page beforehand (a few ahead: a decoded 2000 px picture takes 16 MB).
+    const s = this.settings[this.tool] || {}, now = new Set([s.tip, ...(s.tips || []), s.texture, s.comboTip, s.dualTip].map(imageRef));
+    const todo = this.brushLib.images.filter(i => !(i.ready = hasBrushImage(i.id))).sort((a, b) => now.has(b.id) - now.has(a.id));
+    // a picture that cannot be read leaves its brushes with a round tip
+    const decode = i => loadImage(api.brushImageUrl(i.id)).then(img => img.decode().then(() => img, () => img)).catch(() => null);
+    const AHEAD = 4, decoded = todo.slice(0, AHEAD).map(decode);
+    for (const [k, entry] of todo.entries()) {
+      if (k + AHEAD < todo.length) decoded[k + AHEAD] = decode(todo[k + AHEAD]);
+      const img = await decoded[k];
+      decoded[k] = null;
+      while (this.gesture && !this.destroyed) await new Promise(r => setTimeout(r, 100));
+      if (this.destroyed) return;
+      if (img && !hasBrushImage(entry.id)) { try { registerImage(entry.id, entry.kind, img); } catch { /* round tip */ } }
+      entry.ready = hasBrushImage(entry.id);
+      await new Promise(r => setTimeout(r));  // the next one in a task of its own
+    }
+    if (todo.length) this.brushThumbs?.clear();  // strokes drawn before the tip images were ready
     if (!this.destroyed) this.renderToolProps();
   },
 

@@ -24,6 +24,8 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Parallel line ruler: with the Ruler tool, every stroke and straight figure becomes a straight line in one direction, set by dragging the ruler's end or typing an angle.
 
 ### Faster
+- Brushes with Texture each dab or No build-up (such as the Artemus pencils) draw about 20 times faster.
+- Brush tips and textures load in the background without holding up your first strokes, and switching between open artworks no longer loads them again.
 - Autosave no longer makes the next stroke stutter on big artworks: the picture is prepared and sent without holding up the drawing.
 - Saving sends saved selections only when they changed, instead of every time.
 

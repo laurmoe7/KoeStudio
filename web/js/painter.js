@@ -8,7 +8,7 @@
 import { textureTile, grooveAlpha, TILE } from './textures.js';
 import { imageRef, bristleDots, flatDots } from './brushtip.js';
 import { pixelSpans, dryness, dryDab, DRY_LEVELS, tipIndex, maxDabAlpha } from './brush.js';
-import { applyTextureMode, textureValueAt, emphasized } from './texmodes.js';
+import { textureArea, emphasized } from './texmodes.js';
 
 const TIP = 128;
 const tipImages = new Map();      // image id -> canvas whose alpha is the tip shape
@@ -24,6 +24,9 @@ export function registerTexture(id, gray, w, h) {
   for (const k of Object.keys(values)) if (k.startsWith(`img:${id}:`)) delete values[k];
 }
 
+/** Whether library image `id` is registered as a tip or a texture (images never change under their id). */
+export function hasBrushImage(id) { return tipImages.has(id) || textureImages.has(id); }
+
 export function forgetBrushImage(id) {
   tipImages.delete(id);
   textureImages.delete(id);
@@ -38,12 +41,12 @@ export function hasTipImage(tip) {
 const HAIRS = { bristle: bristleDots, flat: flatDots };  // built-in tips made of hairs (brushtip.js)
 const hairTips = {};
 
-/** A built-in tip that is drawn like a tip image (a canvas whose alpha is the shape), or null. */
-function builtinTip(tip) {
+/** A built-in tip that is drawn like a tip image (a canvas whose alpha is the shape), or null; `mem`: kept in memory. */
+function builtinTip(tip, mem = false) {
   if (!HAIRS[tip]) return null;
-  let c = hairTips[tip];
+  let c = hairTips[tip + (mem ? ':mem' : '')];
   if (!c) {
-    c = hairTips[tip] = document.createElement('canvas');
+    c = hairTips[tip + (mem ? ':mem' : '')] = mem ? memoryCanvas() : document.createElement('canvas');
     c.width = c.height = TIP;
     const ctx = c.getContext('2d');
     for (const d of HAIRS[tip]()) {
@@ -129,8 +132,16 @@ export class Painter {
     this.pixel = !!pixel;  // hard pixels (pixel art): whole-pixel round dabs, no soft edge, tip image or turn
     this.color = color;
     this.hardness = hardness;
-    this.mask = this.fullMask = tipImages.get(imageRef(tip)) || builtinTip(tip);
-    this.image = this.mask ? tinted(this.mask, color) : null;
+    // Dabs worked out in memory (modeDab), and a copy of the stroke kept there, are drawn into canvases in memory
+    // that are read back. Once anything kept on the GPU has been drawn into such a canvas, the browser makes every
+    // later read of it cost half a millisecond, however small (and so of any canvas drawn from it): a dense brush
+    // reads a hundred dabs a frame. So those brushes keep their tip, its halvings, dry levels and tinted copies in
+    // memory (this.mem), and the scratch canvases are made new for each one (resizing undoes it).
+    this.mem = !!(this.texDab || (darken && !pixel) || copy);
+    this.blank = this.mem ? memoryCanvas : () => document.createElement('canvas');
+    if (this.mem) for (const c of modeScratches.values()) c.width = c.width;  // a new canvas of the same size
+    this.mask = this.fullMask = tipImages.get(imageRef(tip)) || builtinTip(tip, this.mem);
+    this.image = this.mask ? tinted(this.mask, color, this.blank()) : null;
     // the other tip pictures, each with its own tinted copy, so changing tips between dabs does not tint again
     const more = this.image && !pixel && Array.isArray(tips) ? tips.map(t => tipImages.get(imageRef(t))).filter(Boolean) : [];
     this.tipSet = more.length ? [this.mask, ...more].map((full, i) => ({ full, mask: full, image: i ? null : this.image, small: null, level: 0, color })) : null;
@@ -144,7 +155,7 @@ export class Painter {
     this.dryT = 0;
     this.dryGrain = this.dryOut ? dryGrain : null;  // dryGrainFor(s): the texture, showing more as the brush runs dry
     this.hard = !this.image && hardness >= 0.99;
-    if (!this.image && !this.hard) this.tip = makeTip(color, hardness);
+    if (!this.image && !this.hard) this.tip = makeTip(color, hardness, this.blank());
     this.squash = Math.max(0.05, Math.min(1, thickness));
     this.angle = (angle || 0) * Math.PI / 180;
     this.random = Math.max(0, Math.min(1, random || 0));
@@ -163,7 +174,7 @@ export class Painter {
     this.color = color;
     if (this.image) {
       this.image = tinted(this.mask, color, this.image);
-      if (this.small) { const mips = mipsOf(this.mask); this.small = this.small.map((c, i) => tinted(mips[i], color, c)); }
+      if (this.small) { const mips = mipsOf(this.mask, this.mem); this.small = this.small.map((c, i) => tinted(mips[i], color, c)); }
     } else if (!this.hard) this.tip = makeTip(color, this.hardness, this.tip);
   }
 
@@ -177,7 +188,7 @@ export class Painter {
     const { level, flowK } = dryDab(this.dryT);
     if (level !== this.dryLevel) {
       this.dryLevel = level;
-      this.mask = dryMask(this.fullMask, level);
+      this.mask = dryMask(this.fullMask, level, this.mem);
       this.image = tinted(this.mask, this.color, this.image);
       this.small = null;
     }
@@ -190,9 +201,9 @@ export class Painter {
     Object.assign(this.tipSet[this.tipAt], { mask: this.mask, image: this.image, small: this.small, level: this.dryLevel, color: this.color });
     const e = this.tipSet[this.tipAt = i];
     if (e.level !== this.dryLevel || !e.image) {
-      e.mask = dryMask(e.full, this.dryLevel);
+      e.mask = dryMask(e.full, this.dryLevel, this.mem);
       e.level = this.dryLevel;
-      e.image = tinted(e.mask, this.color, e.image || undefined);
+      e.image = tinted(e.mask, this.color, e.image || this.blank());
       e.color = this.color;
       e.small = null;
     } else if (e.color !== this.color) {
@@ -212,12 +223,12 @@ export class Painter {
    * tip's thin hairs here and there, and small strokes of a hairy tip turned into a chain pattern.
    */
   imageAt(size) {
-    const mips = mipsOf(this.mask);
+    const mips = mipsOf(this.mask, this.mem);
     let i = 0;
     while (i + 1 < mips.length && Math.max(mips[i + 1].width, mips[i + 1].height) >= size) i++;
     if (!i) return this.image;
     const small = this.small ||= [];
-    return small[i] ||= tinted(mips[i], this.color);
+    return small[i] ||= tinted(mips[i], this.color, this.blank());
   }
 
   /** One dab; k numbers the symmetric copy it belongs to, so each copy follows its own direction. With a colour,
@@ -350,9 +361,7 @@ export class Painter {
   modeDab(x, y, size, alpha, rot) {
     const reach = size * 0.75 + 2;
     const x0 = Math.floor(x - reach), y0 = Math.floor(y - reach), n = Math.ceil(2 * reach) + 1;
-    const c = modeScratch ||= memoryCanvas();
-    if (c.width < n || c.height < n) c.width = c.height = Math.max(n, 64);
-    const g = c.getContext('2d');
+    const c = modeScratch(n), g = c.getContext('2d');
     g.globalCompositeOperation = 'source-over';
     g.globalAlpha = 1;
     g.clearRect(0, 0, n, n);
@@ -360,7 +369,7 @@ export class Painter {
     const img = g.getImageData(0, 0, n, n);
     if (this.texDab) {
       const { mode, D, values: v, emph } = this.texDab;
-      applyTextureMode(img.data, mode, D * Math.max(0, Math.min(1, this.grainK)), i => textureValueAt(v, x0 + i % n, y0 + (i / n | 0)), null, emph);
+      textureArea(img.data, n, x0, y0, mode, D * Math.max(0, Math.min(1, this.grainK)), v, null, emph);
     }
     if (this.darken) maxDabAlpha(img.data, n, x0, y0, this.ctx.canvas.width, this.ctx.canvas.height, this.darken);
     g.putImageData(img, 0, 0);
@@ -422,22 +431,23 @@ export class Painter {
   }
 }
 
-const dryMasks = new WeakMap();  // tip mask -> its dry levels (dryMask)
+const dryMasks = new WeakMap(), dryMasksMem = new WeakMap();  // tip mask -> its dry levels (dryMask)
 const DRY_GRAIN_FROM = 0.2;  // how dry a brush is before the texture shows (Painter.put)
 
 /**
  * A tip mask at dry level `level` (0 = as it is): alpha a becomes (a - t) / (1 - t), t up to 65% at the driest, so
  * the weak hairs and thin parts of the tip drop out first and the strong ones are left to streak on.
  */
-function dryMask(mask, level) {
+function dryMask(mask, level, mem = false) {
   if (!level) return mask;
-  let levels = dryMasks.get(mask);
-  if (!levels) dryMasks.set(mask, levels = []);
+  const all = mem ? dryMasksMem : dryMasks;
+  let levels = all.get(mask);
+  if (!levels) all.set(mask, levels = []);
   if (!levels[level]) {
     const w = mask.width, h = mask.height, t = 0.65 * level / (DRY_LEVELS - 1);
     const src = mask.getContext('2d').getImageData(0, 0, w, h), out = new ImageData(w, h);
     for (let i = 3; i < src.data.length; i += 4) out.data[i] = Math.max(0, Math.round((src.data[i] / 255 - t) / (1 - t) * 255));
-    const c = document.createElement('canvas');
+    const c = mem ? memoryCanvas() : document.createElement('canvas');
     c.width = w; c.height = h;
     c.getContext('2d').putImageData(out, 0, 0);
     levels[level] = c;
@@ -445,15 +455,17 @@ function dryMask(mask, level) {
   return levels[level];
 }
 
-const tipMips = new WeakMap();  // tip mask -> [mask, its halves down to 4 px]
+const tipMips = new WeakMap(), tipMipsMem = new WeakMap();  // tip mask -> [mask, its halves down to 4 px]
 
-/** A tip mask and copies of it halved step by step (each an average of 2 x 2 pixels), down to 4 px on the longer side. */
-function mipsOf(mask) {
-  let mips = tipMips.get(mask);
+/** A tip mask and copies of it halved step by step (each an average of 2 x 2 pixels), down to 4 px on the longer
+ * side; `mem`: the copies kept in memory (Painter.mem). */
+function mipsOf(mask, mem = false) {
+  const all = mem ? tipMipsMem : tipMips;
+  let mips = all.get(mask);
   if (!mips) {
     mips = [mask];
     for (let c = mask; Math.max(c.width, c.height) > 8;) {
-      const n = document.createElement('canvas');
+      const n = mem ? memoryCanvas() : document.createElement('canvas');
       n.width = Math.max(1, Math.ceil(c.width / 2)); n.height = Math.max(1, Math.ceil(c.height / 2));
       const g = n.getContext('2d');
       g.imageSmoothingEnabled = true;
@@ -462,7 +474,7 @@ function mipsOf(mask) {
       mips.push(n);
       c = n;
     }
-    tipMips.set(mask, mips);
+    all.set(mask, mips);
   }
   return mips;
 }
@@ -506,7 +518,24 @@ function withAlpha(hex, a) {
 
 const tiles = {};
 const values = {};
-let grainScratch = null, modeScratch = null;
+let grainScratch = null;
+const modeScratches = new Map();  // side -> canvas in memory (modeScratch)
+
+/**
+ * A canvas in memory at least n px a side, for modeDab. Drawn onto the stroke canvas (on the GPU), the whole canvas
+ * is uploaded every time, however little of it is drawn: one canvas grown for the biggest dab so far (a brush
+ * preview at a large size) made every later dab of a dense Texture each dab brush cost 5 ms. So there is one per
+ * size, the sides in steps of a square root of 2.
+ */
+function modeScratch(n) {
+  const side = n <= 64 ? 64 : Math.max(n, Math.ceil(64 * Math.SQRT2 ** Math.ceil(2 * Math.log2(n / 64))));
+  let c = modeScratches.get(side);
+  if (!c) {
+    modeScratches.set(side, c = memoryCanvas());
+    c.width = c.height = side;
+  }
+  return c;
+}
 
 /** A canvas kept in memory (read back often, never drawn on the GPU): for the texture modes worked out per pixel. */
 function memoryCanvas() {

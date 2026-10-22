@@ -2,7 +2,7 @@
 // its Rough textured paper; the measured value is the average over texture values within 0.05 of s).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { textureMode, applyTextureMode, textureValueAt, TEXTURE_MODES, CSP_TEXTURE_MODES, emphasized } from '../web/js/texmodes.js';
+import { textureMode, applyTextureMode, textureValueAt, TEXTURE_MODES, CSP_TEXTURE_MODES, emphasized, textureArea } from '../web/js/texmodes.js';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} is not ${b}`);
 
@@ -97,4 +97,26 @@ test('Emphasize density: a steep ramp round the middle grey, its steepness set b
   const px = new Uint8ClampedArray([0, 0, 0, 255, 0, 0, 0, 255]);
   applyTextureMode(px, 'multiply', 1, i => [102, 153][i], null, true);  // s 0.4 and 0.6
   assert.deepEqual([px[3], px[7]], [0, 255]);
+});
+
+test('textureArea gives what applyTextureMode gives, pixel for pixel', () => {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const tex = { gray: Uint8Array.from({ length: 37 * 23 }, () => Math.floor(rnd() * 256)), w: 37, h: 23 };
+  const w = 19, h = 13, x0 = -5, y0 = 40;
+  const px = () => Uint8ClampedArray.from({ length: w * h * 4 }, (_, i) => (i % 4 === 3 && rnd() < 0.2 ? 0 : Math.floor(rnd() * 256)));
+  for (const [mode] of TEXTURE_MODES) {
+    for (const v of [{ ...tex, scale: 1 }, { ...tex, scale: 1.76, cos: 0.4226182617407, sin: 0.906307787037 }]) {
+      for (const emph of [false, true]) {
+        for (const withStrength of [false, true]) {
+          const data = px(), st = withStrength ? px() : null;
+          const want = applyTextureMode(Uint8ClampedArray.from(data), mode, 0.6, i => textureValueAt(v, x0 + i % w, y0 + (i / w | 0)), st && (i => st[i * 4 + 3]), emph);
+          assert.deepEqual(textureArea(data, w, x0, y0, mode, 0.6, v, st, emph), want, `${mode} ${v.cos ? 'turned' : ''} ${emph} ${withStrength}`);
+        }
+      }
+    }
+  }
+  // by hand: Subtract, D 0.5, texture value 51 (s 0.2): t = 1 - 0.5 * 0.8 = 0.6; paint 204 (0.8) leaves 0.8 - 0.4 = 0.4 = 102
+  const one = new Uint8ClampedArray([0, 0, 0, 204, 0, 0, 0, 0]);
+  assert.deepEqual([...textureArea(one, 2, 3, 4, 'subtract', 0.5, { gray: new Uint8Array([51]), w: 1, h: 1, scale: 1 })], [0, 0, 0, 102, 0, 0, 0, 0]);
 });

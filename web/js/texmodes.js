@@ -29,19 +29,54 @@ const clamp01 = v => (v <= 0 ? 0 : v >= 1 ? 1 : v);
  */
 export function textureMode(mode, a, s, D, emph = false) {
   if (a <= 0) return 0;
-  const t = emph ? emphasized(s, D) : 1 - D * (1 - s);
-  switch (mode) {
-    case 'subtract': return clamp01(a - (1 - t));
-    case 'compare': return Math.min(a, t);
-    case 'normal': return clamp01(a * (t + 0.5));
-    case 'overlay': return a < 0.5 ? 2 * a * t : 1 - 2 * (1 - a) * (1 - t);
-    case 'dodge': return t >= 1 ? 1 : clamp01(a / (1 - t));
-    case 'burn': return t <= 0 ? 0 : clamp01(1 - (1 - a) / t);
-    case 'hardmix': return clamp01(2 * a + t - 1);
-    case 'outline': return clamp01((1 + D) * a + t - 1);
-    case 'height': return clamp01(10 * a * D - s);
-    default: return a * t;
+  return (MODE_FNS[mode] || MODE_FNS.multiply)(a, emph ? emphasized(s, D) : 1 - D * (1 - s), s, D);
+}
+
+/** Each mode as a function of the paint a, the faded texture t, the texture value s and its density D (textureMode). */
+const MODE_FNS = {
+  subtract: (a, t) => clamp01(a - (1 - t)),
+  compare: (a, t) => Math.min(a, t),
+  normal: (a, t) => clamp01(a * (t + 0.5)),
+  overlay: (a, t) => (a < 0.5 ? 2 * a * t : 1 - 2 * (1 - a) * (1 - t)),
+  dodge: (a, t) => (t >= 1 ? 1 : clamp01(a / (1 - t))),
+  burn: (a, t) => (t <= 0 ? 0 : clamp01(1 - (1 - a) / t)),
+  hardmix: (a, t) => clamp01(2 * a + t - 1),
+  outline: (a, t, s, D) => clamp01((1 + D) * a + t - 1),
+  height: (a, t, s, D) => clamp01(10 * a * D - s),
+  multiply: (a, t) => a * t,
+};
+
+/**
+ * applyTextureMode for the RGBA pixels of a rectangle `w` px wide whose top left is doc pixel (x0, y0), against the
+ * texture values v (textureValueAt); `strength`, when given, is RGBA pixels of the same rectangle whose alpha scales
+ * D (Pen → grain). The same numbers, without a call per pixel to find the texture value: Texture each dab runs this
+ * for every dab, and a dense brush lays a hundred dabs a frame (the per-pixel calls made it draw at 8 frames a second).
+ */
+export function textureArea(data, w, x0, y0, mode, D, v, strength = null, emph = false) {
+  const f = MODE_FNS[mode] || MODE_FNS.multiply, { gray, w: tw, h: th, scale, cos, sin } = v, turned = cos !== undefined;
+  let ts = null;  // t for each texture value, when D is the same for every pixel
+  if (!strength) {
+    ts = new Float64Array(256);
+    for (let s = 0; s < 256; s++) ts[s] = emph ? emphasized(s / 255, D) : 1 - D * (1 - s / 255);
   }
+  const h = data.length / 4 / w;
+  for (let j = 0, p = 3; j < h; j++) {
+    const y = y0 + j;
+    for (let i = 0; i < w; i++, p += 4) {
+      const a = data[p];
+      if (!a) continue;
+      const x = x0 + i, X = turned ? x * cos + y * sin : x, Y = turned ? y * cos - x * sin : y;
+      let tx = Math.floor(X / scale) % tw, ty = Math.floor(Y / scale) % th;
+      if (tx < 0) tx += tw;
+      if (ty < 0) ty += th;
+      const g = gray[ty * tw + tx], s = g / 255;
+      let t, d = D;
+      if (ts) t = ts[g];
+      else { d = D * strength[p] / 255; t = emph ? emphasized(s, d) : 1 - d * (1 - s); }
+      data[p] = Math.round(255 * f(a / 255, t, s, d));
+    }
+  }
+  return data;
 }
 
 /**

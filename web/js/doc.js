@@ -14,7 +14,7 @@ import { sanitizeAdjust, adjustFilter } from './adjust.js';
 import { sanitizeDpi } from './resolution.js';
 import { sanitizeSavedSels, savedSelFrom, savedSelJSON } from './savedsel.js';
 import { sanitizeComps, sanitizeOffset, sanitizeUid, newUid } from './layercomps.js';
-import { applyTextureMode, textureValueAt } from './texmodes.js';
+import { textureArea } from './texmodes.js';
 import { isCustomBlend, CUSTOM_BLENDS, BLEND_SHADER, blendPixels } from './blendmodes.js';
 
 export const BLEND_MODES = [
@@ -1046,7 +1046,7 @@ function textureModeSource(ctx, live, r) {
   }
   const img = src.getContext('2d').getImageData(sx, sy, r.w, r.h);
   const st = strength ? strength.getContext('2d').getImageData(r.x, r.y, r.w, r.h).data : null;
-  if (v) applyTextureMode(img.data, cpu.mode, cpu.D, i => textureValueAt(v, r.x + i % r.w, r.y + (i / r.w | 0)), st && (i => st[i * 4 + 3]), cpu.emph);
+  if (v) textureArea(img.data, r.w, r.x, r.y, cpu.mode, cpu.D, v, st, cpu.emph);
   ctx.putImageData(img, 0, 0);
 }
 
