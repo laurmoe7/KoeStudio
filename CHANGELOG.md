@@ -24,6 +24,7 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Parallel line ruler: with the Ruler tool, every stroke and straight figure becomes a straight line in one direction, set by dragging the ruler's end or typing an angle.
 
 ### Fixed
+- Opening KoeStudio twice no longer lets both copies share one connection and mix up each other's work; the second copy now uses its own.
 - A floating panel no longer shrinks to its smallest size after hiding the panels (Tab) or switching between open artworks.
 - Dragging a layer over a clipped layer shows the drop line again, and clipped layers' rows no longer shift sideways.
 - Applying the mask of a fill, text or vector layer now keeps what the mask hid, instead of the whole layer coming back after the next move or canvas change.

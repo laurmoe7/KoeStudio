@@ -4,7 +4,7 @@ Detailed notes per area, kept in step with the code. `CLAUDE.md` holds the rules
 
 ## Server and desktop window (`app.py`)
 
-- **`app.py`**: stdlib `ThreadingHTTPServer` on 127.0.0.1 (port 8770, or the next free one) serving `web/` and a small JSON API, shown in a pywebview (WebView2) window. Flags: `--browser` (serve only), `--hidden` (window never shown), `--muted`. Env: `KOE_ART_DIR`, `KOE_APP_DIR`, `KOE_PORT`, `KOE_MUTE`.
+- **`app.py`**: stdlib `ThreadingHTTPServer` on 127.0.0.1 (port 8770, or the next free one; on Windows the port is bound with `SO_EXCLUSIVEADDRUSE`, since `SO_REUSEADDR` there would let two servers share it) serving `web/` and a small JSON API, shown in a pywebview (WebView2) window. Flags: `--browser` (serve only), `--hidden` (window never shown), `--muted`. Env: `KOE_ART_DIR`, `KOE_APP_DIR`, `KOE_PORT`, `KOE_MUTE`.
 - **Backups:** `save_art` (and rename) call `_keep_backup` first: when the newest kept version is older than `BACKUP_EVERY` (10 min) the file about to be replaced is hard-linked (or copied) to `.backups/<id>-<time>.koe`, keeping `BACKUP_KEEP` (5). The gallery opens a backup as a new artwork, never over the original.
 - `do_POST` always consumes the request body (`_drop_body`): an unread body stays in the kept-alive connection and the next request fails with 501.
 - `Handler._allowed` refuses requests from other web pages (foreign `Host`, foreign `Origin`, `Sec-Fetch-Site` cross-site/same-site).

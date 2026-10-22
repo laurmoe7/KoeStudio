@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import sys
 import threading
 import time
@@ -869,8 +870,21 @@ class Handler(SimpleHTTPRequestHandler):
             self._drop_body()
 
 
+class Server(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR lets a second socket bind a port that is already
+    # serving, so two servers would share it and get each other's requests.
+    # Claim the port exclusively there; a taken port then raises OSError and
+    # main() moves on to the next one.
+    if os.name == 'nt':
+        allow_reuse_address = False
+
+        def server_bind(self):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            super().server_bind()
+
+
 def start_server(port):
-    srv = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    srv = Server(('127.0.0.1', port), Handler)
     port = srv.server_address[1]  # the real one when 0 was asked for
     srv.hosts = {f'127.0.0.1:{port}', f'localhost:{port}', f'[::1]:{port}'}
     srv.origins = {'http://' + h for h in srv.hosts}

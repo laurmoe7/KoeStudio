@@ -86,7 +86,7 @@ Detailed notes per area (data shapes, function names, how each feature hangs tog
 
 ## Gotchas
 
-- Port 8790 can already belong to another program on this PC (it once answered with a different app's page). The server then moves to the next free port and prints the URL (`Serving http://127.0.0.1:<port>/`); read that line instead of assuming the port, and check `/api/config` answers with `artDir` before testing.
+- If the port is taken the server moves to the next free one and prints the URL (`Serving http://127.0.0.1:<port>/`); read that line instead of assuming the port.
 - Editing files that contain backslashes (`.ps1`, docs with Windows paths) through a Python string in a shell heredoc silently turns `\r`, `\t`, `\x` and similar into control characters. Use the Edit tool, or build backslashes with `chr(92)`, and re-read the result.
 - Use `127.0.0.1`, not `localhost` (IPv6-first lookup makes every request slower).
 - The pywebview window keeps localStorage in `%LOCALAPPDATA%\KoeStudio\webview` (`private_mode=False`); without it tool settings are forgotten each launch.

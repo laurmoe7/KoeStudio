@@ -325,6 +325,11 @@ class Http(unittest.TestCase):
         cls.tmp.cleanup()
         os.environ.pop('KOE_ART_DIR', None)
 
+    def test_a_port_in_use_is_not_shared(self):
+        # A second server on the same port must fail, so main() tries the next one.
+        with self.assertRaises(OSError):
+            app.start_server(self.port)
+
     def req(self, method, path, body=None, headers=None):
         c = http.client.HTTPConnection('127.0.0.1', self.port)
         c.request(method, path, body=body, headers=headers or {})
