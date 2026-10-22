@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { Smoother, StampPath, stampAt, grainAt, stampBounds, dabCount, dabJitter, colorJitter, taperIn, taperOut, taperDab, releaseHeld, adjustPressure, tiltFrom, dynamicsAt, dynamicsReach, SPEED_FULL, paintAt } from '../brush.js';
 import { tipReach } from '../brushtip.js';
 import { hexToRgb, rgbToHex, shiftColor, averageColor } from '../color.js';
-import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach, withoutDrafts } from '../doc.js';
+import { Doc, Layer, composite, renderFolder, canvasToDataUrl, loadImage, liveSource, docEffectReach, withoutDrafts, picKey } from '../doc.js';
 import { isFolder } from '../tree.js';
 import { floodMask, growMask, closeGapFill, insideLines } from '../fill.js';
 import { History } from '../history.js';
@@ -2357,7 +2357,7 @@ export async function openEditor(root, { id, newDoc, onHome, onOpen }) {
       const raw = await api.load(id, true);  // the server keeps its pictures, so saves send only what changes
       const doc = await Doc.fromJSON(raw, id);
       await ed.open(doc);
-      ed.serverHas = { id, keys: Promise.all(doc.rasters().map(r => r.pngHash())).then(k => new Set(k), () => null) };
+      ed.serverHas = { id, keys: Promise.all([...doc.rasters().map(r => r.pngHash()), ...[...doc.savedSels, ...doc.lostSels].map(s => picKey(s.png))]).then(k => new Set(k), () => null) };
     }
   } catch (e) {
     ed.destroy();  // a half-opened editor would keep its key handlers and resize observer on the gallery

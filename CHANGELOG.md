@@ -23,7 +23,12 @@ What changed in KoeStudio, newest first. Older changes are in the git history.
 - Letter gap in the Text tool spreads letters apart or pulls them closer.
 - Parallel line ruler: with the Ruler tool, every stroke and straight figure becomes a straight line in one direction, set by dragging the ruler's end or typing an angle.
 
+### Faster
+- Saving sends saved selections only when they changed, instead of every time.
+
 ### Fixed
+- Auto actions now record loading a selection from the Saved selections… window, and no longer record opening Saved selections… or Patterns… as a step that does nothing.
+- A saved selection that couldn't be read is dropped when the canvas is cropped, resized, turned or flipped (Undo brings it back), instead of coming back in the wrong place.
 - Opening KoeStudio twice no longer lets both copies share one connection and mix up each other's work; the second copy now uses its own.
 - A floating panel no longer shrinks to its smallest size after hiding the panels (Tab) or switching between open artworks.
 - Dragging a layer over a clipped layer shows the drop line again, and clipped layers' rows no longer shift sideways.

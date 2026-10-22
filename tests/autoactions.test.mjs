@@ -1,7 +1,7 @@
 // Auto actions: stored steps, labels, folding repeated settings, finding menu items and dialog fields.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeStep, sanitizeActions, defaultActions, stepLabel, addStep, findMenuItem, dialogValues, fieldFor } from '../web/js/autoactions.js';
+import { sanitizeStep, sanitizeActions, defaultActions, stepLabel, addStep, findMenuItem, dialogValues, fieldFor, SKIP_ITEMS } from '../web/js/autoactions.js';
 
 test('steps from storage are checked, and unknown ones dropped', () => {
   assert.deepEqual(sanitizeStep({ kind: 'menu', menu: 'filter', path: ['Blur', 'Gaussian blur…'], dialogs: [[['radius', '4']]], show: true }),
@@ -33,6 +33,17 @@ test('steps read as what they do', () => {
   assert.equal(stepLabel({ kind: 'prop', key: 'blend', value: 'multiply', label: 'Blending mode' }), 'Blending mode: Multiply');
   assert.equal(stepLabel({ kind: 'prop', key: 'clip', value: true, label: 'Clip to layer below' }), 'Clip to layer below: on');
   assert.equal(stepLabel({ kind: 'prop', key: 'layerColor', value: null, label: 'Layer color' }), 'Layer color: off');
+  assert.equal(stepLabel({ kind: 'call', name: 'loadSelectionNamed', args: ['Face', 'replace'] }), 'Load selection “Face”');
+  assert.equal(stepLabel({ kind: 'call', name: 'loadSelectionNamed', args: ['Face', 'add'] }), 'Load selection “Face” (add)');
+});
+
+test('a saved selection load keeps its name and mode; list windows are not steps', () => {
+  const long = 'x'.repeat(100);
+  assert.deepEqual(sanitizeStep({ kind: 'call', name: 'loadSelectionNamed', args: ['Face', 'subtract', 'extra'] }),
+    { kind: 'call', name: 'loadSelectionNamed', args: ['Face', 'subtract'] });
+  assert.equal(sanitizeStep({ kind: 'call', name: 'loadSelectionNamed', args: [long] }).args[0].length, 80);
+  assert.deepEqual(sanitizeStep({ kind: 'call', name: 'layerMove', args: [{}, 1] }), { kind: 'call', name: 'layerMove', args: [1] });
+  assert.ok(SKIP_ITEMS.has('Saved selections…') && SKIP_ITEMS.has('Patterns…'));
 });
 
 test('changing the same setting twice in a row keeps one step', () => {

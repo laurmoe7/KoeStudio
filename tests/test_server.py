@@ -87,6 +87,14 @@ class Storage(unittest.TestCase):
                            {'type': 'folder', 'name': 'F', 'children': [{'name': 'B', 'png': a}]}]
             return d
         app.save_art(aid, second())
+        # saved selections' pictures may be refs too
+        sel = second()
+        sel['selections'] = [{'name': 'S', 'x': 0, 'y': 0, 'w': 1, 'h': 1, 'png': b}]
+        app.save_art(aid, sel)
+        sel['selections'][0]['png'] = 'ref:' + kb
+        sel['layers'][1]['children'][0]['png'] = 'ref:' + ka
+        app.save_art(aid, sel)
+        self.assertEqual(app.load_art(aid)['selections'][0]['png'], b)
         saved = app.load_art(aid)
         self.assertEqual(saved['layers'][0]['png'], a, 'refs filled in from the last save')
         self.assertEqual(saved['layers'][0]['mask']['png'], b)

@@ -10,7 +10,7 @@
 
 import {
   sanitizeActions, defaultActions, stepLabel, addStep, findMenuItem, dialogValues, fieldFor,
-  RECORD_MENUS, SKIP_ITEMS, RECORD_CALLS, PROP_KEYS,
+  RECORD_MENUS, SKIP_ITEMS, RECORD_CALLS, PROP_KEYS, isArg,
 } from '../autoactions.js';
 import { icon } from '../icons.js';
 import { esc, menu, modalHooks, promptBox, confirmBox, store, toast } from '../ui.js';
@@ -35,7 +35,7 @@ export const actionMethods = {
     this.recDepth = 0;
     for (const name of Object.keys(RECORD_CALLS)) {
       const orig = this[name];
-      this[name] = (...args) => this.recordStep({ kind: 'call', name, args: args.filter(a => typeof a === 'number' || typeof a === 'boolean') }, () => orig.apply(this, args));
+      this[name] = (...args) => this.recordStep({ kind: 'call', name, args: args.filter(a => isArg(a, name)) }, () => orig.apply(this, args));
     }
     const setProp = this.setPickedProp;
     this.setPickedProp = (key, value, label) => (PROP_KEYS.includes(key)

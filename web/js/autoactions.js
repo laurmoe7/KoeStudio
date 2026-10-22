@@ -15,13 +15,15 @@ import { sanitizeExpression, expressionLabel } from './expression.js';
 /** The menus whose items are recorded; the others (File, View, Help) only look or save. */
 export const RECORD_MENUS = ['edit', 'image', 'select', 'layer', 'filter'];
 /** Menu items that are never recorded: they need the canvas (dragging, clicking) or undo the recording itself. */
-export const SKIP_ITEMS = new Set(['Undo', 'Redo', 'Find layer on canvas', 'Crop tool', 'Transform…', 'Transform selection…', 'Quick mask (paint the selection)', 'Color range…']);
+export const SKIP_ITEMS = new Set(['Undo', 'Redo', 'Find layer on canvas', 'Crop tool', 'Transform…', 'Transform selection…', 'Quick mask (paint the selection)', 'Color range…',
+  'Saved selections…', 'Patterns…']);  // the last two only manage lists: the load or save done in them is the step
 /** Keyboard commands that change the artwork, and so are recorded. */
 export const RECORD_CMDS = new Set(['clear', 'fillMain', 'fillSub', 'fillPattern', 'repeatFilter', 'selectAll', 'deselect', 'invertSelection', 'newLayer',
   'groupFolder', 'mergeDown', 'mergeVisible', 'layerCopy', 'layerCut', 'swapColors']);
 /** Editor methods the Layers panel calls directly, recorded with their arguments. */
 export const RECORD_CALLS = { layerAdd: 'New layer', folderAdd: 'New folder', layerDuplicate: 'Duplicate layer', layerDelete: 'Delete layer',
-  layerMove: 'Move layer', mergeDown: 'Merge down', addMask: 'Add mask' };
+  layerMove: 'Move layer', mergeDown: 'Merge down', addMask: 'Add mask',
+  loadSelectionNamed: 'Load selection' };  // (name, mode) from the Saved selections… window
 /** Layers panel settings (setPickedProp keys) and what their values may be. */
 const PROPS = {
   blend: v => [...BLEND_MODES.map(m => m[0]), PASS_THROUGH[0]].includes(v),
@@ -38,6 +40,9 @@ const MAX_STEPS = 200, MAX_ACTIONS = 100, MAX_SETS = 30;
 
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
 
+/** What a recorded call's arguments may be: numbers and booleans, and names for the named load. */
+export const isArg = (a, name) => typeof a === 'number' || typeof a === 'boolean' || (typeof a === 'string' && name === 'loadSelectionNamed');
+
 /** One recorded step from storage, or null when it is not one KoeStudio can play. */
 export function sanitizeStep(s) {
   if (!s || typeof s !== 'object') return null;
@@ -46,7 +51,7 @@ export function sanitizeStep(s) {
     out = { kind: 'menu', menu: s.menu, path: s.path.map(p => p.slice(0, 80)) };
   } else if (s.kind === 'cmd' && RECORD_CMDS.has(s.id)) out = { kind: 'cmd', id: s.id };
   else if (s.kind === 'call' && Object.hasOwn(RECORD_CALLS, s.name)) {
-    const args = Array.isArray(s.args) ? s.args.filter(a => typeof a === 'number' || typeof a === 'boolean').slice(0, 2) : [];
+    const args = Array.isArray(s.args) ? s.args.filter(a => isArg(a, s.name)).slice(0, 2).map(a => (typeof a === 'string' ? a.slice(0, 80) : a)) : [];
     out = { kind: 'call', name: s.name, args };
   } else if (s.kind === 'prop' && Object.hasOwn(PROPS, s.key) && PROPS[s.key](s.value)) {
     out = { kind: 'prop', key: s.key, value: s.value, label: str(s.label, 60) || s.key };
@@ -102,6 +107,7 @@ const BLEND_LABEL = new Map([...BLEND_MODES, PASS_THROUGH]);
 export function stepLabel(s) {
   if (s.kind === 'menu') return [MENU_NAMES[s.menu], ...s.path].join(' › ');
   if (s.kind === 'cmd') return CMD_LABEL.get(s.id) || s.id;
+  if (s.kind === 'call' && s.name === 'loadSelectionNamed') return `Load selection “${s.args[0]}”` + (s.args[1] && s.args[1] !== 'replace' ? ` (${s.args[1]})` : '');
   if (s.kind === 'call') return RECORD_CALLS[s.name] + (s.name === 'layerMove' ? (s.args[0] > 0 ? ' up' : ' down') : '');
   const v = s.key === 'expression' ? expressionLabel(s.value) : s.key === 'opacity' ? Math.round(s.value * 100) + '%' : s.key === 'blend' ? BLEND_LABEL.get(s.value) : typeof s.value === 'boolean' ? (s.value ? 'on' : 'off') : s.value ?? 'off';
   return `${s.label}: ${v}`;

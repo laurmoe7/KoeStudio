@@ -4,14 +4,16 @@
 import { builtinPattern, patternMatrix, gradientLine } from './patterns.js';
 import { gradientReach, repeatStops, reflectStops, diamondQuarters } from './gradient.js';
 
-const builtins = new Map();  // 'id|colour' -> tile canvas
+const builtins = new Map();  // 'id|colour' -> tile canvas, least recently used first
+const BUILTINS_MAX = 64;     // one tile per pattern and colour: kept for the colours in use, not every colour ever picked
 const decoded = new Map();   // PNG data URL -> tile canvas (null while it decodes, false when it cannot)
 const pending = new Map();   // PNG data URL -> promise
 
 /** A built-in pattern's tile in a colour (a canvas, kept), or null for an unknown id. */
 export function builtinTile(id, color) {
   const key = id + '|' + color;
-  if (builtins.has(key)) return builtins.get(key);
+  const kept = builtins.get(key);
+  if (kept) { builtins.delete(key); builtins.set(key, kept); return kept; }  // now the most recent
   const p = builtinPattern(id);
   if (!p) return null;
   const c = document.createElement('canvas');
@@ -21,6 +23,7 @@ export function builtinTile(id, color) {
   for (let i = 0; i < p.values.length; i++) { img.data.set([r, g, b, p.values[i]], i * 4); }
   ctx.putImageData(img, 0, 0);
   builtins.set(key, c);
+  if (builtins.size > BUILTINS_MAX) builtins.delete(builtins.keys().next().value);  // not freed: a fill layer may still draw it
   return c;
 }
 

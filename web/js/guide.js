@@ -1007,7 +1007,8 @@ export const GUIDE = [
       <li>Open View → <b>Auto actions</b>.</li>
       <li>Press <b>New</b>, give the action a name, and recording starts.</li>
       <li>Do the steps: menu items (with the values you type in their dialogs), shortcut commands, and the Layers
-      panel (new layer, blending, opacity, clip, labels, Layer color, Expression color).</li>
+      panel (new layer, blending, opacity, clip, labels, Layer color, Expression color). Loading a selection from
+      Select → Saved selections… is recorded by its name, with how it was combined.</li>
       <li>Press <b>Stop</b>.</li>
       <li>Press <b>▶</b> next to the action, or double-click its name, to do it all again.</li>
     </ol>

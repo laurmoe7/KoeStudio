@@ -45,6 +45,14 @@ export const savedSelMethods = {
     }, { x: s.x, y: s.y, w: s.w, h: s.h }));
   },
 
+  /** loadSavedSel by name: what the Saved selections… window's Load records, so an auto action can play it back. */
+  loadSelectionNamed(name, mode = 'replace') {
+    const s = this.doc.savedSels.find(x => x.name === name);
+    if (!s) throw new Error(`there is no saved selection called “${name}”`);
+    if (!SELECT_MODES.some(m => m[0] === mode)) mode = 'replace';
+    this.loadSavedSel(s.id, mode);
+  },
+
   /** The Load selection submenu: each saved selection (as a new selection), or a note that there are none. */
   savedSelMenu() {
     const list = this.doc.savedSels;
@@ -73,7 +81,7 @@ export const savedSelMethods = {
         listEl.querySelectorAll('.ssel-row').forEach(row => {
           const s = d.savedSels.find(x => x.id === +row.dataset.id);
           this.drawSavedSelThumb(row.querySelector('canvas'), s);
-          row.querySelector('[data-load]').onclick = () => { this.loadSavedSel(s.id, mode); done(null); };
+          row.querySelector('[data-load]').onclick = () => { done(null); this.loadSelectionNamed(s.name, mode); };
           row.querySelector('[data-rename]').onclick = async () => {
             const name = await promptBox('Rename saved selection', 'Name', s.name);
             if (!name || name === s.name) return;
@@ -88,7 +96,13 @@ export const savedSelMethods = {
           };
         });
       };
-      saveBtn.onclick = async () => { await this.saveSelection(); render(); };
+      // recorded as Select › Save selection… (this window is not a step, and is shut meanwhile: a recorded step
+      // waits for every dialog to close), then the window comes back with the new entry
+      saveBtn.onclick = async () => {
+        done(null);
+        await this.recordStep({ kind: 'menu', menu: 'select', path: ['Save selection…'] }, () => this.saveSelection());
+        this.savedSelsDialog();
+      };
       render();
     } });
   },
@@ -113,12 +127,18 @@ export const savedSelMethods = {
   /**
    * apply/revert (and the memory it holds) for taking the saved selections along with a change of the canvas to
    * W x H (m: old doc point to new; null keeps them in place, cut to the new size). One that ends up off the canvas
-   * is dropped (and comes back on undo).
+   * is dropped (and comes back on undo), as are the ones in the file that could not be read (doc.lostSels) when the
+   * canvas moves under them: they can't be moved, and kept as they were they would come back in the wrong place.
    */
   savedSelsAlong(m, W, H) {
-    const d = this.doc, before = d.savedSels;
-    if (!before.length) return { apply() {}, revert() {}, bytes: 0 };
+    const d = this.doc, before = d.savedSels, lost = d.lostSels;
+    if (!before.length && !lost.length) return { apply() {}, revert() {}, bytes: 0 };
     const after = before.map(s => mapSavedSel(s, m || [1, 0, 0, 1, 0, 0], W, H)).filter(Boolean);
-    return { apply: () => { d.savedSels = after; }, revert: () => { d.savedSels = before; }, bytes: savedSelBytes(after) };
+    const lostAfter = m ? [] : lost.filter(s => s.x + s.w <= W && s.y + s.h <= H);  // in place: kept while they fit
+    return {
+      apply: () => { d.savedSels = after; d.lostSels = lostAfter; },
+      revert: () => { d.savedSels = before; d.lostSels = lost; },
+      bytes: savedSelBytes(after),
+    };
   },
 };

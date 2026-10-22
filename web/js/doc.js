@@ -116,6 +116,12 @@ export function sanitizeDoc(raw) {
 
 let nextId = 1;
 
+/** SHA-1 (hex) of a picture's data URL: the key saves that send only changes name it by (app.py pic_key). */
+export async function picKey(png) {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(png));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 /** Pixels with a canvas, a change counter and a cached PNG: a layer or a mask. */
 class Raster {
   constructor(w, h) {
@@ -133,8 +139,7 @@ class Raster {
     const png = this.png;
     if (!png) return null;
     if (this.hashOf === png) return this.hash;
-    const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(png));
-    const hash = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    const hash = await picKey(png);
     this.hash = hash;  // kept as a pair with the PNG it belongs to (another call may have hashed a newer one meanwhile)
     this.hashOf = png;
     return hash;
@@ -335,6 +340,7 @@ export class Doc {
     this.active = null;  // the selected layer or folder
     this.rulers = defaultRulers();
     this.savedSels = [];  // saved selections (savedsel.js), never changed in place: undo swaps the list
+    this.lostSels = [];   // ones in the file that could not be read: saved back as they were, dropped by a change of canvas
     this.comps = [];  // layer comps (layercomps.js), never changed in place: undo swaps the list
     this.version = 0;    // raised on any change worth saving
   }
@@ -421,8 +427,14 @@ export class Doc {
     const layers = [];
     for (const n of this.root.children) layers.push(await node(n));
     const selections = [];
-    for (const s of this.savedSels) selections.push(await savedSelJSON(s));
-    selections.push(...(this.lostSels || []).filter(s => s.x + s.w <= this.width && s.y + s.h <= this.height));
+    const selPic = async (s, out) => {  // as pic(), the key kept on the entry (entries never change)
+      if (!delta) return out;
+      if (s.keyOf !== out.png) [s.key, s.keyOf] = [await picKey(out.png), out.png];
+      delta.keys.add(s.key);
+      return delta.have?.has(s.key) ? { ...out, png: 'ref:' + s.key } : out;
+    };
+    for (const s of this.savedSels) selections.push(await selPic(s, await savedSelJSON(s)));
+    for (const s of this.lostSels) selections.push(await selPic(s, { name: s.name, x: s.x, y: s.y, w: s.w, h: s.h, png: s.png }));
     return { format: 'koe', version: FORMAT_VERSION, title: this.title, width: this.width, height: this.height, paper: this.paper, dpi: this.dpi,
       activePath: this.active ? pathOf(this.active) : [], rulers: this.rulers, ...(this.timelapse ? { timelapse: true } : {}),
       ...(selections.length ? { selections } : {}), ...(this.comps.length ? { comps: this.comps } : {}), layers };

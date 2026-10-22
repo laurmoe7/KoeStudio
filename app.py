@@ -283,7 +283,7 @@ def load_backup(art_id, name):
         return json.load(f)
 
 
-# Saves that send only what changed: a layer or mask picture the server already has may come as "ref:<key>", the
+# Saves that send only what changed: a layer, mask or saved selection picture the server already has may come as "ref:<key>", the
 # key being the SHA-1 of its data URL (pic_key). The pictures of the last save, or of the editor's load, of a few
 # artworks are kept here to fill those in, so the .koe file written is whole as before. A ref that is not here (the
 # server restarted, another window saved) fails the save with `missing`, and the editor sends everything again.
@@ -324,6 +324,9 @@ def _pictures(doc, cached=None):
                 walk(n.get('children'))
 
     walk(doc.get('layers'))
+    for s in doc.get('selections') if isinstance(doc.get('selections'), list) else []:
+        if isinstance(s, dict):
+            fix(s)  # saved selections' pictures travel the same way
     return keep
 
 
